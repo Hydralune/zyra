@@ -4,6 +4,11 @@ Dynamic heterogeneous multi-agent system for long-horizon complex tasks.
 
 Zyra is the project workspace for the competition system "智衍群策：动态异构多智能体协同推理系统". The first engineering phase aims to build a complete agent architecture for long-horizon complex tasks, then optimize it against the competition requirements.
 
+## 启动与使用
+
+面向首次接手项目的环境准备、CLI/Web 启动、任务运行、恢复、停止和 T1 正式执行步骤，见
+[`QUICKSTART.zh-CN.md`](QUICKSTART.zh-CN.md)。
+
 ## Current Phase
 
 Canonical status: the previous M0-M5 work is now consolidated into a single completed `M0: foundation and main-path bootstrap`. It is not treated as six completed heavyweight milestones.
