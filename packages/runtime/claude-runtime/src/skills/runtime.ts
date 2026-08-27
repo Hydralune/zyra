@@ -35,6 +35,8 @@ export interface ForkedSkillExecutionInput {
   skillResources: JsonValue;
   effectiveToolScope: JsonValue;
   maximumTurns: number;
+  skillAncestry?: string[];
+  remainingSkillDepth?: number;
   sandbox: string;
   allowNetwork: boolean;
 }
@@ -92,7 +94,11 @@ export class TypeScriptSkillRuntime {
         ...parent.messages.map(cloneJson),
         {
           role: "system",
-          content: "Execute the bound Zyra Markdown skill under its exact tool scope and budgets.",
+          content: [
+            `You are already executing the bound Zyra Markdown skill ${input.skillName} (${input.skillId}).`,
+            "Execute its rendered body directly under the exact tool scope and budgets.",
+            "Do not invoke this skill or any active ancestor skill again; recursive skill invocation is rejected.",
+          ].join(" "),
           metadata: {
             skill_id: input.skillId,
             skill_name: input.skillName,
@@ -119,6 +125,8 @@ export class TypeScriptSkillRuntime {
           ...asObject(parent.config.runtimeConstraints),
           skill_invocation_id: input.invocationId,
           skill_id: input.skillId,
+          skill_ancestry: cloneJson(input.skillAncestry ?? [input.skillId]),
+          skill_depth_remaining: input.remainingSkillDepth ?? 0,
           skill_tool_scope: cloneJson(input.effectiveToolScope),
           skill_sandbox: input.sandbox,
           skill_network_allowed: input.allowNetwork,

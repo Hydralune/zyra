@@ -230,11 +230,20 @@ test("e04-skill-plugin-command", async () => {
     assert.deepEqual(childCalls[0]!.turns, []);
     assert.equal(childCalls[0]!.config.maxTurns, 4);
     assert.equal((childCalls[0]!.config.runtimeConstraints as JsonObject).skill_network_allowed, false);
+    assert.deepEqual(
+      (childCalls[0]!.config.runtimeConstraints as JsonObject).skill_ancestry,
+      ["e04-fork-skill"],
+    );
+    assert.equal(
+      (childCalls[0]!.config.runtimeConstraints as JsonObject).skill_depth_remaining,
+      0,
+    );
     assert.equal(
       ((childCalls[0]!.config.runtimeConstraints as JsonObject).skill_tool_scope as JsonObject).readOnly,
       true,
     );
     assert.equal(childCalls[0]!.messages.at(-2)?.role, "system");
+    assert.match(String(childCalls[0]!.messages.at(-2)?.content), /already executing.*e04-fork-skill/i);
     assert.equal(childCalls[0]!.messages.at(-1)?.role, "user");
     assert.match(String(childCalls[0]!.messages.at(-1)?.content), /docs\/e04-evidence\.md/);
     assert.equal(
@@ -346,6 +355,69 @@ test("e04-skill-fork-failure", async () => {
     assert.equal(records.length, 1);
     assert.equal(records[0]?.status, "failed");
     assert.equal(records[0]?.result, null);
+  } finally {
+    await capabilities.close();
+    await rm(fixture.workspace, { recursive: true, force: true });
+  }
+});
+
+test("e04 skill ancestry rejects cycles and preserves bounded non-cyclic composition", async () => {
+  const fixture = await createCapabilityWorkspace("zyra-e04-skill-ancestry-");
+  const input = runtimeInput(fixture.workspace);
+  const capabilities = await TypeScriptCapabilityRuntime.open(input);
+  try {
+    const recursiveParent = runtimeInput(fixture.workspace);
+    Object.assign(recursiveParent.config.runtimeConstraints as JsonObject, {
+      skill_id: "e04-fork-skill",
+      skill_ancestry: ["e04-fork-skill"],
+      skill_depth_remaining: 1,
+    });
+    const recursiveCalls: RuntimeRunInput[] = [];
+    await assert.rejects(
+      capabilities.execute("skill", {
+        skill: "e04-fork-skill",
+        arguments: { target: "recursive" },
+      }, executionContext(recursiveParent, recursiveCalls), { toolCallId: "e04-recursive-call" }),
+      /skill_recursive_invocation_denied|already active in the current skill ancestry/,
+    );
+    assert.equal(recursiveCalls.length, 0);
+
+    const exhaustedParent = runtimeInput(fixture.workspace);
+    Object.assign(exhaustedParent.config.runtimeConstraints as JsonObject, {
+      skill_id: "outer-skill",
+      skill_ancestry: ["outer-skill"],
+      skill_depth_remaining: 0,
+    });
+    const exhaustedCalls: RuntimeRunInput[] = [];
+    await assert.rejects(
+      capabilities.execute("skill", {
+        skill: "e04-fork-skill",
+        arguments: { target: "exhausted" },
+      }, executionContext(exhaustedParent, exhaustedCalls), { toolCallId: "e04-depth-exhausted-call" }),
+      /skill_nested_invocation_denied|does not permit invoking nested skill/,
+    );
+    assert.equal(exhaustedCalls.length, 0);
+
+    const composableParent = runtimeInput(fixture.workspace);
+    Object.assign(composableParent.config.runtimeConstraints as JsonObject, {
+      skill_id: "outer-skill",
+      skill_ancestry: ["outer-skill"],
+      skill_depth_remaining: 1,
+    });
+    const composedCalls: RuntimeRunInput[] = [];
+    await capabilities.execute("skill", {
+      skill: "e04-fork-skill",
+      arguments: { target: "bounded-composition" },
+    }, executionContext(composableParent, composedCalls), { toolCallId: "e04-bounded-composition-call" });
+    assert.equal(composedCalls.length, 1);
+    assert.deepEqual(
+      (composedCalls[0]!.config.runtimeConstraints as JsonObject).skill_ancestry,
+      ["outer-skill", "e04-fork-skill"],
+    );
+    assert.equal(
+      (composedCalls[0]!.config.runtimeConstraints as JsonObject).skill_depth_remaining,
+      0,
+    );
   } finally {
     await capabilities.close();
     await rm(fixture.workspace, { recursive: true, force: true });

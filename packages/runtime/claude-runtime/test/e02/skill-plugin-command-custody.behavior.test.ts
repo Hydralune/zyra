@@ -915,6 +915,24 @@ test("e02.custody.skills-plugins-commands.failure-path", async () => {
   }), /one character/i);
 });
 
+test("e02 bundled skill invocation preserves the declared nesting budget", () => {
+  const markdown = `---
+schema: zyra.skill/v1
+name: pdf-analysis
+description: Extract page-level PDF evidence
+invocation: {"mode":"fork","agent":"DataWorker","max-skill-depth":0}
+allowed-tools: ["builtin/file_read","builtin/shell"]
+---
+Extract PDF evidence without recursively invoking this skill.`;
+  const parsed = new SkillFrontmatterRuntime({
+    now: () => new Date(instant),
+  }).parseText(skillSource({ skillId: "pdf-analysis", markdown }), markdown);
+  assert.equal(parsed.execution.mode, "fork");
+  assert.equal(parsed.execution.agent, "DataWorker");
+  assert.equal(parsed.execution.maximumSkillDepth, 0);
+  assert.equal(parsed.warnings.some((warning) => /invocation/.test(warning)), false);
+});
+
 test("skill frontmatter preserves arguments, tool scope, hooks, resources, and unknown-key warnings", () => {
   const markdown = `---
 id: structured-skill

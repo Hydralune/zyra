@@ -90,6 +90,7 @@ export interface SkillExecutionPolicy {
   mode: SkillInvocationMode;
   agent: string | null;
   model: string | null;
+  maximumSkillDepth?: number;
   timeoutMs: number;
   maximumTurns: number;
   maximumCostMicros: number | null;

@@ -1977,6 +1977,36 @@ export class E02CapabilityCoordinator {
       throw abortError(executorContext.signal.reason);
     }
     const parent = context.parentInput;
+    const parentSkillAncestry = skillInvocationAncestry(parent);
+    if (parentSkillAncestry.includes(plan.skillId)) {
+      throw coordinatorError(
+        "skill_recursive_invocation_denied",
+        `skill ${plan.skillId} is already active in the current skill ancestry`,
+        {
+          skill_id: plan.skillId,
+          skill_ancestry: parentSkillAncestry,
+          child_started: false,
+        },
+      );
+    }
+    const parentDepthRemaining = skillDepthRemaining(parent);
+    if (parentDepthRemaining !== null && parentDepthRemaining <= 0) {
+      throw coordinatorError(
+        "skill_nested_invocation_denied",
+        `active skill ancestry does not permit invoking nested skill ${plan.skillId}`,
+        {
+          skill_id: plan.skillId,
+          skill_ancestry: parentSkillAncestry,
+          skill_depth_remaining: parentDepthRemaining,
+          child_started: false,
+        },
+      );
+    }
+    const descriptorDepth = plan.execution.maximumSkillDepth ?? 0;
+    const childDepthRemaining = parentDepthRemaining === null
+      ? descriptorDepth
+      : Math.min(parentDepthRemaining - 1, descriptorDepth);
+    const childSkillAncestry = [...parentSkillAncestry, plan.skillId];
     const childTaskId = `${parent.taskId}:skill:${plan.skillId}:${plan.invocationId.slice(-12)}`;
     const result = await TypeScriptSkillRuntime.executeForkedSkill(
       {
@@ -1993,6 +2023,8 @@ export class E02CapabilityCoordinator {
         skillResources: canonicalize(plan.resources),
         effectiveToolScope: canonicalize(plan.effectiveToolScope),
         maximumTurns: plan.execution.maximumTurns,
+        skillAncestry: childSkillAncestry,
+        remainingSkillDepth: childDepthRemaining,
         sandbox: plan.execution.sandbox,
         allowNetwork: plan.execution.allowNetwork,
       },
@@ -4879,6 +4911,21 @@ function skillParentContext(input: RuntimeRunInput): SkillParentContext {
       worker_request_id: input.workerRequestId,
     },
   };
+}
+
+function skillInvocationAncestry(input: RuntimeRunInput): string[] {
+  const constraints = asObject(input.config.runtimeConstraints);
+  const ancestry = stringArrayOrEmpty(constraints.skill_ancestry);
+  const current = asString(constraints.skill_id).trim();
+  if (current && !ancestry.includes(current)) ancestry.push(current);
+  return ancestry;
+}
+
+function skillDepthRemaining(input: RuntimeRunInput): number | null {
+  const value = asObject(input.config.runtimeConstraints).skill_depth_remaining;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : null;
 }
 
 function cloneAuthorizationInput(input: E02AuthorizationInput): E02AuthorizationInput {

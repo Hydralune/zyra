@@ -61,7 +61,7 @@ export class SkillFrontmatterRuntime {
     const argumentsValue = parseArguments(frontmatter.arguments ?? frontmatter.args, warnings);
     const toolScope = parseToolScope(frontmatter.tools ?? frontmatter.tool_scope ?? frontmatter.toolScope);
     const context = parseContext(frontmatter.context);
-    const execution = parseExecution(frontmatter.execution ?? frontmatter.agent);
+    const execution = parseExecution(frontmatter.execution ?? frontmatter.invocation ?? frontmatter.agent);
     const resources = parseResources(frontmatter.resources, source, warnings);
     const hooks = parseHooks(frontmatter.hooks, warnings);
     const body = split.body.trim();
@@ -70,7 +70,7 @@ export class SkillFrontmatterRuntime {
     const known = new Set([
       "id", "name", "display_name", "displayName", "description", "version", "license", "author",
       "tags", "aliases", "arguments", "args", "tools", "tool_scope", "toolScope", "context",
-      "execution", "agent", "resources", "hooks", "environment", "env", "enabled", "metadata",
+      "execution", "invocation", "agent", "resources", "hooks", "environment", "env", "enabled", "metadata",
     ]);
     const unknown: JsonObject = {};
     for (const [key, value] of Object.entries(frontmatter)) if (!known.has(key)) unknown[key] = canonicalize(value);
@@ -251,6 +251,12 @@ function parseExecution(value: unknown): SkillExecutionPolicy {
     mode,
     agent: nullableString(object.agent),
     model: nullableString(object.model),
+    maximumSkillDepth: skillDepthValue(
+      object["max-skill-depth"]
+        ?? object.max_skill_depth
+        ?? object.maximum_skill_depth
+        ?? object.maximumSkillDepth,
+    ),
     timeoutMs: integerValue(object.timeout_ms ?? object.timeoutMs, 300_000),
     maximumTurns: integerValue(object.maximum_turns ?? object.maximumTurns, 32),
     maximumCostMicros: integerOrNull(object.maximum_cost_micros ?? object.maximumCostMicros),
@@ -261,6 +267,15 @@ function parseExecution(value: unknown): SkillExecutionPolicy {
     persistTranscript: object.persist_transcript !== false && object.persistTranscript !== false,
     persistArtifacts: object.persist_artifacts !== false && object.persistArtifacts !== false,
   };
+}
+
+function skillDepthValue(value: unknown): number {
+  if (value === undefined || value === null || value === "") return 0;
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > 8) {
+    throw new Error("skill maximum depth must be an integer from 0 to 8");
+  }
+  return parsed;
 }
 
 function parseResources(value: unknown, source: SkillSourceFile, warnings: string[]): SkillResourceDescriptor[] {
