@@ -95,7 +95,9 @@ class GatewayRuntimeBundle:
 class GatewayRuntimeBundleRegistry:
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._bundles: dict[tuple[str, str, str, int, int], GatewayRuntimeBundle] = {}
+        self._bundles: dict[
+            tuple[str, str, str, int, int, bool], GatewayRuntimeBundle
+        ] = {}
 
     def get_or_create(
         self,
@@ -108,13 +110,18 @@ class GatewayRuntimeBundleRegistry:
     ) -> GatewayRuntimeBundle:
         workspace = Path(workspace_root).resolve()
         artifacts = Path(artifact_root).resolve()
-        action_port = dict(runtime_services or {}).get("backend_action_dispatch_port")
+        services = dict(runtime_services or {})
+        action_port = services.get("backend_action_dispatch_port")
+        allow_executable_source = bool(
+            services.get("sandbox_gateway_allow_executable_source", False)
+        )
         key = (
             str(workspace),
             str(artifacts),
             str(worker_id),
             id(workspace_edit_port),
             id(action_port),
+            allow_executable_source,
         )
         with self._lock:
             existing = self._bundles.get(key)
@@ -174,6 +181,9 @@ def build_gateway_runtime_bundle(
     )
     allow_loopback_network = bool(
         services.get("sandbox_gateway_allow_loopback_network", False)
+    )
+    allow_executable_source = bool(
+        services.get("sandbox_gateway_allow_executable_source", False)
     )
     state_root = Path(
         services.get("sandbox_gateway_state_root")
@@ -273,7 +283,7 @@ def build_gateway_runtime_bundle(
         FilePolicyConfig(
             maximum_bytes=int(services.get("sandbox_gateway_maximum_file_bytes", 128 * 1024 * 1024)),
             allow_binary=True,
-            allow_executable=False,
+            allow_executable=allow_executable_source,
             allow_archive=True,
             quarantine_content_type_mismatch=True,
             quarantine_unknown_binary=True,

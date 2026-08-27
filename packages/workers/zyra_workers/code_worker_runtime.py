@@ -115,12 +115,19 @@ class CodeWorkerRuntime:
                 supplied_services.get("workspace_gateway_required", False),
             )
         )
+        # CodeWorker may author text script source inside its fenced task
+        # workspace. Artifact export and command execution remain independent
+        # policy boundaries and do not inherit this source-write capability.
+        supplied_services.setdefault(
+            "sandbox_gateway_allow_executable_source",
+            True,
+        )
         services = install_gateway_runtime_services(
-            runtime_services,
+            supplied_services,
             workspace_root=workspace_root,
             artifact_root=artifact_root,
             worker_id="CodeWorkerRuntime",
-            workspace_edit_port=dict(runtime_services or {}).get("workspace_edit_port"),
+            workspace_edit_port=supplied_services.get("workspace_edit_port"),
         )
         bundle = services.get("sandbox_gateway_bundle")
         if bundle is not None:

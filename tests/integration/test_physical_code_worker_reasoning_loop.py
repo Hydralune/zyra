@@ -610,6 +610,14 @@ def test_physical_code_worker_runs_model_tool_observation_model_loop(
     )
     smoke = manager.internal_task_root(access) / "smoke.txt"
     assert smoke.read_text(encoding="utf-8") == "ZYRA_SMOKE_OK\n"
+    assert (
+        manager.internal_task_root(access)
+        / ".zyra"
+        / "skills"
+        / "zyra-bundled"
+        / "pdf-analysis"
+        / "SKILL.md"
+    ).is_file()
     assert len(requests) == 3
     assert all(authorization_seen)
     assert "ZYRA_SMOKE_OK" in json.dumps(requests[0])

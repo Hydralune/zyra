@@ -311,7 +311,7 @@ class ToolExecutor:
         # the last side-effect boundary so direct ToolExecutor callers cannot
         # bypass the runtime by relying on an old ALLOW decision.
         try:
-            if call.tool_name == "web_search" and authorized:
+            if call.tool_name in {"browser", "web_search"} and authorized:
                 delegated = self._dispatch_backend_action(call, permission_grant)
                 if delegated is not None:
                     return delegated

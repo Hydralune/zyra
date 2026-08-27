@@ -16,6 +16,7 @@ from typing import Any, Mapping
 from urllib.parse import urlparse
 
 from zyra_core import AgentMessage, AgentRole, MessageIntent, to_jsonable
+from zyra_integrations.e02_ports import materialize_bundled_skills
 from zyra_runtime import JsonPermissionStore, WorkerRequest
 from zyra_runtime.artifacts import LocalArtifactStore
 from zyra_runtime.provider_control_plane import ProviderControlPlaneClient
@@ -24,7 +25,11 @@ from zyra_runtime.sandbox_gateway import (
     DockerSandboxBackend,
     canonical_logical_path,
 )
-from zyra_workers import CodeWorkerRuntime, load_task_handoff_projection
+from zyra_workers import (
+    BrowserWorkerActionDispatchPort,
+    CodeWorkerRuntime,
+    load_task_handoff_projection,
+)
 from zyra_workspace import (
     WorkspaceError,
     WorkspaceEditPort,
@@ -349,6 +354,11 @@ def execute_code_worker_operator(
         worker_id=worker_id,
     )
     workspace_root = manager.internal_task_root(access)
+    # The direct API path materializes the same packaged skills before a
+    # TypeScript E02 session starts. Physical provider dispatch must bind the
+    # identical task-scoped snapshot instead of silently exposing an empty
+    # skill catalog.
+    materialize_bundled_skills(project_root, workspace_root)
     benchmark_binding = _benchmark_docker_binding(
         node_data_root=Path(node_data_root).resolve(),
         workspace_root=workspace_root,
@@ -411,7 +421,11 @@ def execute_code_worker_operator(
             or payload.get("model")
             or ""
         ),
-        "permission_mode": "acceptEdits",
+        # Physical dispatch has no human approval bridge. Auto mode permits
+        # deterministic low-risk workspace commands while the permission risk
+        # classifier, immutable deny rules, and SandboxGateway still reject
+        # high-risk, network, destructive, or out-of-bound effects.
+        "permission_mode": "auto",
         "permission_interactive": False,
         "permission_headless": True,
         # Permission-session custody is keyed by this id and its record outlives
@@ -569,6 +583,18 @@ def execute_code_worker_operator(
         "workspace_gateway_required": True,
         "sandbox_gateway_state_root": sandbox_gateway_state_root,
     }
+    browser_dispatch_port = BrowserWorkerActionDispatchPort(
+        project_root=project_root,
+        workspace_root=workspace_root,
+        artifact_root=artifact_root,
+        state_root=(
+            Path(node_data_root).resolve()
+            / "browser-worker-dispatch"
+            / _safe_id(task_id)
+        ),
+        workspace_edit_port=edit_port,
+    )
+    runtime_services["backend_action_dispatch_port"] = browser_dispatch_port
 
     def completion_gate(request_payload: Mapping[str, Any]) -> dict[str, Any]:
         if benchmark_mirror is not None:
@@ -624,6 +650,7 @@ def execute_code_worker_operator(
             / "code-worker-permission-state"
             / f"{_safe_id(task_id)}.json"
         ),
+        permission_auto_available=True,
         permission_accept_edits_available=True,
         runtime_services=runtime_services,
     )
@@ -637,8 +664,12 @@ def execute_code_worker_operator(
         run = runtime.run(request)
     finally:
         lease_heartbeat.stop()
+        browser_dispatch_port.close()
     lease_heartbeat.raise_if_failed()
-    runtime_events = [to_jsonable(item) for item in run.event_records]
+    runtime_events = [
+        *[to_jsonable(item) for item in run.event_records],
+        *[to_jsonable(item) for item in browser_dispatch_port.event_records()],
+    ]
     current_access = edit_port.current_access()
     workspace_root = manager.internal_task_root(current_access)
     benchmark_sync: dict[str, Any] | None = None

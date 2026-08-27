@@ -22,7 +22,16 @@ from zyra_runtime.executor import (  # noqa: E402
     ToolResult,
 )
 from zyra_runtime.sandbox_gateway.integration_factory import (  # noqa: E402
+    GatewayRuntimeBundleRegistry,
     build_gateway_runtime_bundle,
+)
+from zyra_runtime.sandbox_gateway import (  # noqa: E402
+    ArtifactProvenance,
+    FileArtifactRequest,
+    GatewayCommandEnvelope,
+    OperationKind,
+    ProvenanceKind,
+    TrustLevel,
 )
 from zyra_runtime.sandbox_gateway.integration_browser import BrowserGatewayBoundary  # noqa: E402
 from zyra_runtime.sandbox_gateway.integration_mcp import McpGatewayBoundary  # noqa: E402
@@ -150,6 +159,79 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         )
         self.assertFalse(blocked.worker_result.ok)
         self.assertFalse((workspace / "must-not-exist.txt").exists())
+
+    def test_production_policy_separates_script_source_export_and_execution(self) -> None:
+        state = create_task_state("Author a reproduction script without releasing it")
+        port, workspace = self._port(state, "CodeWorkerRuntime")
+        runtime = CodeWorkerRuntime(
+            project_root=ROOT,
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            runtime_services={
+                "workspace_edit_port": port,
+                "workspace_gateway_required": True,
+                "sandbox_gateway_required": True,
+            },
+        )
+        bundle = runtime.execution_context.runtime_services["sandbox_gateway_bundle"]
+        provenance = ArtifactProvenance.build(
+            kind=ProvenanceKind.GENERATED,
+            trust=TrustLevel.TRUSTED,
+            source_id="CodeWorkerRuntime",
+        )
+        source = FileArtifactRequest.build(
+            session_id="script-source-session",
+            logical_path="deliverables/reproduce.ps1",
+            content="Write-Output 'reproduced'",
+            content_type="text/plain",
+            provenance=provenance,
+            operation=OperationKind.FILE_WRITE,
+            executable_allowed=True,
+        )
+        exported = FileArtifactRequest.build(
+            session_id="script-source-session",
+            logical_path="exports/reproduce.ps1",
+            content="Write-Output 'reproduced'",
+            content_type="text/plain",
+            provenance=provenance,
+            operation=OperationKind.ARTIFACT_EXPORT,
+            executable_allowed=False,
+        )
+        command = GatewayCommandEnvelope.build(
+            session_id="script-source-session",
+            run_id=state.run_id,
+            task_id=state.task_id,
+            worker_id="CodeWorkerRuntime",
+            executable="pwsh",
+            argv=("-NoProfile", "-File", "deliverables/reproduce.ps1"),
+            tool_use_id="script-source-command",
+        )
+
+        self.assertTrue(bundle.file_policy.config.allow_executable)
+        self.assertTrue(bundle.file_policy.inspect(source).allowed)
+        self.assertTrue(bundle.file_policy.inspect(exported).quarantine)
+        self.assertTrue(
+            bundle.command_policy.evaluate(command).requires_permission_runtime
+        )
+
+        registry = GatewayRuntimeBundleRegistry()
+        restrictive = registry.get_or_create(
+            workspace_root=workspace,
+            artifact_root=self.artifacts / "registry",
+            worker_id="same-worker",
+            workspace_edit_port=None,
+            runtime_services={"sandbox_gateway_allow_executable_source": False},
+        )
+        source_capable = registry.get_or_create(
+            workspace_root=workspace,
+            artifact_root=self.artifacts / "registry",
+            worker_id="same-worker",
+            workspace_edit_port=None,
+            runtime_services={"sandbox_gateway_allow_executable_source": True},
+        )
+        self.assertIsNot(restrictive, source_capable)
+        self.assertFalse(restrictive.file_policy.config.allow_executable)
+        self.assertTrue(source_capable.file_policy.config.allow_executable)
 
     def test_gateway_rejection_reason_is_visible_to_the_model(self) -> None:
         call = ToolCall(

@@ -334,7 +334,10 @@ class BrowserWorkerRuntime:
         self.browser_use_health: BrowserUseRuntimeHealth = inspect_browser_use_runtime(self.project_root)
         browser_config = BrowserRuntimeConfig(
             state_root=self.artifact_store.root / ".browser-session" / "state",
-            runtime_root=self.project_root / "tmp" / "browser-session-runtime",
+            # Browser profiles and process custody are task artifacts. Keeping
+            # them here prevents stable session ids from reusing a stale Chrome
+            # profile owned by another task attempt.
+            runtime_root=self.artifact_store.root / ".browser-session" / "runtime",
             artifact_root=self.artifact_store.root,
             request_timeout_seconds=float(timeout_seconds),
             connect_timeout_seconds=float(timeout_seconds),

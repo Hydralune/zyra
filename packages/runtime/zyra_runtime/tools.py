@@ -413,9 +413,12 @@ def default_tool_registry() -> ToolRegistry:
             ToolSpec(
                 "browser",
                 (
-                    "Read inline HTML or an allowed HTTP(S) URL. This tool does "
-                    "not inspect local image or video files; use shell-based "
-                    "image/OCR utilities for local media."
+                    "Open an allowed HTTP(S) URL through BrowserWorker and return "
+                    "its browser session, action, page-state, and extracted-text "
+                    "evidence. For task-local HTML, start a local static HTTP "
+                    "server and pass its URL. This tool does not inspect local "
+                    "image or video files; use shell-based image/OCR utilities "
+                    "for local media."
                 ),
                 "browser-use",
                 input_schema={

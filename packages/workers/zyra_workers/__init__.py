@@ -18,6 +18,7 @@ from .browser_use_runtime import (
     inspect_browser_use_runtime,
 )
 from .browser_worker import BrowserWorkerRun, BrowserWorkerRuntime
+from .browser_action_dispatch import BrowserWorkerActionDispatchPort
 from .browser_context import (
     BrowserContextDeliveryBatch,
     BrowserContextScope,
@@ -156,6 +157,7 @@ __all__ = [
     "BackendServiceConfig",
     "BrowserWorkerRun",
     "BrowserWorkerRuntime",
+    "BrowserWorkerActionDispatchPort",
     "BrowserContextDeliveryBatch",
     "BrowserContextScope",
     "BrowserContextTaskCheckpoint",
