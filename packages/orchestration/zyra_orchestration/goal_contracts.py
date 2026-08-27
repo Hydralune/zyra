@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -103,6 +104,36 @@ _FILE_CONTENT_PATTERNS = (
 )
 
 _PATH_CONTEXT_BOUNDARY = re.compile(r"[。.!！?？;；\r\n]")
+_KNOWN_SKILL_NAMES = (
+    "code-change",
+    "codebase-analysis",
+    "competition-demo",
+    "failure-recovery",
+    "pdf-analysis",
+    "report-writing",
+    "requirement-change",
+    "trace-summary",
+    "verification",
+    "web-research",
+)
+_SCRIPT_EXTENSIONS = {".bat", ".cmd", ".js", ".mjs", ".ps1", ".py", ".sh", ".ts"}
+_SCRIPT_RUN_REQUIREMENT = re.compile(
+    r"(?:编写|创建|生成|提供|write|create|generate|provide)"
+    r"[^。.!！?？\r\n]{0,80}"
+    r"(?:并(?:实际)?运行|并执行|and\s+(?:actually\s+)?(?:run|execute))"
+    r"[^。.!！?？\r\n]{0,80}(?:脚本|script)",
+    re.IGNORECASE,
+)
+_LOOPX_REQUIREMENT = re.compile(
+    r"(?:先|必须|请|use|required?)?[^。.!！?？\r\n]{0,24}\bLoopX\b"
+    r"[^。.!！?？\r\n]{0,80}(?:建立|创建|规划|跟踪|编排|build|create|plan|track|orchestrat)",
+    re.IGNORECASE,
+)
+_ROLE_SEPARATION_REQUIREMENT = re.compile(
+    r"(?:不同角色|独立角色|独立复核|独立审查|角色分离|different\s+roles?|"
+    r"independent\s+(?:role|review|verification)|role\s+separation)",
+    re.IGNORECASE,
+)
 
 
 def _normalized(value: str) -> str:
@@ -136,6 +167,11 @@ class GoalDeliveryContract:
     workspace_mutation_required: bool
     required_paths: tuple[str, ...]
     expected_file_contents: tuple[tuple[str, str], ...]
+    required_skills: tuple[str, ...] = ()
+    required_executed_paths: tuple[str, ...] = ()
+    provenance_index_paths: tuple[str, ...] = ()
+    loopx_required: bool = False
+    role_separation_required: bool = False
     provider_reasoning_required: bool = True
     final_response_required: bool = True
     schema: str = DELIVERY_CONTRACT_SCHEMA
@@ -154,6 +190,11 @@ class GoalDeliveryContract:
                 }
                 for path, content in self.expected_file_contents
             },
+            "required_skills": list(self.required_skills),
+            "required_executed_paths": list(self.required_executed_paths),
+            "provenance_index_paths": list(self.provenance_index_paths),
+            "loopx_required": self.loopx_required,
+            "role_separation_required": self.role_separation_required,
             "provider_reasoning_required": self.provider_reasoning_required,
             "final_response_required": self.final_response_required,
             "goal_digest": self.goal_digest,
@@ -251,6 +292,24 @@ def goal_delivery_contract(user_goal: str) -> GoalDeliveryContract:
         if paths and expected_content
         else ()
     )
+    required_skills = _required_skills(goal)
+    executable_paths = tuple(
+        path
+        for path in paths
+        if PurePosixPath(path).suffix.casefold() in _SCRIPT_EXTENSIONS
+    )
+    required_executed_paths: tuple[str, ...] = ()
+    if _SCRIPT_RUN_REQUIREMENT.search(goal):
+        required_executed_paths = executable_paths
+    provenance_index_paths = tuple(
+        path
+        for path in paths
+        if PurePosixPath(path).suffix.casefold() == ".json"
+        and any(
+            token in PurePosixPath(path).stem.casefold()
+            for token in ("source_index", "evidence_index", "provenance", "source_manifest")
+        )
+    )
     return GoalDeliveryContract(
         goal_digest=_digest(goal),
         interaction_kind=(
@@ -263,6 +322,11 @@ def goal_delivery_contract(user_goal: str) -> GoalDeliveryContract:
         workspace_mutation_required=workspace_mutation_required,
         required_paths=tuple(paths),
         expected_file_contents=expected_file_contents,
+        required_skills=required_skills,
+        required_executed_paths=required_executed_paths,
+        provenance_index_paths=provenance_index_paths,
+        loopx_required=bool(_LOOPX_REQUIREMENT.search(goal)),
+        role_separation_required=bool(_ROLE_SEPARATION_REQUIREMENT.search(goal)),
     )
 
 
@@ -306,6 +370,7 @@ def validate_goal_delivery(
         ),
         "required_paths_present": True,
         "expected_file_contents_match": True,
+        "provenance_indexes_valid": True,
         "direct_response_exact": bool(
             direct is None or response == direct.expected_response
         ),
@@ -354,6 +419,14 @@ def validate_goal_delivery(
         checks["expected_file_contents_match"] = (
             checks["expected_file_contents_match"] and matches
         )
+    provenance_index_evidence: list[dict[str, Any]] = []
+    for relative in contract.provenance_index_paths:
+        path = _resolve_contract_path(root, relative)
+        index_result = validate_provenance_index(path, relative)
+        checks["provenance_indexes_valid"] = (
+            checks["provenance_indexes_valid"] and index_result["passed"]
+        )
+        provenance_index_evidence.append(index_result)
     evidence = [
         _evidence(
             tier=1,
@@ -375,6 +448,13 @@ def validate_goal_delivery(
             name="expected_file_contents_match",
             passed=checks["expected_file_contents_match"],
             decisive=bool(contract.expected_file_contents),
+        ),
+        _evidence(
+            tier=1,
+            source="workspace",
+            name="provenance_indexes_valid",
+            passed=checks["provenance_indexes_valid"],
+            decisive=bool(contract.provenance_index_paths),
         ),
         _evidence(
             tier=1,
@@ -413,6 +493,7 @@ def validate_goal_delivery(
         "checks": checks,
         "contract": expected_projection,
         "path_evidence": path_evidence,
+        "provenance_index_evidence": provenance_index_evidence,
         "evidence": evidence,
         "decision": {
             "policy": "contract_evidence_priority",
@@ -430,6 +511,84 @@ def validate_goal_delivery(
             ),
         },
         "workspace_root_redacted": True,
+    }
+
+
+def _required_skills(goal: str) -> tuple[str, ...]:
+    """Compile only explicit, catalog-known skill obligations from goal prose."""
+
+    required: list[str] = []
+    for name in _KNOWN_SKILL_NAMES:
+        quoted = re.search(rf"[`\"'“‘]{re.escape(name)}[`\"'”’]", goal, re.IGNORECASE)
+        if quoted is None:
+            continue
+        start = max(0, quoted.start() - 64)
+        end = min(len(goal), quoted.end() + 64)
+        clause = goal[start:end]
+        if re.search(
+            r"(?:使用|调用|运行|执行|use|invoke|run|execute|required?|must)",
+            clause,
+            re.IGNORECASE,
+        ):
+            required.append(name)
+    if (
+        "trace-summary" not in required
+        and re.search(r"(?:trace|追踪|轨迹)[\s/_-]*(?:摘要|summary)", goal, re.IGNORECASE)
+        and re.search(r"(?:使用|保存|生成|use|save|create)", goal, re.IGNORECASE)
+    ):
+        required.append("trace-summary")
+    return tuple(name for name in _KNOWN_SKILL_NAMES if name in required)
+
+
+def validate_provenance_index(path: Path | None, relative: str) -> dict[str, Any]:
+    """Validate the minimum portable contract of a JSON source/evidence index."""
+
+    missing_digest: list[str] = []
+    missing_method: list[str] = []
+    indexed_paths: list[str] = []
+    error = ""
+    document: Any = None
+    try:
+        if path is None or not path.is_file() or path.stat().st_size > 4 * 1024 * 1024:
+            raise ValueError("index is missing or exceeds 4 MiB")
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+        error = str(exc)
+
+    def visit(value: Any) -> None:
+        if isinstance(value, Mapping):
+            indexed = str(value.get("path") or "").strip().replace("\\", "/")
+            if indexed and indexed != relative.replace("\\", "/"):
+                indexed_paths.append(indexed)
+                digest = str(value.get("sha256") or value.get("digest") or "").strip()
+                method = str(
+                    value.get("extraction_method")
+                    or value.get("extractionMethod")
+                    or value.get("method")
+                    or ""
+                ).strip()
+                normalized_digest = digest.removeprefix("sha256:")
+                if not re.fullmatch(r"[0-9a-fA-F]{64}", normalized_digest):
+                    missing_digest.append(indexed)
+                if not method:
+                    missing_method.append(indexed)
+            for child in value.values():
+                visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+
+    if document is not None:
+        visit(document)
+    passed = bool(indexed_paths) and not error and not missing_digest and not missing_method
+    return {
+        "path": relative,
+        "passed": passed,
+        "indexed_path_count": len(indexed_paths),
+        "missing_digest_paths": sorted(set(missing_digest))[:100],
+        "missing_extraction_method_paths": sorted(set(missing_method))[:100],
+        "error": error,
+        "physical_location_redacted": True,
     }
 
 
@@ -562,4 +721,5 @@ __all__ = [
     "goal_contract_matches_projection",
     "validate_direct_response",
     "validate_goal_delivery",
+    "validate_provenance_index",
 ]

@@ -14,3 +14,5 @@ resources: ["references/event-taxonomy.md"]
 Summarize the run without inventing missing transitions.
 
 Preserve goals, constraints, real state mutations, route decisions, tool and verification outcomes, permission decisions, compact boundaries, failures and recoveries, artifact references, and unresolved work. Exclude heartbeat, UI repaint, repeated logs, and no-op records from effective-step claims.
+
+For structured handoff, include the producing role, receiving role, claim identifiers, source and artifact refs, digests, uncertainties, exact verification commands, and unresolved gates. Never turn a planned role or static plan document into an executed-role claim.

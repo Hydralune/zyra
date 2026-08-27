@@ -362,6 +362,7 @@ class JsonlRuntimeHost implements RuntimeHost {
       final_text: request.finalText,
       delivery_contract: request.deliveryContract,
       progressive_execution: request.progressiveExecution,
+      obligation_evidence: request.obligationEvidence,
       attempt: request.attempt,
     }, correlationId);
     const frame = await this.read("completion.check.result", correlationId);

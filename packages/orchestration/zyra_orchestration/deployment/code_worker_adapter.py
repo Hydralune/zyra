@@ -37,7 +37,7 @@ from zyra_workspace import (
     WorkspaceManagerRuntime,
 )
 
-from ..goal_contracts import direct_response_contract
+from ..goal_contracts import direct_response_contract, validate_provenance_index
 from .errors import DispatchRejected
 
 
@@ -145,10 +145,16 @@ def _evaluate_delivery_completion(
         if isinstance(request.get("progressive_execution"), Mapping)
         else {}
     )
+    obligation_evidence = (
+        dict(request.get("obligation_evidence") or {})
+        if isinstance(request.get("obligation_evidence"), Mapping)
+        else {}
+    )
     final_text = str(request.get("final_text") or "").strip()
     failed: list[str] = []
     missing_paths: list[str] = []
     content_mismatches: list[str] = []
+    invalid_provenance_indexes: list[str] = []
     contract_bound = bool(
         isinstance(request.get("delivery_contract"), Mapping)
         and dict(request["delivery_contract"]) == dict(delivery_contract)
@@ -203,6 +209,19 @@ def _evaluate_delivery_completion(
     if content_mismatches:
         failed.append("expected_file_contents_match")
 
+    for raw_path in delivery_contract.get("provenance_index_paths") or ():
+        relative = str(raw_path or "").strip().replace("\\", "/")
+        candidate = (root / relative).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            candidate = None
+        result = validate_provenance_index(candidate, relative)
+        if result.get("passed") is not True:
+            invalid_provenance_indexes.append(relative)
+    if invalid_provenance_indexes:
+        failed.append("provenance_indexes_valid")
+
     mutation_required = delivery_contract.get("workspace_mutation_required") is True
     workspace_mutations = max(0, int(progressive.get("workspaceMutationCount") or 0))
     if mutation_required and workspace_mutations == 0:
@@ -220,12 +239,141 @@ def _evaluate_delivery_completion(
     if verification_required and (verification_count == 0 or unresolved):
         failed.append("behavioral_verification_passed")
 
+    raw_skill_invocations = obligation_evidence.get(
+        "successful_skill_invocations"
+    )
+    skill_invocations = [
+        dict(item)
+        for item in (
+            raw_skill_invocations
+            if isinstance(raw_skill_invocations, list)
+            else ()
+        )
+        if isinstance(item, Mapping) and str(item.get("name") or "")
+    ]
+    successful_skills = {
+        str(item.get("name") or "") for item in skill_invocations
+    }
+    required_skills = {
+        str(item)
+        for item in delivery_contract.get("required_skills") or ()
+        if str(item)
+    }
+    missing_skills = sorted(required_skills - successful_skills)
+    if missing_skills:
+        failed.append("required_skills_invoked")
+
+    raw_executed_paths = obligation_evidence.get("successful_executed_paths")
+    executed_path_records = [
+        dict(item)
+        for item in (
+            raw_executed_paths
+            if isinstance(raw_executed_paths, list)
+            else ()
+        )
+        if isinstance(item, Mapping) and str(item.get("path") or "")
+    ]
+    executed_paths = {
+        str(item.get("path") or "").replace("\\", "/")
+        for item in executed_path_records
+    }
+    required_executed_paths = {
+        str(item).replace("\\", "/")
+        for item in delivery_contract.get("required_executed_paths") or ()
+        if str(item)
+    }
+    missing_executed_paths = sorted(required_executed_paths - executed_paths)
+    if missing_executed_paths:
+        failed.append("required_scripts_executed")
+
+    role_separation_required = (
+        delivery_contract.get("role_separation_required") is True
+    )
+    forked_skill_invocations = [
+        item
+        for item in skill_invocations
+        if str(item.get("execution_mode") or "") == "fork"
+        and str(item.get("child_task_id") or "")
+    ]
+    distinct_children = {
+        str(item.get("child_task_id") or "")
+        for item in forked_skill_invocations
+    }
+    material_skills = required_skills.intersection(
+        {"codebase-analysis", "pdf-analysis", "web-research"}
+    )
+    material_children = {
+        str(item.get("child_task_id") or "")
+        for item in forked_skill_invocations
+        if item.get("name") in material_skills
+    }
+    reviewer_children = {
+        str(item.get("child_task_id") or "")
+        for item in forked_skill_invocations
+        if item.get("name") == "verification"
+    }
+    role_execution_valid = len(distinct_children) >= 2
+    if material_skills and "verification" in required_skills:
+        role_execution_valid = bool(
+            material_children
+            and reviewer_children
+            and len(material_children | reviewer_children) >= 2
+        )
+    if role_separation_required and not role_execution_valid:
+        failed.append("independent_roles_executed")
+    current_mutation_count = max(
+        0,
+        int(progressive.get("workspaceMutationCount") or 0),
+    )
+    verification_records = [
+        item for item in skill_invocations if item.get("name") == "verification"
+    ]
+    if "verification" in required_skills and not any(
+        int(item.get("workspace_mutation_count") or -1)
+        == current_mutation_count
+        for item in verification_records
+    ):
+        failed.append("independent_verification_fresh")
+    fresh_executed_paths = {
+        str(item.get("path") or "").replace("\\", "/")
+        for item in executed_path_records
+        if int(item.get("workspace_mutation_count") or -1)
+        == current_mutation_count
+    }
+    stale_executed_paths = sorted(
+        required_executed_paths - fresh_executed_paths
+    )
+    if stale_executed_paths:
+        failed.append("required_scripts_fresh")
+
     failed = list(dict.fromkeys(failed))
     missing_summary = ", ".join(missing_paths[:20])
+    skill_summary = ", ".join(missing_skills[:20])
+    executed_path_summary = ", ".join(missing_executed_paths[:20])
+    stale_executed_path_summary = ", ".join(stale_executed_paths[:20])
+    invalid_index_summary = ", ".join(invalid_provenance_indexes[:20])
     continuation = [
         "The objective completion gate rejected this attempted final response.",
         f"Failed checks: {', '.join(failed)}." if failed else "",
         f"Missing required files: {missing_summary}." if missing_summary else "",
+        f"Invoke these required skills successfully: {skill_summary}." if skill_summary else "",
+        (
+            f"Run these required script entrypoints successfully: {executed_path_summary}."
+            if executed_path_summary
+            else ""
+        ),
+        (
+            "Rerun these script entrypoints after the latest workspace mutation: "
+            f"{stale_executed_path_summary}."
+            if stale_executed_path_summary
+            else ""
+        ),
+        (
+            "Repair provenance indexes so every indexed path has a sha256/digest "
+            f"and extraction method: {invalid_index_summary}."
+            if invalid_index_summary
+            else ""
+        ),
         (
             "Continue the same task from current workspace state. Create or repair the "
             "missing deliverables, run the task-provided acceptance command or a real "
@@ -248,10 +396,19 @@ def _evaluate_delivery_completion(
             "required_path_count": len(delivery_contract.get("required_paths") or ()),
             "missing_path_count": len(missing_paths),
             "content_mismatch_count": len(content_mismatches),
+            "invalid_provenance_index_count": len(invalid_provenance_indexes),
             "workspace_mutation_count": workspace_mutations,
             "verification_count": verification_count,
             "unresolved_verification_count": len(unresolved),
             "final_response_present": bool(final_text),
+            "required_skills": sorted(required_skills),
+            "successful_skills": sorted(successful_skills),
+            "missing_skills": missing_skills,
+            "required_executed_paths": sorted(required_executed_paths),
+            "successful_executed_paths": sorted(executed_paths),
+            "missing_executed_paths": missing_executed_paths,
+            "stale_executed_paths": stale_executed_paths,
+            "forked_skill_child_count": len(distinct_children),
             "physical_location_redacted": True,
         },
     }
@@ -1170,6 +1327,36 @@ def _execution_prompt(
             requirements.append(
                 f"The governed workspace must contain this file: {path}"
             )
+    for skill_name in delivery_contract.get("required_skills") or ():
+        if str(skill_name):
+            requirements.append(
+                "Invoke the named skill through the SkillTool and use its returned "
+                f"instructions/result; prose claims do not count: {skill_name}"
+            )
+    for path in delivery_contract.get("required_executed_paths") or ():
+        if str(path):
+            requirements.append(
+                "Run this exact delivered script entrypoint successfully after it is "
+                f"written; running a different mirror implementation does not count: {path}"
+            )
+    for path in delivery_contract.get("provenance_index_paths") or ():
+        if str(path):
+            requirements.append(
+                "Every indexed path in this JSON provenance index must carry a valid "
+                f"sha256/digest and a concrete extraction_method: {path}"
+            )
+    if delivery_contract.get("loopx_required") is True:
+        requirements.append(
+            "The orchestration layer has committed the required LoopX goal/todo/claim/gate "
+            "plan before dispatch. Fulfil its extraction and independent-review lanes through "
+            "real forked skill executions and preserve their structured results; a self-authored "
+            "static plan file is not execution evidence."
+        )
+    if delivery_contract.get("role_separation_required") is True:
+        requirements.append(
+            "Use at least two distinct successful forked skill child tasks for the explicitly "
+            "separated roles, and run the independent verification role after the final workspace mutation."
+        )
     expected_contents = delivery_contract.get("expected_file_contents")
     if isinstance(expected_contents, Mapping):
         for path, specification in expected_contents.items():

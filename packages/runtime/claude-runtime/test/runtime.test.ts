@@ -272,6 +272,112 @@ test("runtime owns multi-turn lifecycle and read-only batches", async () => {
   assert.ok(host.checkpoints.every((checkpoint) => checkpoint.checkpointPhase !== "message_delta"));
 });
 
+test("runtime records only completed successful forked skill obligations", async () => {
+  class SkillReceiptHost extends MemoryHost {
+    constructor(private readonly childOk: boolean) {
+      super();
+    }
+
+    override async executeBatch(
+      batch: ToolBatch,
+      requests: ToolExecutionRequest[],
+    ): Promise<ToolExecutionResponse[]> {
+      this.batches.push(batch);
+      return requests.map((request) => ({
+        tool_call_id: request.toolCallId,
+        ok: true,
+        summary: "skill coordinator returned",
+        output: {
+          invocation: {
+            status: "completed",
+            output: { ok: this.childOk },
+            metadata: {
+              child_task_id: `child-${this.childOk ? "passed" : "failed"}`,
+              execution_mode: "fork",
+            },
+          },
+        },
+        artifacts: [],
+        error: null,
+        metadata: { host: "memory" },
+      }));
+    }
+  }
+  const skillInput = input({
+    turns: [[{ tool_name: "skill", arguments: { skill: "verification" } }]],
+    tools: [{
+      name: "skill",
+      purpose: "execute skill",
+      source: "test",
+      input_schema: {
+        type: "object",
+        required: ["skill"],
+        properties: { skill: { type: "string" } },
+      },
+      output_schema: {},
+      metadata: { read_only: "false", concurrency_safe: "false" },
+    }],
+  });
+
+  const failed = await new ClaudeRuntimeCore().run(skillInput, new SkillReceiptHost(false));
+  const failedEvidence = failed.sessionSnapshot.obligationEvidence as JsonObject;
+  assert.deepEqual(failedEvidence.successful_skill_invocations, []);
+
+  const passed = await new ClaudeRuntimeCore().run(skillInput, new SkillReceiptHost(true));
+  const passedEvidence = passed.sessionSnapshot.obligationEvidence as JsonObject;
+  const invocations = passedEvidence.successful_skill_invocations as JsonObject[];
+  assert.equal(invocations.length, 1);
+  assert.equal(invocations[0]?.name, "verification");
+  assert.equal(invocations[0]?.child_task_id, "child-passed");
+  assert.equal(invocations[0]?.execution_mode, "fork");
+});
+
+test("runtime records exact script execution but rejects source inspection", async () => {
+  const shellTool = {
+    name: "shell",
+    purpose: "execute shell",
+    source: "test",
+    input_schema: {
+      type: "object",
+      required: ["command"],
+      properties: { command: { type: "string" } },
+    },
+    output_schema: {},
+    metadata: { read_only: "false", concurrency_safe: "false" },
+  };
+  const metadata = {
+    delivery_contract: {
+      required_executed_paths: ["deliverables/reproduce.ps1"],
+    },
+  };
+  const inspected = await new ClaudeRuntimeCore().run(input({
+    turns: [[{
+      tool_name: "shell",
+      arguments: { command: "Get-Content deliverables/reproduce.ps1" },
+    }]],
+    tools: [shellTool],
+    metadata,
+  }), new MemoryHost());
+  assert.deepEqual(
+    (inspected.sessionSnapshot.obligationEvidence as JsonObject).successful_executed_paths,
+    [],
+  );
+
+  const executed = await new ClaudeRuntimeCore().run(input({
+    turns: [[{
+      tool_name: "shell",
+      arguments: { command: "pwsh -File deliverables/reproduce.ps1" },
+    }]],
+    tools: [shellTool],
+    metadata,
+  }), new MemoryHost());
+  assert.equal(
+    ((executed.sessionSnapshot.obligationEvidence as JsonObject)
+      .successful_executed_paths as JsonObject[]).length,
+    1,
+  );
+});
+
 test("runtime checkpoints durable recovery boundaries instead of observations", () => {
   for (const phase of [
     "session_started",
@@ -2497,6 +2603,10 @@ test("objective completion stop hook continues the same provider session", async
       request: CompletionGateRequest,
     ): Promise<CompletionGateResult> {
       this.completionChecks += 1;
+      assert.equal(
+        request.obligationEvidence.schema,
+        "zyra.runtime-obligation-evidence/v1",
+      );
       if (this.completionChecks === 1) {
         assert.equal(request.finalText, "I am done after the first partial artifact.");
         return {
@@ -2545,6 +2655,10 @@ test("objective completion stop hook continues the same provider session", async
     assert.equal(
       (stopCheckpoint?.completionStop as JsonObject | undefined)?.continuationCount,
       1,
+    );
+    assert.equal(
+      (stopCheckpoint?.obligationEvidence as JsonObject | undefined)?.schema,
+      "zyra.runtime-obligation-evidence/v1",
     );
     assert.match(
       JSON.stringify(stopCheckpoint?.modelIteration),

@@ -80,6 +80,7 @@ export interface CompletionGateRequest {
   finalText: string;
   deliveryContract: JsonObject;
   progressiveExecution: JsonObject;
+  obligationEvidence: JsonObject;
   attempt: number;
 }
 

@@ -90,7 +90,19 @@ def test_physical_code_worker_uses_typescript_provider_tool_loop(
                 },
                 "calls": [{"request_id": "provider-request-1"}],
             },
-            "execution_evidence": {"tool_call_count": 0},
+            "execution_evidence": {
+                "tool_call_count": 1,
+                "obligation_evidence": {
+                    "schema": "zyra.runtime-obligation-evidence/v1",
+                    "successful_skill_invocations": [
+                        {
+                            "name": "verification",
+                            "execution_mode": "fork",
+                            "child_task_id": "child-verifier",
+                        }
+                    ],
+                },
+            },
             "workspace_delta": {
                 "created": [],
                 "modified": [],
@@ -125,6 +137,12 @@ def test_physical_code_worker_uses_typescript_provider_tool_loop(
         == "worker.code-worker.typescript-provider-tool-loop"
     )
     assert result["domain_result"]["kind"] == "code_worker_execution"
+    assert result["domain_result"]["obligation_evidence"] == (
+        result["execution_evidence"]["obligation_evidence"]
+    )
+    assert result["domain_result"]["obligation_evidence"][
+        "successful_skill_invocations"
+    ][0]["child_task_id"] == "child-verifier"
     assert result["provider_call"]["provider_called"] is True
     assert result["contract_outputs"]["usage"] == {
         "prompt_tokens": 12,
@@ -439,6 +457,73 @@ def test_delivery_contract_requires_mutation_for_implementation_goals() -> None:
     ):
         contract = goal_delivery_contract(goal)
         assert contract.workspace_mutation_required is True
+
+
+def test_delivery_contract_compiles_explicit_runtime_obligations() -> None:
+    contract = goal_delivery_contract(
+        "先用 LoopX 建立目标、待办、claim、gate 和证据计划，并由不同角色独立复核。\n"
+        "使用 `pdf-analysis` 和 `web-research`；使用记忆/trace 摘要。\n"
+        "调用 `report-writing` 和 `verification`。\n"
+        "编写并运行一个可重复的脚本。\n"
+        "请在 `deliverables/` 中交付：source_index.json、reproduce.ps1。"
+    )
+
+    assert contract.required_skills == (
+        "pdf-analysis",
+        "report-writing",
+        "trace-summary",
+        "verification",
+        "web-research",
+    )
+    assert contract.required_executed_paths == ("deliverables/reproduce.ps1",)
+    assert contract.provenance_index_paths == (
+        "deliverables/source_index.json",
+    )
+    assert contract.loopx_required is True
+    assert contract.role_separation_required is True
+
+
+def test_provenance_index_requires_digest_and_extraction_method(tmp_path) -> None:
+    goal = "请在 `deliverables/` 中交付 source_index.json。"
+    contract = goal_delivery_contract(goal)
+    target = tmp_path / "deliverables" / "source_index.json"
+    target.parent.mkdir()
+    target.write_text(
+        '{"inputs":[{"path":"inputs/a.csv","role":"data"}]}',
+        encoding="utf-8",
+    )
+    provider = {
+        "provider_called": True,
+        "task_execution_verified": True,
+        "prompt_goal_bound": True,
+        "synthetic_usage": False,
+        "calls": [{"request_id": "provider-request"}],
+    }
+    invalid = validate_goal_delivery(
+        goal,
+        projection=contract.to_dict(),
+        workspace_root=tmp_path,
+        workspace_delta={"created": ["deliverables/source_index.json"]},
+        final_response="完成",
+        provider_evidence=provider,
+    )
+    assert invalid["checks"]["provenance_indexes_valid"] is False
+
+    target.write_text(
+        "{\"inputs\":[{\"path\":\"inputs/a.csv\","
+        "\"sha256\":\"" + "a" * 64 + "\","
+        "\"extraction_method\":\"csv parser\"}]}",
+        encoding="utf-8",
+    )
+    valid = validate_goal_delivery(
+        goal,
+        projection=contract.to_dict(),
+        workspace_root=tmp_path,
+        workspace_delta={"created": ["deliverables/source_index.json"]},
+        final_response="完成",
+        provider_evidence=provider,
+    )
+    assert valid["checks"]["provenance_indexes_valid"] is True
 
 
 def test_deployment_secret_gate_allows_usage_and_credential_references() -> None:

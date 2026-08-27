@@ -331,6 +331,7 @@ def test_phase2_operator_workload_executes_on_selected_physical_node(
         )
         assert signals["domain_effect_performed"] is True
         assert signals["output_contract_fulfilled"] is True
+        assert signals["obligation_evidence"] == {}
         assert str(signals["operator_execution_digest"]).removeprefix(
             "sha256:"
         )

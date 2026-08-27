@@ -421,6 +421,11 @@ class PhysicalDispatchReceiptBuilder:
             "domain_result": _mapping(output.get("domain_result")),
             "domain_artifact": _mapping(output.get("domain_artifact")),
             "workspace_delta": _mapping(output.get("workspace_delta")),
+            "obligation_evidence": _mapping(
+                _mapping(output.get("execution_evidence")).get(
+                    "obligation_evidence"
+                )
+            ),
             "final_text": str(output.get("final_text") or ""),
             "output_contract_fulfilled": (
                 output.get("output_contract_fulfilled") is True

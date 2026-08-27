@@ -14,3 +14,5 @@ resources: ["references/traceability.md","templates/report-outline.md"]
 Write the report from verified evidence rather than from implementation intent.
 
 Lead with the outcome, keep claims proportional to evidence, and link dynamic behavior to tests, events, artifacts, and metrics. Distinguish current completion from planned downstream work. Do not use code volume, static screenshots, or source ledgers as substitutes for runtime evidence.
+
+When delivering a source or evidence index, give every indexed input, script, and output path a real sha256/digest plus the method that extracted or generated it. Keep conclusion-to-source references machine-readable; do not substitute a prose role description for provenance.

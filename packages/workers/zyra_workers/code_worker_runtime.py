@@ -743,6 +743,9 @@ def _execution_evidence(result: Any) -> dict[str, Any]:
     snapshot = _mapping(getattr(result, "session_snapshot", {}))
     typescript_snapshot = _mapping(snapshot.get("typescript_runtime_snapshot"))
     model_iteration = _mapping(typescript_snapshot.get("modelIteration"))
+    obligation_evidence = _mapping(
+        typescript_snapshot.get("obligationEvidence")
+    )
     final_text = str(model_iteration.get("finalText") or "").strip()
     provider_calls: list[dict[str, Any]] = []
     tool_results: list[dict[str, Any]] = []
@@ -862,6 +865,7 @@ def _execution_evidence(result: Any) -> dict[str, Any]:
         "usage": usage,
         "final_text": final_text,
         "tool_results": tool_results,
+        "obligation_evidence": to_jsonable(obligation_evidence),
         "tool_call_count": int(getattr(result, "tool_call_count", 0) or 0),
         "turn_count": int(getattr(result, "turn_count", 0) or 0),
         "artifact_ids": [

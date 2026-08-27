@@ -100,6 +100,75 @@ def test_loopx_pre_control_denial_stops_before_graph_mutation(
         )
 
 
+def test_loopx_pre_control_commits_explicit_role_workflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, created = api.make_task_created_event(
+        "请先用 LoopX 建立目标、待办、claim、gate、证据计划和结构化交接，"
+        "并由不同角色独立复核；使用 `pdf-analysis` 和 `verification`。"
+    )
+    permission = {
+        "decision_id": "decision-loopx-explicit-workflow",
+        "canonical_owner": "typescript.PermissionCoordinator",
+        "effect": "allow",
+        "allowed_permissions": ["graph.write", "worker.dispatch"],
+    }
+    permission["receipt_digest"] = canonical_digest(permission)
+    monkeypatch.setattr(
+        api,
+        "_phase2_permission_decision",
+        lambda *_args, **_kwargs: permission,
+    )
+
+    receipt = api.prepare_phase2_loopx_pre_control(
+        state,
+        causation_id=created.event_id,
+    )
+
+    plan = receipt["workflow_plan"]
+    assert receipt["workflow_plan_digest"] == canonical_digest(plan)
+    assert plan["loopx_required"] is True
+    assert plan["role_separation_required"] is True
+    assert {item["todo_id"] for item in plan["todos"]} == {
+        "todo_sealed_primary",
+        "todo_material_extraction",
+        "todo_independent_review",
+    }
+    assert {item["claimant"] for item in plan["todos"]} == {
+        "sealed-controller-a",
+        "DataWorker",
+        "Verifier",
+    }
+    todos = {item["todo_id"]: item for item in plan["todos"]}
+    assert todos["todo_material_extraction"]["required_skills"] == [
+        "pdf-analysis"
+    ]
+    assert todos["todo_independent_review"]["required_skills"] == [
+        "verification"
+    ]
+    assert {item["gate_id"] for item in plan["gates"]} == {
+        "gate_source_provenance",
+        "gate_reproducibility",
+        "gate_independent_review",
+    }
+    assert plan["evidence_plan"]
+    assert plan["structured_handoff"]["from_role"] == "material_extractor"
+    assert plan["structured_handoff"]["to_role"] == "independent_reviewer"
+    assert all(receipt["checks"].values())
+    assert len(receipt["results"]["connect"]) == 3
+    assert len(receipt["results"]["claim"]) == 3
+    assert all(
+        item["receipt"]["status"] == "applied"
+        for item in receipt["results"]["claim"]
+    )
+    graph = api.get_worker_pool_api().graph_custody.current(
+        state.metadata["dynamic_graph_id"]
+    )
+    assert graph.metadata["loopx_pre_control"]["workflow_plan_digest"] == (
+        receipt["workflow_plan_digest"]
+    )
+
+
 def test_loopx_pre_control_replays_valid_task_bound_receipt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -570,12 +570,39 @@ export class ClaudeRuntimeCore {
       restoredCompletionStop.lastFailedChecks,
     );
     const deliveryContract = asObject(asObject(input.metadata).delivery_contract);
+    const requiredExecutedPaths = Array.isArray(deliveryContract.required_executed_paths)
+      ? deliveryContract.required_executed_paths.map((item) => asString(item)).filter(Boolean)
+      : [];
+    const restoredObligationEvidence = selectRestoredObligationEvidence(
+      input.restoredState,
+    );
+    const successfulSkillInvocations: JsonObject[] = Array.isArray(
+      restoredObligationEvidence.successful_skill_invocations,
+    )
+      ? restoredObligationEvidence.successful_skill_invocations
+        .map((item) => asObject(item))
+        .filter((item) => asString(item.name))
+      : [];
+    const successfulExecutedPaths = new Map<string, JsonObject>();
+    if (Array.isArray(restoredObligationEvidence.successful_executed_paths)) {
+      for (const item of restoredObligationEvidence.successful_executed_paths) {
+        const record = asObject(item);
+        const path = asString(record.path);
+        if (path) successfulExecutedPaths.set(path, record);
+      }
+    }
     const progressive = new ProgressiveExecutionRuntime({
       constraints: config.runtimeConstraints,
       deliveryContract,
       restored: selectRestoredProgressiveExecutionSnapshot(input.restoredState) ?? undefined,
       continuityProgress: asObject(asObject(input.metadata).task_handoff_progress),
       repairContextId: input.sessionId,
+    });
+    const obligationEvidence = (): JsonObject => ({
+      schema: "zyra.runtime-obligation-evidence/v1",
+      successful_skill_invocations: successfulSkillInvocations.map((item) => ({ ...item })),
+      successful_executed_paths: [...successfulExecutedPaths.values()].map((item) => ({ ...item })),
+      workspace_mutation_count: progressive.snapshot().workspaceMutationCount,
     });
     const semanticStall = new SemanticStallRuntime({
       modelName: config.modelName,
@@ -644,6 +671,7 @@ export class ClaudeRuntimeCore {
             blockedAttempts: completionStopBlockedCount,
             lastFailedChecks: completionStopLastFailedChecks,
           },
+          obligationEvidence: obligationEvidence(),
           checkpointPhase: phase,
           checkpointEventSequence: eventSequence,
         });
@@ -888,6 +916,7 @@ export class ClaudeRuntimeCore {
             finalText: model.finalText,
             deliveryContract,
             progressiveExecution: progressive.snapshot() as unknown as JsonObject,
+            obligationEvidence: obligationEvidence(),
             attempt: completionStopCount + 1,
           });
           if (!completion.passed) {
@@ -2149,6 +2178,52 @@ export class ClaudeRuntimeCore {
               registry.readOnly(step.tool_name),
             );
           }
+          if (result.ok && step.tool_name === "skill") {
+            const skillName = asString(step.arguments.name || step.arguments.skill);
+            const invocation = asObject(asObject(result.output).invocation);
+            const invocationOutput = asObject(invocation.output);
+            const invocationMetadata = asObject(invocation.metadata);
+            if (
+              skillName
+              && asString(invocation.status) === "completed"
+              && invocationOutput.ok === true
+              && !successfulSkillInvocations.some(
+                (item) => asString(item.name) === skillName
+                  && asString(item.tool_call_id) === result.tool_call_id,
+              )
+            ) {
+              successfulSkillInvocations.push({
+                name: skillName,
+                tool_call_id: result.tool_call_id,
+                child_task_id: asString(invocationMetadata.child_task_id),
+                execution_mode: asString(invocationMetadata.execution_mode),
+                event_sequence: eventSequence,
+                workspace_mutation_count: progressive.snapshot().workspaceMutationCount,
+              });
+            }
+          }
+          if (result.ok && ["shell", "shell_wait"].includes(step.tool_name)) {
+            const historicalCalls = e01.snapshot().query.toolCalls;
+            for (const rawPath of requiredExecutedPaths) {
+              const requiredPath = asString(rawPath).replaceAll("\\", "/");
+              const executionOrigin = requiredPathExecutionOrigin(
+                step,
+                result,
+                historicalCalls,
+                requiredPath,
+              );
+              if (executionOrigin) {
+                successfulExecutedPaths.set(requiredPath, {
+                  path: requiredPath,
+                  tool_call_id: result.tool_call_id,
+                  originating_tool_call_id: executionOrigin.toolCallId,
+                  tool_name: step.tool_name,
+                  event_sequence: eventSequence,
+                  workspace_mutation_count: progressive.snapshot().workspaceMutationCount,
+                });
+              }
+            }
+          }
           turnResultChars += budgeted.originalChars;
           if (budgeted.artifact) {
             artifacts.push(budgeted.artifact);
@@ -3211,6 +3286,7 @@ export class ClaudeRuntimeCore {
       modelIteration: iteration.snapshot() as unknown as JsonObject,
       progressiveExecution: progressive.snapshot() as unknown as JsonObject,
       semanticStall: semanticStall.snapshot() as unknown as JsonObject,
+      obligationEvidence: obligationEvidence(),
     };
     await emit("query_session_snapshot", {
       snapshot_version: snapshot.version,
@@ -4094,6 +4170,55 @@ function mergeRestoreProviderMessages(
   };
 }
 
+function toolArgumentsReferencePath(argumentsValue: JsonObject, requiredPath: string): boolean {
+  const normalizedArguments = JSON.stringify(argumentsValue)
+    .replace(/\\+/gu, "/")
+    .toLowerCase();
+  const normalizedPath = requiredPath.replace(/\\+/gu, "/").toLowerCase();
+  return normalizedPath.length > 0 && normalizedArguments.includes(normalizedPath);
+}
+
+function requiredPathExecutionOrigin(
+  step: { tool_name: string; arguments: JsonObject },
+  response: ToolExecutionResponse,
+  historicalCalls: readonly {
+    toolCallId: string;
+    name: string;
+    arguments: JsonObject;
+  }[],
+  requiredPath: string,
+): { toolCallId: string; name: string; arguments: JsonObject } | undefined {
+  if (!requiredPath || !shellResultSettledSuccessfully(response)) return undefined;
+  const origin = step.tool_name === "shell_wait"
+    ? originatingToolCall(response, historicalCalls)
+    : {
+      toolCallId: response.tool_call_id,
+      name: step.tool_name,
+      arguments: step.arguments,
+    };
+  if (!origin || origin.name !== "shell") return undefined;
+  if (!toolArgumentsReferencePath(origin.arguments, requiredPath)) return undefined;
+  return isClearlyVerificationDrivingTool({
+      tool_name: origin.name,
+      arguments: origin.arguments,
+    })
+    ? origin
+    : undefined;
+}
+
+function shellResultSettledSuccessfully(response: ToolExecutionResponse): boolean {
+  const status = asString(
+    response.output.status
+      || response.output.job_status
+      || response.metadata.background_status
+      || response.metadata.job_status,
+  ).trim().toLowerCase();
+  if (!status) return true;
+  return ["completed", "succeeded", "success", "finished", "exited", "terminal"].includes(
+    status,
+  );
+}
+
 function selectRestoredSnapshot(value: JsonObject | null | undefined): JsonObject | null {
   const root = asObject(value);
   if (root.version === "zyra.typescript-query-session.v1") {
@@ -4244,6 +4369,24 @@ function selectRestoredProgressiveExecutionSnapshot(
     }
   }
   return null;
+}
+
+function selectRestoredObligationEvidence(
+  value: JsonObject | null | undefined,
+): JsonObject {
+  const root = asObject(value);
+  const candidates = [
+    root,
+    asObject(root.typescript_runtime),
+    asObject(root.typescript_runtime_snapshot),
+    asObject(root.query_engine),
+    asObject(asObject(root.metadata).typescript_runtime_snapshot),
+  ];
+  for (const candidate of candidates) {
+    const snapshot = asObject(candidate.obligationEvidence);
+    if (snapshot.schema === "zyra.runtime-obligation-evidence/v1") return snapshot;
+  }
+  return {};
 }
 
 function selectRestoredSemanticStallSnapshot(

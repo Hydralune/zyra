@@ -4465,6 +4465,15 @@ def prepare_phase2_loopx_pre_control(
         replay_continuation = dict(replay.get("continuation") or {})
         replay_commit = dict(replay.get("canonical_commit") or {})
         replay_commit_receipt = dict(replay_commit.get("receipt") or {})
+        replay_plan_digest = str(replay.get("workflow_plan_digest") or "")
+        replay_graph_ref = {
+            "schema": "zyra.loopx-pre-control-ref/v1",
+            "goal_id": str(replay.get("goal_id")),
+            "continuation_required": True,
+            "private_payload_excluded": True,
+        }
+        if replay_plan_digest:
+            replay_graph_ref["workflow_plan_digest"] = replay_plan_digest
         replay_graph_durable = False
         graph_id_value = str(state.metadata.get("dynamic_graph_id") or "")
         if graph_id_value and replay.get("goal_id"):
@@ -4483,12 +4492,7 @@ def prepare_phase2_loopx_pre_control(
                     and dict(
                         current_graph.metadata.get("loopx_pre_control") or {}
                     )
-                    == {
-                        "schema": "zyra.loopx-pre-control-ref/v1",
-                        "goal_id": str(replay.get("goal_id")),
-                        "continuation_required": True,
-                        "private_payload_excluded": True,
-                    }
+                    == replay_graph_ref
                 )
             except (KeyError, RuntimeError, TypeError, ValueError):
                 replay_graph_durable = False
@@ -4569,6 +4573,105 @@ def prepare_phase2_loopx_pre_control(
         },
     )
     goal_id = f"goal_sealed_{state.task_id}"
+    delivery_contract = (
+        dict(state.metadata.get("delivery_contract") or {})
+        if isinstance(state.metadata.get("delivery_contract"), Mapping)
+        else {}
+    )
+    loopx_workflow_required = delivery_contract.get("loopx_required") is True
+    role_separation_required = (
+        delivery_contract.get("role_separation_required") is True
+    )
+    explicit_skill_names = sorted(
+        str(item)
+        for item in delivery_contract.get("required_skills") or ()
+        if str(item)
+    )
+    material_role_skills = [
+        item
+        for item in explicit_skill_names
+        if item in {"codebase-analysis", "pdf-analysis", "web-research"}
+    ]
+    review_role_skills = [
+        item for item in explicit_skill_names if item == "verification"
+    ]
+    todo_specs = [
+        {
+            "todo_id": "todo_sealed_primary",
+            "title": "complete the verified sealed delivery",
+            "claimant": "sealed-controller-a",
+            "role": "coordinator",
+            "depends_on": [],
+            "required_skills": [
+                item
+                for item in explicit_skill_names
+                if item not in material_role_skills + review_role_skills
+            ],
+        }
+    ]
+    if loopx_workflow_required:
+        todo_specs.extend(
+            [
+                {
+                    "todo_id": "todo_material_extraction",
+                    "title": "extract source material with provenance",
+                    "claimant": "DataWorker",
+                    "role": "material_extractor",
+                    "depends_on": [],
+                    "required_skills": material_role_skills,
+                },
+                {
+                    "todo_id": "todo_independent_review",
+                    "title": "independently reproduce and verify the delivery",
+                    "claimant": "Verifier",
+                    "role": "independent_reviewer",
+                    "depends_on": ["todo_material_extraction"],
+                    "required_skills": review_role_skills,
+                },
+            ]
+        )
+    workflow_plan = {
+        "schema": "zyra.loopx-workflow-plan/v1",
+        "goal_id": goal_id,
+        "objective_ref": f"zyra://run/{state.run_id}/task/{state.task_id}/objective",
+        "loopx_required": loopx_workflow_required,
+        "role_separation_required": role_separation_required,
+        "todos": todo_specs,
+        "gates": [
+            {
+                "gate_id": "gate_source_provenance",
+                "requires": ["source_digest", "extraction_method"],
+            },
+            {
+                "gate_id": "gate_reproducibility",
+                "requires": ["required_entrypoint_execution", "behavioral_verification"],
+            },
+            {
+                "gate_id": "gate_independent_review",
+                "requires": ["distinct_forked_child", "fresh_verification"],
+            },
+        ],
+        "evidence_plan": [
+            "skill_invocation_receipts",
+            "forked_child_task_receipts",
+            "workspace_artifact_digests",
+            "script_execution_receipts",
+            "independent_verification_receipt",
+        ],
+        "structured_handoff": {
+            "schema": "zyra.loopx-role-handoff/v1",
+            "from_role": "material_extractor",
+            "to_role": "independent_reviewer",
+            "required_fields": [
+                "claims",
+                "source_refs",
+                "digests",
+                "uncertainties",
+                "verification_commands",
+            ],
+        },
+    }
+    workflow_plan_digest = canonical_digest(workflow_plan)
     branch.set_metadata(
         "loopx_pre_control",
         {
@@ -4576,6 +4679,7 @@ def prepare_phase2_loopx_pre_control(
             "goal_id": goal_id,
             "continuation_required": True,
             "private_payload_excluded": True,
+            "workflow_plan_digest": workflow_plan_digest,
         },
     )
     committed = pool_api.graph_custody.commit(branch.build())
@@ -4599,41 +4703,57 @@ def prepare_phase2_loopx_pre_control(
         "validation": validation,
         "causation_id": causation_id,
     }
-    connected = control.mutate(
-        action="connect",
-        payload={
-            "goal_id": goal_id,
-            "todo_id": "todo_sealed_primary",
-            "todo_title": "complete the verified sealed delivery",
-            "objective": str(state.user_goal or "sealed delivery"),
-            "limit_slots": 1,
-            "requirement_revision": str(
-                state.metadata.get("requirement_revision") or "r1"
-            ),
-        },
-        idempotency_key=(
-            f"sealed:{state.run_id}:{state.task_id}:loopx:connect:1"
-        ),
-        **common,
-    )
-    claimed = control.mutate(
-        action="claim",
-        payload={
-            "goal_id": goal_id,
-            "todo_id": "todo_sealed_primary",
-            "claimant": "sealed-controller-a",
-        },
-        idempotency_key=(
-            f"sealed:{state.run_id}:{state.task_id}:loopx:claim:2"
-        ),
-        **common,
-    )
+    connected_results = []
+    claimed_results = []
+    for todo in todo_specs:
+        connected_results.append(
+            control.mutate(
+                action="connect",
+                payload={
+                    "goal_id": goal_id,
+                    "todo_id": todo["todo_id"],
+                    "todo_title": todo["title"],
+                    "objective": str(state.user_goal or "sealed delivery"),
+                    "role": "agent",
+                    "limit_slots": len(todo_specs),
+                    "requirement_revision": str(
+                        state.metadata.get("requirement_revision") or "r1"
+                    ),
+                },
+                idempotency_key=(
+                    f"sealed:{state.run_id}:{state.task_id}:loopx:connect:"
+                    f"{todo['todo_id']}"
+                ),
+                **common,
+            )
+        )
+        claimed_results.append(
+            control.mutate(
+                action="claim",
+                payload={
+                    "goal_id": goal_id,
+                    "todo_id": todo["todo_id"],
+                    "claimant": todo["claimant"],
+                },
+                idempotency_key=(
+                    f"sealed:{state.run_id}:{state.task_id}:loopx:claim:"
+                    f"{todo['todo_id']}"
+                ),
+                **common,
+            )
+        )
     snapshot = control.snapshot(
         run_id=state.run_id,
         task_id=state.task_id,
         goal_id=goal_id,
     )
     continuation = dict(snapshot.get("continuation") or {})
+    observed_claimants = {
+        str(item.get("claimant") or "").casefold()
+        for item in dict(snapshot.get("private_state") or {}).get("claims")
+        or ()
+        if isinstance(item, Mapping)
+    }
     checks = {
         "canonical_commit": committed.receipt.committed is True,
         "canonical_permission_owner": (
@@ -4646,14 +4766,27 @@ def prepare_phase2_loopx_pre_control(
             permission_digest == canonical_digest(permission_unsigned)
         ),
         "permission_allowed": permission_allowed,
-        "connected": dict(connected.get("state") or {}).get("connected")
-        is True,
-        "claim_applied": dict(claimed.get("receipt") or {}).get("status")
-        == "applied",
+        "connected": bool(connected_results)
+        and all(
+            dict(item.get("state") or {}).get("connected") is True
+            for item in connected_results
+        ),
+        "claim_applied": bool(claimed_results)
+        and all(
+            dict(item.get("receipt") or {}).get("status") == "applied"
+            for item in claimed_results
+        ),
+        "workflow_plan_bound": workflow_plan_digest
+        == canonical_digest(workflow_plan),
+        "required_role_plan_present": not role_separation_required
+        or observed_claimants.issuperset({"dataworker", "verifier"}),
         "continuation_allowed": continuation.get("allowed") is True,
     }
     if not all(checks.values()):
-        raise RuntimeError(f"LoopX pre-control did not admit production: {checks}")
+        raise RuntimeError(
+            "LoopX pre-control did not admit production: "
+            f"checks={checks}, observed_claimants={sorted(observed_claimants)}"
+        )
     value = {
         "schema": "zyra.phase2-production-loopx-pre-control/v1",
         "run_id": state.run_id,
@@ -4666,9 +4799,11 @@ def prepare_phase2_loopx_pre_control(
         "permission_receipt": permission_receipt,
         "continuation": continuation,
         "sync_cursor": dict(snapshot.get("sync") or {}).get("cursor"),
+        "workflow_plan": workflow_plan,
+        "workflow_plan_digest": workflow_plan_digest,
         "results": {
-            "connect": connected,
-            "claim": claimed,
+            "connect": connected_results,
+            "claim": claimed_results,
         },
         "checks": checks,
     }
@@ -6282,6 +6417,136 @@ class _CanonicalFinalVerifierOwner:
                 else None
             ),
         )
+        delivery_contract = (
+            dict(state.metadata.get("delivery_contract") or {})
+            if isinstance(state.metadata.get("delivery_contract"), Mapping)
+            else {}
+        )
+        delivery_signal_obligation_evidence = (
+            dict(delivery_physical_signals.get("obligation_evidence") or {})
+            if isinstance(
+                delivery_physical_signals.get("obligation_evidence"), Mapping
+            )
+            else {}
+        )
+        delivery_domain_obligation_evidence = (
+            dict(
+                delivery_operator_domain_result.get("obligation_evidence")
+                or {}
+            )
+            if isinstance(
+                delivery_operator_domain_result.get("obligation_evidence"),
+                Mapping,
+            )
+            else {}
+        )
+        obligation_evidence = (
+            delivery_signal_obligation_evidence
+            or delivery_domain_obligation_evidence
+        )
+        successful_skill_invocations = [
+            dict(item)
+            for item in obligation_evidence.get(
+                "successful_skill_invocations"
+            )
+            or ()
+            if isinstance(item, Mapping) and str(item.get("name") or "")
+        ]
+        successful_skill_names = {
+            str(item.get("name") or "")
+            for item in successful_skill_invocations
+        }
+        required_skill_names = {
+            str(item)
+            for item in delivery_contract.get("required_skills") or ()
+            if str(item)
+        }
+        executed_path_records = [
+            dict(item)
+            for item in obligation_evidence.get("successful_executed_paths")
+            or ()
+            if isinstance(item, Mapping) and str(item.get("path") or "")
+        ]
+        successful_executed_paths = {
+            str(item.get("path") or "").replace("\\", "/")
+            for item in executed_path_records
+        }
+        required_executed_paths = {
+            str(item).replace("\\", "/")
+            for item in delivery_contract.get("required_executed_paths") or ()
+            if str(item)
+        }
+        forked_child_tasks = {
+            str(item.get("child_task_id") or "")
+            for item in successful_skill_invocations
+            if str(item.get("execution_mode") or "") == "fork"
+            and str(item.get("child_task_id") or "")
+        }
+        final_workspace_mutation_count = int(
+            obligation_evidence.get("workspace_mutation_count") or 0
+        )
+        fresh_executed_paths = {
+            str(item.get("path") or "").replace("\\", "/")
+            for item in executed_path_records
+            if int(item.get("workspace_mutation_count") or -1)
+            == final_workspace_mutation_count
+        }
+        fresh_verification_skill = any(
+            item.get("name") == "verification"
+            and int(item.get("workspace_mutation_count") or -1)
+            == final_workspace_mutation_count
+            for item in successful_skill_invocations
+        )
+        loopx_receipt = (
+            dict(state.metadata.get("phase2_loopx_pre_control") or {})
+            if isinstance(
+                state.metadata.get("phase2_loopx_pre_control"), Mapping
+            )
+            else {}
+        )
+        loopx_unsigned = dict(loopx_receipt)
+        loopx_receipt_digest = str(loopx_unsigned.pop("receipt_digest", ""))
+        loopx_workflow_plan = (
+            dict(loopx_receipt.get("workflow_plan") or {})
+            if isinstance(loopx_receipt.get("workflow_plan"), Mapping)
+            else {}
+        )
+        loopx_plan_digest = str(
+            loopx_receipt.get("workflow_plan_digest") or ""
+        )
+        loopx_required = delivery_contract.get("loopx_required") is True
+        role_separation_required = (
+            delivery_contract.get("role_separation_required") is True
+        )
+        obligation_receipts_required = bool(
+            required_skill_names
+            or required_executed_paths
+            or role_separation_required
+        )
+        material_skill_names = required_skill_names.intersection(
+            {"codebase-analysis", "pdf-analysis", "web-research"}
+        )
+        material_child_tasks = {
+            str(item.get("child_task_id") or "")
+            for item in successful_skill_invocations
+            if item.get("name") in material_skill_names
+            and str(item.get("execution_mode") or "") == "fork"
+            and str(item.get("child_task_id") or "")
+        }
+        reviewer_child_tasks = {
+            str(item.get("child_task_id") or "")
+            for item in successful_skill_invocations
+            if item.get("name") == "verification"
+            and str(item.get("execution_mode") or "") == "fork"
+            and str(item.get("child_task_id") or "")
+        }
+        role_execution_valid = len(forked_child_tasks) >= 2
+        if material_skill_names and "verification" in required_skill_names:
+            role_execution_valid = bool(
+                material_child_tasks
+                and reviewer_child_tasks
+                and len(material_child_tasks | reviewer_child_tasks) >= 2
+            )
         checks = {
             "requirement_scope_bound": bool(
                 scope.get("requirement_revision")
@@ -6452,6 +6717,51 @@ class _CanonicalFinalVerifierOwner:
                 )
             ),
             "goal_contract_satisfied": bool(goal_verification.get("passed")),
+            "required_skills_executed": required_skill_names.issubset(
+                successful_skill_names
+            ),
+            "required_scripts_executed": required_executed_paths.issubset(
+                successful_executed_paths
+            ),
+            "required_scripts_fresh": required_executed_paths.issubset(
+                fresh_executed_paths
+            ),
+            "runtime_obligation_evidence_bound": (
+                not obligation_receipts_required
+                or bool(
+                    delivery_signal_obligation_evidence.get("schema")
+                    == "zyra.runtime-obligation-evidence/v1"
+                    and delivery_domain_obligation_evidence.get("schema")
+                    == "zyra.runtime-obligation-evidence/v1"
+                    and canonical_digest(delivery_signal_obligation_evidence)
+                    == canonical_digest(delivery_domain_obligation_evidence)
+                )
+            ),
+            "independent_roles_executed": not role_separation_required
+            or role_execution_valid,
+            "independent_verification_fresh": (
+                "verification" not in required_skill_names
+                or fresh_verification_skill
+            ),
+            "loopx_workflow_plan_bound": not loopx_required
+            or bool(
+                loopx_receipt.get("schema")
+                == "zyra.phase2-production-loopx-pre-control/v1"
+                and loopx_receipt.get("run_id") == state.run_id
+                and loopx_receipt.get("task_id") == state.task_id
+                and loopx_receipt_digest
+                and loopx_receipt_digest == canonical_digest(loopx_unsigned)
+                and loopx_workflow_plan.get("schema")
+                == "zyra.loopx-workflow-plan/v1"
+                and loopx_workflow_plan.get("loopx_required") is True
+                and loopx_plan_digest
+                and loopx_plan_digest
+                == canonical_digest(loopx_workflow_plan)
+                and all(
+                    item is True
+                    for item in dict(loopx_receipt.get("checks") or {}).values()
+                )
+            ),
             **{
                 f"delivery_{name}": bool(passed)
                 for name, passed in dict(

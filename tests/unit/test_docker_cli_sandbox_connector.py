@@ -291,6 +291,86 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             self.assertTrue(released["passed"])
             self.assertEqual(released["failed_checks"], [])
 
+    def test_delivery_completion_gate_requires_named_execution_receipts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            deliverables = workspace / "deliverables"
+            deliverables.mkdir()
+            (deliverables / "reproduce.ps1").write_text(
+                "Write-Output ready\n", encoding="utf-8"
+            )
+            (deliverables / "source_index.json").write_text(
+                "{\"inputs\":[{\"path\":\"inputs/a.csv\","
+                "\"sha256\":\"" + "a" * 64 + "\","
+                "\"extraction_method\":\"csv parser\"}]}",
+                encoding="utf-8",
+            )
+            contract = {
+                "workspace_mutation_required": True,
+                "required_paths": [
+                    "deliverables/reproduce.ps1",
+                    "deliverables/source_index.json",
+                ],
+                "expected_file_contents": {},
+                "required_skills": ["pdf-analysis", "verification"],
+                "required_executed_paths": ["deliverables/reproduce.ps1"],
+                "provenance_index_paths": ["deliverables/source_index.json"],
+                "role_separation_required": True,
+                "final_response_required": True,
+            }
+            progressive = {
+                "workspaceMutationCount": 2,
+                "verificationCount": 1,
+                "unresolvedVerificationScopes": [],
+            }
+
+            blocked = code_worker_adapter._evaluate_delivery_completion(
+                {
+                    "final_text": "Completed.",
+                    "delivery_contract": contract,
+                    "progressive_execution": progressive,
+                    "obligation_evidence": {},
+                },
+                delivery_contract=contract,
+                workspace_root=workspace,
+            )
+            self.assertIn("required_skills_invoked", blocked["failed_checks"])
+            self.assertIn("required_scripts_executed", blocked["failed_checks"])
+            self.assertIn("independent_roles_executed", blocked["failed_checks"])
+
+            released = code_worker_adapter._evaluate_delivery_completion(
+                {
+                    "final_text": "Completed.",
+                    "delivery_contract": contract,
+                    "progressive_execution": progressive,
+                    "obligation_evidence": {
+                        "successful_skill_invocations": [
+                            {
+                                "name": "pdf-analysis",
+                                "execution_mode": "fork",
+                                "child_task_id": "child-data",
+                                "workspace_mutation_count": 0,
+                            },
+                            {
+                                "name": "verification",
+                                "execution_mode": "fork",
+                                "child_task_id": "child-verifier",
+                                "workspace_mutation_count": 2,
+                            },
+                        ],
+                        "successful_executed_paths": [
+                            {
+                                "path": "deliverables/reproduce.ps1",
+                                "workspace_mutation_count": 2,
+                            }
+                        ],
+                    },
+                },
+                delivery_contract=contract,
+                workspace_root=workspace,
+            )
+            self.assertTrue(released["passed"])
+
     def test_explicit_benchmark_reasoning_budget_propagates_without_hidden_caps(self) -> None:
         self.assertEqual(
             code_worker_adapter._code_worker_reasoning_budget(

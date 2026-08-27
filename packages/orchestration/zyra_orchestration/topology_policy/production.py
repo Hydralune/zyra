@@ -2209,6 +2209,12 @@ class Phase2StrongestProductionBridge:
         provider_execution = dict(
             execution_output.get("provider_call") or {}
         )
+        execution_evidence = dict(
+            execution_output.get("execution_evidence") or {}
+        )
+        execution_obligation_evidence = dict(
+            execution_evidence.get("obligation_evidence") or {}
+        )
         execution_workspace = dict(
             execution_output.get("workspace") or {}
         )
@@ -2327,6 +2333,10 @@ class Phase2StrongestProductionBridge:
                 )
                 == canonical_digest(domain_result)
             ),
+            "obligation_evidence_exact": canonical_digest(
+                dict(input_signals.get("obligation_evidence") or {})
+            )
+            == canonical_digest(execution_obligation_evidence),
             "domain_effect_performed": (
                 execution_output.get("domain_effect_performed") is True
                 and bool(execution_output.get("operator_adapter_id"))

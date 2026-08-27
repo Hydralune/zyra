@@ -1304,6 +1304,7 @@ class DeploymentNodeRuntime:
             "execution_outcome",
             "runtime_terminal_error",
             "workspace_effect_observed",
+            "execution_evidence",
         ):
             if name in adapter:
                 result[name] = adapter[name]
@@ -1368,6 +1369,9 @@ class DeploymentNodeRuntime:
                 "tool_call_count": int(
                     execution_evidence.get("tool_call_count") or 0
                 ),
+                "obligation_evidence": dict(
+                    execution_evidence.get("obligation_evidence") or {}
+                ),
                 "workspace_delta": workspace_delta,
                 "final_answer_digest": digest(final_text),
                 "execution_outcome": execution_outcome,
@@ -1390,6 +1394,9 @@ class DeploymentNodeRuntime:
                     "final_text": final_text,
                     "execution_outcome": str(
                         execution.get("execution_outcome") or "completed"
+                    ),
+                    "obligation_evidence": dict(
+                        execution_evidence.get("obligation_evidence") or {}
                     ),
                     "runtime_artifact_refs": execution.get(
                         "runtime_artifacts"
@@ -1564,6 +1571,7 @@ class DeploymentNodeRuntime:
                     "workspace_effect_observed": execution.get(
                         "workspace_effect_observed"
                     ) is True,
+                    "execution_evidence": execution_evidence,
                 }
             )
         return result
