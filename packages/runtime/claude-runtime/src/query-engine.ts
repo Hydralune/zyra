@@ -3982,7 +3982,13 @@ function modelCanRecoverToolFailure(result: ToolExecutionResponse): boolean {
     && asString(result.metadata.command_timeout_settled).toLowerCase() === "true"
     && asString(result.metadata.model_recovery_allowed).toLowerCase() === "true"
     && asString(result.metadata.process_tree_controlled).toLowerCase() === "true";
-  if (settledCommandTimeout) return true;
+  const settledCommandStartFailure = error === "process_start_failed"
+    && termination === "failed_to_start"
+    && asString(result.metadata.command_start_failure_settled).toLowerCase() === "true"
+    && asString(result.metadata.model_recovery_allowed).toLowerCase() === "true"
+    && asString(result.metadata.process_tree_controlled).toLowerCase() === "true"
+    && asString(result.metadata.workspace_mutation_committed).toLowerCase() === "false";
+  if (settledCommandTimeout || settledCommandStartFailure) return true;
   if (
     error === "permission_approval_required"
     || error === "missing_tool_result"

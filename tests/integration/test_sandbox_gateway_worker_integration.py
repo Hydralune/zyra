@@ -872,6 +872,56 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         self.assertTrue(recovered.ok, recovered)
         self.assertIn("healthy after timeout", recovered.output["stdout"])
 
+    def test_settled_command_start_failure_is_recoverable_with_a_hint(self) -> None:
+        state = create_task_state("A command start failure can be replanned")
+        port, workspace = self._port(state, "CodeWorkerRuntime")
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=port,
+            runtime_services={"sandbox_gateway_required": True},
+        )
+        router = GatewayToolExecutionRouter(bundle)
+
+        class Authority:
+            @staticmethod
+            def validate_and_consume(call, grant, execution_context):
+                return True
+
+        failed = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell",
+                tool_call_id="gateway-settled-start-failure",
+                arguments={
+                    "executable": "zyra-command-that-does-not-exist",
+                    "argv": [],
+                    "foreground_wait_seconds": 2,
+                },
+                metadata={"session_id": f"start-failure-{state.task_id}"},
+            ),
+            permission_grant={"grant_id": "start-failure-grant"},
+            permission_authority=Authority(),
+            permission_execution_context={},
+        )
+
+        self.assertFalse(failed.ok)
+        self.assertEqual(failed.error, "process_start_failed")
+        self.assertEqual(failed.output["termination"], "failed_to_start")
+        self.assertIsNone(failed.output["return_code"])
+        self.assertEqual(
+            failed.metadata["command_start_failure_settled"],
+            "true",
+        )
+        self.assertEqual(failed.metadata["model_recovery_allowed"], "true")
+        self.assertEqual(failed.metadata["workspace_mutation_committed"], "false")
+        self.assertIn("structured executable/argv", failed.output["recovery_hint"])
+        if sys.platform == "win32":
+            self.assertIn("pwsh.exe", failed.output["recovery_hint"])
+
     def test_parent_cancellation_terminates_a_background_command(self) -> None:
         state = create_task_state("Outer cancellation owns background command lifetime")
         port, workspace = self._port(state, "CodeWorkerRuntime")

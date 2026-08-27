@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import mimetypes
+import os
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeoutError
@@ -811,6 +812,18 @@ class GatewayToolExecutionRouter:
             process.termination is ProcessTermination.TIMED_OUT
             and process_tree_controlled
         )
+        settled_start_failure = (
+            process.termination is ProcessTermination.FAILED_TO_START
+            and process.return_code is None
+            and process_tree_controlled
+            and not _metadata_flag(
+                process.metadata.get("workspace_mutation_committed")
+            )
+            and not (
+                execution.patch_receipt is not None
+                and execution.patch_receipt.committed
+            )
+        )
         metadata.update(
             {
                 "return_code": str(process.return_code),
@@ -835,7 +848,15 @@ class GatewayToolExecutionRouter:
                 # a new isolated command session and replan from the observed
                 # timeout instead of losing the entire agent run.
                 "command_timeout_settled": str(settled_timeout).lower(),
-                "model_recovery_allowed": str(settled_timeout).lower(),
+                # A failed-to-start process has no child to fence.  Only expose
+                # model recovery when the gateway also proves that neither the
+                # process nor the workspace patch path committed a mutation.
+                "command_start_failure_settled": str(
+                    settled_start_failure
+                ).lower(),
+                "model_recovery_allowed": str(
+                    settled_timeout or settled_start_failure
+                ).lower(),
             }
         )
         return ToolResult(
@@ -849,6 +870,11 @@ class GatewayToolExecutionRouter:
                 "termination": process.termination.value,
                 "artifact_refs": list(artifact_refs),
                 "gateway_receipt": integration_receipt.safe_dict(),
+                **(
+                    {"recovery_hint": _process_recovery_hint(process.termination)}
+                    if process.termination is ProcessTermination.FAILED_TO_START
+                    else {}
+                ),
             },
             error=None if succeeded else process.error_code or "sandbox_command_failed",
             metadata=metadata,
@@ -1763,6 +1789,23 @@ def _process_failure_class(termination: ProcessTermination) -> FailureClass:
     if termination == ProcessTermination.CANCELLED:
         return FailureClass.CANCEL
     return FailureClass.BACKEND
+
+
+def _process_recovery_hint(termination: ProcessTermination) -> str:
+    if termination is not ProcessTermination.FAILED_TO_START:
+        return ""
+    if os.name == "nt":
+        return (
+            "The executable did not start. Change the structured executable/argv "
+            "before retrying. Windows aliases such as pwd and ls are not standalone "
+            "executables; use pwsh.exe with arguments such as -NoProfile, "
+            "-NonInteractive, -Command, Get-Location (or Get-ChildItem -Force), "
+            "or choose another executable available on PATH."
+        )
+    return (
+        "The executable did not start. Change the structured executable/argv "
+        "before retrying and choose an executable available on PATH."
+    )
 
 
 __all__ = [
