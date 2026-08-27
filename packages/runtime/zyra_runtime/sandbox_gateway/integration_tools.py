@@ -6,7 +6,7 @@ import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass, replace
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence, TYPE_CHECKING
 
 from ..executor import ToolCall, ToolResult
@@ -1669,7 +1669,50 @@ class GatewayToolExecutionRouter:
             value = (value,)
         if not isinstance(value, Sequence):
             raise ValueError("input_paths must be a sequence")
-        return tuple(self.bundle.policy_runtime.assert_path(str(item)) for item in value)
+        explicit = tuple(
+            self.bundle.policy_runtime.assert_path(str(item)) for item in value
+        )
+        if not self.bundle.stage_workspace_snapshot:
+            return explicit
+
+        # File tools and local shell commands must observe one task workspace.
+        # Only logical names are enumerated here; IsolationWorkspace transfers
+        # every byte through GatewayFileArtifactPort and commits the resulting
+        # delta through GatewayPatchPort. Runtime/cache trees are intentionally
+        # excluded from the task snapshot.
+        excluded_directories = {
+            ".git",
+            ".runtime",
+            ".venv",
+            "venv",
+            "node_modules",
+            "__pycache__",
+            "dist",
+            "coverage",
+        }
+        root = self.bundle.workspace_root.resolve()
+        discovered: list[str] = []
+        for current, directories, filenames in os.walk(root, followlinks=False):
+            current_path = Path(current)
+            directories[:] = sorted(
+                name
+                for name in directories
+                if name not in excluded_directories
+                and not current_path.joinpath(name).is_symlink()
+            )
+            for filename in sorted(filenames):
+                path = current_path / filename
+                if path.is_symlink() or not path.is_file():
+                    continue
+                logical = path.relative_to(root).as_posix()
+                discovered.append(self.bundle.policy_runtime.assert_path(logical))
+                if len(discovered) > 20_000:
+                    raise SandboxGatewayError(
+                        GatewayErrorCode.PATCH_REJECTED,
+                        "managed workspace snapshot exceeds the sandbox staging file limit",
+                        operation="gateway_stage_workspace_snapshot",
+                    )
+        return tuple(dict.fromkeys((*explicit, *discovered)))
 
     @staticmethod
     def _error(

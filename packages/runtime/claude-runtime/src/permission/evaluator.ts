@@ -118,6 +118,7 @@ export class PermissionEvaluator {
   private readonly denialAbortLimit: number;
   private readonly decisions = new Map<string, PermissionDecisionRecord>();
   private denialCount = 0;
+  private denialSignature = "";
 
   constructor(options: PermissionEvaluatorOptions) {
     this.runtime = cloneJson(options.runtime);
@@ -276,15 +277,24 @@ export class PermissionEvaluator {
         continuation_expires_at: continuation.expiresAt,
       };
     }
+    const denialSignature = [
+      identity.context.namespace,
+      identity.context.toolName,
+      identity.context.operation,
+    ].join(":");
     if (effect === "deny") {
-      this.denialCount += 1;
+      this.denialCount = this.denialSignature === denialSignature
+        ? this.denialCount + 1
+        : 1;
+      this.denialSignature = denialSignature;
       decision.metadata = {
         ...decision.metadata,
         denial_count: this.denialCount,
         permission_abort_loop: this.denialCount >= this.denialAbortLimit,
       };
-    } else {
+    } else if (this.denialSignature === denialSignature) {
       this.denialCount = 0;
+      this.denialSignature = "";
     }
     const receipt = this.journal.commit(prepared.transition.transitionId, decision);
     this.journal.acknowledge(receipt.transitionId, receipt.commitHash);
@@ -375,13 +385,14 @@ export class PermissionEvaluator {
       journal: this.journal.snapshot() as unknown as JsonObject,
       decisions: [...this.decisions.values()].map(cloneJson).sort((left, right) => left.decisionId.localeCompare(right.decisionId)),
       denial_count: this.denialCount,
+      denial_signature: this.denialSignature,
     };
     return { ...base, snapshot_hash: digest(base) };
   }
 
   restore(snapshot: JsonObject): void {
     if (snapshot.version !== "zyra.e02-permission-evaluator/v1") throw new Error("unsupported permission evaluator snapshot");
-    const expectedHash = digest({
+    const expectedBase: JsonObject = {
       version: snapshot.version,
       runtime: snapshot.runtime,
       mode: snapshot.mode,
@@ -392,7 +403,12 @@ export class PermissionEvaluator {
       journal: snapshot.journal,
       decisions: snapshot.decisions,
       denial_count: snapshot.denial_count,
-    });
+    };
+    // Checkpoints written before semantic denial signatures remain valid.
+    if (snapshot.denial_signature !== undefined) {
+      expectedBase.denial_signature = snapshot.denial_signature;
+    }
+    const expectedHash = digest(expectedBase);
     if (expectedHash !== snapshot.snapshot_hash) throw new Error("permission evaluator snapshot hash mismatch");
     const runtime = snapshot.runtime as unknown as E02RuntimeIdentity;
     if (runtime.runId !== this.runtime.runId || runtime.sessionId !== this.runtime.sessionId) {
@@ -409,6 +425,14 @@ export class PermissionEvaluator {
     }
     this.denialCount = Number(snapshot.denial_count ?? 0);
     if (!Number.isSafeInteger(this.denialCount) || this.denialCount < 0) throw new Error("permission denial count is invalid");
+    this.denialSignature = typeof snapshot.denial_signature === "string"
+      ? snapshot.denial_signature
+      : "";
+    if (this.denialCount > 0 && !this.denialSignature) {
+      // Legacy checkpoints did not persist the semantic class. Preserve the
+      // count for audit, but the next denial establishes a fresh bounded class.
+      this.denialCount = 0;
+    }
   }
 
   private selectEffect(

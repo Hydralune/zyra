@@ -270,6 +270,38 @@ test("e02.custody.permission.failure-path", () => {
   );
 });
 
+test("successful lower-risk edits do not erase the bounded autonomous denial circuit", () => {
+  const evaluator = new PermissionEvaluator({
+    runtime: runtime("interleaved-denials", 1),
+    denialAbortLimit: 3,
+    mode: {
+      mode: "auto",
+      interactive: false,
+      headless: true,
+      sealedAutonomous: false,
+    },
+  });
+  for (let index = 1; index <= 3; index += 1) {
+    const denied = evaluator.evaluate(input(`interleaved-denial-${index}`, {
+      toolName: "shell",
+      operation: "execute",
+      arguments: { command: `rm -rf G:/workspace/cache-${index}` },
+      metadata: { destructiveHint: true, schema_digest: "schema:shell:v1" },
+    }));
+    assert.equal(denied.effect, "deny");
+    assert.equal(denied.metadata.denial_count, index);
+    assert.equal(denied.metadata.permission_abort_loop, index >= 3);
+    if (index < 3) {
+      const edit = evaluator.evaluate(input(`interleaved-edit-${index}`, {
+        toolName: "file_write",
+        operation: "write",
+        arguments: { path: `deliverables/verification-${index}.json`, content: "{}" },
+      }));
+      assert.equal(edit.effect, "allow");
+    }
+  }
+});
+
 test("permission identity binds normalized capability, workspace path, and exact arguments", () => {
   const original = PermissionIdentity.create(input("identity", {
     toolName: "Read",

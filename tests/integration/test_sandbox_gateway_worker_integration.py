@@ -501,6 +501,66 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         self.assertTrue(result.output["artifact_refs"], (result.output, result.metadata))
         self.assertTrue(port.read_bytes("command-output/gateway-output-spill-1.log").exists)
 
+    def test_local_shell_stages_the_managed_workspace_and_commits_its_delta(self) -> None:
+        state = create_task_state("Local shell shares the managed task workspace")
+        port, workspace = self._port(state, "CodeWorkerRuntime")
+        port.write_text(
+            "inputs/value.txt",
+            "managed-workspace-value",
+            idempotency_key="seed-managed-shell-input",
+        )
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=port,
+            runtime_services={
+                "sandbox_gateway_required": True,
+                "sandbox_gateway_stage_workspace_snapshot": True,
+            },
+        )
+        router = GatewayToolExecutionRouter(bundle)
+
+        class Authority:
+            @staticmethod
+            def validate_and_consume(call, grant, execution_context):
+                return True
+
+        call = ToolCall(
+            run_id=state.run_id,
+            task_id=state.task_id,
+            node_id=state.root_node_id,
+            tool_name="shell",
+            tool_call_id="managed-shell-view-1",
+            arguments={
+                "executable": sys.executable,
+                "argv": [
+                    "-c",
+                    (
+                        "from pathlib import Path; "
+                        "value=Path('inputs/value.txt').read_text(); "
+                        "Path('deliverables').mkdir(exist_ok=True); "
+                        "Path('deliverables/result.txt').write_text(value); "
+                        "print(value)"
+                    ),
+                ],
+            },
+            metadata={"session_id": f"managed-shell-{state.task_id}"},
+        )
+        result = router.execute(
+            call,
+            permission_grant={"grant_id": "managed-shell-grant"},
+            permission_authority=Authority(),
+            permission_execution_context={},
+        )
+
+        self.assertTrue(result.ok, result)
+        self.assertIn("managed-workspace-value", result.output["stdout"])
+        self.assertEqual(
+            port.read_bytes("deliverables/result.txt").content.decode("utf-8"),
+            "managed-workspace-value",
+        )
+
     def test_long_command_moves_to_background_and_can_be_polled_to_completion(self) -> None:
         state = create_task_state("Long sandbox command retains its real process lifetime")
         port, workspace = self._port(state, "CodeWorkerRuntime")

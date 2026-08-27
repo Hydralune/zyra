@@ -188,3 +188,27 @@ test("autonomous workspace script writes stay below execution risk", () => {
   assert.equal(execute.effect, "deny");
   assert.equal(executeRisk.level, "high");
 });
+
+test("canonical verification scripts remain sandboxed but do not require a human approval bridge", () => {
+  const evaluator = new TypeScriptPermissionEvaluator({
+    mode: "auto",
+    interactive: false,
+    headless: true,
+    workspace_root: "C:/workspace",
+    rules: [],
+  }, { sessionId: "session-1", workspaceRoot: "C:/workspace" });
+  const execute = evaluator.evaluate({
+    ...base,
+    toolCallId: "execute-canonical-reproducer",
+    arguments: {
+      executable: "pwsh",
+      argv: ["-NoProfile", "-File", "deliverables/reproduce.ps1"],
+    },
+    metadata: { progressive_verification_driving: true },
+  });
+
+  const risk = execute.metadata.risk as { level: string; deterministicSignals: string[] };
+  assert.equal(execute.effect, "allow");
+  assert.equal(risk.level, "medium");
+  assert.ok(risk.deterministicSignals.includes("runtime:canonical-verification"));
+});

@@ -61,6 +61,7 @@ class GatewayRuntimeBundle:
     worker_id: str
     required: bool
     sealed: bool
+    stage_workspace_snapshot: bool = False
     backend_action_dispatch_port: Any | None = None
 
     def descriptor(self) -> dict[str, Any]:
@@ -80,6 +81,7 @@ class GatewayRuntimeBundle:
             "worker_id": self.worker_id,
             "required": self.required,
             "sealed": self.sealed,
+            "stage_workspace_snapshot": self.stage_workspace_snapshot,
             "canonical_gateway_owner": "SandboxGatewayRuntime",
             "permission_owner": "typescript.PermissionCoordinator",
             "workspace_owner": "WorkspaceManagerRuntime",
@@ -96,7 +98,7 @@ class GatewayRuntimeBundleRegistry:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._bundles: dict[
-            tuple[str, str, str, int, int, bool], GatewayRuntimeBundle
+            tuple[str, str, str, int, int, bool, bool], GatewayRuntimeBundle
         ] = {}
 
     def get_or_create(
@@ -115,6 +117,9 @@ class GatewayRuntimeBundleRegistry:
         allow_executable_source = bool(
             services.get("sandbox_gateway_allow_executable_source", False)
         )
+        stage_workspace_snapshot = bool(
+            services.get("sandbox_gateway_stage_workspace_snapshot", False)
+        )
         key = (
             str(workspace),
             str(artifacts),
@@ -122,6 +127,7 @@ class GatewayRuntimeBundleRegistry:
             id(workspace_edit_port),
             id(action_port),
             allow_executable_source,
+            stage_workspace_snapshot,
         )
         with self._lock:
             existing = self._bundles.get(key)
@@ -442,6 +448,9 @@ def build_gateway_runtime_bundle(
         worker_id=str(worker_id),
         required=required,
         sealed=sealed,
+        stage_workspace_snapshot=bool(
+            services.get("sandbox_gateway_stage_workspace_snapshot", False)
+        ),
         backend_action_dispatch_port=services.get("backend_action_dispatch_port"),
     )
 

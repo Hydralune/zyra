@@ -8310,6 +8310,42 @@ def _task_execution_failed_event(state: Any, error: BaseException) -> EventRecor
     )
 
 
+def _project_task_execution_failure(
+    store: SQLiteStore,
+    state: Any,
+    error: BaseException,
+) -> tuple[Any, EventRecord, bool]:
+    """Fence a stale execution owner's failure after a canonical terminal state."""
+
+    canonical = store.load_task(state.task_id)
+    if canonical is not None and str(canonical.status) in {
+        "completed",
+        "failed",
+        "cancelled",
+    }:
+        return (
+            canonical,
+            EventRecord(
+                run_id=canonical.run_id,
+                task_id=canonical.task_id,
+                node_id=canonical.root_node_id,
+                event_type=EventType.SYSTEM_NOTICE,
+                payload={
+                    "schema": "zyra.task-execution-late-failure-fenced/v1",
+                    "canonical_status": str(canonical.status),
+                    "observed_error": str(
+                        getattr(error, "code", "") or type(error).__name__
+                    ),
+                    "message": _diagnostic_error_message(error),
+                    "state_mutation_committed": False,
+                    "terminal_state_monotonic": True,
+                },
+            ),
+            True,
+        )
+    return state, _task_execution_failed_event(state, error), False
+
+
 def _task_execution_started_event(
     state: Any,
     reservation: ReceiptReservation | None,
@@ -11727,18 +11763,22 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 # nodes without a worker binding and CARD would correctly
                 # reject those unowned ARG predecessors.
             except Exception as error:
-                failure_event = _task_execution_failed_event(state, error)
+                state, failure_event, terminal_failure_fenced = (
+                    _project_task_execution_failure(store, state, error)
+                )
                 events.append(failure_event)
-                try:
-                    pool_api.finalize_task(
-                        state,
-                        success=False,
-                        summary="worker pool initialization failed",
-                    )
-                except Exception:  # noqa: BLE001 - preserve the primary failure.
-                    pass
+                if not terminal_failure_fenced:
+                    try:
+                        pool_api.finalize_task(
+                            state,
+                            success=False,
+                            summary="worker pool initialization failed",
+                        )
+                    except Exception:  # noqa: BLE001 - preserve the primary failure.
+                        pass
                 persist_events(store, events)
-                store.save_checkpoint(state)
+                if not terminal_failure_fenced:
+                    store.save_checkpoint(state)
                 response_body = _task_execution_error_response(
                     state,
                     error,
@@ -11786,16 +11826,19 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         ),
                     )
                 except Exception as error:  # noqa: BLE001 - HTTP boundary must stay structured.
-                    failure_event = _task_execution_failed_event(state, error)
+                    state, failure_event, terminal_failure_fenced = (
+                        _project_task_execution_failure(store, state, error)
+                    )
                     events.append(failure_event)
-                    try:
-                        pool_api.finalize_task(
-                            state,
-                            success=False,
-                            summary="task execution failed before completion",
-                        )
-                    except Exception:  # noqa: BLE001 - preserve the primary failure.
-                        pass
+                    if not terminal_failure_fenced:
+                        try:
+                            pool_api.finalize_task(
+                                state,
+                                success=False,
+                                summary="task execution failed before completion",
+                            )
+                        except Exception:  # noqa: BLE001 - preserve the primary failure.
+                            pass
                     events.extend(
                         event
                         for event in pool_api.pool.events.project_after(
@@ -11806,7 +11849,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         and event.task_id == state.task_id
                     )
                     persist_events(store, events)
-                    store.save_checkpoint(state)
+                    if not terminal_failure_fenced:
+                        store.save_checkpoint(state)
                     response_body = _task_execution_error_response(
                         state,
                         error,
@@ -11939,18 +11983,22 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     summary=f"task run finished with status {state.status}",
                 )
             except Exception as error:  # noqa: BLE001 - HTTP boundary must stay structured.
-                failure_event = _task_execution_failed_event(state, error)
-                state.metadata.pop("execution_in_flight", None)
+                state, failure_event, terminal_failure_fenced = (
+                    _project_task_execution_failure(store, state, error)
+                )
+                if not terminal_failure_fenced:
+                    state.metadata.pop("execution_in_flight", None)
                 events.append(failure_event)
-                try:
-                    if pool_api is not None:
-                        pool_api.finalize_task(
-                            state,
-                            success=False,
-                            summary="task resume failed before completion",
-                        )
-                except Exception:  # noqa: BLE001 - preserve the primary failure.
-                    pass
+                if not terminal_failure_fenced:
+                    try:
+                        if pool_api is not None:
+                            pool_api.finalize_task(
+                                state,
+                                success=False,
+                                summary="task resume failed before completion",
+                            )
+                    except Exception:  # noqa: BLE001 - preserve the primary failure.
+                        pass
                 if pool_api is not None:
                     events.extend(
                         event
@@ -11962,7 +12010,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         and event.task_id == state.task_id
                     )
                 persist_events(store, events)
-                store.save_checkpoint(state)
+                if not terminal_failure_fenced:
+                    store.save_checkpoint(state)
                 response_body = _task_execution_error_response(
                     state,
                     error,
@@ -12098,7 +12147,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         "idempotency_key": f"parent-cancel:{state.task_id}:{child.task_id}:{child.revision}",
                     },
                     request_id=cancel_request_id,
-                    session_id=child.parent_session_id,
+                    session_id=(
+                        f"{child.parent_session_id}:control:{cancel_request_id}"
+                    ),
+                    canonical_agent_parent_session_id=child.parent_session_id,
                     session_custody_token=extract_bearer_token(self.headers, payload),
                 )
                 events.extend(cancel_run.event_records)

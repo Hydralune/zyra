@@ -7,6 +7,7 @@ import urllib.request
 from contextlib import contextmanager
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Iterator
 from unittest.mock import patch
 from urllib.error import HTTPError
@@ -280,6 +281,85 @@ def test_task_cancel_survives_stale_graph_reconciliation(tmp_path: Path) -> None
         ]
         stored = api_main.get_store().load_task(task["task_id"])
         assert stored is not None and stored.status.value == "cancelled"
+
+
+def test_late_execution_failure_cannot_overwrite_cancelled_task(tmp_path: Path) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {
+                "goal": "Keep cancellation terminal after a stale worker fails.",
+                "auto_run": False,
+            },
+        )["task"]
+        store = api_main.get_store()
+        stale_running_owner = store.load_task(task["task_id"])
+        assert stale_running_owner is not None
+        _post(
+            base_url,
+            f"/tasks/{task['task_id']}/cancel",
+            {"reason": "operator cancellation wins the race"},
+        )
+
+        projected, event, fenced = api_main._project_task_execution_failure(  # noqa: SLF001
+            store,
+            stale_running_owner,
+            RuntimeError("late worker loss"),
+        )
+
+        assert fenced is True
+        assert projected.status.value == "cancelled"
+        assert event.payload["schema"] == "zyra.task-execution-late-failure-fenced/v1"
+        assert event.payload["state_mutation_committed"] is False
+        stored = store.load_task(task["task_id"])
+        assert stored is not None and stored.status.value == "cancelled"
+
+
+def test_parent_cancel_uses_a_fenced_control_checkpoint_writer(tmp_path: Path) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Cancel a logical child through a fresh control writer.", "auto_run": False},
+        )["task"]
+        parent_session_id = "query:parent-session-with-durable-checkpoint"
+        child = SimpleNamespace(
+            task_id="logical-child-for-parent-cancel",
+            parent_session_id=parent_session_id,
+            revision=7,
+            status=SimpleNamespace(terminal=False),
+        )
+        agent_port = SimpleNamespace(records=lambda **_kwargs: (child,))
+        captured: dict[str, Any] = {}
+
+        def cancel_request(_state: Any, **kwargs: Any) -> Any:
+            captured.update(kwargs)
+            return SimpleNamespace(
+                event_records=(),
+                worker_result=SimpleNamespace(ok=False, error="controlled logical cancel rejection"),
+            )
+
+        with (
+            patch.object(api_main, "get_typescript_agent_port", return_value=agent_port),
+            patch.object(api_main, "_run_typescript_agent_request", side_effect=cancel_request),
+        ):
+            cancelled = _post(
+                base_url,
+                f"/tasks/{task['task_id']}/cancel",
+                {"reason": "exercise parent control checkpoint identity"},
+            )
+
+        assert captured["canonical_agent_parent_session_id"] == parent_session_id
+        assert captured["session_id"].startswith(f"{parent_session_id}:control:parent-agent-cancel_")
+        assert captured["session_id"] != parent_session_id
+        assert cancelled["task"]["status"] == "cancelled"
+        assert cancelled["subagent_cancel_errors"] == [
+            {
+                "task_id": child.task_id,
+                "error": "controlled logical cancel rejection",
+            }
+        ]
 
 
 def test_expired_task_rebind_terminalizes_old_graph_before_new_binding(

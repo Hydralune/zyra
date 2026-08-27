@@ -190,6 +190,19 @@ export class PermissionRiskRuntime {
       if (/\$\(|`[^`]+`|%[^%]+%|\$env:/i.test(command)) {
         add(15, "shell:dynamic-expansion", "shell command contains dynamic expansion");
       }
+      if (optionalObject(context.metadata).progressive_verification_driving === true) {
+        // QueryEngine computes this field after model metadata is merged, so
+        // the model cannot self-label an arbitrary command as verification.
+        // The local sandbox and its destructive/network/path guards remain
+        // authoritative; this discount only prevents ordinary test runners
+        // and interpreter-wrapped reproduction scripts from becoming high
+        // risk solely because they execute code inside that sandbox.
+        add(
+          -25,
+          "runtime:canonical-verification",
+          "canonical runtime classified the command as behavioral verification",
+        );
+      }
     }
     if (HIGH_CONFIDENCE_SECRET_PATTERNS.some((pattern) => pattern.test(argumentsText))) {
       add(50, "arguments:secret-material", "arguments appear to contain secret material");

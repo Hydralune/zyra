@@ -6287,6 +6287,7 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   );
   assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "services/worker/state.py" } }), true);
   assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "submission/test-report.json" } }), false);
+  assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "deliverables/verification.json" } }), false);
   assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "tests/public/test_release_policy_parity.py" } }), false);
   assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_edit", arguments: { path: "services/worker/state.test.ts" } }), false);
   assert.equal(isClearlyRepairDrivingTool({ tool_name: "file_write", arguments: { path: "docs/security.md" } }), false);
@@ -6298,6 +6299,7 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyRepairDrivingTool(shell("docker compose up -d --build")), false);
   assert.equal(isClearlyRepairDrivingTool(shell("npm run build")), false);
   assert.equal(isGeneratedDeliveryMutation({ tool_name: "file_write", arguments: { path: "submission/test-report.json" } }), true);
+  assert.equal(isGeneratedDeliveryMutation({ tool_name: "file_write", arguments: { path: "deliverables/verification.json" } }), true);
   assert.equal(isGeneratedDeliveryMutation({ tool_name: "file_edit", arguments: { path: "evidence/test-farm/latest.json" } }), true);
   assert.equal(isGeneratedDeliveryMutation({ tool_name: "file_write", arguments: { path: "services/worker/state.py" } }), false);
   assert.equal(isGeneratedDeliveryMutation(shell("cat result.json > evidence/test-farm/latest.json")), true);
@@ -6309,6 +6311,7 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isValidationOnlyMutation(shell("sed -i 's/a/b/' tests/public/test_policy.py")), true);
   assert.equal(isValidationOnlyMutation(shell("sed -i 's/a/b/' tests/public/test_policy.py && sed -i 's/a/b/' services/worker/state.py")), false);
   assert.equal(isGeneratedDeliveryInspection({ tool_name: "file_read", arguments: { path: "submission/test-report.json" } }, true), true);
+  assert.equal(isGeneratedDeliveryInspection(shell("cat deliverables/verification.json"), false), true);
   assert.equal(isGeneratedDeliveryInspection(shell("cat evidence/test-farm/latest.json"), false), true);
   assert.equal(isGeneratedDeliveryInspection(shell("cat .runtime/simulation-result.json && docker ps"), false), true);
   assert.equal(isGeneratedDeliveryInspection(shell("ls evidence/test-farm 2>/dev/null; ls .runtime/ 2>/dev/null"), false), true);
@@ -6339,6 +6342,7 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyVerificationDrivingTool(shell("sed -n '1,200p' /workspace/tests/integration/test_release.py")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("grep -n 'pytest|failed_shards|test integration' tools/afctl.py")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("./scripts/verify-release.sh --all")), true);
+  assert.equal(isClearlyVerificationDrivingTool(structuredShell("pwsh", ["-NoProfile", "-File", "deliverables/reproduce.ps1"])), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("/workspace/tools/integration-check.py --live")), true);
   assert.equal(isClearlyVerificationDrivingTool({ tool_name: "read", arguments: { path: "test.log" } }), false);
 });

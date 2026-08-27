@@ -582,6 +582,11 @@ def execute_code_worker_operator(
         "workspace_edit_port": edit_port,
         "workspace_gateway_required": True,
         "sandbox_gateway_state_root": sandbox_gateway_state_root,
+        # The default local-process backend owns an isolated execution root.
+        # Stage the current managed task workspace before each command so file
+        # tools and shell share one coherent view. Docker benchmark bindings
+        # already provide this coherence through their dedicated mirror.
+        "sandbox_gateway_stage_workspace_snapshot": benchmark_binding is None,
     }
     browser_dispatch_port = BrowserWorkerActionDispatchPort(
         project_root=project_root,

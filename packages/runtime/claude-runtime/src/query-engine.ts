@@ -3608,7 +3608,7 @@ export function isGeneratedDeliveryInspection(
   // failed-verification gate must allow it to rebuild the named deliverables.
   if (isDeliveryEvidenceGeneratorCommand(command)) return false;
   if (isClearlyVerificationDrivingTool(step) || shellMutationTargets(command).length > 0) return false;
-  return /(?:^|[\s"'=])(?:\.\/)?(?:submission|evidence|\.runtime)\//iu.test(command)
+  return /(?:^|[\s"'=])(?:\.\/)?(?:submission|deliverables?|evidence|\.runtime)\//iu.test(command)
     || /(?:^|\/)\b(?:regenerate|generate|update)[-_]?(?:submission|evidence|manifest|report)\b/iu.test(command);
 }
 
@@ -3637,7 +3637,7 @@ function isNullDevicePath(value: string): boolean {
 
 function isGeneratedDeliveryPath(value: string): boolean {
   const normalized = value.trim().replaceAll("\\", "/").replace(/^\.\//u, "");
-  return /(?:^|\/)(?:submission|evidence|\.runtime)(?:\/|$)/iu.test(normalized);
+  return /(?:^|\/)(?:submission|deliverables?|evidence|\.runtime)(?:\/|$)/iu.test(normalized);
 }
 
 function isValidationOnlyDeliveryPath(value: string): boolean {
@@ -3907,13 +3907,14 @@ function isClearlyVerificationDrivingShellCommand(value: string): boolean {
     if (/\bgo\s+test\b/i.test(segment)) return true;
     if (/\b(?:gradle|gradlew|mvn|mvnw)\b[^;&|]*(?:test|check|verify|build)\b/i.test(segment)) return true;
     if (/\b(?:make|cmake|ctest)\b[^;&|]*(?:test|check|verify|build)\b/i.test(segment)) return true;
-    if (/\b(?:sh|bash)\b[^;&|]*(?:test|check|verify|validate|smoke|e2e|integration|build)[^;&|]*\.sh\b/i.test(segment)) return true;
-    if (/\bpython(?:3)?\b[^;&|]*(?:^|[^a-z0-9])(?:test|check|verify|validate|smoke|e2e|integration|build|simulate)(?=[^a-z0-9]|$)/i.test(segment)) return true;
+    if (/\b(?:sh|bash)\b[^;&|]*(?:test|check|verify|validate|smoke|e2e|integration|acceptance|repro(?:duce)?|build)[^;&|]*\.sh\b/i.test(segment)) return true;
+    if (/\b(?:powershell|pwsh)(?:\.exe)?\b[^;&|]*(?:test|check|verify|validate|smoke|e2e|integration|acceptance|repro(?:duce)?|build)[^;&|]*\.ps1\b/i.test(segment)) return true;
+    if (/\bpython(?:3)?\b[^;&|]*(?:^|[^a-z0-9])(?:test|check|verify|validate|smoke|e2e|integration|repro(?:duce)?|build|simulate)(?=[^a-z0-9]|$)/i.test(segment)) return true;
     // A script whose executable path is itself a verification entry point is
     // evidence-driving.  Do not scan arbitrary later path arguments: commands
     // such as `cat tests/public/test_metrics.py` only inspect test source and
     // must not discharge verification debt or reset no-progress detection.
-    if (/^(?:env\s+(?:[^\s=]+=[^\s]+\s+)+)?(?:\.\/|\/)[^\s]*(?:test|check|verify|validate|smoke|e2e|integration|build|simulate)[^\s]*(?:\.sh|\.py)?(?:\s|$)/i.test(segment)) return true;
+    if (/^(?:env\s+(?:[^\s=]+=[^\s]+\s+)+)?(?:\.\/|\/)[^\s]*(?:test|check|verify|validate|smoke|e2e|integration|acceptance|repro(?:duce)?|build|simulate)[^\s]*(?:\.sh|\.py|\.ps1)?(?:\s|$)/i.test(segment)) return true;
     if (/\bdocker(?:\.exe)?\s+compose\b[^;&|]*\brun\b[^;&|]*(?:test|pytest|check|verify|smoke|e2e|integration)\b/i.test(segment)) return true;
     return false;
   });
