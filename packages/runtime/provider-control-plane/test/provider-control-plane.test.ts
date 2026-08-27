@@ -21,6 +21,7 @@ import { ProviderControlPlaneRpcServer, RPC_PROTOCOL } from "../src/stdio-server
 import {
   DEEPSEEK_API_KEY_ENV,
   DEEPSEEK_CREDENTIAL_ID,
+  DEEPSEEK_ENABLED_ENV,
   DEEPSEEK_PROVIDER_ID,
   DEEPSEEK_V4_FLASH_MODEL_ID,
   deepSeekV4FlashProfile,
@@ -28,6 +29,7 @@ import {
 } from "../src/profiles/deepseek.ts";
 import {
   KIMI_API_KEY_ENV,
+  KIMI_ENABLED_ENV,
   KIMI_PLATFORM_CREDENTIAL_ID,
   KIMI_PLATFORM_PROVIDER_ID,
   KIMI_K27_CODE_MODEL_ID,
@@ -35,6 +37,7 @@ import {
   kimiK27CodeProfile,
 } from "../src/profiles/kimi-platform.ts";
 import {
+  GLM_ENABLED_ENV,
   GLM_52_MODEL_ID,
   ZAI_API_KEY_ENV,
   ZHIPU_CREDENTIAL_ID,
@@ -335,7 +338,14 @@ test("RPC server fails closed when the provider control-plane owner is disabled"
 test("RPC installs configured live profiles in the fixed preference order without secret bytes", async (t) => {
   const { controlPlane } = makeControlPlane(t);
   const server = new ProviderControlPlaneRpcServer(controlPlane);
-  const names = [DEEPSEEK_API_KEY_ENV, ZAI_API_KEY_ENV, KIMI_API_KEY_ENV] as const;
+  const names = [
+    DEEPSEEK_API_KEY_ENV,
+    ZAI_API_KEY_ENV,
+    KIMI_API_KEY_ENV,
+    DEEPSEEK_ENABLED_ENV,
+    GLM_ENABLED_ENV,
+    KIMI_ENABLED_ENV,
+  ] as const;
   const previous = new Map(names.map((name) => [name, process.env[name]]));
   const restore = () => {
     for (const name of names) {
@@ -347,6 +357,9 @@ test("RPC installs configured live profiles in the fixed preference order withou
   process.env[ZAI_API_KEY_ENV] = "configured-glm-secret";
   process.env[DEEPSEEK_API_KEY_ENV] = "configured-deepseek-secret";
   process.env[KIMI_API_KEY_ENV] = "configured-kimi-secret";
+  process.env[DEEPSEEK_ENABLED_ENV] = "true";
+  process.env[GLM_ENABLED_ENV] = "true";
+  process.env[KIMI_ENABLED_ENV] = "true";
 
   const response = await server.handle({
     protocol: RPC_PROTOCOL,
@@ -380,6 +393,67 @@ test("RPC installs configured live profiles in the fixed preference order withou
   assert.equal(serialized.includes("configured-glm-secret"), false);
   assert.equal(serialized.includes("configured-deepseek-secret"), false);
   assert.equal(serialized.includes("configured-kimi-secret"), false);
+});
+
+test("RPC disables retained GLM and Kimi profiles when their switches are off", async (t) => {
+  const { controlPlane } = makeControlPlane(t);
+  const server = new ProviderControlPlaneRpcServer(controlPlane);
+  const names = [
+    DEEPSEEK_API_KEY_ENV,
+    ZAI_API_KEY_ENV,
+    KIMI_API_KEY_ENV,
+    DEEPSEEK_ENABLED_ENV,
+    GLM_ENABLED_ENV,
+    KIMI_ENABLED_ENV,
+  ] as const;
+  const previous = new Map(names.map((name) => [name, process.env[name]]));
+  t.after(() => {
+    for (const name of names) {
+      const value = previous.get(name);
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+  process.env[DEEPSEEK_API_KEY_ENV] = "retained-deepseek-secret";
+  process.env[ZAI_API_KEY_ENV] = "retained-glm-secret";
+  process.env[KIMI_API_KEY_ENV] = "retained-kimi-secret";
+  process.env[DEEPSEEK_ENABLED_ENV] = "true";
+  process.env[GLM_ENABLED_ENV] = "false";
+  process.env[KIMI_ENABLED_ENV] = "false";
+
+  const response = await server.handle({
+    protocol: RPC_PROTOCOL,
+    requestId: "disable-configured-profiles",
+    operation: "profiles.install_configured",
+    payload: {},
+  });
+
+  assert.equal(response.ok, true, JSON.stringify(response.error));
+  const result = response.result as {
+    installed: Array<Record<string, unknown>>;
+    disabled: Array<Record<string, unknown>>;
+    preferenceOrder: string[];
+  };
+  assert.deepEqual(
+    result.installed.map((item) => `${item.providerId}/${item.modelId}`),
+    [`${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`],
+  );
+  assert.deepEqual(
+    result.disabled.map((item) => `${item.providerId}/${item.modelId}`),
+    [
+      `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
+      `${KIMI_PLATFORM_PROVIDER_ID}/${KIMI_K27_CODE_MODEL_ID}`,
+    ],
+  );
+  assert.deepEqual(result.preferenceOrder, [
+    `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+  ]);
+  assert.deepEqual(
+    controlPlane.catalog.models({ availableOnly: true }).map(
+      (model) => `${model.providerId}/${model.modelId}`,
+    ),
+    [`${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`],
+  );
 });
 
 function installProvider(

@@ -6,13 +6,14 @@ import type {
 } from "../contracts.ts";
 import { fingerprintSecret } from "../canonical.ts";
 import type { ProviderControlPlane } from "../control-plane.ts";
-import { installProfileCredential } from "./credential-profile.ts";
+import { installProfileCredential, requireProfileEnabled } from "./credential-profile.ts";
 
 export const DEEPSEEK_PROVIDER_ID = "deepseek";
 export const DEEPSEEK_V4_FLASH_MODEL_ID = "deepseek-v4-flash";
 export const DEEPSEEK_INTEGRATION_ID = "deepseek-bearer";
 export const DEEPSEEK_CREDENTIAL_ID = "deepseek-local-test";
 export const DEEPSEEK_API_KEY_ENV = "DEEPSEEK_API_KEY";
+export const DEEPSEEK_ENABLED_ENV = "ZYRA_DEEPSEEK_ENABLED";
 
 export interface DeepSeekV4FlashProfile {
   readonly integration: IntegrationDefinition;
@@ -97,6 +98,7 @@ export function installDeepSeekV4FlashProfile(
   controlPlane: ProviderControlPlane,
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): InstalledDeepSeekV4FlashProfile {
+  requireProfileEnabled(environment, DEEPSEEK_ENABLED_ENV, "DeepSeek V4 Flash");
   const apiKey = String(environment[DEEPSEEK_API_KEY_ENV] ?? "").trim();
   if (!apiKey) {
     throw new Error(`${DEEPSEEK_API_KEY_ENV} is required for the DeepSeek live profile`);

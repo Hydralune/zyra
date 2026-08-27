@@ -192,7 +192,8 @@ class ProviderRouteBindingRuntime:
                 # Reconcile the configured live profiles on every bind.  This
                 # is idempotent and also rotates an env-referenced credential
                 # when the operator changed it between daemon lifecycles.
-                client.install_configured_profiles()
+                profile_state = client.install_configured_profiles()
+                disabled_routes = self._disabled_profile_routes(profile_state)
                 if route_id:
                     try:
                         wire = client.routing.get(route_id)
@@ -217,6 +218,12 @@ class ProviderRouteBindingRuntime:
                         session_id=session_id,
                         turn_id=turn_id,
                     )
+                    self._assert_route_policy(
+                        ref,
+                        preferred_provider_id=preferred_provider_id,
+                        preferred_model_id=preferred_model_id,
+                        disabled_routes=disabled_routes,
+                    )
                     return self._with_credential_environment(client, ref)
                 existing = self._existing_turn_route(
                     client,
@@ -226,6 +233,12 @@ class ProviderRouteBindingRuntime:
                     turn_id=turn_id,
                 )
                 if existing is not None:
+                    self._assert_route_policy(
+                        existing,
+                        preferred_provider_id=preferred_provider_id,
+                        preferred_model_id=preferred_model_id,
+                        disabled_routes=disabled_routes,
+                    )
                     return self._with_credential_environment(client, existing)
                 if not client.catalog.models(available_only=True):
                     if not self.allow_explicit_sim_bootstrap:
@@ -250,6 +263,16 @@ class ProviderRouteBindingRuntime:
                             else None
                         ),
                         constraints=RouteConstraints(
+                            provider_ids=(
+                                (preferred_provider_id,)
+                                if preferred_provider_id
+                                else ()
+                            ),
+                            model_ids=(
+                                (preferred_model_id,)
+                                if preferred_model_id
+                                else ()
+                            ),
                             require_tools=require_tools,
                             require_streaming=require_streaming,
                         ),
@@ -267,6 +290,12 @@ class ProviderRouteBindingRuntime:
                     task_id=task_id,
                     session_id=session_id,
                     turn_id=turn_id,
+                )
+                self._assert_route_policy(
+                    ref,
+                    preferred_provider_id=preferred_provider_id,
+                    preferred_model_id=preferred_model_id,
+                    disabled_routes=disabled_routes,
                 )
                 return self._with_credential_environment(client, ref)
         except ProviderRouteBindingError:
@@ -312,6 +341,52 @@ class ProviderRouteBindingRuntime:
                 detail={"credential_id": ref.credential_id},
             )
         return replace(ref, credential_environment_name=environment_name)
+
+    @staticmethod
+    def _disabled_profile_routes(
+        profile_state: Mapping[str, Any],
+    ) -> set[tuple[str, str]]:
+        disabled = profile_state.get("disabled")
+        if not isinstance(disabled, list):
+            return set()
+        return {
+            (str(item.get("providerId") or ""), str(item.get("modelId") or ""))
+            for item in disabled
+            if isinstance(item, Mapping)
+        }
+
+    @staticmethod
+    def _assert_route_policy(
+        ref: ProviderRouteLeaseRef,
+        *,
+        preferred_provider_id: str | None,
+        preferred_model_id: str | None,
+        disabled_routes: set[tuple[str, str]],
+    ) -> None:
+        if (ref.provider_id, ref.model_id) in disabled_routes:
+            raise ProviderRouteBindingError(
+                "provider_route_profile_disabled",
+                "provider route references a disabled provider profile",
+                detail={
+                    "provider_id": ref.provider_id,
+                    "model_id": ref.model_id,
+                    "route_id": ref.route_id,
+                },
+            )
+        mismatches = {
+            name: {"expected": expected, "actual": actual}
+            for name, expected, actual in (
+                ("provider_id", preferred_provider_id, ref.provider_id),
+                ("model_id", preferred_model_id, ref.model_id),
+            )
+            if expected is not None and expected != actual
+        }
+        if mismatches:
+            raise ProviderRouteBindingError(
+                "provider_route_preference_conflict",
+                "provider route does not match the explicitly pinned provider/model",
+                detail={"route_id": ref.route_id, "mismatches": mismatches},
+            )
 
     @staticmethod
     def _existing_turn_route(

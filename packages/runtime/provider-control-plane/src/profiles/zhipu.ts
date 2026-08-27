@@ -6,13 +6,14 @@ import type {
 } from "../contracts.ts";
 import { fingerprintSecret } from "../canonical.ts";
 import type { ProviderControlPlane } from "../control-plane.ts";
-import { installProfileCredential } from "./credential-profile.ts";
+import { installProfileCredential, requireProfileEnabled } from "./credential-profile.ts";
 
 export const ZHIPU_PROVIDER_ID = "zhipu";
 export const GLM_52_MODEL_ID = "glm-5.2";
 export const ZHIPU_INTEGRATION_ID = "zhipu-bearer";
 export const ZHIPU_CREDENTIAL_ID = "zhipu-local";
 export const ZAI_API_KEY_ENV = "ZAI_API_KEY";
+export const GLM_ENABLED_ENV = "ZYRA_GLM_ENABLED";
 
 export interface Glm52Profile {
   readonly integration: IntegrationDefinition;
@@ -112,6 +113,7 @@ export function installGlm52Profile(
   controlPlane: ProviderControlPlane,
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): InstalledGlm52Profile {
+  requireProfileEnabled(environment, GLM_ENABLED_ENV, "Zhipu AI GLM-5.2");
   const apiKey = String(environment[ZAI_API_KEY_ENV] ?? "").trim();
   if (!apiKey) {
     throw new Error(`${ZAI_API_KEY_ENV} is required for the Zhipu AI GLM-5.2 live profile`);

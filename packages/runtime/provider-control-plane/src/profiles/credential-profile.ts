@@ -3,6 +3,27 @@ import type { ProviderControlPlane } from "../control-plane.ts";
 import type { CredentialRecord } from "../contracts.ts";
 import type { CredentialRegistration } from "../credentials.ts";
 
+export function profileEnabled(
+  environment: Readonly<Record<string, string | undefined>>,
+  environmentName: string,
+): boolean {
+  const raw = String(environment[environmentName] ?? "").trim().toLowerCase();
+  if (!raw || ["1", "true", "yes", "on", "enabled"].includes(raw)) return true;
+  if (["0", "false", "no", "off", "disabled"].includes(raw)) return false;
+  throw new Error(
+    `${environmentName} must be true/false, 1/0, yes/no, on/off, or enabled/disabled`,
+  );
+}
+
+export function requireProfileEnabled(
+  environment: Readonly<Record<string, string | undefined>>,
+  environmentName: string,
+  displayName: string,
+): void {
+  if (profileEnabled(environment, environmentName)) return;
+  throw new Error(`${displayName} is disabled by ${environmentName}`);
+}
+
 export function installProfileCredential(
   controlPlane: ProviderControlPlane,
   registration: CredentialRegistration & { readonly credentialId: string },

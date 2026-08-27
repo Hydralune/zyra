@@ -5,19 +5,22 @@ from dataclasses import replace
 import pytest
 
 from zyra_orchestration.topology_policy.contracts import FrozenDict
-from zyra_orchestration.deployment.errors import redact
+from zyra_orchestration.deployment.errors import DispatchRejected, redact
+from zyra_orchestration.deployment.models import DeploymentProfile
 from zyra_orchestration.deployment.provider_dispatch import (
     DEEPSEEK_MODEL_ID,
     DEEPSEEK_PROVIDER_ID,
     GLM_52_MODEL_ID,
     KIMI_MODEL_ID,
     KIMI_PROVIDER_ID,
+    PROVIDER_ENABLED_ENV,
     PROVIDER_PRIORITY,
     LiveProviderDispatchRuntime,
     ZHIPU_PROVIDER_ID,
     _LIVE_PROFILES,
     _marker_dispatch_request,
 )
+from zyra_orchestration.deployment.profiles import default_profile_policies
 from zyra_runtime.provider_control_plane import (
     CredentialRegistration,
     ProviderControlPlaneClient,
@@ -159,6 +162,43 @@ def test_physical_marker_dispatch_pins_its_initial_provider_route() -> None:
     )
 
     assert request.to_wire()["routeFallbackPolicy"] == "pin_initial_route"
+
+
+def test_disabled_provider_keeps_configuration_but_rejects_dispatch(tmp_path) -> None:
+    runtime = LiveProviderDispatchRuntime(
+        project_root=ROOT,
+        state_root=tmp_path / "provider-state",
+        environment={
+            "DEEPSEEK_API_KEY": "retained-deepseek-secret",
+            "ZAI_API_KEY": "retained-glm-secret",
+            "KIMI_API_KEY": "retained-kimi-secret",
+            PROVIDER_ENABLED_ENV[DEEPSEEK_PROVIDER_ID]: "true",
+            PROVIDER_ENABLED_ENV[ZHIPU_PROVIDER_ID]: "false",
+            PROVIDER_ENABLED_ENV[KIMI_PROVIDER_ID]: "false",
+        },
+    )
+
+    with pytest.raises(DispatchRejected) as raised:
+        runtime.dispatch_marker(
+            run_id="run",
+            task_id="task",
+            node_id="node",
+            marker="MARKER",
+            provider_id=ZHIPU_PROVIDER_ID,
+            model_id=GLM_52_MODEL_ID,
+            idempotency_key="disabled-provider",
+            payload_digest="sha256:payload",
+        )
+
+    assert raised.value.code == "node_provider_profile_disabled"
+
+
+def test_cloud_deployment_profile_uses_canonical_provider_priority() -> None:
+    cloud = default_profile_policies()[DeploymentProfile.CLOUD]
+
+    assert cloud.providers[:3] == tuple(
+        provider_id for provider_id, _model_id in PROVIDER_PRIORITY
+    )
 
 
 @pytest.mark.parametrize("location", ("local", "edge"))

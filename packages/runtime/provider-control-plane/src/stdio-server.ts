@@ -14,20 +14,27 @@ import type { CredentialRegistration } from "./credentials.ts";
 import { ProviderControlPlaneError } from "./errors.ts";
 import type { CatalogDiscoveryDocument } from "./catalog-reconciler.ts";
 import {
+  GLM_ENABLED_ENV,
   GLM_52_MODEL_ID,
   ZHIPU_PROVIDER_ID,
+  glm52Profile,
   installGlm52Profile,
 } from "./profiles/zhipu.ts";
 import {
+  DEEPSEEK_ENABLED_ENV,
   DEEPSEEK_PROVIDER_ID,
   DEEPSEEK_V4_FLASH_MODEL_ID,
+  deepSeekV4FlashProfile,
   installDeepSeekV4FlashProfile,
 } from "./profiles/deepseek.ts";
 import {
+  KIMI_ENABLED_ENV,
   KIMI_K27_CODE_MODEL_ID,
   KIMI_PLATFORM_PROVIDER_ID,
+  kimiK27CodeProfile,
   installKimiK27CodeProfile,
 } from "./profiles/kimi-platform.ts";
+import { profileEnabled } from "./profiles/credential-profile.ts";
 
 export const RPC_PROTOCOL = "zyra.provider-control-plane.rpc/v1" as const;
 
@@ -95,28 +102,55 @@ export class ProviderControlPlaneRpcServer {
         );
       case "profiles.install_configured": {
         const installed: Array<Record<string, unknown>> = [];
+        const disabled: Array<Record<string, unknown>> = [];
         const profiles = [
           {
             environmentName: "DEEPSEEK_API_KEY",
+            enabledEnvironmentName: DEEPSEEK_ENABLED_ENV,
             providerId: DEEPSEEK_PROVIDER_ID,
             modelId: DEEPSEEK_V4_FLASH_MODEL_ID,
+            definition: deepSeekV4FlashProfile,
             install: () => installDeepSeekV4FlashProfile(this.controlPlane),
           },
           {
             environmentName: "ZAI_API_KEY",
+            enabledEnvironmentName: GLM_ENABLED_ENV,
             providerId: ZHIPU_PROVIDER_ID,
             modelId: GLM_52_MODEL_ID,
+            definition: glm52Profile,
             install: () => installGlm52Profile(this.controlPlane),
           },
           {
             environmentName: "KIMI_API_KEY",
+            enabledEnvironmentName: KIMI_ENABLED_ENV,
             providerId: KIMI_PLATFORM_PROVIDER_ID,
             modelId: KIMI_K27_CODE_MODEL_ID,
+            definition: kimiK27CodeProfile,
             install: () => installKimiK27CodeProfile(this.controlPlane),
           },
         ];
         for (const profile of profiles) {
-          if (!String(process.env[profile.environmentName] ?? "").trim()) continue;
+          const enabled = profileEnabled(process.env, profile.enabledEnvironmentName);
+          const credentialConfigured = Boolean(
+            String(process.env[profile.environmentName] ?? "").trim(),
+          );
+          if (!enabled || !credentialConfigured) {
+            const definition = profile.definition();
+            this.controlPlane.upsertIntegration(definition.integration);
+            this.controlPlane.upsertProvider({ ...definition.provider, status: "disabled" });
+            this.controlPlane.upsertModel({
+              ...definition.model,
+              status: "disabled",
+              enabled: false,
+            });
+            disabled.push({
+              providerId: profile.providerId,
+              modelId: profile.modelId,
+              enabledEnvironmentName: profile.enabledEnvironmentName,
+              reason: enabled ? "credential_missing" : "operator_disabled",
+            });
+            continue;
+          }
           const result = profile.install();
           installed.push({
             providerId: profile.providerId,
@@ -130,12 +164,9 @@ export class ProviderControlPlaneRpcServer {
         }
         return {
           installed,
+          disabled,
           configuredCount: installed.length,
-          preferenceOrder: [
-            `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
-            `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
-            `${KIMI_PLATFORM_PROVIDER_ID}/${KIMI_K27_CODE_MODEL_ID}`,
-          ],
+          preferenceOrder: installed.map((item) => `${item.providerId}/${item.modelId}`),
           secretBytesIncluded: false,
         };
       }

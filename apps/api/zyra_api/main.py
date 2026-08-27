@@ -239,6 +239,12 @@ from zyra_orchestration.goal_contracts import (
     validate_goal_delivery,
 )
 from zyra_orchestration.deployment import DeploymentProfile
+from zyra_orchestration.deployment.provider_dispatch import (
+    PROVIDER_API_KEY_ENV,
+    PROVIDER_ENABLED_ENV,
+    PROVIDER_PRIORITY,
+    provider_enabled,
+)
 from zyra_orchestration.topology_policy.production import (
     Phase2StrongestProductionBridge,
 )
@@ -7284,20 +7290,19 @@ def _reasoning_budget_from_environment() -> tuple[None, float | None, int, bool]
 # execution deadline.
 PHASE2_PERMISSION_RECEIPT_VALIDITY = timedelta(hours=1)
 
-_PROVIDER_ENV_FILES = (
+_PROVIDER_ENV_FILENAMES = {
+    "deepseek": ".env.deepseek.local",
+    "zhipu": ".env.glm.local",
+    "kimi-platform": ".env.kimi.local",
+}
+_PROVIDER_ENV_FILES = tuple(
     (
-        "DEEPSEEK_API_KEY",
-        ".env.deepseek.local",
-        "deepseek",
-        "deepseek-v4-flash",
-    ),
-    ("ZAI_API_KEY", ".env.glm.local", "zhipu", "glm-5.2"),
-    (
-        "KIMI_API_KEY",
-        ".env.kimi.local",
-        "kimi-platform",
-        "kimi-k2.7-code",
-    ),
+        PROVIDER_API_KEY_ENV[provider_id],
+        _PROVIDER_ENV_FILENAMES[provider_id],
+        provider_id,
+        model_id,
+    )
+    for provider_id, model_id in PROVIDER_PRIORITY
 )
 _FILE_MANAGED_PROVIDER_ENV: set[str] = set()
 
@@ -7314,29 +7319,34 @@ def _load_configured_provider_environment() -> tuple[str, ...]:
             _FILE_MANAGED_PROVIDER_ENV.discard(key)
         return tuple(
             key
-            for key, _, _, _ in _PROVIDER_ENV_FILES
+            for key, _, provider_id, _ in _PROVIDER_ENV_FILES
             if str(os.environ.get(key) or "").strip()
+            and provider_enabled(os.environ, provider_id)
         )
     configured: list[str] = []
-    for key, filename, _, _ in _PROVIDER_ENV_FILES:
-        ambient = str(os.environ.get(key) or "").strip()
+    for key, filename, provider_id, _ in _PROVIDER_ENV_FILES:
         path = PROJECT_ROOT / filename
-        file_value = (
-            _read_allowlisted_env_value(path, key)
-            if path.is_file()
-            else ""
-        )
-        if key not in _FILE_MANAGED_PROVIDER_ENV and ambient:
+        for environment_name in (key, PROVIDER_ENABLED_ENV[provider_id]):
+            ambient = str(os.environ.get(environment_name) or "").strip()
+            file_value = (
+                _read_allowlisted_env_value(path, environment_name)
+                if path.is_file()
+                else ""
+            )
+            if environment_name not in _FILE_MANAGED_PROVIDER_ENV and ambient:
+                continue
+            if file_value:
+                os.environ[environment_name] = file_value
+                _FILE_MANAGED_PROVIDER_ENV.add(environment_name)
+                continue
+            if environment_name in _FILE_MANAGED_PROVIDER_ENV:
+                os.environ.pop(environment_name, None)
+                _FILE_MANAGED_PROVIDER_ENV.discard(environment_name)
+        if (
+            str(os.environ.get(key) or "").strip()
+            and provider_enabled(os.environ, provider_id)
+        ):
             configured.append(key)
-            continue
-        if file_value:
-            os.environ[key] = file_value
-            _FILE_MANAGED_PROVIDER_ENV.add(key)
-            configured.append(key)
-            continue
-        if key in _FILE_MANAGED_PROVIDER_ENV:
-            os.environ.pop(key, None)
-            _FILE_MANAGED_PROVIDER_ENV.discard(key)
     return tuple(configured)
 
 
@@ -7362,16 +7372,26 @@ def _read_allowlisted_env_value(path: Path, expected_name: str) -> str:
 
 
 def _preferred_configured_provider() -> tuple[str, str] | None:
-    _load_configured_provider_environment()
+    configured = set(_load_configured_provider_environment())
     for key, _, provider_id, model_id in _PROVIDER_ENV_FILES:
-        if str(os.environ.get(key) or "").strip():
+        if key in configured:
             return provider_id, model_id
     return None
 
 
 def _sync_configured_provider_environment(orchestrator: Any) -> None:
     configured = set(_load_configured_provider_environment())
-    for key, _, _, _ in _PROVIDER_ENV_FILES:
+    for key, _, provider_id, _ in _PROVIDER_ENV_FILES:
+        enabled_name = PROVIDER_ENABLED_ENV[provider_id]
+        enabled_value = str(os.environ.get(enabled_name) or "").strip()
+        for environment in (
+            orchestrator.catalog.environment,
+            orchestrator.processes.environment,
+        ):
+            if enabled_value:
+                environment[enabled_name] = enabled_value
+            else:
+                environment.pop(enabled_name, None)
         if key not in configured:
             orchestrator.catalog.environment.pop(key, None)
             orchestrator.processes.environment.pop(key, None)

@@ -160,8 +160,9 @@ def test_provider_env_loader_reads_only_the_exact_allowlisted_key(
 ) -> None:
     monkeypatch.setattr(api, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(api, "_FILE_MANAGED_PROVIDER_ENV", set())
-    for key, filename, _provider, _model in api._PROVIDER_ENV_FILES:
+    for key, filename, provider, _model in api._PROVIDER_ENV_FILES:
         monkeypatch.delenv(key, raising=False)
+        monkeypatch.delenv(api.PROVIDER_ENABLED_ENV[provider], raising=False)
         (tmp_path / filename).write_text(
             f"IGNORED_SECRET=must-not-load\n{key}='{key}-value'\n",
             encoding="utf-8",
@@ -190,8 +191,9 @@ def test_provider_env_loader_disable_flag_removes_file_managed_values_only(
 ) -> None:
     monkeypatch.setattr(api, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(api, "_FILE_MANAGED_PROVIDER_ENV", set())
-    for key, filename, _provider, _model in api._PROVIDER_ENV_FILES:
+    for key, filename, provider, _model in api._PROVIDER_ENV_FILES:
         monkeypatch.delenv(key, raising=False)
+        monkeypatch.delenv(api.PROVIDER_ENABLED_ENV[provider], raising=False)
         (tmp_path / filename).write_text(
             f"{key}={key}-file-value\n",
             encoding="utf-8",
@@ -214,3 +216,36 @@ def test_provider_env_loader_disable_flag_removes_file_managed_values_only(
     monkeypatch.setenv("ZAI_API_KEY", "explicit-process-value")
     assert api._load_configured_provider_environment() == ("ZAI_API_KEY",)
     assert api._preferred_configured_provider() == ("zhipu", "glm-5.2")
+
+
+def test_provider_switches_retain_credentials_but_admit_only_deepseek(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(api, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(api, "_FILE_MANAGED_PROVIDER_ENV", set())
+    enabled = {
+        "deepseek": "true",
+        "zhipu": "false",
+        "kimi-platform": "false",
+    }
+    for key, filename, provider, _model in api._PROVIDER_ENV_FILES:
+        enabled_name = api.PROVIDER_ENABLED_ENV[provider]
+        monkeypatch.delenv(key, raising=False)
+        monkeypatch.delenv(enabled_name, raising=False)
+        (tmp_path / filename).write_text(
+            f"{key}={key}-value\n{enabled_name}={enabled[provider]}\n",
+            encoding="utf-8",
+        )
+
+    configured = api._load_configured_provider_environment()
+
+    assert configured == ("DEEPSEEK_API_KEY",)
+    assert all(
+        os.environ.get(key) == f"{key}-value"
+        for key, _filename, _provider, _model in api._PROVIDER_ENV_FILES
+    )
+    assert api._preferred_configured_provider() == (
+        "deepseek",
+        "deepseek-v4-flash",
+    )

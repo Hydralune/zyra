@@ -30,7 +30,11 @@ from .models import (
     new_id,
     now_iso,
 )
-from .provider_dispatch import LiveProviderDispatchRuntime
+from .provider_dispatch import (
+    DEEPSEEK_MODEL_ID,
+    DEEPSEEK_PROVIDER_ID,
+    LiveProviderDispatchRuntime,
+)
 from .resource_control import process_environment_snapshot
 
 
@@ -1066,12 +1070,12 @@ class DeploymentNodeRuntime:
                     provider_id=str(
                         payload.get("provider")
                         or workload.preferred_provider
-                        or "zhipu"
+                        or DEEPSEEK_PROVIDER_ID
                     ),
                     model_id=str(
                         payload.get("model")
                         or workload.preferred_model
-                        or "glm-5.2"
+                        or DEEPSEEK_MODEL_ID
                     ),
                     idempotency_key=(
                         workload.idempotency_key

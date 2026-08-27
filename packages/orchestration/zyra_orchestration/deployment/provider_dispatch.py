@@ -67,11 +67,40 @@ DEEPSEEK_PROVIDER_ID = "deepseek"
 DEEPSEEK_MODEL_ID = "deepseek-v4-flash"
 DEEPSEEK_API_KEY_ENV = "DEEPSEEK_API_KEY"
 
+PROVIDER_API_KEY_ENV = {
+    DEEPSEEK_PROVIDER_ID: DEEPSEEK_API_KEY_ENV,
+    ZHIPU_PROVIDER_ID: ZAI_API_KEY_ENV,
+    KIMI_PROVIDER_ID: KIMI_API_KEY_ENV,
+}
+PROVIDER_ENABLED_ENV = {
+    DEEPSEEK_PROVIDER_ID: "ZYRA_DEEPSEEK_ENABLED",
+    ZHIPU_PROVIDER_ID: "ZYRA_GLM_ENABLED",
+    KIMI_PROVIDER_ID: "ZYRA_KIMI_ENABLED",
+}
+
 PROVIDER_PRIORITY = (
     (DEEPSEEK_PROVIDER_ID, DEEPSEEK_MODEL_ID),
     (ZHIPU_PROVIDER_ID, GLM_52_MODEL_ID),
     (KIMI_PROVIDER_ID, KIMI_MODEL_ID),
 )
+
+
+def provider_enabled(
+    environment: Mapping[str, str],
+    provider_id: str,
+) -> bool:
+    """Return whether a live provider is eligible for registration and routing."""
+
+    environment_name = PROVIDER_ENABLED_ENV[provider_id]
+    raw = str(environment.get(environment_name) or "").strip().casefold()
+    if not raw or raw in {"1", "true", "yes", "on", "enabled"}:
+        return True
+    if raw in {"0", "false", "no", "off", "disabled"}:
+        return False
+    raise ValueError(
+        f"{environment_name} must be true/false, 1/0, yes/no, on/off, "
+        "or enabled/disabled"
+    )
 
 # Reasoning-capable providers can consume part of the output allowance before
 # emitting the visible marker.  The previous 64-token cap intermittently ended
@@ -338,6 +367,20 @@ class LiveProviderDispatchRuntime:
                     ],
                 },
             )
+        if not provider_enabled(self.environment, requested_profile.provider_id):
+            raise DispatchRejected(
+                "node_provider_profile_disabled",
+                "physical dispatch rejected a disabled live provider profile",
+                operation="provider_dispatch",
+                profile="cloud",
+                details={
+                    "provider": requested_profile.provider_id,
+                    "model": requested_profile.model_id,
+                    "enabled_environment": PROVIDER_ENABLED_ENV[
+                        requested_profile.provider_id
+                    ],
+                },
+            )
         priority_offset = PROVIDER_PRIORITY.index(requested_key)
         candidates = [
             (
@@ -348,6 +391,7 @@ class LiveProviderDispatchRuntime:
                 ).strip(),
             )
             for key in PROVIDER_PRIORITY[priority_offset:]
+            if provider_enabled(self.environment, _LIVE_PROFILES[key].provider_id)
         ]
         available = [
             (candidate, secret)
@@ -755,7 +799,10 @@ __all__ = [
     "LiveProviderProfile",
     "LiveProviderDispatchRuntime",
     "MARKER_MAXIMUM_OUTPUT_TOKENS",
+    "PROVIDER_API_KEY_ENV",
+    "PROVIDER_ENABLED_ENV",
     "PROVIDER_PRIORITY",
     "ZAI_API_KEY_ENV",
     "ZHIPU_PROVIDER_ID",
+    "provider_enabled",
 ]

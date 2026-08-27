@@ -15,6 +15,7 @@ from .models import (
     Sensitivity,
     digest,
 )
+from .provider_dispatch import PROVIDER_PRIORITY
 
 
 PROFILE_POLICY_VERSION = "2026-07-27.1"
@@ -114,9 +115,7 @@ def default_profile_policies(
                 "deterministic-transform",
             ),
             providers=(
-                "zhipu",
-                "kimi-platform",
-                "deepseek",
+                *(provider_id for provider_id, _model_id in PROVIDER_PRIORITY),
                 "openai",
                 "anthropic",
             ),

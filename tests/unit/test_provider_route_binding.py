@@ -81,7 +81,89 @@ class _ExpiredRouteClient:
         return None
 
 
+class _AcquiringRouteClient:
+    def __init__(
+        self,
+        routes: list[dict[str, Any]] | None = None,
+        *,
+        disabled: list[dict[str, str]] | None = None,
+    ) -> None:
+        self.acquired: Any = None
+        self.routing = SimpleNamespace(
+            acquire=self._acquire,
+            list=lambda **_kwargs: list(routes or []),
+        )
+        self.catalog = SimpleNamespace(models=lambda **_kwargs: [{"modelId": "model-1"}])
+        self.credentials = SimpleNamespace(
+            get=lambda _credential_id: {"secretRef": "env://TEST_PROVIDER_API_KEY"},
+        )
+        self._disabled = list(disabled or [])
+
+    def _acquire(self, request: Any) -> dict[str, Any]:
+        self.acquired = request
+        return _route("route-acquired")
+
+    def install_configured_profiles(self) -> dict[str, Any]:
+        return {"disabled": self._disabled}
+
+    def __enter__(self) -> _AcquiringRouteClient:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+
 class ProviderRouteBindingRenewalTests(unittest.TestCase):
+    def test_explicit_preference_is_pinned_as_a_hard_route_constraint(self) -> None:
+        client = _AcquiringRouteClient()
+        with patch(
+            "zyra_runtime.provider_control_plane.lease.ProviderControlPlaneClient",
+            return_value=client,
+        ):
+            selected = ProviderRouteBindingRuntime(
+                project_root=ROOT,
+                database_path=ROOT / ".provider-route-binding-test.sqlite3",
+                allow_explicit_sim_bootstrap=False,
+            ).bind(
+                run_id="run-1",
+                task_id="task-1",
+                node_id="node-1",
+                session_id="session-1",
+                turn_id="turn-1",
+                preferred_provider_id="provider-1",
+                preferred_model_id="model-1",
+            )
+
+        self.assertEqual(selected.provider_id, "provider-1")
+        self.assertEqual(tuple(client.acquired.constraints.provider_ids), ("provider-1",))
+        self.assertEqual(tuple(client.acquired.constraints.model_ids), ("model-1",))
+
+    def test_existing_route_for_disabled_profile_fails_closed(self) -> None:
+        client = _AcquiringRouteClient(
+            [_route("route-disabled")],
+            disabled=[{"providerId": "provider-1", "modelId": "model-1"}],
+        )
+        with patch(
+            "zyra_runtime.provider_control_plane.lease.ProviderControlPlaneClient",
+            return_value=client,
+        ):
+            with self.assertRaises(ProviderRouteBindingError) as raised:
+                ProviderRouteBindingRuntime(
+                    project_root=ROOT,
+                    database_path=ROOT / ".provider-route-binding-test.sqlite3",
+                    allow_explicit_sim_bootstrap=False,
+                ).bind(
+                    run_id="run-1",
+                    task_id="task-1",
+                    node_id="node-1",
+                    session_id="session-1",
+                    turn_id="turn-1",
+                    preferred_provider_id="provider-1",
+                    preferred_model_id="model-1",
+                )
+
+        self.assertEqual(raised.exception.code, "provider_route_profile_disabled")
+
     def test_explicit_expired_route_resolves_to_linear_renewal_leaf(self) -> None:
         client = _ExpiredRouteClient([
             _route("route-1"),

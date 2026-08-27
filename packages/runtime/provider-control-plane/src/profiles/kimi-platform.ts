@@ -6,13 +6,14 @@ import type {
 } from "../contracts.ts";
 import { fingerprintSecret } from "../canonical.ts";
 import type { ProviderControlPlane } from "../control-plane.ts";
-import { installProfileCredential } from "./credential-profile.ts";
+import { installProfileCredential, requireProfileEnabled } from "./credential-profile.ts";
 
 export const KIMI_PLATFORM_PROVIDER_ID = "kimi-platform";
 export const KIMI_K27_CODE_MODEL_ID = "kimi-k2.7-code";
 export const KIMI_PLATFORM_INTEGRATION_ID = "kimi-platform-bearer";
 export const KIMI_PLATFORM_CREDENTIAL_ID = "kimi-platform-local";
 export const KIMI_API_KEY_ENV = "KIMI_API_KEY";
+export const KIMI_ENABLED_ENV = "ZYRA_KIMI_ENABLED";
 
 export interface KimiK27CodeProfile {
   readonly integration: IntegrationDefinition;
@@ -107,6 +108,7 @@ export function installKimiK27CodeProfile(
   controlPlane: ProviderControlPlane,
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): InstalledKimiK27CodeProfile {
+  requireProfileEnabled(environment, KIMI_ENABLED_ENV, "Kimi K2.7 Code");
   const apiKey = String(environment[KIMI_API_KEY_ENV] ?? "").trim();
   if (!apiKey) {
     throw new Error(`${KIMI_API_KEY_ENV} is required for the Kimi Open Platform live profile`);
