@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import {
   mkdir,
   open,
@@ -9,7 +10,7 @@ import {
   writeFile,
   type FileHandle,
 } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 import {
@@ -1225,8 +1226,26 @@ function processIsAlive(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    return isNodeError(error, "EPERM");
+    if (!isNodeError(error, "EPERM")) return false;
+    return process.platform === "win32" ? windowsProcessIsAlive(pid) : true;
   }
+}
+
+function windowsProcessIsAlive(pid: number): boolean {
+  const systemRoot = process.env.SystemRoot?.trim() || process.env.SYSTEMROOT?.trim() || "C:\\Windows";
+  const powershell = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const command = [
+    `$candidate = Get-Process -Id ${pid} -ErrorAction SilentlyContinue`,
+    "if ($null -eq $candidate) { [Console]::Out.Write('absent') } else { [Console]::Out.Write('present') }",
+  ].join("; ");
+  const result = spawnSync(powershell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], {
+    encoding: "utf8",
+    maxBuffer: 1_024,
+    timeout: 5_000,
+    windowsHide: true,
+  });
+  if (result.error || result.status !== 0) return true;
+  return result.stdout.trim() !== "absent";
 }
 
 function isNodeError(error: unknown, code: string): boolean {

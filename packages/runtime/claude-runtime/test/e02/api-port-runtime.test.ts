@@ -466,6 +466,52 @@ test("exclusive state lock rejects a second live logical owner", async () => {
   }
 });
 
+test("exclusive state lock reclaims an exited Windows owner", async () => {
+  if (process.platform !== "win32") return;
+  const root = await mkdtemp(join(tmpdir(), "zyra-e02-api-stale-windows-owner-"));
+  const workspace = join(root, "workspace");
+  const statePath = join(root, "state", "e02.json");
+  const lockPath = `${statePath}.lock`;
+  await mkdir(workspace, { recursive: true });
+  await mkdir(join(root, "state"), { recursive: true });
+  const exited = Bun.spawn([process.execPath, "-e", "process.exit(0)"], {
+    stderr: "ignore",
+    stdout: "ignore",
+  });
+  const exitedPid = exited.pid;
+  await exited.exited;
+  await writeFile(lockPath, JSON.stringify({
+    version: "zyra.e02-api-lock/v1",
+    pid: exitedPid,
+    acquired_at: new Date().toISOString(),
+    state_path: statePath,
+  }));
+
+  let runtime: E02ApiPortRuntime | null = null;
+  try {
+    runtime = await E02ApiPortRuntime.open({
+      type: "initialize",
+      request_id: "initialize-stale-windows-owner",
+      workspace_root: workspace,
+      state_path: statePath,
+      artifact_root: join(root, "artifacts"),
+      permission_mode: "default",
+      sealed_autonomous: false,
+      runtime_constraints: {
+        projectRoot: resolve("."),
+        test_label: "stale-windows-owner",
+      },
+    });
+    const state = object(runtime.health().state as JsonValue);
+    assert.equal(state.lock_held, true);
+    const replacement = JSON.parse(await readFile(lockPath, "utf8")) as { pid: number };
+    assert.equal(replacement.pid, process.pid);
+  } finally {
+    await runtime?.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("checkpoint close and multiple reopens preserve prior-epoch history before bootstrap", async () => {
   const port = await openPort("restore");
   const first = object(await port.runtime.dispatch(request("snapshot", {}, "snapshot-before-close")));
