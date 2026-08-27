@@ -123,6 +123,11 @@ export class TypeScriptSkillRuntime {
         ),
         runtimeConstraints: {
           ...asObject(parent.config.runtimeConstraints),
+          // A forked skill returns a bounded child result to its parent.  The
+          // parent remains the owner of task-level workspace delivery, so its
+          // fail-closed delivery duplicate must not turn a read/extract child
+          // into a second top-level delivery worker.
+          requires_delivery_artifact: false,
           skill_invocation_id: input.invocationId,
           skill_id: input.skillId,
           skill_ancestry: cloneJson(input.skillAncestry ?? [input.skillId]),
@@ -134,6 +139,14 @@ export class TypeScriptSkillRuntime {
       },
       metadata: {
         ...parent.metadata,
+        // Task handoff progress and completion contracts are identity-bound
+        // to the parent task.  Carrying them into a fresh fork makes the child
+        // completion hook demand the parent's required paths and imports the
+        // parent's exhausted inspection/stall counters despite restoredState
+        // being intentionally cleared above.
+        delivery_contract: {},
+        task_handoff_progress: {},
+        task_handoff_semantic_stall: {},
         e02_skill_invocation: true,
         skill_invocation_id: input.invocationId,
         parent_task_id: parent.taskId,

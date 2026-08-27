@@ -213,6 +213,24 @@ test("e04-skill-plugin-command", async () => {
   const fixture = await createCapabilityWorkspace("zyra-e04-skill-capability-");
   const input = runtimeInput(fixture.workspace);
   input.restoredState = { parent_only_snapshot: true };
+  Object.assign(input.config.runtimeConstraints as JsonObject, {
+    requires_delivery_artifact: true,
+  });
+  Object.assign(input.metadata as JsonObject, {
+    delivery_contract: {
+      workspace_mutation_required: true,
+      required_paths: ["deliverables/parent-only.md"],
+    },
+    task_handoff_progress: {
+      requiredDeliveryMissing: true,
+      providerRounds: 9,
+      preDeliveryObservationCount: 7,
+    },
+    task_handoff_semantic_stall: {
+      reasoningLoopDetections: 3,
+      redirectCount: 2,
+    },
+  });
   const childCalls: RuntimeRunInput[] = [];
   const capabilities = await TypeScriptCapabilityRuntime.open(input);
   try {
@@ -230,6 +248,13 @@ test("e04-skill-plugin-command", async () => {
     assert.deepEqual(childCalls[0]!.turns, []);
     assert.equal(childCalls[0]!.config.maxTurns, 4);
     assert.equal((childCalls[0]!.config.runtimeConstraints as JsonObject).skill_network_allowed, false);
+    assert.equal(
+      (childCalls[0]!.config.runtimeConstraints as JsonObject).requires_delivery_artifact,
+      false,
+    );
+    assert.deepEqual((childCalls[0]!.metadata as JsonObject).delivery_contract, {});
+    assert.deepEqual((childCalls[0]!.metadata as JsonObject).task_handoff_progress, {});
+    assert.deepEqual((childCalls[0]!.metadata as JsonObject).task_handoff_semantic_stall, {});
     assert.deepEqual(
       (childCalls[0]!.config.runtimeConstraints as JsonObject).skill_ancestry,
       ["e04-fork-skill"],
