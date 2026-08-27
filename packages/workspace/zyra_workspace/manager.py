@@ -446,6 +446,52 @@ class WorkspaceManagerRuntime:
                     fence_token=handle.fence_token,
                 )
 
+    def observe_current(
+        self,
+        workspace_id: str,
+        *,
+        operations: tuple[WorkspaceOperation, ...],
+    ) -> WorkspaceAccessHandle:
+        """Return a read-only view of the current capability without taking custody.
+
+        Observation is deliberately different from ``acquire_for_worker``: a
+        public GET or delivery check must never revoke the active writer's
+        lease, rotate its fence, or advance the owner epoch.
+        """
+
+        requested = tuple(dict.fromkeys(operations))
+        if not requested or any(
+            operation not in {WorkspaceOperation.READ, WorkspaceOperation.LIST, WorkspaceOperation.QUOTA_QUERY}
+            for operation in requested
+        ):
+            raise WorkspaceError(
+                WorkspaceErrorCode.INVALID_ARGUMENT,
+                "Workspace observation only permits read, list, and quota-query operations.",
+                workspace_id=workspace_id,
+                operation="observe_workspace",
+            )
+        with self.integration_store.workspace_locks.acquire_many((workspace_id,)):
+            with self._guard:
+                binding = self.store.require_binding(workspace_id)
+                lease = self.store.get_lease(binding.lease_id)
+                token = self._tokens.get(binding.lease_id, "")
+                if lease is None or not token:
+                    raise WorkspaceError(
+                        WorkspaceErrorCode.LEASE_NOT_FOUND,
+                        "The active workspace capability is unavailable for observation.",
+                        workspace_id=workspace_id,
+                        operation="observe_workspace",
+                    )
+                if any(operation not in lease.operations for operation in requested):
+                    raise WorkspaceError(
+                        WorkspaceErrorCode.LEASE_REVOKED,
+                        "The active workspace capability does not permit the requested observation.",
+                        workspace_id=workspace_id,
+                        operation="observe_workspace",
+                    )
+                current = self.backend.access_handle(binding, lease, fence_token=token)
+                return replace(current, operations=requested)
+
     def project(self, workspace_id: str) -> WorkspacePublicProjection:
         binding = self.store.require_binding(workspace_id)
         usage = self.store.get_usage(workspace_id)

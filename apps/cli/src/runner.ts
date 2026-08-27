@@ -14,6 +14,7 @@ import {
   type RunCommand,
 } from "./contracts.ts"
 import type { CliOutput } from "./output.ts"
+import { materializeWorkspaceDelivery, stageWorkspace } from "./workspace-transfer.ts"
 
 export interface CommandOutcome {
   exitCode: CliExitCode
@@ -391,6 +392,7 @@ export async function executeRun(input: {
   output: CliOutput
   stdin: Readable
   signal: AbortSignal
+  workspaceRoot?: string
 }): Promise<CommandOutcome> {
   const goal = await goalFrom(input.command, input.stdin, input.signal)
   const created = await input.api.createPendingTask(goal, input.command.sealed)
@@ -407,6 +409,20 @@ export async function executeRun(input: {
     },
     { taskId: task.taskId, runId: task.runId },
   )
+  if (input.workspaceRoot) {
+    const staged = await stageWorkspace(input.api, task, input.workspaceRoot, input.signal)
+    input.output.event(
+      {
+        schema: "zyra.cli-workspace-transfer.v1",
+        phase: "staged",
+        workspace_id: staged.workspaceId,
+        file_count: staged.fileCount,
+        bytes: staged.bytes,
+        paths: staged.paths,
+      },
+      { taskId: task.taskId, runId: task.runId },
+    )
+  }
 
   const firstPage = await input.api.openIngress(task.taskId)
   for (const frame of firstPage.frames) emitFrame(input.output, frame, accumulator)
@@ -642,6 +658,25 @@ export async function executeRun(input: {
       throw run.error
     }
     diagnostics.push(outcomeDiagnostic("client_connection", run.error))
+  }
+  if (input.workspaceRoot) {
+    const materialized = await materializeWorkspaceDelivery(
+      input.api,
+      finalTask,
+      input.workspaceRoot,
+      input.signal,
+    )
+    input.output.event(
+      {
+        schema: "zyra.cli-workspace-transfer.v1",
+        phase: "materialized",
+        workspace_id: materialized.workspaceId,
+        file_count: materialized.fileCount,
+        bytes: materialized.bytes,
+        paths: materialized.paths,
+      },
+      { taskId: finalTask.taskId, runId: finalTask.runId },
+    )
   }
   return classifyTaskOutcome(finalTask, accumulator.verifier, diagnostics)
 }

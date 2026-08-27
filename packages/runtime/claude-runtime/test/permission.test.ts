@@ -150,3 +150,41 @@ test("autonomous shell calls still deny labeled secret values", () => {
   assert.equal(decision.effect, "deny");
   assert.ok(risk.deterministicSignals.includes("arguments:secret-material"));
 });
+
+test("autonomous workspace script writes stay below execution risk", () => {
+  const evaluator = new TypeScriptPermissionEvaluator({
+    mode: "auto",
+    interactive: false,
+    headless: true,
+    workspace_root: "C:/workspace",
+    rules: [],
+  }, { sessionId: "session-1", workspaceRoot: "C:/workspace" });
+  const write = evaluator.evaluate({
+    ...base,
+    toolCallId: "write-reproducer",
+    toolName: "file_write",
+    operation: "write",
+    arguments: {
+      path: "deliverables/reproduce.ps1",
+      content: "Write-Output 'reproduced'",
+    },
+  });
+  const execute = evaluator.evaluate({
+    ...base,
+    toolCallId: "execute-reproducer",
+    toolName: "shell",
+    operation: "execute",
+    arguments: {
+      executable: "pwsh",
+      argv: ["-File", "deliverables/reproduce.ps1"],
+    },
+  });
+
+  const writeRisk = write.metadata.risk as { level: string; deterministicSignals: string[] };
+  const executeRisk = execute.metadata.risk as { level: string };
+  assert.equal(write.effect, "allow");
+  assert.equal(writeRisk.level, "medium");
+  assert.ok(writeRisk.deterministicSignals.includes("file:executable:.ps1"));
+  assert.equal(execute.effect, "deny");
+  assert.equal(executeRisk.level, "high");
+});

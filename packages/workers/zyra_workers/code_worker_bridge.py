@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from zyra_runtime.sandbox_gateway.command_policy import StructuredCommandPolicy
-from zyra_runtime.sandbox_gateway.file_policy import GatewayFilePolicy
+from zyra_runtime.sandbox_gateway.file_policy import FilePolicyConfig, GatewayFilePolicy
 from zyra_runtime.sandbox_gateway.integration_host import GatewayHostProcessRuntime
 from zyra_runtime.sandbox_gateway.integration_policy import (
     GatewayPolicyConfig,
@@ -34,7 +34,7 @@ class CodeWorkerSidecarClient:
             GatewayPolicyRuntime(
                 GatewayPolicyConfig(workspace_root=self.project_root.resolve()),
                 command_policy=StructuredCommandPolicy(),
-                file_policy=GatewayFilePolicy(),
+                file_policy=GatewayFilePolicy(FilePolicyConfig(allow_executable=True)),
             ),
             allowed_roots=(self.project_root,),
         )

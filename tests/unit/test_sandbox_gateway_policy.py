@@ -19,8 +19,10 @@ from zyra_runtime.sandbox_gateway import (  # noqa: E402
     ArtifactProvenance,
     CommandEffect,
     FileArtifactRequest,
+    FilePolicyConfig,
     GatewayCommandEnvelope,
     GatewayFilePolicy,
+    OperationKind,
     ProvenanceKind,
     ProvenancePolicy,
     SecretRedactor,
@@ -314,6 +316,35 @@ class SandboxGatewayPolicyTests(unittest.TestCase):
             {item.code for item in control_decision.findings},
         )
         self.assertTrue(executable_decision.quarantine)
+
+    def test_trusted_task_workspace_can_author_script_source_without_releasing_executable_artifacts(self) -> None:
+        policy = GatewayFilePolicy(FilePolicyConfig(allow_executable=True))
+        provenance = ArtifactProvenance.build(
+            kind=ProvenanceKind.GENERATED,
+            trust=TrustLevel.TRUSTED,
+            source_id="code-worker",
+        )
+        workspace_source = FileArtifactRequest.build(
+            session_id="session-script-source",
+            logical_path="deliverables/reproduce.ps1",
+            content="Write-Output 'reproduced'",
+            content_type="text/plain",
+            provenance=provenance,
+            operation=OperationKind.FILE_WRITE,
+            executable_allowed=True,
+        )
+        exported_artifact = FileArtifactRequest.build(
+            session_id="session-script-source",
+            logical_path="exports/reproduce.ps1",
+            content="Write-Output 'reproduced'",
+            content_type="text/plain",
+            provenance=provenance,
+            operation=OperationKind.ARTIFACT_EXPORT,
+            executable_allowed=False,
+        )
+
+        self.assertTrue(policy.inspect(workspace_source).allowed)
+        self.assertTrue(policy.inspect(exported_artifact).quarantine)
 
     def test_redaction_covers_nested_keys_terminal_tokens_and_urls(self) -> None:
         secret = "sk-live-ThisIsASecretValue123456"

@@ -212,7 +212,14 @@ export class PermissionRiskRuntime {
     for (const path of paths) {
       const extension = extname(path).toLowerCase();
       if (EXECUTABLE_EXTENSIONS.has(extension) && context.operation !== "read") {
-        add(35, `file:executable:${extension}`, "operation writes or executes an executable file type");
+        const sourceWrite = SOURCE_EDIT_TOOLS.has(context.toolName) && context.operation === "write";
+        add(
+          sourceWrite ? 15 : 35,
+          `file:executable:${extension}`,
+          sourceWrite
+            ? "workspace edit writes script source whose later execution remains separately controlled"
+            : "operation writes or executes an executable file type",
+        );
       }
       if (/\.(?:ssh|aws|config|gnupg)(?:[\\/]|$)/i.test(path)) {
         add(45, "file:sensitive-config", "path targets a sensitive credential/configuration directory");

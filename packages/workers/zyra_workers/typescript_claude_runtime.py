@@ -38,7 +38,7 @@ from zyra_runtime.permission.request_queue import PermissionRequestQueue
 from zyra_runtime.permission.store import PermissionStateStore
 from zyra_runtime.tools import ToolCall, ToolResult
 from zyra_runtime.sandbox_gateway.command_policy import StructuredCommandPolicy
-from zyra_runtime.sandbox_gateway.file_policy import GatewayFilePolicy
+from zyra_runtime.sandbox_gateway.file_policy import FilePolicyConfig, GatewayFilePolicy
 from zyra_runtime.sandbox_gateway.integration_host import GatewayHostProcessRuntime
 from zyra_runtime.sandbox_gateway.integration_policy import GatewayPolicyConfig, GatewayPolicyRuntime
 from zyra_runtime.sandbox_gateway.credential_relay import (
@@ -811,7 +811,10 @@ class TypeScriptClaudeQueryEngine:
             GatewayPolicyRuntime(
                 GatewayPolicyConfig(workspace_root=self.project_root),
                 command_policy=StructuredCommandPolicy(),
-                file_policy=GatewayFilePolicy(),
+                # CodeWorker may author script source inside its fenced task
+                # workspace. Executing or exporting that source remains a
+                # separate permission/policy boundary.
+                file_policy=GatewayFilePolicy(FilePolicyConfig(allow_executable=True)),
             ),
             allowed_roots=(self.project_root,),
         )

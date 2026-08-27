@@ -362,6 +362,61 @@ export class CliApi {
     return response.data
   }
 
+  async writeWorkspaceFile(
+    workspaceId: string,
+    path: string,
+    content: Uint8Array,
+    signal?: AbortSignal,
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const body = {
+      path,
+      mount: "task",
+      encoding: "base64",
+      content: Buffer.from(content).toString("base64"),
+      idempotency_key: `cli-workspace-seed:${crypto.randomUUID()}`,
+    }
+    const response = await this.client.endpoint<Readonly<Record<string, unknown>>, typeof body>(
+      OPERATION_NAMES.workspaceFileWrite,
+      {
+        path: { workspace_id: workspaceId },
+        body,
+        idempotencyKey: createIdempotencyKey(
+          OPERATION_NAMES.workspaceFileWrite,
+          {},
+          body,
+        ),
+        signal,
+        timeoutMs: this.timeoutMs,
+        coordinationKey: `cli.workspace.write:${workspaceId}:${path}`,
+      },
+    )
+    return response.data
+  }
+
+  async readWorkspaceFile(
+    workspaceId: string,
+    path: string,
+    signal?: AbortSignal,
+  ): Promise<Uint8Array> {
+    const response = await this.client.endpoint<Readonly<Record<string, unknown>>>(
+      OPERATION_NAMES.workspaceFiles,
+      {
+        path: { workspace_id: workspaceId },
+        query: { path, mount: "task", read: true, encoding: "base64" },
+        signal,
+        timeoutMs: this.timeoutMs,
+        coordinationKey: `cli.workspace.read:${workspaceId}:${path}`,
+        deduplicate: true,
+      },
+    )
+    const encoding = response.data.encoding
+    const content = response.data.content
+    if (encoding !== "base64" || typeof content !== "string") {
+      throw new CliTaskError("Workspace file response is not base64 encoded.", "contract_workspace_file_invalid")
+    }
+    return Buffer.from(content, "base64")
+  }
+
   async runTask(task: TaskProjection, signal?: AbortSignal): Promise<TaskMutationProjection> {
     // One invocation keeps one key across transport retries, while a later
     // explicit `zyra resume` receives a fresh generation.  Reusing a key

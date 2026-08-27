@@ -88,11 +88,9 @@ class WorkspaceApiService:
         query: Mapping[str, Any] | None = None,
     ) -> WorkspaceApiResponse:
         values = query or {}
-        binding = self.manager.store.require_binding(workspace_id)
-        handle = self.manager.acquire_for_worker(
-            task_id=binding.task_id,
-            session_id=binding.session_id,
-            worker_id="workspace-api",
+        handle = self.manager.observe_current(
+            workspace_id,
+            operations=(WorkspaceOperation.LIST,),
         )
         mount_kind = _mount_kind(values.get("mount"))
         entries = self.manager.backend.list_directory(
@@ -118,11 +116,9 @@ class WorkspaceApiService:
         query: Mapping[str, Any],
     ) -> WorkspaceApiResponse:
         path = _required_string(query, "path")
-        binding = self.manager.store.require_binding(workspace_id)
-        handle = self.manager.acquire_for_worker(
-            task_id=binding.task_id,
-            session_id=binding.session_id,
-            worker_id="workspace-api",
+        handle = self.manager.observe_current(
+            workspace_id,
+            operations=(WorkspaceOperation.READ,),
         )
         mode = WorkspaceReadMode(str(query.get("mode") or WorkspaceReadMode.FULL.value))
         length_value = query.get("length")
@@ -199,7 +195,7 @@ class WorkspaceApiService:
             causation_id=str(payload.get("causation_id") or ""),
         )
         path_result = result.transaction.path_results[-1]
-        return WorkspaceApiResponse.ok(
+        response = WorkspaceApiResponse.ok(
             {
                 "write": {
                     "workspace_id": workspace_id,
@@ -217,6 +213,17 @@ class WorkspaceApiService:
                 "physical_location_redacted": True,
             },
             status=201 if path_result.disposition == "created" else 200,
+        )
+        return WorkspaceApiResponse(
+            status=response.status,
+            body=response.body,
+            headers={
+                **response.headers,
+                # Typed transport receipt identities use the public receipt_
+                # namespace; preserve the durable workspace receipt as the
+                # suffix so retries remain traceable to the canonical commit.
+                "X-Zyra-Receipt-Id": f"receipt_{result.receipt.receipt_id}",
+            },
         )
 
     def rebind(self, workspace_id: str, payload: Mapping[str, Any]) -> WorkspaceApiResponse:

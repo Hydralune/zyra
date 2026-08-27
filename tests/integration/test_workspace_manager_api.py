@@ -163,6 +163,41 @@ class WorkspaceManagerApiTests(unittest.TestCase):
                 self.assertNotIn(str(root), encoded)
                 self.assertTrue(body["physical_location_redacted"])
 
+    def test_workspace_get_observation_does_not_rotate_active_writer_custody(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            with _workspace_api(root) as base_url:
+                created = _post(base_url, "/tasks", {"goal": "Observe without takeover", "auto_run": False})
+                task = created["task"]
+                workspace_id = task["metadata"]["workspace_ref"]["workspace_id"]
+
+                from apps.api.zyra_api.main import get_workspace_manager
+
+                manager = get_workspace_manager()
+                writer = manager.acquire_for_worker(
+                    task_id=task["task_id"],
+                    session_id=task["metadata"]["workspace_ref"]["session_id"],
+                    worker_id="CodeWorkerRuntime",
+                )
+                before = manager.project(workspace_id)
+
+                listing = _get(base_url, f"/workspaces/{workspace_id}/files?path=.")
+                absent = _get(
+                    base_url,
+                    f"/workspaces/{workspace_id}/files?"
+                    + urllib.parse.urlencode(
+                        {"path": "missing.txt", "read": "true", "encoding": "utf-8"}
+                    ),
+                )
+
+                after = manager.project(workspace_id)
+                self.assertEqual(listing["count"], 0)
+                self.assertTrue(absent["write_precondition_available"])
+                self.assertEqual(after.owner_epoch, before.owner_epoch)
+                self.assertEqual(after.lease_id, before.lease_id)
+                self.assertEqual(writer.owner_epoch, after.owner_epoch)
+                self.assertEqual(writer.lease_id, after.lease_id)
+
 
 @contextmanager
 def _workspace_api(root: Path, *, enabled: bool = True) -> Iterator[str]:

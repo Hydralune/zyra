@@ -690,6 +690,10 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
     (value) => ({ ...responseRecord(value, "browser control response") }),
   )
   registry.register(
+    CONTRACT_NAMES.workspaceFiles,
+    (value) => ({ ...responseRecord(value, "workspace files response") }),
+  )
+  registry.register(
     CONTRACT_NAMES.scenarioRegistry,
     (value) => ({ ...responseRecord(value, "scenario registry response") }),
   )

@@ -1146,7 +1146,10 @@ class GatewayToolExecutionRouter:
             expected_workspace_id=identity.workspace_id,
             expected_owner_epoch=identity.owner_epoch,
             mount_kind=str(call.arguments.get("mount_kind") or "task"),
-            executable_allowed=False,
+            # A generated script in the fenced task mount is source code at
+            # this boundary. Artifact export and later process execution keep
+            # their own executable-content controls.
+            executable_allowed=not artifact,
             archive_expansion_allowed=False,
             idempotency_key=str(call.arguments.get("idempotency_key") or call.tool_call_id),
             causation_id=call.tool_call_id,

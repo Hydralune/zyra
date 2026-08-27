@@ -313,7 +313,14 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
         const registration = await terminal.start()
         if (lineMode) stderr.write(`terminal node ${registration.backend_id} registered · generation ${registration.generation.slice(0, 8)}\n`)
       }
-      if (command.kind === "run") outcome = await executeRun({ command, api, output, stdin, signal: signal.controller.signal })
+      if (command.kind === "run") outcome = await executeRun({
+        command,
+        api,
+        output,
+        stdin,
+        signal: signal.controller.signal,
+        workspaceRoot: process.cwd(),
+      })
       else if (command.kind === "scenario") outcome = await executeScenario({ command, api, output })
       else if (command.kind === "interactive") {
         outcome = await executeInteractive({ command, api, stdin, stdout, stderr, signal: signal.controller.signal, terminalStatus: () => terminal!.status() })
