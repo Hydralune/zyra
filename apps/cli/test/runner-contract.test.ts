@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test"
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { Readable, Writable } from "node:stream"
 import type {
   TaskMutationProjection,
@@ -91,6 +94,58 @@ describe("FE-S01 run result and fail-closed contracts", () => {
       changed_paths: ["smoke.txt"],
       file_api_resource: "workspaces/ws_contract_001/files",
     })
+  })
+
+  test("preserves a failed task outcome when partial workspace materialization also fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zyra-cli-failed-materialization-"))
+    const pending = task("pending")
+    const failed = task("failed")
+    const fake = {
+      async createPendingTask() { return mutation(pending) },
+      async writeWorkspaceFile() { return {} },
+      async readWorkspaceFile() { throw new Error("workspace.files returned HTTP 500") },
+      async openIngress() {
+        return { cursor: "opaque.failed", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask() { return mutation(failed) },
+      async nextIngress() {
+        return { cursor: "opaque.failed.final", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async task() { return failed },
+      async events() { return [] },
+      async cancelTask() { return mutation(task("cancelled")) },
+    } as unknown as CliApi
+    const stdout = new Capture()
+    try {
+      const outcome = await executeRun({
+        command: {
+          kind: "run",
+          goal: "Preserve the primary failed outcome.",
+          baseUrl: "http://127.0.0.1:8000",
+          autoStart: false,
+          startupTimeoutMs: 1_000,
+          timeoutMs: 10_000,
+          sealed: true,
+        },
+        api: fake,
+        output: new CliOutput({
+          stdout,
+          stderr: new Capture(),
+          requestId: "request_failed_materialization",
+          command: "run",
+        }),
+        stdin: Readable.from([]),
+        signal: new AbortController().signal,
+        workspaceRoot: root,
+      })
+
+      expect(outcome.exitCode).toBe(CliExitCode.TASK_FAILED)
+      expect(outcome.status).toBe("failed")
+      expect(outcome.diagnostics?.map((item) => item.stage)).toContain("workspace_materialization")
+      expect(stdout.text).toContain("materialization_failed")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   test("treats verifier-backed blocked state as settled for the current run only", () => {

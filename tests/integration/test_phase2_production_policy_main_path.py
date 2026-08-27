@@ -167,6 +167,14 @@ def test_loopx_pre_control_commits_explicit_role_workflow(
     assert graph.metadata["loopx_pre_control"]["workflow_plan_digest"] == (
         receipt["workflow_plan_digest"]
     )
+    assert state.metadata["loopx_goal_id"] == receipt["goal_id"]
+    assert state.metadata["loopx_continuation"]["enabled"] is True
+    assert state.metadata["loopx_continuation"]["goal_id"] == receipt["goal_id"]
+    assert state.metadata["loopx_continuation"]["todo_id"] in {
+        "todo_sealed_primary",
+        "todo_material_extraction",
+        "todo_independent_review",
+    }
 
 
 def test_loopx_pre_control_replays_valid_task_bound_receipt(

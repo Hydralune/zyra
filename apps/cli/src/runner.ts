@@ -29,7 +29,7 @@ export interface CommandOutcome {
 
 export interface OutcomeDiagnostic {
   schema: "zyra.task-outcome-diagnostic/v1"
-  stage: "task_execution" | "result_read" | "event_sync" | "log_enrichment" | "client_connection"
+  stage: "task_execution" | "result_read" | "event_sync" | "log_enrichment" | "client_connection" | "workspace_materialization"
   error_type: string
   message: string
   recoverable: boolean
@@ -660,23 +660,42 @@ export async function executeRun(input: {
     diagnostics.push(outcomeDiagnostic("client_connection", run.error))
   }
   if (input.workspaceRoot) {
-    const materialized = await materializeWorkspaceDelivery(
-      input.api,
-      finalTask,
-      input.workspaceRoot,
-      input.signal,
-    )
-    input.output.event(
-      {
-        schema: "zyra.cli-workspace-transfer.v1",
-        phase: "materialized",
-        workspace_id: materialized.workspaceId,
-        file_count: materialized.fileCount,
-        bytes: materialized.bytes,
-        paths: materialized.paths,
-      },
-      { taskId: finalTask.taskId, runId: finalTask.runId },
-    )
+    try {
+      const materialized = await materializeWorkspaceDelivery(
+        input.api,
+        finalTask,
+        input.workspaceRoot,
+        input.signal,
+      )
+      input.output.event(
+        {
+          schema: "zyra.cli-workspace-transfer.v1",
+          phase: "materialized",
+          workspace_id: materialized.workspaceId,
+          file_count: materialized.fileCount,
+          bytes: materialized.bytes,
+          paths: materialized.paths,
+        },
+        { taskId: finalTask.taskId, runId: finalTask.runId },
+      )
+    } catch (error) {
+      // Partial-delivery retrieval is useful after a failed task, but a
+      // secondary workspace-files error must not replace the canonical task
+      // failure. Successful tasks still fail closed when their declared
+      // delivery cannot be materialized.
+      if (finalTask.status === "completed") throw error
+      diagnostics.push(outcomeDiagnostic("workspace_materialization", error))
+      input.output.event(
+        {
+          schema: "zyra.cli-workspace-transfer.v1",
+          phase: "materialization_failed",
+          workspace_id: String(record(finalTask.metadata.delivery).workspace_id ?? ""),
+          error: error instanceof Error ? error.message : String(error),
+          primary_task_status_preserved: true,
+        },
+        { taskId: finalTask.taskId, runId: finalTask.runId },
+      )
+    }
   }
   return classifyTaskOutcome(finalTask, accumulator.verifier, diagnostics)
 }

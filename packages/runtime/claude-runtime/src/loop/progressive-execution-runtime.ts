@@ -1398,7 +1398,13 @@ function verificationFailureTargetsGeneratedDelivery(
     ...failure.failedChecks,
     failure.diagnosticSummary ?? "",
   ].join(" ");
-  return /(?:\bG8[-_ ]DELIVERY[-_ ]CONSISTENCY\b|\bDELIVERY[-_ ]CONSISTENCY\b|\bmanifest (?:omits|artifact|task contract|path|hash)|\bartifact hash mismatch\b|\bdashboard marker mismatch\b|\bdecision action digest mismatch\b|\bdecision journal (?:omits|mismatch))/iu.test(evidence);
+  return /(?:\bG8[-_ ]DELIVERY[-_ ]CONSISTENCY\b|\bDELIVERY[-_ ]CONSISTENCY\b|\bmanifest (?:omits|artifact|task contract|path|hash)|\bartifact hash mismatch\b|\bdashboard marker mismatch\b|\bdecision action digest mismatch\b|\bdecision journal (?:omits|mismatch))/iu.test(evidence)
+    // A concrete verifier diagnostic may name the generated entrypoint itself
+    // (for example a ParserError in deliverables/reproduce.ps1) without using
+    // a competition-specific check label.  That file is the failing business
+    // implementation for this task, so keep it repairable while still
+    // protecting unrelated generated evidence and opaque verifier internals.
+    || /(?:^|[\s"'`(:=])(?:\.\/?|\.\\)?(?:submission|deliverables?|evidence|\.runtime)[\\/][^\s"'`):=]+/iu.test(evidence);
 }
 
 function finitePositive(value: unknown): number | null {

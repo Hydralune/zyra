@@ -160,6 +160,64 @@ test("e02.default-path binds permission permit and capability execution to the c
   }
 });
 
+test("e02.default-path sends the canonical permission tool alias to the physical host", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "zyra-e02-alias-host-"));
+  const input: RuntimeRunInput = {
+    runId: "e02-alias-run",
+    taskId: "e02-alias-task",
+    nodeId: "e02-alias-node",
+    workerRequestId: "e02-alias-worker",
+    sessionId: "e02-alias-session",
+    messages: [],
+    turns: [],
+    tools: [],
+    config: {
+      permissionPolicy: { mode: "default", default_effect: "allow" },
+      runtimeConstraints: {
+        workspaceRoot: workspace,
+        watchSkills: false,
+        watchPlugins: false,
+      },
+    },
+  };
+  const capabilities = await TypeScriptCapabilityRuntime.open(input);
+  try {
+    const runtimeInput: RuntimeRunInput = {
+      ...input,
+      tools: capabilities.mergeToolSpecs(input.tools),
+    };
+    const gateway = new CommitOnlyGateway();
+    const host = new PermissionedCapabilityHost(gateway, runtimeInput, capabilities);
+    const batch: ToolBatch = {
+      batchId: "e02-alias-batch",
+      turnIndex: 0,
+      executionMode: "serial_non_read_only",
+      steps: [{ tool_name: "Task", arguments: { agent_type: "missing", prompt: "repair" } }],
+    };
+    await host.executeBatch(batch, [{
+      toolCallId: "e02-alias-call",
+      toolName: "Task",
+      arguments: { agent_type: "missing", prompt: "repair" },
+      turnIndex: 0,
+      stepIndex: 0,
+      batchId: batch.batchId,
+      batchIndex: 0,
+      batchSize: 1,
+      executionMode: batch.executionMode,
+      metadata: {},
+    }]);
+
+    assert.equal(gateway.delegated[0]?.toolName, "Agent");
+    const decision = gateway.delegated[0]?.permissionDecision as unknown as {
+      requestBinding?: { tool_name?: string };
+    };
+    assert.equal(decision.requestBinding?.tool_name, "Agent");
+  } finally {
+    await capabilities.close();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
 test("e02.disable.typescript-runtime fails closed before any Python fallback can open", async () => {
   const previous = process.env.ZYRA_DISABLE_E02_TYPESCRIPT_RUNTIME;
   process.env.ZYRA_DISABLE_E02_TYPESCRIPT_RUNTIME = "1";

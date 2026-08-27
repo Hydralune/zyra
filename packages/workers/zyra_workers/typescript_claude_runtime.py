@@ -47,7 +47,10 @@ from zyra_runtime.sandbox_gateway.credential_relay import (
 )
 
 from .code_worker_bridge import code_worker_entrypoint
-from .subagents.typescript_port import TypeScriptAgentDurablePort
+from .subagents.typescript_port import (
+    TypeScriptAgentDurablePort,
+    typescript_agent_authority_state_root,
+)
 from zyra_runtime.runtime_events.worker_ingress import (
     CodeWorkerRuntimeEventIngress,
     WorkerIngressIdentity,
@@ -1078,15 +1081,20 @@ class TypeScriptClaudeQueryEngine:
             or constraints.get("typescript_agent_state_path")
             or self.context.artifact_store.root / ".subagents"
         )
-        agent_port = TypeScriptAgentDurablePort(
-            raw_agent_state_root,
-            workspace_root=self.context.workspace_root,
-            event_sink=self._append_host_event,
-        )
         agent_parent_session_id = str(
             constraints.get("typescriptAgentParentSessionId")
             or constraints.get("typescript_agent_parent_session_id")
             or session_id
+        )
+        agent_port = TypeScriptAgentDurablePort(
+            typescript_agent_authority_state_root(
+                raw_agent_state_root,
+                run_id=run_id,
+                parent_task_id=task_id,
+                parent_session_id=agent_parent_session_id,
+            ),
+            workspace_root=self.context.workspace_root,
+            event_sink=self._append_host_event,
         )
         receipt_port = TypeScriptPermissionReceiptPort(
             run_id=run_id,

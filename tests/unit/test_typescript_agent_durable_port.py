@@ -8,10 +8,37 @@ from pathlib import Path
 from zyra_workers.subagents.typescript_port import (
     TypeScriptAgentDurablePort,
     _digest,
+    typescript_agent_authority_state_root,
 )
 
 
 class TypeScriptAgentDurablePortTests(unittest.TestCase):
+    def test_authority_state_root_is_stable_per_session_and_isolates_recovery(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir) / "state"
+            initial = typescript_agent_authority_state_root(
+                root,
+                run_id="run-1",
+                parent_task_id="task-1",
+                parent_session_id="session-1",
+            )
+            replay = typescript_agent_authority_state_root(
+                root,
+                run_id="run-1",
+                parent_task_id="task-1",
+                parent_session_id="session-1",
+            )
+            recovery = typescript_agent_authority_state_root(
+                root,
+                run_id="run-1",
+                parent_task_id="task-1",
+                parent_session_id="session-1:recovery:1",
+            )
+
+            self.assertEqual(initial, replay)
+            self.assertNotEqual(initial, recovery)
+            self.assertEqual(initial.parent, root.resolve() / "authorities")
+
     def test_effect_receipt_reconciles_after_restart_without_redispatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

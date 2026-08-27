@@ -4435,6 +4435,56 @@ def get_loopx_control_runtime() -> LoopXControlRuntime:
         return _LOOPX_CONTROL_RUNTIME
 
 
+def _bind_phase2_loopx_task_projection(
+    state: TaskState,
+    *,
+    goal_id: str,
+    snapshot: Mapping[str, Any],
+) -> None:
+    """Bind the committed pre-control goal to the public task projection."""
+
+    private = dict(snapshot.get("private_state") or {})
+    goal = dict(private.get("goal") or {})
+    todos = [
+        dict(item)
+        for item in private.get("todos") or ()
+        if isinstance(item, Mapping)
+    ]
+    next_todo = next(
+        (
+            item
+            for item in todos
+            if not bool(item.get("done"))
+            and str(item.get("status") or "open")
+            not in {"done", "completed"}
+        ),
+        {},
+    )
+    continuation = dict(snapshot.get("continuation") or {})
+    state.metadata["loopx_goal_id"] = goal_id
+    state.metadata["loopx_continuation"] = {
+        "schema": "zyra.loopx-continuation/v1",
+        "enabled": bool(snapshot.get("connected")),
+        "lifecycle": str(snapshot.get("lifecycle") or "disabled"),
+        "goal_id": goal_id,
+        "objective_ref": str(goal.get("objective_ref") or ""),
+        "requirement_revision": str(goal.get("requirement_revision") or ""),
+        "todo_id": str(next_todo.get("todo_id") or ""),
+        "obligation": str(
+            next_todo.get("title") or next_todo.get("text") or ""
+        ),
+        "continuation_allowed": bool(continuation.get("allowed")),
+        "sync_cursor": int(
+            dict(snapshot.get("sync") or {}).get("cursor") or 0
+        ),
+        "last_validated_receipt": dict(
+            snapshot.get("last_validated_receipt") or {}
+        ),
+        "owner": "LoopX private control",
+        "canonical_mutation_owner": "GraphStateCustody",
+    }
+
+
 def prepare_phase2_loopx_pre_control(
     state: TaskState,
     *,
@@ -4530,6 +4580,18 @@ def prepare_phase2_loopx_pre_control(
             and replay.get("canonical_commit_digest")
             == canonical_digest(replay_commit)
         ):
+            replay_goal_id = str(replay.get("goal_id") or "")
+            replay_snapshot = get_loopx_control_runtime().snapshot(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                goal_id=replay_goal_id,
+            )
+            _bind_phase2_loopx_task_projection(
+                state,
+                goal_id=replay_goal_id,
+                snapshot=replay_snapshot,
+            )
+            get_store().save_checkpoint(state)
             return replay
 
     permission_receipt = dict(
@@ -4809,6 +4871,11 @@ def prepare_phase2_loopx_pre_control(
     }
     value["receipt_digest"] = canonical_digest(value)
     state.metadata["phase2_loopx_pre_control"] = dict(value)
+    _bind_phase2_loopx_task_projection(
+        state,
+        goal_id=goal_id,
+        snapshot=snapshot,
+    )
     get_store().save_checkpoint(state)
     return value
 

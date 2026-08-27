@@ -31,6 +31,28 @@ def _digest(value: object) -> str:
     return hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
 
 
+def typescript_agent_authority_state_root(
+    state_root: str | Path,
+    *,
+    run_id: str,
+    parent_task_id: str,
+    parent_session_id: str,
+) -> Path:
+    """Return a stable E03 document root for one parent authority.
+
+    Physical recovery sessions are distinct E03 authorities.  They may share
+    the artifact store, but must not open and then attempt to rebind the same
+    single-authority registry document.
+    """
+
+    identity = {
+        "run_id": str(run_id),
+        "parent_task_id": str(parent_task_id),
+        "parent_session_id": str(parent_session_id),
+    }
+    return Path(state_root).resolve() / "authorities" / _digest(identity)[:40]
+
+
 def _without_checksum(value: Mapping[str, Any]) -> dict[str, Any]:
     output = copy.deepcopy(dict(value))
     output.pop("checksum", None)

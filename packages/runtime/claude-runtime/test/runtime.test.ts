@@ -4250,6 +4250,29 @@ test("explicit delivery-consistency verification debt targets generated evidence
   assert.match(deliveryFailure.verificationDebtSummary(), /regenerate them.*immediately rerun/iu);
   assert.match(deliveryFailure.verificationDebtSummary(), /Do not search for private evaluator/iu);
 
+  const generatedEntrypointFailure = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 2,
+      repairMutationCount: 2,
+      unresolvedVerificationScopes: ["shell:powershell:deliverables/reproduce.ps1"],
+      unresolvedVerificationFailures: [{
+        scope: "shell:powershell:deliverables/reproduce.ps1",
+        failedChecks: [],
+        failedCount: 1,
+        failureKind: "nonzero_exit",
+        attemptCount: 1,
+        lastObservedWorkspaceMutationCount: 2,
+        diagnosticSummary: "ParserError: deliverables\\reproduce.ps1:300 unterminated array",
+      }],
+    },
+  });
+  assert.equal(
+    generatedEntrypointFailure.verificationFailureTargetsGeneratedDelivery(),
+    true,
+  );
+
   const behavioralFailure = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
     continuityProgress: {

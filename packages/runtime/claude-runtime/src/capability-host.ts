@@ -17,6 +17,7 @@ import type {
 import { posix } from "node:path";
 import { asObject, asString } from "./contracts.ts";
 import { TypeScriptCapabilityRuntime } from "./capabilities.ts";
+import { normalizeToolName } from "./permission/index.ts";
 import { ClaudeRuntimeCore } from "./query-engine.ts";
 import {
   EXECUTION_SETTLEMENT_SNAPSHOT_VERSION,
@@ -88,20 +89,26 @@ export class PermissionedCapabilityHost implements RuntimeHost {
   ): Promise<ToolExecutionResponse[]> {
     const enriched: ToolExecutionRequest[] = [];
     for (const request of requests) {
+      // PermissionIdentity canonicalizes provider-facing aliases (for example
+      // Task -> Agent and Read -> file_read).  Use that same identity for the
+      // permit, Python commit port, settlement ledger, and local execution;
+      // otherwise the signed request binding and the physical request diverge.
+      const canonicalToolName = normalizeToolName(request.toolName);
       const argumentsValue = normalizeBenchmarkContainerFileArguments(
-        request.toolName,
+        canonicalToolName,
         request.arguments,
         asString(
           asObject(this.input.config.runtimeConstraints).benchmark_container_workdir,
         ),
       );
       const revision = sessionRevision(this.input);
-      const tool = this.input.tools.find((item) => item.name === request.toolName);
+      const tool = this.input.tools.find((item) => item.name === canonicalToolName)
+        ?? this.input.tools.find((item) => item.name === request.toolName);
       const identity = inferToolIdentity(
-        request.toolName,
+        canonicalToolName,
         tool,
       );
-      const local = this.capabilities.owns(request.toolName);
+      const local = this.capabilities.owns(canonicalToolName);
       const permissionRuntime = this.capabilities.e02.runtime;
       const authorization = await this.capabilities.authorize({
         runId: permissionRuntime.runId,
@@ -110,10 +117,10 @@ export class PermissionedCapabilityHost implements RuntimeHost {
         sessionRevision: revision,
         workerRequestId: permissionRuntime.workerRequestId,
         toolCallId: request.toolCallId,
-        toolName: request.toolName,
+        toolName: canonicalToolName,
         namespace: identity.namespace,
         serverId: identity.serverId,
-        operation: inferOperation(request.toolName, tool),
+        operation: inferOperation(canonicalToolName, tool),
         workspaceRoot: workspaceRoot(this.input),
         arguments: argumentsValue,
         issueExecutionPermit: local,
@@ -134,9 +141,10 @@ export class PermissionedCapabilityHost implements RuntimeHost {
       });
       enriched.push({
         ...request,
+        toolName: canonicalToolName,
         arguments: authorization.finalArguments,
         permissionDecision: authorization.enforcement.decision as unknown as JsonObject,
-        executionOwner: local ? this.capabilities.owner(request.toolName) : "python-tool-executor",
+        executionOwner: local ? this.capabilities.owner(canonicalToolName) : "python-tool-executor",
         permissionOnly: local,
         e02PermitId: authorization.permitId,
         e02SessionRevision: revision,
