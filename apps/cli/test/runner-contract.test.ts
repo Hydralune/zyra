@@ -9,7 +9,7 @@ import {
   RequestCancelledError,
   TransportDisconnectedError,
 } from "@zyra/typed-api-client"
-import { CliApi } from "../src/api.ts"
+import { CliApi, taskSubmissionIdempotencyKey } from "../src/api.ts"
 import { CliExitCode } from "../src/contracts.ts"
 import { CliOutput } from "../src/output.ts"
 import { classifyTaskOutcome, executeRun, taskHasSettledRunResult } from "../src/runner.ts"
@@ -62,6 +62,16 @@ function mutation(selected: TaskProjection): TaskMutationProjection {
 }
 
 describe("FE-S01 run result and fail-closed contracts", () => {
+  test("gives each explicit task submission a fresh idempotency generation", () => {
+    const first = taskSubmissionIdempotencyKey("same goal", false, "submission-one")
+    const firstRetry = taskSubmissionIdempotencyKey("same goal", false, "submission-one")
+    const second = taskSubmissionIdempotencyKey("same goal", false, "submission-two")
+
+    expect(firstRetry).toBe(first)
+    expect(second).not.toBe(first)
+    expect(first.startsWith("task.create:global:")).toBe(true)
+  })
+
   test("distinguishes success, execution failure, cancellation, and verifier failure", () => {
     const passed = {
       final: { schema: "zyra.production-independent-final-verifier/v2", passed: true },
