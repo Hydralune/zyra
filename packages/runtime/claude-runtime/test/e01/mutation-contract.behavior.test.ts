@@ -263,6 +263,40 @@ test("E01 provider custody follows the configured long-stream timeout", async ()
   expect(reservation!.expiresAt - reservation!.acquiredAt).toBeGreaterThanOrEqual(
     3_660_000,
   );
+
+  const restored = new E01RuntimeCoordinator(
+    "provider-long-restored-run",
+    "provider-long-session",
+    "provider-long-task",
+    "provider-long-worker",
+  );
+  restored.restore(snapshot);
+  await restored.bootstrap();
+  restored.recordRuntimeEvent("model_request_prepared", {
+    provider_request: {
+      request_id: "provider-long-restored-request",
+      provider: "compatible",
+      model: "provider-long-model",
+      system: [],
+      tools: [],
+      messages: [{ role: "user", content: "continue long work" }],
+    },
+  });
+  const restoredSnapshot = restored.snapshot();
+  const restoredRouteLease = restoredSnapshot.providerRouting.leases.find(
+    (item) => item.requestId === "provider-long-restored-request",
+  );
+  const restoredReservation = restoredSnapshot.providerRateLimits.reservations.find(
+    (item) => item.requestId === "provider-long-restored-request",
+  );
+  expect(restoredRouteLease).toBeDefined();
+  expect(restoredReservation).toBeDefined();
+  expect(restoredRouteLease!.expiresAt - restoredRouteLease!.acquiredAt).toBeGreaterThanOrEqual(
+    3_660_000,
+  );
+  expect(restoredReservation!.expiresAt - restoredReservation!.acquiredAt).toBeGreaterThanOrEqual(
+    3_660_000,
+  );
 });
 
 test("e01.mutation.corrupt-snapshot", () => {

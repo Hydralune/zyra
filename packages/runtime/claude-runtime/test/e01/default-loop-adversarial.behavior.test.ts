@@ -402,6 +402,57 @@ describe("compatible provider protocol", () => {
     expect(snapshot.endpoints[0]?.activeRequests).toBe(0);
     expect(snapshot.endpoints[0]?.queuedRequests).toBe(0);
   });
+
+  test("provider transport timeout remains active while an SSE body is silent", async () => {
+    let bodyCancelled = false;
+    const transport = new ProviderTransportRuntime(async () => new Response(
+      new ReadableStream<Uint8Array>({
+        cancel() {
+          bodyCancelled = true;
+        },
+      }),
+      { status: 200, headers: { "content-type": "text/event-stream" } },
+    ));
+    const response = await transport.execute({
+      url: "https://provider.example/v1/chat/completions",
+      method: "POST",
+      headers: { "x-client-request-id": "silent-stream-timeout" },
+      body: "{}",
+      timeoutMs: 25,
+    });
+
+    await expect(consumeCompatibleStream(response.stream!)).rejects.toThrow(
+      "provider_transport_timeout",
+    );
+    const snapshot = transport.snapshot();
+    expect(bodyCancelled).toBe(true);
+    expect(snapshot.endpoints[0]?.activeRequests).toBe(0);
+    expect(snapshot.requests[0]?.state).toBe("cancelled");
+    expect(snapshot.requests[0]?.errorCode).toBe("transport_cancelled");
+  });
+
+  test("provider transport relays external cancellation through an open SSE body", async () => {
+    const controller = new AbortController();
+    const transport = new ProviderTransportRuntime(async () => new Response(
+      new ReadableStream<Uint8Array>({}),
+      { status: 200, headers: { "content-type": "text/event-stream" } },
+    ));
+    const response = await transport.execute({
+      url: "https://provider.example/v1/chat/completions",
+      method: "POST",
+      headers: { "x-client-request-id": "external-stream-cancel" },
+      body: "{}",
+      timeoutMs: 5_000,
+      signal: controller.signal,
+    });
+    const consuming = consumeCompatibleStream(response.stream!);
+    controller.abort(new Error("operator_cancelled"));
+
+    await expect(consuming).rejects.toThrow("operator_cancelled");
+    const snapshot = transport.snapshot();
+    expect(snapshot.endpoints[0]?.activeRequests).toBe(0);
+    expect(snapshot.requests[0]?.state).toBe("cancelled");
+  });
 });
 
 describe("model iteration recovery", () => {

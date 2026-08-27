@@ -356,6 +356,10 @@ export class E01RuntimeCoordinator {
     this.compactRestore.restore(snapshot.compactRestore);
     if (snapshot.skillMemory) this.skillMemory.restore(snapshot.skillMemory);
     this.provider.restore(snapshot.provider);
+    this.providerTimeoutMs = Math.max(
+      100,
+      Math.min(3_600_000, Math.floor(snapshot.provider.endpoint.timeoutMs || 120_000)),
+    );
     this.providerPrompt.restore(snapshot.providerPrompt);
     this.providerTransport.restore(snapshot.providerTransport);
     this.providerCredentials.restore(snapshot.providerCredentials);

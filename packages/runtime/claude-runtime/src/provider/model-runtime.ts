@@ -855,6 +855,7 @@ export class ProviderModelRuntime {
       ?? header(response.headers, "x-request-id")
       ?? null;
     if (response.status < 200 || response.status >= 300) {
+      response.settle?.(false);
       record.state = "failed";
       record.errorCode = `http_${response.status}`;
       record.completedAt = new Date().toISOString();

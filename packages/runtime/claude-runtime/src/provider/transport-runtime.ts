@@ -207,6 +207,15 @@ export class ProviderTransportRuntime implements ProviderTransport {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new Error("provider_transport_timeout")), Math.max(1, request.timeoutMs));
     const detach = relayAbort(request.signal, controller);
+    let streamOwnsCleanup = false;
+    let streamSettle: ((success: boolean) => void) | null = null;
+    const cleanup = (): void => {
+      clearTimeout(timeout);
+      detach();
+      controller.signal.removeEventListener("abort", settleAbortedStream);
+    };
+    const settleAbortedStream = (): void => streamSettle?.(false);
+    controller.signal.addEventListener("abort", settleAbortedStream);
     try {
       record.state = "sending";
       record.revision += 1;
@@ -230,12 +239,20 @@ export class ProviderTransportRuntime implements ProviderTransport {
         const settle = (success: boolean): void => {
           if (settled) return;
           settled = true;
-          this.finishRequest(record, endpoint!, success && response.ok);
+          if (controller.signal.aborted) {
+            this.cancelRequest(record, endpoint!, controller.signal.reason);
+          } else {
+            this.finishRequest(record, endpoint!, success && response.ok);
+          }
+          cleanup();
         };
+        streamSettle = settle;
+        streamOwnsCleanup = true;
         const stream = readableStreamToAsyncIterable(response.body, (bytes) => {
           record.responseBytes += bytes;
           record.revision += 1;
-        }, () => settle(response.ok));
+        }, (completed) => settle(completed && response.ok), controller.signal);
+        if (controller.signal.aborted) settle(false);
         return { status: response.status, headers, stream, settle };
       }
       const bytes = new Uint8Array(await response.arrayBuffer());
@@ -254,8 +271,7 @@ export class ProviderTransportRuntime implements ProviderTransport {
       this.revision += 1;
       throw error;
     } finally {
-      clearTimeout(timeout);
-      detach();
+      if (!streamOwnsCleanup) cleanup();
     }
   }
 
@@ -384,6 +400,20 @@ export class ProviderTransportRuntime implements ProviderTransport {
     this.revision += 1;
   }
 
+  private cancelRequest(record: TransportRequestRecord, endpoint: TransportEndpoint, reason: unknown): void {
+    if (record.state === "completed" || record.state === "failed" || record.state === "cancelled") return;
+    record.state = "cancelled";
+    record.completedAt = new Date().toISOString();
+    record.errorCode = "transport_cancelled";
+    record.errorMessage = reason instanceof Error
+      ? reason.message.slice(0, 8_192)
+      : String(reason ?? "provider transport cancelled").slice(0, 8_192);
+    record.revision += 1;
+    this.recordFailure(endpoint, record.errorCode);
+    this.releaseSlot(endpoint);
+    this.revision += 1;
+  }
+
   private recordSuccess(endpoint: TransportEndpoint, latencyMs: number): void {
     endpoint.consecutiveSuccesses += 1;
     endpoint.consecutiveFailures = 0;
@@ -423,27 +453,48 @@ export class ProviderTransportRuntime implements ProviderTransport {
 async function* readableStreamToAsyncIterable(
   stream: ReadableStream<Uint8Array>,
   onBytes: (bytes: number) => void,
-  onClose: () => void,
+  onClose: (completed: boolean) => void,
+  signal: AbortSignal,
 ): AsyncIterable<Uint8Array> {
   const reader = stream.getReader();
   let closed = false;
+  let completed = false;
   const close = (): void => {
     if (closed) return;
     closed = true;
-    onClose();
+    onClose(completed);
   };
+  let rejectAbort: (reason: unknown) => void = () => {};
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectAbort = reject;
+  });
+  const abort = (): void => {
+    const reason = signal.reason ?? new DOMException("provider transport aborted", "AbortError");
+    rejectAbort(reason);
+    void reader.cancel(reason).catch(() => {});
+  };
+  if (signal.aborted) abort();
+  else signal.addEventListener("abort", abort, { once: true });
   try {
     while (true) {
-      const result = await reader.read();
-      if (result.done) break;
+      const result = await Promise.race([reader.read(), aborted]);
+      if (result.done) {
+        completed = true;
+        break;
+      }
       onBytes(result.value.byteLength);
       yield result.value;
     }
   } finally {
+    signal.removeEventListener("abort", abort);
     try {
-      reader.releaseLock();
+      if (!completed) await reader.cancel(signal.reason).catch(() => {});
     } finally {
-      close();
+      try {
+        reader.releaseLock();
+      } finally {
+        close();
+      }
     }
   }
 }
