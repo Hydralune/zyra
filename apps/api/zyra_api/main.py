@@ -15088,6 +15088,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
 
 
 def run(host: str | None = None, port: int | None = None) -> None:
+    _load_configured_provider_environment()
     configuration = runtime_configuration()
     bind_host = host or str(configuration.require("api.host"))
     bind_port = port or int(configuration.require("api.port"))

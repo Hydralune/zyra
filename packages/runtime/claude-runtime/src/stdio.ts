@@ -29,6 +29,7 @@ import type { PermissionApprovalResponse } from "./e02/index.ts";
 import { ClaudeRuntimeCore } from "./query-engine.ts";
 import { TypeScriptCapabilityRuntime } from "./capabilities.ts";
 import { PermissionedCapabilityHost } from "./capability-host.ts";
+import { bindProviderControlPlaneChildRoute } from "./provider-control-plane-runtime.ts";
 import {
   createFrame,
   decodeFrame,
@@ -592,10 +593,13 @@ export async function runStdioRuntimeWithStreams(
       await activeCapabilities.drainBackground({
         parentInput: runtimeInput,
         host: permissionedHost,
-        runChild: async (childInput) => new ClaudeRuntimeCore().run(
-          childInput,
-          new PermissionedCapabilityHost(host, childInput, activeCapabilities),
-        ),
+        runChild: async (childInput) => {
+          const routedChild = await bindProviderControlPlaneChildRoute(runtimeInput, childInput);
+          return new ClaudeRuntimeCore().run(
+            routedChild,
+            new PermissionedCapabilityHost(host, routedChild, activeCapabilities),
+          );
+        },
       });
     }
     capabilities = null;

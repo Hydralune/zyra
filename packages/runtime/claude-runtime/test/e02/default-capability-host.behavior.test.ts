@@ -160,6 +160,61 @@ test("e02.default-path binds permission permit and capability execution to the c
   }
 });
 
+test("e02.default-path honors canonical access_mode metadata when inferring permission operation", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "zyra-e02-access-mode-"));
+  const input: RuntimeRunInput = {
+    runId: "e02-access-mode-run",
+    taskId: "e02-access-mode-task",
+    nodeId: "e02-access-mode-node",
+    workerRequestId: "e02-access-mode-worker",
+    sessionId: "e02-access-mode-session",
+    messages: [],
+    turns: [],
+    tools: [],
+    config: {
+      permissionPolicy: { mode: "default", default_effect: "allow" },
+      runtimeConstraints: {
+        workspaceRoot: workspace,
+        watchSkills: false,
+        watchPlugins: false,
+      },
+    },
+  };
+  const capabilities = await TypeScriptCapabilityRuntime.open(input);
+  try {
+    const runtimeInput = { ...input, tools: capabilities.mergeToolSpecs(input.tools) };
+    const gateway = new CommitOnlyGateway();
+    const host = new PermissionedCapabilityHost(gateway, runtimeInput, capabilities);
+    const batch: ToolBatch = {
+      batchId: "e02-access-mode-batch",
+      turnIndex: 0,
+      executionMode: "concurrent_read_only",
+      steps: [{ tool_name: "e02_projection", arguments: { action: "list" } }],
+    };
+    const [result] = await host.executeBatch(batch, [{
+      toolCallId: "e02-access-mode-call",
+      toolName: "e02_projection",
+      arguments: { action: "list" },
+      turnIndex: 0,
+      stepIndex: 0,
+      batchId: batch.batchId,
+      batchIndex: 0,
+      batchSize: 1,
+      executionMode: batch.executionMode,
+      metadata: {},
+    }]);
+
+    assert.equal(result?.ok, true);
+    const decision = gateway.delegated[0]?.permissionDecision as unknown as {
+      requestBinding?: { operation?: string };
+    };
+    assert.equal(decision.requestBinding?.operation, "read");
+  } finally {
+    await capabilities.close();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
 test("e02.default-path sends the canonical permission tool alias to the physical host", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "zyra-e02-alias-host-"));
   const input: RuntimeRunInput = {

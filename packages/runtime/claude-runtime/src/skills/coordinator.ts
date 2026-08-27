@@ -352,7 +352,7 @@ export class SkillCoordinator {
       parent: parentContext,
       resources,
       arguments: objectValue(argumentsValue.arguments),
-      metadata: { registry_revision: resolution.revision, tool_call_id: identity.toolCallId },
+      metadata: { registry_revision: resolution.revision },
     });
     const request: SkillInvocationRequest = {
       identity,

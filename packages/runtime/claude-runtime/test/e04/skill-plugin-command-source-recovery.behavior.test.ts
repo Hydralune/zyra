@@ -328,19 +328,60 @@ test("e04-skill-fork-failure", async () => {
   const context: AgentExecutionContext = {
     parentInput: input,
     host: {} as AgentExecutionContext["host"],
-    runChild: async () => {
-      throw new Error("e04 child execution failed");
-    },
+    runChild: async () => ({
+      ...childResult(),
+      ok: false,
+      stoppedReason: "model_stream_failed",
+      turnCount: 0,
+      toolCallCount: 0,
+      stepSummaries: [],
+    }),
   };
   try {
     await assert.rejects(capabilities.execute("skill", {
       skill: "e04-fork-skill",
       arguments: { target: "failure" },
-    }, context, { toolCallId: "e04-fork-failure-call" }), /child execution failed/);
+    }, context, { toolCallId: "e04-fork-failure-call" }), /skill_child_run_failed|model_stream_failed/);
     const records = capabilities.e02.skills.snapshot().journal.records;
     assert.equal(records.length, 1);
     assert.equal(records[0]?.status, "failed");
     assert.equal(records[0]?.result, null);
+  } finally {
+    await capabilities.close();
+    await rm(fixture.workspace, { recursive: true, force: true });
+  }
+});
+
+test("e04 repeated skill calls reuse deterministic context but keep distinct invocation records", async () => {
+  const fixture = await createCapabilityWorkspace("zyra-e04-skill-repeat-");
+  const input = runtimeInput(fixture.workspace);
+  const calls: RuntimeRunInput[] = [];
+  const capabilities = await TypeScriptCapabilityRuntime.open(input);
+  try {
+    const argumentsValue = {
+      skill: "e04-fork-skill",
+      arguments: { target: "same-context" },
+    };
+    const first = await capabilities.execute(
+      "skill",
+      argumentsValue,
+      executionContext(input, calls),
+      { toolCallId: "e04-repeat-call-one" },
+    );
+    const second = await capabilities.execute(
+      "skill",
+      argumentsValue,
+      executionContext(input, calls),
+      { toolCallId: "e04-repeat-call-two" },
+    );
+    assert.equal(first.output.composition_id, second.output.composition_id);
+    const snapshot = capabilities.e02.skills.snapshot();
+    assert.equal(snapshot.context.compositions.length, 1);
+    assert.equal(snapshot.journal.records.length, 2);
+    assert.notEqual(
+      snapshot.journal.records[0]?.invocationId,
+      snapshot.journal.records[1]?.invocationId,
+    );
   } finally {
     await capabilities.close();
     await rm(fixture.workspace, { recursive: true, force: true });

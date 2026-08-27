@@ -1999,6 +1999,17 @@ export class E02CapabilityCoordinator {
       context.runChild,
       executorContext.signal,
     );
+    if (!result.ok) {
+      const stoppedReason = result.stoppedReason?.trim() || "unknown";
+      throw coordinatorError(
+        "skill_child_run_failed",
+        `forked skill child ${childTaskId} failed: ${stoppedReason}`,
+        {
+          child_task_id: childTaskId,
+          stopped_reason: stoppedReason,
+        },
+      );
+    }
     return {
       output: {
         ok: result.ok,

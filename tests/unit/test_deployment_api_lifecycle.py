@@ -185,6 +185,50 @@ def test_provider_env_loader_reads_only_the_exact_allowlisted_key(
     assert api._preferred_configured_provider() == ("zhipu", "glm-5.2")
 
 
+def test_api_run_loads_provider_environment_before_configuration_and_bootstrap(
+    monkeypatch,
+) -> None:
+    events: list[str] = []
+
+    class Configuration:
+        def require(self, key: str) -> str | int:
+            events.append(f"configuration.require:{key}")
+            return "127.0.0.1" if key == "api.host" else 8010
+
+    class Bootstrap:
+        def start(self) -> None:
+            events.append("bootstrap.start")
+            raise RuntimeError("stop after ordering evidence")
+
+    monkeypatch.setattr(
+        api,
+        "_load_configured_provider_environment",
+        lambda: events.append("provider_environment") or (),
+    )
+    monkeypatch.setattr(
+        api,
+        "runtime_configuration",
+        lambda: events.append("runtime_configuration") or Configuration(),
+    )
+    monkeypatch.setattr(
+        api,
+        "get_api_product_bootstrap",
+        lambda: events.append("get_api_product_bootstrap") or Bootstrap(),
+    )
+
+    with pytest.raises(RuntimeError, match="ordering evidence"):
+        api.run()
+
+    assert events == [
+        "provider_environment",
+        "runtime_configuration",
+        "configuration.require:api.host",
+        "configuration.require:api.port",
+        "get_api_product_bootstrap",
+        "bootstrap.start",
+    ]
+
+
 def test_provider_env_loader_disable_flag_removes_file_managed_values_only(
     tmp_path: Path,
     monkeypatch,

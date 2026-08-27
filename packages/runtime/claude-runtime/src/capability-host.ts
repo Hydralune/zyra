@@ -19,6 +19,7 @@ import { asObject, asString } from "./contracts.ts";
 import { TypeScriptCapabilityRuntime } from "./capabilities.ts";
 import { normalizeToolName } from "./permission/index.ts";
 import { ClaudeRuntimeCore } from "./query-engine.ts";
+import { bindProviderControlPlaneChildRoute } from "./provider-control-plane-runtime.ts";
 import {
   EXECUTION_SETTLEMENT_SNAPSHOT_VERSION,
   ToolExecutionSettlementRuntime,
@@ -268,10 +269,13 @@ export class PermissionedCapabilityHost implements RuntimeHost {
             {
               parentInput: this.input,
               host: this,
-              runChild: async (childInput) => new ClaudeRuntimeCore().run(
-                childInput,
-                new PermissionedCapabilityHost(this.delegate, childInput, this.capabilities),
-              ),
+              runChild: async (childInput) => {
+                const routedChild = await bindProviderControlPlaneChildRoute(this.input, childInput);
+                return new ClaudeRuntimeCore().run(
+                  routedChild,
+                  new PermissionedCapabilityHost(this.delegate, routedChild, this.capabilities),
+                );
+              },
             },
             {
               toolCallId: request.toolCallId,
@@ -535,6 +539,9 @@ function inferOperation(
   tool?: RuntimeRunInput["tools"][number],
 ): string {
   const metadata = asObject(tool?.metadata);
+  const accessMode = asString(metadata.access_mode).trim().toLowerCase();
+  if (accessMode === "read") return "read";
+  if (accessMode === "write") return "write";
   if (metadata.read_only === true || asString(metadata.read_only).toLowerCase() === "true") {
     return "read";
   }

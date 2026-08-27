@@ -85,6 +85,7 @@ export class ProgressiveExecutionRuntime {
   private readonly constraints: JsonObject;
   private readonly requiresWorkspaceMutation: boolean;
   private readonly requiresVerification: boolean;
+  private readonly activeBackgroundJobIds = new Set<string>();
   private state: ProgressiveExecutionSnapshot;
 
   constructor(options: ProgressiveOptions = {}) {
@@ -731,10 +732,14 @@ export class ProgressiveExecutionRuntime {
       }
     }
     this.constrainActionableDiagnosticInspection();
-    if (backgroundRunning && request.toolName !== "shell_wait") {
-      this.state.activeBackgroundCount += 1;
-    } else if (backgroundTerminal) {
-      this.state.activeBackgroundCount = Math.max(0, this.state.activeBackgroundCount - 1);
+    if (request.toolName === "shell" || request.toolName === "shell_wait") {
+      const jobId = backgroundJobId(request, response);
+      if (jobId && backgroundRunning) {
+        this.activeBackgroundJobIds.add(jobId);
+      } else if (jobId && backgroundTerminal) {
+        this.activeBackgroundJobIds.delete(jobId);
+      }
+      this.state.activeBackgroundCount = this.activeBackgroundJobIds.size;
     }
     if (!response.ok) {
       this.state.progressReasons.push(`tool_failed:${request.toolName}`);
@@ -1056,6 +1061,21 @@ export class ProgressiveExecutionRuntime {
       snapshot: this.snapshot(),
     };
   }
+}
+
+function backgroundJobId(
+  request: ToolExecutionRequest,
+  response: ToolExecutionResponse,
+): string {
+  for (const value of [
+    request.arguments.job_id,
+    response.output.job_id,
+    response.metadata.job_id,
+  ]) {
+    const candidate = typeof value === "string" ? value.trim() : "";
+    if (candidate) return candidate;
+  }
+  return "";
 }
 
 function restoreVerificationFailures(

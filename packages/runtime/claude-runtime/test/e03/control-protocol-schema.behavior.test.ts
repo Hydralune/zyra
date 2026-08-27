@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  canonicalJson,
   digest,
   E03RuntimeError,
   type ControlCommand,
@@ -22,6 +23,18 @@ import {
   ControlFrameCodec,
   type ControlFrame,
 } from "../../src/control/stdio.ts";
+
+test("e03 canonical JSON matches its serialized wire representation", () => {
+  const source = {
+    array: [1, undefined],
+    nested: { dropped: undefined, kept: "x" },
+  };
+  const wire = JSON.parse(JSON.stringify(source)) as unknown;
+
+  assert.equal(canonicalJson(source), '{"array":[1,null],"nested":{"kept":"x"}}');
+  assert.equal(canonicalJson(source), canonicalJson(wire));
+  assert.equal(digest(source), digest(wire));
+});
 
 function assertRuntimeCode(error: unknown, code: string): boolean {
   assert.ok(error instanceof E03RuntimeError);

@@ -401,15 +401,22 @@ export class E03RuntimeError extends Error {
 }
 
 export function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (Array.isArray(value)) {
+    return `[${Array.from(value, (item) => jsonOmitted(item) ? "null" : canonicalJson(item)).join(",")}]`;
+  }
   if (value && typeof value === "object") {
     const row = value as Record<string, unknown>;
     return `{${Object.keys(row)
+      .filter((key) => !jsonOmitted(row[key]))
       .sort()
       .map((key) => `${JSON.stringify(key)}:${canonicalJson(row[key])}`)
       .join(",")}}`;
   }
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? "null";
+}
+
+function jsonOmitted(value: unknown): boolean {
+  return value === undefined || typeof value === "function" || typeof value === "symbol";
 }
 
 export function digest(value: unknown): string {

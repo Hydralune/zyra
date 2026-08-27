@@ -64,6 +64,93 @@ export function providerControlPlaneRequired(config: RuntimeConfig): boolean {
   return asBoolean(config.runtimeConstraints.provider_control_plane_required);
 }
 
+export async function bindProviderControlPlaneChildRoute(
+  parent: RuntimeRunInput,
+  child: RuntimeRunInput,
+): Promise<RuntimeRunInput> {
+  if (child.taskId === parent.taskId) return child;
+  const parentConstraints = asObject(parent.config.runtimeConstraints);
+  if (!asBoolean(parentConstraints.provider_control_plane_required)) return child;
+  const databasePath = asString(parentConstraints.provider_control_plane_database_path).trim();
+  if (!databasePath) throw new Error("provider_control_plane_database_path_missing");
+  const parentRef = routeRefFromConstraints(parentConstraints);
+  const { ProviderControlPlane } = await import("../../provider-control-plane/src/control-plane.ts");
+  const controlPlane = new ProviderControlPlane({ databasePath });
+  try {
+    const parentRoute = controlPlane.routes.requirePersisted(parentRef.routeId);
+    assertRouteRef(parentRoute, parentRef, parent);
+    const childTurnId = `${child.workerRequestId}:provider`;
+    const childNodeId = child.nodeId ?? null;
+    const existing = controlPlane.routes.list(child.runId, child.taskId)
+      .filter((route) => (
+        route.nodeId === childNodeId
+        && route.sessionId === child.sessionId
+        && route.turnId === childTurnId
+        && route.providerId === parentRoute.providerId
+        && route.modelId === parentRoute.modelId
+      ))
+      .sort((left, right) => right.createdAt - left.createdAt)[0];
+    const route = existing ?? controlPlane.acquireRoute({
+      runId: child.runId,
+      taskId: child.taskId,
+      nodeId: childNodeId,
+      sessionId: child.sessionId,
+      turnId: childTurnId,
+      purpose: "reason",
+      preferredProviderId: parentRoute.providerId,
+      preferredModelId: parentRoute.modelId,
+      routeHint: `${parentRoute.providerId}/${parentRoute.modelId}`,
+      constraints: {
+        providerIds: [parentRoute.providerId],
+        modelIds: [parentRoute.modelId],
+        requiredInput: ["text"],
+        requiredOutput: ["text"],
+        requireTools: child.tools.length > 0,
+        requireStreaming: true,
+        minimumContextWindow: 0,
+        maximumInputPricePerMillion: null,
+        maximumOutputPricePerMillion: null,
+        excludedCredentialIds: [],
+        requiredScopes: [],
+      },
+      metadata: {
+        owner: "typescript.ProviderControlPlane",
+        parent_route_id: parentRoute.routeId,
+        route_binding: "child_execution",
+      },
+    });
+    if (route.providerId !== parentRoute.providerId || route.modelId !== parentRoute.modelId) {
+      throw new Error("child provider route changed the parent provider/model binding");
+    }
+    const childRef = providerRouteRef(route);
+    assertRouteRef(route, childRef, child);
+    return {
+      ...child,
+      config: {
+        ...child.config,
+        runtimeConstraints: {
+          ...asObject(child.config.runtimeConstraints),
+          provider_control_plane_required: true,
+          provider_control_plane_database_path: databasePath,
+          provider_route_id: route.routeId,
+          provider_route_checksum: route.checksum,
+          provider_catalog_revision: route.catalogRevision,
+          provider_credential_version: route.credentialVersion,
+          provider_credential_fingerprint: route.credentialFingerprint,
+          provider_transport_id: route.transportId,
+          provider_route_session_id: route.sessionId,
+          provider_route_turn_id: route.turnId,
+          provider_route_expires_at: route.expiresAt,
+          provider_id: route.providerId,
+          provider_model_id: route.modelId,
+        },
+      },
+    };
+  } finally {
+    controlPlane.close();
+  }
+}
+
 export async function resolveProviderControlPlaneTurns(
   input: RuntimeRunInput,
   config: RuntimeConfig,
@@ -434,6 +521,19 @@ function routeRefFromConstraints(constraints: JsonObject): ProviderRouteRefProje
     throw new Error(`provider route ref is incomplete: ${missing.join(", ")}`);
   }
   return ref;
+}
+
+function providerRouteRef(route: ProviderRouteLease): ProviderRouteRefProjection {
+  return {
+    routeId: route.routeId,
+    routeChecksum: route.checksum,
+    catalogRevision: route.catalogRevision,
+    credentialVersion: route.credentialVersion,
+    credentialFingerprint: route.credentialFingerprint,
+    transportId: route.transportId,
+    sessionId: route.sessionId,
+    turnId: route.turnId,
+  };
 }
 
 function assertRouteRef(

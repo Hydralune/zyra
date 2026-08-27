@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
@@ -19,10 +22,17 @@ import {
 import { projectToolOutputForRuntime } from "../src/tools/model-result-projection.ts";
 import {
   assertProviderRouteRenewalLineage,
+  bindProviderControlPlaneChildRoute,
   providerControlPlaneEvidenceFrames,
   providerControlPlaneToolSteps,
 } from "../src/provider-control-plane-runtime.ts";
 import type { ProviderRouteLease } from "../../provider-control-plane/src/contracts.ts";
+import {
+  DEEPSEEK_PROVIDER_ID,
+  DEEPSEEK_V4_FLASH_MODEL_ID,
+  installDeepSeekV4FlashProfile,
+  ProviderControlPlane,
+} from "../../provider-control-plane/src/index.ts";
 import {
   PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION,
   ProgressiveExecutionRuntime,
@@ -821,6 +831,113 @@ test("provider route renewal accepts a verified multi-hop pinned lineage", () =>
       },
     ),
   );
+});
+
+test("provider control plane binds one reusable route to each child execution identity", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "zyra-child-provider-route-"));
+  const databasePath = join(directory, "provider.sqlite3");
+  const controlPlane = new ProviderControlPlane({ databasePath });
+  let parentRoute: ProviderRouteLease;
+  try {
+    installDeepSeekV4FlashProfile(controlPlane, {
+      ZYRA_DEEPSEEK_ENABLED: "true",
+      DEEPSEEK_API_KEY: "child-route-test-secret",
+    });
+    parentRoute = controlPlane.acquireRoute({
+      runId: "run-child-route",
+      taskId: "task-parent-route",
+      nodeId: "node-parent-route",
+      sessionId: "session-parent-route",
+      turnId: "turn-parent-route",
+      purpose: "reason",
+      preferredProviderId: DEEPSEEK_PROVIDER_ID,
+      preferredModelId: DEEPSEEK_V4_FLASH_MODEL_ID,
+      routeHint: `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+      constraints: {
+        providerIds: [DEEPSEEK_PROVIDER_ID],
+        modelIds: [DEEPSEEK_V4_FLASH_MODEL_ID],
+        requiredInput: ["text"],
+        requiredOutput: ["text"],
+        requireTools: true,
+        requireStreaming: true,
+        minimumContextWindow: 0,
+        maximumInputPricePerMillion: null,
+        maximumOutputPricePerMillion: null,
+        excludedCredentialIds: [],
+        requiredScopes: [],
+      },
+      metadata: {},
+    });
+  } finally {
+    controlPlane.close();
+  }
+  const parent: RuntimeRunInput = {
+    runId: parentRoute.runId,
+    taskId: parentRoute.taskId,
+    nodeId: parentRoute.nodeId,
+    workerRequestId: "worker-parent-route",
+    sessionId: parentRoute.sessionId,
+    messages: [],
+    turns: [],
+    tools: [],
+    config: {
+      runtimeConstraints: {
+        provider_control_plane_required: true,
+        provider_control_plane_database_path: databasePath,
+        provider_route_id: parentRoute.routeId,
+        provider_route_checksum: parentRoute.checksum,
+        provider_catalog_revision: parentRoute.catalogRevision,
+        provider_credential_version: parentRoute.credentialVersion,
+        provider_credential_fingerprint: parentRoute.credentialFingerprint,
+        provider_transport_id: parentRoute.transportId,
+        provider_route_session_id: parentRoute.sessionId,
+        provider_route_turn_id: parentRoute.turnId,
+      },
+    },
+  };
+  const child: RuntimeRunInput = {
+    ...parent,
+    taskId: "task-child-route",
+    nodeId: "node-child-route",
+    workerRequestId: "worker-child-route",
+    sessionId: "session-child-route",
+    tools: [{
+      name: "file_read",
+      purpose: "read",
+      source: "builtin",
+      input_schema: { type: "object" },
+      output_schema: { type: "object" },
+      metadata: {},
+      execution_provenance: {},
+    }],
+  };
+  try {
+    const first = await bindProviderControlPlaneChildRoute(parent, child);
+    const second = await bindProviderControlPlaneChildRoute(parent, child);
+    const firstConstraints = first.config.runtimeConstraints as JsonObject;
+    const secondConstraints = second.config.runtimeConstraints as JsonObject;
+    assert.notEqual(firstConstraints.provider_route_id, parentRoute.routeId);
+    assert.equal(secondConstraints.provider_route_id, firstConstraints.provider_route_id);
+    assert.equal(firstConstraints.provider_route_session_id, child.sessionId);
+    assert.equal(firstConstraints.provider_id, parentRoute.providerId);
+    assert.equal(firstConstraints.provider_model_id, parentRoute.modelId);
+
+    const inspection = new ProviderControlPlane({ databasePath });
+    try {
+      const persistedParent = inspection.routes.requirePersisted(parentRoute.routeId);
+      assert.equal(persistedParent.taskId, parent.taskId);
+      assert.equal(persistedParent.sessionId, parent.sessionId);
+      const childRoutes = inspection.routes.list(child.runId, child.taskId);
+      assert.equal(childRoutes.length, 1);
+      assert.equal(childRoutes[0]?.taskId, child.taskId);
+      assert.equal(childRoutes[0]?.sessionId, child.sessionId);
+      assert.equal(childRoutes[0]?.nodeId, child.nodeId);
+    } finally {
+      inspection.close();
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("provider control plane rejoins fragmented OpenAI tool arguments by provider index", () => {
@@ -3509,10 +3626,10 @@ test("progressive execution counts each background job once and observes its ter
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
   });
-  const request = (toolCallId: string, toolName: string): ToolExecutionRequest => ({
+  const request = (toolCallId: string, toolName: string, jobId?: string): ToolExecutionRequest => ({
     toolCallId,
     toolName,
-    arguments: {},
+    arguments: jobId ? { job_id: jobId } : {},
     turnIndex: 0,
     stepIndex: 0,
     batchId: "batch-background",
@@ -3524,11 +3641,12 @@ test("progressive execution counts each background job once and observes its ter
   const response = (
     toolCallId: string,
     status: "running" | "completed",
+    jobId: string,
   ): ToolExecutionResponse => ({
     tool_call_id: toolCallId,
     ok: true,
     summary: status,
-    output: { status },
+    output: { status, job_id: jobId },
     artifacts: [],
     metadata: {},
   });
@@ -3536,19 +3654,31 @@ test("progressive execution counts each background job once and observes its ter
   assert.equal(progressive.backgroundShellSlotsRemaining(), 2);
   progressive.observeToolResult(
     request("shell-start", "shell"),
-    response("shell-start", "running"),
+    response("shell-start", "running", "job-one"),
     false,
   );
   assert.equal(progressive.backgroundShellSlotsRemaining(), 1);
   progressive.observeToolResult(
+    request("shell-poll-duplicate", "shell_wait", "job-one"),
+    response("shell-poll-duplicate", "running", "job-one"),
+    true,
+  );
+  assert.equal(progressive.snapshot().activeBackgroundCount, 1);
+  progressive.observeToolResult(
+    request("agent-running", "Agent"),
+    response("agent-running", "running", "agent-task-one"),
+    false,
+  );
+  assert.equal(progressive.snapshot().activeBackgroundCount, 1);
+  progressive.observeToolResult(
     request("shell-start-second", "shell"),
-    response("shell-start-second", "running"),
+    response("shell-start-second", "running", "job-two"),
     false,
   );
   assert.equal(progressive.backgroundShellSlotsRemaining(), 0);
   progressive.observeToolResult(
-    request("shell-poll", "shell_wait"),
-    response("shell-poll", "running"),
+    request("shell-poll", "shell_wait", "job-two"),
+    response("shell-poll", "running", "job-two"),
     true,
   );
   assert.equal(progressive.snapshot().activeBackgroundCount, 2);
@@ -3556,16 +3686,16 @@ test("progressive execution counts each background job once and observes its ter
   assert.equal(progressive.snapshot().preDeliveryObservationCount, 0);
 
   progressive.observeToolResult(
-    request("shell-complete", "shell_wait"),
-    response("shell-complete", "completed"),
+    request("shell-complete", "shell_wait", "job-one"),
+    response("shell-complete", "completed", "job-one"),
     true,
   );
   assert.equal(progressive.snapshot().activeBackgroundCount, 1);
   assert.equal(progressive.backgroundShellSlotsRemaining(), 1);
   assert.equal(progressive.snapshot().preDeliveryObservationCount, 1);
   progressive.observeToolResult(
-    request("shell-complete-second", "shell_wait"),
-    response("shell-complete-second", "completed"),
+    request("shell-complete-second", "shell_wait", "job-two"),
+    response("shell-complete-second", "completed", "job-two"),
     true,
   );
   assert.equal(progressive.snapshot().activeBackgroundCount, 0);
