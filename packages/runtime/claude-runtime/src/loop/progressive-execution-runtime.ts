@@ -878,8 +878,8 @@ export class ProgressiveExecutionRuntime {
     const noDeliveryObservationNudgeAfter = this.state.requiredDeliveryMissing
       ? observationNudgeAfter
       : postDeliveryObservationNudgeAfter;
-    const noDeliveryObservationNudgeDue = this.state.consecutiveNoDeliveryObservations
-      >= noDeliveryObservationNudgeAfter
+    const noDeliveryObservationNudgeDue = this.requiresWorkspaceMutation
+      && this.state.consecutiveNoDeliveryObservations >= noDeliveryObservationNudgeAfter
       && this.state.consecutiveNoDeliveryObservations
         - this.state.lastActionNudgeNoDeliveryObservationCount
         >= noDeliveryObservationNudgeAfter;
@@ -933,6 +933,10 @@ export class ProgressiveExecutionRuntime {
     // circuit opening.  The failure remains scoped to the current delivered
     // bytes and is cleared only by a passing rerun of that semantic suite.
     if (this.state.unresolvedVerificationScopes.length > 0) return true;
+    // `requiredDeliveryMissing=false` also describes bounded research/read
+    // children that never owned a workspace delivery. Do not reinterpret
+    // those executions as post-delivery tasks and manufacture action debt.
+    if (!this.requiresWorkspaceMutation) return false;
     const preDelivery = this.state.requiredDeliveryMissing;
     const maximumNudges = boundedInteger(
       preDelivery
@@ -1323,7 +1327,7 @@ function retainedVerificationDiagnosticSummary(value: unknown): string {
 }
 
 function isVerificationDiagnosticFragment(value: string): boolean {
-  return /(?:\b(?:error|exception|traceback|undefined|invalid|mismatch|denied)\b|does not exist|no such (?:file|column|table)|timed? out|HTTP(?: Error)?\s+[45]\d\d|network (?:is )?unreachable|connection (?:refused|reset)|no route to host|name or service not known|temporary failure in name resolution|ECONNREFUSED|ENETUNREACH|\b[A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Violation|UndefinedColumn):\s*\S|previous verification attempt reported failed checks=)/iu.test(value);
+  return /(?:\b(?:error|exception|traceback|undefined|invalid|mismatch|denied)\b|does not exist|no such (?:file|column|table)|not recognized as (?:a )?name|timed? out|HTTP(?: Error)?\s+[45]\d\d|network (?:is )?unreachable|connection (?:refused|reset)|no route to host|name or service not known|temporary failure in name resolution|ECONNREFUSED|ENETUNREACH|\b[A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Violation|UndefinedColumn):\s*\S|\b(?:[A-Za-z]:)?[^\s|]*\.(?:ts|tsx|js|jsx|py|ps1|psm1|sh|go|rs|java|cs):\d+(?::\d+)?\b|previous verification attempt reported failed checks=)/iu.test(value);
 }
 
 function mergeDiagnosticSummaries(current: string | undefined, incoming: string): string {
@@ -1342,7 +1346,7 @@ function safeDiagnosticSummary(value: unknown): string {
 function isActionableVerificationDiagnostic(value: string): boolean {
   const diagnostic = safeDiagnosticSummary(value);
   const latest = diagnostic.split(" | ").at(-1)?.trim() ?? diagnostic;
-  return /(?:\b[A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Violation|UndefinedColumn):\s*\S|\b(?:undefined column|unknown column|does not exist|no such (?:file|column|table)|cannot find module|module not found|constraint\s+\S+\s+violated)\b|\b[^\s:]+\.(?:ts|tsx|js|jsx|py|go|rs|java|cs):\d+(?::\d+)?\b)/u.test(latest);
+  return /(?:\b[A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Violation|UndefinedColumn):\s*\S|\b(?:undefined column|unknown column|does not exist|no such (?:file|column|table)|cannot find module|module not found|not recognized as (?:a )?name|constraint\s+\S+\s+violated)\b|\b(?:[A-Za-z]:)?[^\s|]*\.(?:ts|tsx|js|jsx|py|ps1|psm1|sh|go|rs|java|cs):\d+(?::\d+)?\b)/iu.test(latest);
 }
 
 function isSourceInspectionRequest(request: ToolExecutionRequest): boolean {
@@ -1424,7 +1428,7 @@ function verificationFailureTargetsGeneratedDelivery(
     // a competition-specific check label.  That file is the failing business
     // implementation for this task, so keep it repairable while still
     // protecting unrelated generated evidence and opaque verifier internals.
-    || /(?:^|[\s"'`(:=])(?:\.\/?|\.\\)?(?:submission|deliverables?|evidence|\.runtime)[\\/][^\s"'`):=]+/iu.test(evidence);
+    || /(?:^|[\s"'`(:=\\/])(?:\.\/?|\.\\)?(?:submission|deliverables?|evidence|\.runtime)[\\/][^\s"'`):=]+/iu.test(evidence);
 }
 
 function finitePositive(value: unknown): number | null {

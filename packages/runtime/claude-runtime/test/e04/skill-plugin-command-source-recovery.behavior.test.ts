@@ -269,6 +269,9 @@ test("e04-skill-plugin-command", async () => {
     );
     assert.equal(childCalls[0]!.messages.at(-2)?.role, "system");
     assert.match(String(childCalls[0]!.messages.at(-2)?.content), /already executing.*e04-fork-skill/i);
+    assert.match(String(childCalls[0]!.messages.at(-2)?.content), /sole objective is this bound skill body/i);
+    assert.match(String(childCalls[0]!.messages.at(-2)?.content), /Do not invoke sibling skills or agents/i);
+    assert.match(String(childCalls[0]!.messages.at(-2)?.content), /Return immediately once the bounded skill result/i);
     assert.equal(childCalls[0]!.messages.at(-1)?.role, "user");
     assert.match(String(childCalls[0]!.messages.at(-1)?.content), /docs\/e04-evidence\.md/);
     assert.equal(

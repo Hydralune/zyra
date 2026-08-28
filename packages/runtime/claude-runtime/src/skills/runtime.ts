@@ -97,7 +97,10 @@ export class TypeScriptSkillRuntime {
           content: [
             `You are already executing the bound Zyra Markdown skill ${input.skillName} (${input.skillId}).`,
             "Execute its rendered body directly under the exact tool scope and budgets.",
+            "Treat inherited parent task text solely as reference context; your sole objective is this bound skill body.",
+            "Do not invoke sibling skills or agents, run parent-level verification, or create or finalize parent deliverables.",
             "Do not invoke this skill or any active ancestor skill again; recursive skill invocation is rejected.",
+            "Return immediately once the bounded skill result or artifact is ready.",
           ].join(" "),
           metadata: {
             skill_id: input.skillId,

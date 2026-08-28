@@ -3991,6 +3991,45 @@ test("progressive execution nudges sustained inspection after a restored deliver
   assert.equal(progressive.decide(1_000, 10_000).action, "nudge_action");
 });
 
+test("no-contract child inspection never creates delivery action debt", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    constraints: { post_delivery_observation_nudge_after: 2 },
+    deliveryContract: {},
+  });
+  const inspect = (index: number) => {
+    progressive.observeToolResult({
+      toolCallId: `bounded-child-read-${index}`,
+      toolName: "read",
+      arguments: { path: `input-${index}.txt` },
+      turnIndex: index,
+      stepIndex: 0,
+      batchId: `bounded-child-read-batch-${index}`,
+      batchIndex: 0,
+      batchSize: 1,
+      executionMode: "concurrent_read_only",
+      metadata: {},
+    }, {
+      tool_call_id: `bounded-child-read-${index}`,
+      ok: true,
+      summary: "bounded input inspected",
+      output: {},
+      artifacts: [],
+      metadata: {},
+    }, true);
+  };
+
+  inspect(1);
+  inspect(2);
+  assert.equal(progressive.snapshot().requiredDeliveryMissing, false);
+  assert.equal(progressive.snapshot().consecutiveNoDeliveryObservations, 2);
+  assert.equal(progressive.decide(1_000, 10_000).action, "continue");
+
+  progressive.recordActionNudge();
+  progressive.recordActionNudge();
+  assert.equal(progressive.snapshot().postDeliveryActionNudgeCount, 2);
+  assert.equal(progressive.inspectionCircuitOpen(), false);
+});
+
 test("progressive execution resets post-delivery inspection streak on new progress", () => {
   const progressive = new ProgressiveExecutionRuntime({
     constraints: { pre_delivery_observation_nudge_after: 3 },
@@ -4423,6 +4462,58 @@ test("explicit delivery-consistency verification debt targets generated evidence
   });
   assert.equal(behavioralFailure.verificationFailureTargetsGeneratedDelivery(), false);
   assert.doesNotMatch(behavioralFailure.verificationDebtSummary(), /generated-delivery consistency/iu);
+});
+
+test("PowerShell absolute-path verifier failure retains an actionable generated entrypoint", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: {
+      workspace_mutation_required: true,
+      verification_required: true,
+    },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+      repairMutationCount: 1,
+    },
+  });
+  const request: ToolExecutionRequest = {
+    toolCallId: "powershell-generated-entrypoint",
+    toolName: "shell",
+    arguments: {
+      command: "pwsh.exe -NoProfile -NonInteractive -File deliverables/reproduce.ps1",
+    },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "powershell-generated-entrypoint",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:powershell:deliverables/reproduce.ps1",
+    },
+  };
+  progressive.observeToolResult(request, {
+    tool_call_id: request.toolCallId,
+    ok: false,
+    summary: "command failed",
+    output: {
+      stderr: [
+        "G:\\agent-zoo\\zyra-capability-evaluation\\runs\\T01\\run-attempt\\workspace\\deliverables\\reproduce.ps1:61",
+        "The term '>' is not recognized as a name of a cmdlet, function, script file, or executable program.",
+      ].join("\n"),
+      return_code: 1,
+    },
+    artifacts: [],
+    error: "shell_nonzero_exit",
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const failure = progressive.snapshot().unresolvedVerificationFailures[0];
+  assert.match(failure.diagnosticSummary ?? "", /deliverables\\reproduce\.ps1:61/);
+  assert.match(failure.diagnosticSummary ?? "", /not recognized as a name/);
+  assert.equal(progressive.verificationFailureTargetsGeneratedDelivery(), true);
+  assert.equal(progressive.snapshot().targetedRepairInspectionAllowance, 2);
 });
 
 test("repeated opaque verification debt rejects invented diagnostics and redirects repair", () => {
