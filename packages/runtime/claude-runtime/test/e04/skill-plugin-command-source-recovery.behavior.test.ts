@@ -212,6 +212,53 @@ function executionContext(input: RuntimeRunInput, calls: RuntimeRunInput[]): Age
 test("e04-skill-plugin-command", async () => {
   const fixture = await createCapabilityWorkspace("zyra-e04-skill-capability-");
   const input = runtimeInput(fixture.workspace);
+  input.tools = [
+    {
+      name: "file_read",
+      purpose: "Read a workspace file",
+      source: "e04-parent",
+      input_schema: { type: "object" },
+      output_schema: { type: "object" },
+      metadata: { access_mode: "read" },
+      execution_provenance: { namespace: "builtin" },
+    },
+    {
+      name: "shell",
+      purpose: "Execute a command",
+      source: "e04-parent",
+      input_schema: { type: "object" },
+      output_schema: { type: "object" },
+      metadata: { access_mode: "execute" },
+      execution_provenance: { namespace: "builtin" },
+    },
+    {
+      name: "browser",
+      purpose: "Inspect a browser page",
+      source: "e04-parent",
+      input_schema: { type: "object" },
+      output_schema: { type: "object" },
+      metadata: { access_mode: "read" },
+      execution_provenance: { namespace: "builtin" },
+    },
+    {
+      name: "list_skills",
+      purpose: "List sibling skills",
+      source: "e04-parent",
+      input_schema: { type: "object" },
+      output_schema: { type: "object" },
+      metadata: { access_mode: "read" },
+      execution_provenance: { namespace: "skill" },
+    },
+    {
+      name: "e02_health",
+      purpose: "Inspect the control plane",
+      source: "e04-parent",
+      input_schema: { type: "object" },
+      output_schema: { type: "object" },
+      metadata: { access_mode: "read" },
+      execution_provenance: { namespace: "e02" },
+    },
+  ];
   input.restoredState = { parent_only_snapshot: true };
   Object.assign(input.config.runtimeConstraints as JsonObject, {
     requires_delivery_artifact: true,
@@ -246,6 +293,14 @@ test("e04-skill-plugin-command", async () => {
     assert.match(childCalls[0]!.taskId, /:skill:e04-fork-skill:/);
     assert.equal(childCalls[0]!.restoredState, null);
     assert.deepEqual(childCalls[0]!.turns, []);
+    assert.deepEqual(childCalls[0]!.tools.map((tool) => tool.name), ["file_read"]);
+    assert.deepEqual(input.tools.map((tool) => tool.name), [
+      "file_read",
+      "shell",
+      "browser",
+      "list_skills",
+      "e02_health",
+    ]);
     assert.equal(childCalls[0]!.config.maxTurns, 4);
     assert.equal((childCalls[0]!.config.runtimeConstraints as JsonObject).skill_network_allowed, false);
     assert.equal(
@@ -282,6 +337,16 @@ test("e04-skill-plugin-command", async () => {
     assert.equal(invocation.status, "completed");
     assert.equal((invocation.metadata as JsonObject).source_custody, "claude-code-best:executeForkedSkill");
 
+    const noMatchParent = runtimeInput(fixture.workspace);
+    noMatchParent.tools = input.tools.filter((tool) => tool.name !== "file_read");
+    const noMatchChildren: RuntimeRunInput[] = [];
+    await capabilities.execute("skill", {
+      skill: "e04-fork-skill",
+      arguments: { target: "docs/no-matching-tool.md" },
+    }, executionContext(noMatchParent, noMatchChildren), { toolCallId: "e04-invoke-skill-no-match" });
+    assert.equal(noMatchChildren.length, 1);
+    assert.deepEqual(noMatchChildren[0]!.tools, []);
+
     const plugins = await capabilities.execute("list_plugins", {}, undefined, { toolCallId: "e04-list-plugins-1" });
     assert.equal((plugins.output.plugins as JsonObject[])[0]?.plugin_id, "e04-plugin");
     assert.match(plugins.metadata.source_custody, /loadPluginHooks/);
@@ -302,7 +367,7 @@ test("e04-skill-plugin-command", async () => {
     await capabilities.execute("reload_skills", {}, undefined, { toolCallId: "e04-reload-skills-1" });
     assert.equal(capabilities.e02.skills.registry.revision, revisionBefore + 1);
     assert.equal(capabilities.e02.skills.registry.resolve("e04-fork-skill").descriptor.description, "E04 fork revision two");
-    assert.equal(capabilities.e02.skills.snapshot().journal.records.length, 1);
+    assert.equal(capabilities.e02.skills.snapshot().journal.records.length, 2);
   } finally {
     await capabilities.close();
     await rm(fixture.workspace, { recursive: true, force: true });

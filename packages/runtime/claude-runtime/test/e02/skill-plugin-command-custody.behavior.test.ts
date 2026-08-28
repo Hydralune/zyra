@@ -930,6 +930,11 @@ Extract PDF evidence without recursively invoking this skill.`;
   assert.equal(parsed.execution.mode, "fork");
   assert.equal(parsed.execution.agent, "DataWorker");
   assert.equal(parsed.execution.maximumSkillDepth, 0);
+  assert.deepEqual(parsed.toolScope.allowed, ["file_read", "shell"]);
+  assert.deepEqual(parsed.toolScope.namespaces, ["builtin"]);
+  assert.deepEqual(parsed.toolScope.mcpServers, []);
+  assert.equal(parsed.toolScope.inheritParent, true);
+  assert.equal(parsed.warnings.some((warning) => /allowed-tools/.test(warning)), false);
   assert.equal(parsed.warnings.some((warning) => /invocation/.test(warning)), false);
 });
 

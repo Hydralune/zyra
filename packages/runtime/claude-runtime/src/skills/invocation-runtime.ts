@@ -1,4 +1,10 @@
-import type { JsonObject, JsonValue } from "../contracts.ts";
+import {
+  asObject,
+  asString,
+  type JsonObject,
+  type JsonValue,
+  type ToolSpecContract,
+} from "../contracts.ts";
 import {
   canonicalize,
   cloneJson,
@@ -42,6 +48,25 @@ export interface SkillInvocationRuntimeOptions {
   now?: () => Date;
   maximumConcurrentInvocations?: number;
   maximumRecordedResults?: number;
+}
+
+export function filterToolSpecsForSkillScope(
+  tools: readonly ToolSpecContract[],
+  scope: SkillToolScope,
+): ToolSpecContract[] {
+  return tools.filter((tool) => {
+    const namespace = skillToolNamespace(tool);
+    const serverId = skillToolServerId(tool, namespace);
+    if (scope.readOnly && !skillToolIsReadOnly(tool)) return false;
+    if (scope.denied.some((pattern) => wildcardMatches(pattern, tool.name))) return false;
+    if (!scope.allowed.some((pattern) => wildcardMatches(pattern, tool.name))) return false;
+    if (!scope.namespaces.some((pattern) => wildcardMatches(pattern, namespace))) return false;
+    if (
+      namespace === "mcp"
+      && !scope.mcpServers.some((pattern) => wildcardMatches(pattern, serverId))
+    ) return false;
+    return true;
+  }).map((tool) => cloneJson(tool));
 }
 
 interface InFlightSkill {
@@ -332,6 +357,44 @@ export class SkillInvocationRuntime {
     this.lastTimestamp = value;
     return value;
   }
+}
+
+function skillToolNamespace(tool: ToolSpecContract): string {
+  const explicit = asString(asObject(tool.execution_provenance).namespace).trim();
+  if (explicit) return explicit;
+  if (tool.name.startsWith("mcp__") || tool.name.startsWith("mcp_")) return "mcp";
+  if (["skill", "list_skills", "search_skills", "read_skill_resource", "reload_skills"].includes(tool.name)) return "skill";
+  if (["list_plugins", "reload_plugins", "plugin_command", "plugin_status", "plugin_disable"].includes(tool.name)) return "plugin";
+  if (["list_commands", "command", "command_help", "complete_command", "reload_commands", "command_history"].includes(tool.name)) return "command";
+  if (["Agent", "Task", "agent_status", "agent_cancel", "agent_resume", "agent_message"].includes(tool.name)) return "agent";
+  if (tool.name.startsWith("e02_")) return "e02";
+  return "builtin";
+}
+
+function skillToolServerId(tool: ToolSpecContract, namespace: string): string {
+  const explicit = asString(asObject(tool.execution_provenance).server_id).trim();
+  if (explicit || namespace !== "mcp" || !tool.name.startsWith("mcp__")) return explicit;
+  return tool.name.split("__", 3)[1] ?? "";
+}
+
+function skillToolIsReadOnly(tool: ToolSpecContract): boolean {
+  const accessMode = tool.metadata.access_mode?.trim().toLowerCase();
+  if (accessMode === "read") return true;
+  if (accessMode === "write" || accessMode === "execute") return false;
+  if (tool.metadata.read_only?.trim().toLowerCase() === "true") return true;
+  return [
+    "file_read",
+    "agent_status",
+    "list_skills",
+    "search_skills",
+    "read_skill_resource",
+    "list_commands",
+    "list_plugins",
+    "mcp_list_resources",
+    "mcp_read_resource",
+    "mcp_list_prompts",
+    "mcp_get_prompt",
+  ].includes(tool.name);
 }
 
 function validateIdentity(request: SkillInvocationRequest): void {

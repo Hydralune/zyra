@@ -59,7 +59,12 @@ export class SkillFrontmatterRuntime {
     const description = stringValue(frontmatter.description) || firstParagraph(split.body);
     if (!description) warnings.push("skill has no description");
     const argumentsValue = parseArguments(frontmatter.arguments ?? frontmatter.args, warnings);
-    const toolScope = parseToolScope(frontmatter.tools ?? frontmatter.tool_scope ?? frontmatter.toolScope);
+    const toolScope = parseToolScope(
+      frontmatter.tools
+      ?? frontmatter.tool_scope
+      ?? frontmatter.toolScope
+      ?? legacyAllowedToolScope(frontmatter["allowed-tools"] ?? frontmatter.allowed_tools),
+    );
     const context = parseContext(frontmatter.context);
     const execution = parseExecution(frontmatter.execution ?? frontmatter.invocation ?? frontmatter.agent);
     const resources = parseResources(frontmatter.resources, source, warnings);
@@ -70,7 +75,7 @@ export class SkillFrontmatterRuntime {
     const known = new Set([
       "id", "name", "display_name", "displayName", "description", "version", "license", "author",
       "tags", "aliases", "arguments", "args", "tools", "tool_scope", "toolScope", "context",
-      "execution", "invocation", "agent", "resources", "hooks", "environment", "env", "enabled", "metadata",
+      "allowed-tools", "allowed_tools", "execution", "invocation", "agent", "resources", "hooks", "environment", "env", "enabled", "metadata",
     ]);
     const unknown: JsonObject = {};
     for (const [key, value] of Object.entries(frontmatter)) if (!known.has(key)) unknown[key] = canonicalize(value);
@@ -221,6 +226,38 @@ function parseToolScope(value: unknown): SkillToolScope {
     maximumCalls: integerOrNull(object.maximum_calls ?? object.maximumCalls),
     maximumParallel: integerValue(object.maximum_parallel ?? object.maximumParallel, 1),
     requireApproval: stringArray(object.require_approval ?? object.requireApproval),
+  };
+}
+
+function legacyAllowedToolScope(value: unknown): JsonObject | undefined {
+  if (value === undefined || value === null) return undefined;
+  const references = stringArray(value);
+  const allowed: string[] = [];
+  const namespaces: string[] = [];
+  const mcpServers: string[] = [];
+  for (const reference of references) {
+    const separator = reference.indexOf("/");
+    if (separator <= 0 || separator === reference.length - 1) {
+      allowed.push(reference);
+      namespaces.push("*");
+      continue;
+    }
+    const namespace = reference.slice(0, separator).trim();
+    const toolName = reference.slice(separator + 1).trim();
+    if (!namespace || !toolName) continue;
+    allowed.push(toolName);
+    namespaces.push(namespace);
+  }
+  return {
+    allowed: [...new Set(allowed)],
+    denied: [],
+    namespaces: [...new Set(namespaces)],
+    mcp_servers: mcpServers,
+    read_only: false,
+    inherit_parent: true,
+    maximum_calls: null,
+    maximum_parallel: 1,
+    require_approval: [],
   };
 }
 

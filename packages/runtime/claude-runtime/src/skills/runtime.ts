@@ -13,7 +13,9 @@ import {
   type ToolSpecContract,
 } from "../contracts.ts";
 import type { CommandDescriptor, SkillDescriptor, SkillExecutionResult } from "./contracts.ts";
+import type { SkillToolScope } from "./contracts-v2.ts";
 import { parseMarkdownDocument } from "./frontmatter.ts";
+import { filterToolSpecsForSkillScope } from "./invocation-runtime.ts";
 
 interface RuntimeRoot {
   path: string;
@@ -33,7 +35,7 @@ export interface ForkedSkillExecutionInput {
   skillContext: JsonObject;
   skillArguments: JsonObject;
   skillResources: JsonValue;
-  effectiveToolScope: JsonValue;
+  effectiveToolScope: SkillToolScope;
   maximumTurns: number;
   skillAncestry?: string[];
   remainingSkillDepth?: number;
@@ -90,6 +92,7 @@ export class TypeScriptSkillRuntime {
       // fork must re-plan from the rendered skill messages, never recursively
       // replay the parent's tool batch under the child identity.
       turns: [],
+      tools: filterToolSpecsForSkillScope(parent.tools, input.effectiveToolScope),
       messages: [
         ...parent.messages.map(cloneJson),
         {
@@ -135,7 +138,7 @@ export class TypeScriptSkillRuntime {
           skill_id: input.skillId,
           skill_ancestry: cloneJson(input.skillAncestry ?? [input.skillId]),
           skill_depth_remaining: input.remainingSkillDepth ?? 0,
-          skill_tool_scope: cloneJson(input.effectiveToolScope),
+          skill_tool_scope: cloneJson(input.effectiveToolScope as unknown as JsonObject),
           skill_sandbox: input.sandbox,
           skill_network_allowed: input.allowNetwork,
         },

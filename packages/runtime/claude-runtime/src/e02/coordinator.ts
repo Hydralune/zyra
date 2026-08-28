@@ -2021,7 +2021,7 @@ export class E02CapabilityCoordinator {
         skillContext: cloneJson(plan.context),
         skillArguments: cloneJson(plan.arguments),
         skillResources: canonicalize(plan.resources),
-        effectiveToolScope: canonicalize(plan.effectiveToolScope),
+        effectiveToolScope: cloneJson(plan.effectiveToolScope),
         maximumTurns: plan.execution.maximumTurns,
         skillAncestry: childSkillAncestry,
         remainingSkillDepth: childDepthRemaining,
