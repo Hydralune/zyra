@@ -765,6 +765,7 @@ export class ToolExecutionSettlementRuntime {
         error: call.error,
       });
       this.refreshBatchSettlement(batch);
+      this.reconcileEquivalentOpenCalls(call);
       return clone(call);
     }
     call.transactionState = "result_acknowledged";
@@ -803,6 +804,7 @@ export class ToolExecutionSettlementRuntime {
       error: call.error,
     });
     this.refreshBatchSettlement(batch);
+    this.reconcileEquivalentOpenCalls(call);
     return clone(call);
   }
 
@@ -1284,6 +1286,66 @@ export class ToolExecutionSettlementRuntime {
     if (!batch.settledCallIds.includes(callId)) batch.settledCallIds.push(callId);
     batch.revision += 1;
     batch.digest = batchDigest(batch);
+  }
+
+  private reconcileEquivalentOpenCalls(source: SettlementCallRecord): void {
+    if (!terminalCall(source.state)) return;
+    const affectedBatches = new Set<string>();
+    for (const call of this.calls.values()) {
+      if (
+        call.callId === source.callId
+        || call.idempotencyKey !== source.idempotencyKey
+        || terminalCall(call.state)
+        || !call.delegated
+      ) {
+        continue;
+      }
+      const batch = this.requireBatch(call.batchId);
+      const from = call.state;
+      call.state = source.state;
+      call.transactionState = source.transactionState;
+      call.gatewayAccepted = source.gatewayAccepted;
+      call.summary = source.summary;
+      call.output = clone(source.output);
+      call.outputDigest = source.outputDigest;
+      call.error = source.error;
+      call.metadata = {
+        ...call.metadata,
+        ...clone(source.metadata),
+        equivalent_effect_reconciled_by_call_id: source.callId,
+      };
+      call.dispatchedAt ??= source.dispatchedAt ?? source.gatewaySettledAt ?? now();
+      call.gatewaySettledAt = source.gatewaySettledAt ?? now();
+      call.resultAcknowledgedAt = source.resultAcknowledgedAt ?? call.gatewaySettledAt;
+      call.completedAt = source.completedAt ?? now();
+      if (source.state === "outcome_unknown") {
+        call.failureHistory.push({
+          stage: "result_acknowledgement",
+          error: source.error ?? "tool_outcome_unknown",
+          recoverable: false,
+          dispatch_credential: call.dispatchCredential,
+          equivalent_effect_call_id: source.callId,
+        });
+      }
+      call.revision += 1;
+      this.addSettled(batch, call.callId);
+      this.transition(batch, call, "call.equivalent_effect_reconciled", from, call.state, {
+        source_call_id: source.callId,
+        idempotency_key: source.idempotencyKey,
+        transaction_state: source.transactionState,
+      });
+      this.refreshBatchSettlement(batch);
+      affectedBatches.add(batch.batchId);
+    }
+    for (const batchId of affectedBatches) {
+      const batch = this.requireBatch(batchId);
+      if (
+        !terminalBatch(batch.state)
+        && batch.callIds.every((callId) => terminalCall(this.requireCall(callId).state))
+      ) {
+        this.completeBatch(batchId);
+      }
+    }
   }
 
   private transition(

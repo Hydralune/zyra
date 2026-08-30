@@ -12,6 +12,7 @@ from zyra_orchestration.topology_policy.production import (
     _canonical_memory_record_digest,
     _has_verifiable_interrupted_delivery,
     _is_json_array,
+    _merge_task_workspace_delivery,
     _PhysicalLeaseHeartbeat,
     _physical_dispatch_payload_binding,
 )
@@ -186,6 +187,61 @@ def test_interrupted_delivery_requires_changed_paths_and_verification() -> None:
         "needs_verification",
         "smoke.txt",
     ) is False
+
+
+def test_task_workspace_delivery_merges_retries_with_delete_and_recreate() -> None:
+    first = _merge_task_workspace_delivery(
+        None,
+        {
+            "created": ["deliverables/report.md", "scratch/temporary.txt"],
+            "modified": ["src/service.py"],
+            "deleted": ["obsolete.txt"],
+            "changed": [
+                "deliverables/report.md",
+                "scratch/temporary.txt",
+                "src/service.py",
+            ],
+        },
+        workspace_id="workspace-a",
+    )
+    recovered = _merge_task_workspace_delivery(
+        first,
+        {
+            "created": ["obsolete.txt"],
+            "modified": ["src/worker.py"],
+            "deleted": ["scratch/temporary.txt"],
+            "changed": ["obsolete.txt", "src/worker.py"],
+        },
+        workspace_id="workspace-a",
+    )
+
+    assert recovered == {
+        "schema": "zyra.task-workspace-delivery/v1",
+        "workspace_id": "workspace-a",
+        "created_paths": ["deliverables/report.md", "obsolete.txt"],
+        "modified_paths": ["src/service.py", "src/worker.py"],
+        "deleted_paths": ["scratch/temporary.txt"],
+        "changed_paths": [
+            "deliverables/report.md",
+            "obsolete.txt",
+            "src/service.py",
+            "src/worker.py",
+        ],
+        "physical_location_redacted": True,
+    }
+
+    rebound = _merge_task_workspace_delivery(
+        recovered,
+        {
+            "created": ["fresh.txt"],
+            "modified": [],
+            "deleted": [],
+            "changed": ["fresh.txt"],
+        },
+        workspace_id="workspace-b",
+    )
+    assert rebound["changed_paths"] == ["fresh.txt"]
+    assert rebound["deleted_paths"] == []
 
 
 def test_memory_record_digest_ignores_only_refresh_timestamps() -> None:

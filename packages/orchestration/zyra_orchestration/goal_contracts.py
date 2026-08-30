@@ -6,11 +6,11 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 
 DIRECT_RESPONSE_SCHEMA = "zyra.direct-response-contract/v1"
-DELIVERY_CONTRACT_SCHEMA = "zyra.goal-delivery-contract/v1"
+DELIVERY_CONTRACT_SCHEMA = "zyra.goal-delivery-contract/v2"
 
 _QUOTED_PATTERNS = (
     re.compile(
@@ -134,6 +134,47 @@ _ROLE_SEPARATION_REQUIREMENT = re.compile(
     r"independent\s+(?:role|review|verification)|role\s+separation)",
     re.IGNORECASE,
 )
+_ISOLATED_COPY_REQUIREMENT = re.compile(
+    r"(?:隔离(?:的)?副本|独立副本|副本中|isolated\s+(?:copy|workspace|worktree))",
+    re.IGNORECASE,
+)
+_QUOTED_DIRECTORY = re.compile(
+    r"[`\"'“‘]((?![A-Za-z]+://)(?![A-Za-z]:[\\/])"
+    r"[^`\"'”’\r\n]{1,240}[\\/])[`\"'”’]"
+)
+_BASELINE_TEST_REQUIREMENT = re.compile(
+    r"(?:"
+    r"(?:运行|执行|run|execute)[^。.!！?？\r\n]{0,48}"
+    r"(?:现有|已有|existing|current)[^。.!！?？\r\n]{0,24}"
+    r"(?:测试|tests?)[^。.!！?？\r\n]{0,48}(?:基线|baseline)"
+    r"|"
+    r"(?:基线|baseline)[^。.!！?？\r\n]{0,48}"
+    r"(?:现有|已有|existing|current)?[^。.!！?？\r\n]{0,24}(?:测试|tests?)"
+    r")",
+    re.IGNORECASE,
+)
+_PROTECT_EXISTING_TESTS = re.compile(
+    r"(?:不得|不要|禁止|不可|do\s+not|must\s+not)"
+    r"[^。.!！?？\r\n]{0,32}(?:修改|改写|编辑|覆盖|modify|edit|overwrite)"
+    r"[^。.!！?？\r\n]{0,24}(?:既有|现有|已有|existing|current)"
+    r"[^。.!！?？\r\n]{0,12}(?:测试|tests?)",
+    re.IGNORECASE,
+)
+_TRACE_DELIVERY_REQUIREMENT = re.compile(
+    r"(?:"
+    r"(?:保留|保存|记录|生成|汇总|总结|retain|preserve|save|record|generate|summari[sz]e)"
+    r"[^。.!！?？\r\n]{0,64}(?:trace|追踪|轨迹)"
+    r"|"
+    r"(?:trace|追踪|轨迹)[^。.!！?？\r\n]{0,64}"
+    r"(?:保留|保存|记录|生成|汇总|总结|retain|preserve|save|record|generate|summari[sz]e)"
+    r")",
+    re.IGNORECASE,
+)
+_NEGATED_TRACE_DELIVERY_REQUIREMENT = re.compile(
+    r"(?:不要|不得|无需|不必|do\s+not|don't|must\s+not)"
+    r"[^。.!！?？\r\n]{0,96}(?:trace|追踪|轨迹)",
+    re.IGNORECASE,
+)
 
 
 def _normalized(value: str) -> str:
@@ -172,6 +213,7 @@ class GoalDeliveryContract:
     provenance_index_paths: tuple[str, ...] = ()
     loopx_required: bool = False
     role_separation_required: bool = False
+    mutation_policy: Mapping[str, Any] | None = None
     provider_reasoning_required: bool = True
     final_response_required: bool = True
     schema: str = DELIVERY_CONTRACT_SCHEMA
@@ -195,10 +237,65 @@ class GoalDeliveryContract:
             "provenance_index_paths": list(self.provenance_index_paths),
             "loopx_required": self.loopx_required,
             "role_separation_required": self.role_separation_required,
+            "mutation_policy": dict(self.mutation_policy or {}),
             "provider_reasoning_required": self.provider_reasoning_required,
             "final_response_required": self.final_response_required,
             "goal_digest": self.goal_digest,
         }
+
+
+def independent_role_evidence_satisfied(
+    required_skills: Iterable[object],
+    skill_invocations: Iterable[Mapping[str, Any]],
+) -> bool:
+    """Validate distinct forked-role evidence without demanding inline skills fork.
+
+    ``codebase-analysis`` is an inline bundled skill, so treating every material
+    analysis skill as a required fork makes the role contract impossible to
+    satisfy.  Role separation instead requires two different successful forked
+    child tasks performing two different skill roles.  Tasks that use the
+    fork-capable PDF or web material lanes keep the stronger material-reviewer
+    pairing requirement.
+    """
+
+    required = {str(item) for item in required_skills if str(item)}
+    forked = [
+        item
+        for item in skill_invocations
+        if str(item.get("execution_mode") or "") == "fork"
+        and str(item.get("child_task_id") or "")
+        and str(item.get("name") or "")
+    ]
+    child_ids = {str(item.get("child_task_id") or "") for item in forked}
+    role_names = {str(item.get("name") or "") for item in forked}
+    if len(child_ids) < 2 or len(role_names) < 2:
+        return False
+
+    reviewer_children = {
+        str(item.get("child_task_id") or "")
+        for item in forked
+        if str(item.get("name") or "") == "verification"
+    }
+    if "verification" in required:
+        non_reviewer_children = child_ids - reviewer_children
+        if not reviewer_children or not non_reviewer_children:
+            return False
+
+    fork_material_skills = required.intersection(
+        {"pdf-analysis", "web-research"}
+    )
+    if fork_material_skills and "verification" in required:
+        material_children = {
+            str(item.get("child_task_id") or "")
+            for item in forked
+            if str(item.get("name") or "") in fork_material_skills
+        }
+        return bool(
+            material_children
+            and reviewer_children
+            and len(material_children | reviewer_children) >= 2
+        )
+    return True
 
 
 def direct_response_contract(user_goal: str) -> DirectResponseContract | None:
@@ -292,7 +389,7 @@ def goal_delivery_contract(user_goal: str) -> GoalDeliveryContract:
         if paths and expected_content
         else ()
     )
-    required_skills = _required_skills(goal)
+    required_skills = _required_skills(goal, paths)
     executable_paths = tuple(
         path
         for path in paths
@@ -327,7 +424,40 @@ def goal_delivery_contract(user_goal: str) -> GoalDeliveryContract:
         provenance_index_paths=provenance_index_paths,
         loopx_required=bool(_LOOPX_REQUIREMENT.search(goal)),
         role_separation_required=bool(_ROLE_SEPARATION_REQUIREMENT.search(goal)),
+        mutation_policy=_task_mutation_policy(goal),
     )
+
+
+def _task_mutation_policy(goal: str) -> dict[str, Any]:
+    """Compile only explicit, high-confidence workspace mutation constraints.
+
+    This projection is deliberately separate from final delivery obligations:
+    forked workers inherit the mutation boundary without becoming responsible
+    for the parent's final artifacts.
+    """
+
+    protected_roots: list[str] = []
+    for match in _QUOTED_DIRECTORY.finditer(goal):
+        start = max(0, match.start() - 160)
+        end = min(len(goal), match.end() + 160)
+        if _ISOLATED_COPY_REQUIREMENT.search(goal[start:end]) is None:
+            continue
+        path = _safe_relative_path(match.group(1))
+        if path and path not in protected_roots:
+            protected_roots.append(path.rstrip("/"))
+    baseline_required = bool(_BASELINE_TEST_REQUIREMENT.search(goal))
+    protect_existing_tests = bool(_PROTECT_EXISTING_TESTS.search(goal))
+    enabled = bool(protected_roots or baseline_required or protect_existing_tests)
+    return {
+        "schema": "zyra.task-mutation-policy/v1",
+        "enabled": enabled,
+        "protected_source_roots": protected_roots,
+        "required_pre_mutation_evidence": (
+            ["existing_test_baseline"] if baseline_required else []
+        ),
+        "protect_existing_test_files": protect_existing_tests,
+        "inherit_across_execution_lineage": enabled,
+    }
 
 
 def validate_goal_delivery(
@@ -514,8 +644,11 @@ def validate_goal_delivery(
     }
 
 
-def _required_skills(goal: str) -> tuple[str, ...]:
-    """Compile only explicit, catalog-known skill obligations from goal prose."""
+def _required_skills(
+    goal: str,
+    required_paths: Iterable[str] = (),
+) -> tuple[str, ...]:
+    """Compile explicit skill obligations and unambiguous typed deliverables."""
 
     required: list[str] = []
     for name in _KNOWN_SKILL_NAMES:
@@ -533,10 +666,27 @@ def _required_skills(goal: str) -> tuple[str, ...]:
             required.append(name)
     if (
         "trace-summary" not in required
-        and re.search(r"(?:trace|追踪|轨迹)[\s/_-]*(?:摘要|summary)", goal, re.IGNORECASE)
-        and re.search(r"(?:使用|保存|生成|use|save|create)", goal, re.IGNORECASE)
+        and (
+            (
+                re.search(r"(?:trace|追踪|轨迹)[\s/_-]*(?:摘要|summary)", goal, re.IGNORECASE)
+                and re.search(r"(?:使用|保存|生成|use|save|create)", goal, re.IGNORECASE)
+            )
+            or (
+                _TRACE_DELIVERY_REQUIREMENT.search(goal)
+                and not _NEGATED_TRACE_DELIVERY_REQUIREMENT.search(goal)
+            )
+        )
     ):
         required.append("trace-summary")
+    if "report-writing" not in required and any(
+        re.search(
+            r"(?:^|[-_.])(?:report|reports)(?:$|[-_.])|报告",
+            PurePosixPath(path).stem,
+            re.IGNORECASE,
+        )
+        for path in required_paths
+    ):
+        required.append("report-writing")
     return tuple(name for name in _KNOWN_SKILL_NAMES if name in required)
 
 

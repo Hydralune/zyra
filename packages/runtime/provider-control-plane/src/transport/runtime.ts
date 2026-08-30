@@ -106,7 +106,7 @@ export class ProviderTransportRuntime {
             attemptNumber,
           );
         }
-        if (lastError.credentialId === lease.credentialId && lastError.kind !== "credential_version_conflict") {
+        if (lastError.credentialId === lease.credentialId && lastError.kind === "authentication_failed") {
           try { this.credentials.recordFailure(lease.credentialId, lease.credentialVersion, lastError.kind); } catch { /* preserve transport error */ }
         }
         const decision = this.fallback.decide(lastError, lease, attemptNumber, allAttempts);
@@ -272,14 +272,15 @@ export class ProviderTransportRuntime {
       if (!streamingResponse) {
         const text = await response.text();
         responseBytes = Buffer.byteLength(text);
+        streamSupervisor.observeResponseBytes(responseBytes);
         const decodedFrames = decodeProviderEvent(lease, text, "response.completed", frameState);
+        streamSupervisor.observe(decodedFrames);
         if (lifecycleOwnerToken && this.lifecycle) this.lifecycle.observeFrames(
           request.dispatchId,
           lifecycleOwnerToken,
           decodedFrames,
           attemptNumber,
         );
-        streamSupervisor.observe(decodedFrames);
         frames.push(...decodedFrames);
       } else {
         for await (const event of readSse(response, {
@@ -288,14 +289,15 @@ export class ProviderTransportRuntime {
           onChunk: () => streamSupervisor.checkWatchdog(),
         })) {
           responseBytes += Buffer.byteLength(event.data);
+          streamSupervisor.observeResponseBytes(responseBytes);
           const decodedFrames = decodeProviderEvent(lease, event.data, event.event, frameState);
+          streamSupervisor.observe(decodedFrames);
           if (lifecycleOwnerToken && this.lifecycle) this.lifecycle.observeFrames(
             request.dispatchId,
             lifecycleOwnerToken,
             decodedFrames,
             attemptNumber,
           );
-          streamSupervisor.observe(decodedFrames);
           frames.push(...decodedFrames);
         }
       }
@@ -347,9 +349,27 @@ export class ProviderTransportRuntime {
         },
       };
     } catch (error) {
+      const failureContext = {
+        providerId: lease.providerId,
+        modelId: lease.modelId,
+        routeId: lease.routeId,
+        credentialId: lease.credentialId,
+        bytesSent,
+        bytesReceived: responseBytes,
+        outputObserved: frameState.outputObserved || streamSupervisor.outputObserved,
+      };
       const classified = error instanceof ProviderControlPlaneError
-        ? error
-        : classifyTransportException(error, {
+        && error.layer === "transport"
+        && error.kind === "stream_timeout"
+        ? streamSupervisor.failure(
+            "stream_timeout",
+            error.message,
+            failureContext,
+            { ...error.detail, upstreamLayer: error.layer },
+          )
+        : error instanceof ProviderControlPlaneError
+          ? error
+          : classifyTransportException(error, {
             providerId: lease.providerId,
             modelId: lease.modelId,
             routeId: lease.routeId,
@@ -394,6 +414,14 @@ export class ProviderTransportRuntime {
       throw classified;
     } finally {
       if (requestTimeout !== null) clearTimeout(requestTimeout);
+      // The header timeout is intentionally disarmed for a healthy long SSE
+      // body, but the dispatch still owns the fetch connection.  Settle that
+      // connection once decoding completes or fails so semantic watchdog and
+      // protocol exits cannot leave a provider socket alive after the durable
+      // attempt is terminal.
+      if (!controller.signal.aborted) {
+        controller.abort(new Error("provider dispatch settled"));
+      }
       if (admissionPermit && this.routeHealth) this.routeHealth.release(admissionPermit);
     }
   }

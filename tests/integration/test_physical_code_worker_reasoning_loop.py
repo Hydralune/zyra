@@ -9,11 +9,15 @@ from pathlib import Path
 
 import pytest
 
+from zyra_core import EventRecord, EventType, create_task_state
+from zyra_memory import SQLiteStore
 from zyra_orchestration.deployment.code_worker_adapter import (
     _WorkspaceLeaseHeartbeat,
+    _canonical_evidence_readers,
     _execution_prompt,
     _governed_final_response,
     _physical_permission_session_id,
+    _physical_resource_runtime_constraints,
     _provider_failure_summary,
     _provider_prompt_bindings,
     execute_code_worker_operator,
@@ -38,6 +42,87 @@ from zyra_workspace import WorkspaceManagerConfig, WorkspaceManagerRuntime
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_physical_evidence_readers_bind_fork_calls_to_parent_task(
+    tmp_path: Path,
+) -> None:
+    artifact_root = tmp_path / "artifacts"
+    database_path = tmp_path / "zyra.sqlite3"
+    store = SQLiteStore(database_path)
+    store.initialize()
+    state = create_task_state("Inspect the canonical parent evidence.")
+    event = EventRecord(
+        run_id=state.run_id,
+        task_id=state.task_id,
+        node_id=state.root_node_id,
+        event_type=EventType.SYSTEM_NOTICE,
+        payload={"marker": "parent-only"},
+    )
+    store.save_checkpoint(state)
+    store.append_event(event)
+
+    event_reader, checkpoint_reader = _canonical_evidence_readers(
+        {
+            "canonical_state_database_path": str(database_path),
+        },
+        artifact_root=artifact_root,
+        parent_task_id=state.task_id,
+    )
+
+    events = event_reader(f"{state.task_id}:skill:trace-summary:child")
+    checkpoint = checkpoint_reader(
+        f"{state.task_id}:skill:verification:child"
+    )
+    assert [item["payload"]["marker"] for item in events] == ["parent-only"]
+    assert checkpoint is not None
+    assert checkpoint["task_id"] == state.task_id
+
+
+def test_physical_evidence_readers_reject_database_outside_state_owner(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(
+        ValueError,
+        match="canonical state database is not owned by the task artifact root",
+    ):
+        _canonical_evidence_readers(
+            {
+                "canonical_state_database_path": str(
+                    tmp_path / "unrelated" / "zyra.sqlite3"
+                ),
+            },
+            artifact_root=tmp_path / "artifacts",
+            parent_task_id="task-parent",
+        )
+
+
+def test_nonbenchmark_physical_deadline_propagates_closeout_budget() -> None:
+    constraints = _physical_resource_runtime_constraints(
+        {
+            "external_deadline_epoch_ms": 8_765_432_109_876,
+            "closeout_reserve_seconds": 37.5,
+            "reasoning_timeout_seconds": 240,
+        }
+    )
+
+    assert constraints == {
+        "external_deadline_epoch_ms": 8_765_432_109_876,
+        "closeout_reserve_seconds": 37.5,
+    }
+    assert "benchmark_physical_dispatch" not in constraints
+
+
+def test_physical_deadline_without_explicit_reserve_derives_bounded_closeout() -> None:
+    constraints = _physical_resource_runtime_constraints(
+        {
+            "external_deadline_epoch_ms": 7_654_321_098_765,
+            "reasoning_timeout_seconds": 125,
+        }
+    )
+
+    assert constraints["external_deadline_epoch_ms"] == 7_654_321_098_765
+    assert constraints["closeout_reserve_seconds"] == 90.0
+
+
 def _provider_runtime_event(
     *,
     phase: str,
@@ -45,15 +130,21 @@ def _provider_runtime_event(
     initial_prompt_digest: str = "",
     messages_digest: str = "",
     provider_request_digest: str = "",
+    run_id: str = "run-provider-binding",
+    task_id: str = "task-provider-binding",
     session_id: str = "provider-session",
+    worker_request_id: str = "worker-provider-binding",
+    runtime_lineage: dict[str, object] | None = None,
 ) -> dict[str, object]:
     query: dict[str, object] = {
         "phase": phase,
-        "run_id": "run-provider-binding",
-        "task_id": "task-provider-binding",
+        "run_id": run_id,
+        "task_id": task_id,
         "session_id": session_id,
-        "worker_request_id": "worker-provider-binding",
+        "worker_request_id": worker_request_id,
     }
+    if runtime_lineage is not None:
+        query["runtime_lineage"] = runtime_lineage
     if phase == "model_request_prepared":
         query["provider_request"] = {
             "request_id": request_id,
@@ -136,6 +227,117 @@ def test_provider_prompt_binding_rejects_different_runtime_identity() -> None:
     assert bindings["request-0"]["goal_present"] is True
     assert bindings["request-foreign"]["goal_present"] is False
     assert bindings["request-foreign"]["goal_binding"] == "unbound"
+
+
+@pytest.mark.parametrize(
+    ("relation", "child_session"),
+    [("skill", "provider-session"), ("agent", "agent-session")],
+)
+def test_provider_prompt_binding_accepts_explicit_runtime_descendant(
+    relation: str,
+    child_session: str,
+) -> None:
+    expected = "sha256:original-task-prompt"
+    lineage = {
+        "schema": "zyra.runtime-lineage/v1",
+        "relation": relation,
+        "relation_id": f"{relation}-invocation",
+        "parent_run_id": "run-provider-binding",
+        "parent_task_id": "task-provider-binding",
+        "parent_session_id": "provider-session",
+        "parent_worker_request_id": "worker-provider-binding",
+    }
+    child_identity = {
+        "task_id": f"task-{relation}-child",
+        "session_id": child_session,
+        "worker_request_id": f"worker-{relation}-child",
+        "runtime_lineage": lineage,
+    }
+    events = [
+        _provider_runtime_event(
+            phase="model_request_prepared",
+            request_id="request-root",
+            initial_prompt_digest=expected,
+            messages_digest="sha256:messages-root",
+        ),
+        _provider_runtime_event(
+            phase="model_stream_report",
+            request_id="request-root",
+            provider_request_digest="sha256:provider-request-root",
+        ),
+        _provider_runtime_event(
+            phase="model_request_prepared",
+            request_id="request-child",
+            initial_prompt_digest="sha256:child-prompt",
+            messages_digest="sha256:messages-child",
+            **child_identity,
+        ),
+        _provider_runtime_event(
+            phase="model_stream_report",
+            request_id="request-child",
+            provider_request_digest="sha256:provider-request-child",
+            **child_identity,
+        ),
+    ]
+
+    bindings = _provider_prompt_bindings(
+        runtime_events=events,
+        expected_initial_prompt_digest=expected,
+    )
+
+    assert bindings["request-child"]["goal_present"] is True
+    assert bindings["request-child"]["goal_binding"] == (
+        f"authorized_{relation}_descendant"
+    )
+    assert bindings["request-child"]["runtime_identity_verified"] is True
+    assert bindings["request-child"]["provider_request_digest"] == (
+        "sha256:provider-request-child"
+    )
+
+
+def test_provider_prompt_binding_rejects_forged_descendant_and_foreign_report() -> None:
+    expected = "sha256:original-task-prompt"
+    forged_lineage = {
+        "schema": "zyra.runtime-lineage/v1",
+        "relation": "skill",
+        "relation_id": "forged-invocation",
+        "parent_run_id": "run-provider-binding",
+        "parent_task_id": "different-parent",
+        "parent_session_id": "provider-session",
+        "parent_worker_request_id": "worker-provider-binding",
+    }
+    events = [
+        _provider_runtime_event(
+            phase="model_request_prepared",
+            request_id="request-root",
+            initial_prompt_digest=expected,
+            messages_digest="sha256:messages-root",
+        ),
+        _provider_runtime_event(
+            phase="model_request_prepared",
+            request_id="request-forged",
+            initial_prompt_digest="sha256:child-prompt",
+            messages_digest="sha256:messages-forged",
+            task_id="task-forged-child",
+            worker_request_id="worker-forged-child",
+            runtime_lineage=forged_lineage,
+        ),
+        _provider_runtime_event(
+            phase="model_stream_report",
+            request_id="request-root",
+            provider_request_digest="sha256:foreign-report",
+            session_id="foreign-session",
+        ),
+    ]
+
+    bindings = _provider_prompt_bindings(
+        runtime_events=events,
+        expected_initial_prompt_digest=expected,
+    )
+
+    assert bindings["request-forged"]["goal_present"] is False
+    assert bindings["request-forged"]["goal_binding"] == "unbound"
+    assert "provider_request_digest" not in bindings["request-root"]
 
 
 def test_workspace_lease_heartbeat_keeps_long_worker_access_alive(
@@ -512,6 +714,9 @@ def test_physical_code_worker_runs_model_tool_observation_model_loop(
                 "code_worker_context": {
                     "project_root": str(ROOT),
                     "artifact_root": str(artifact_root),
+                    "canonical_state_database_path": str(
+                        tmp_path / "zyra.sqlite3"
+                    ),
                     "model_id": "loop-test-model",
                     "max_turns": 6,
                     "workspace_manager": {
@@ -576,6 +781,9 @@ def test_physical_code_worker_runs_model_tool_observation_model_loop(
                 "code_worker_context": {
                     "project_root": str(ROOT),
                     "artifact_root": str(artifact_root),
+                    "canonical_state_database_path": str(
+                        tmp_path / "zyra.sqlite3"
+                    ),
                     "model_id": "loop-test-model",
                     "max_turns": 3,
                     "workspace_manager": {

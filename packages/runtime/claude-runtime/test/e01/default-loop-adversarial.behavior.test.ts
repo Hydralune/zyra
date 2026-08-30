@@ -27,9 +27,14 @@ class GatewayHost implements RuntimeHost {
   readonly delegated: ToolExecutionRequest[][] = [];
   readonly events: RuntimeEvent[] = [];
   readonly artifacts: ArtifactRequest[] = [];
+  readonly checkpoints: JsonObject[] = [];
 
   async emitEvent(event: RuntimeEvent): Promise<void> {
     this.events.push(structuredClone(event));
+  }
+
+  async checkpointState(snapshot: JsonObject): Promise<void> {
+    this.checkpoints.push(structuredClone(snapshot));
   }
 
   async executeBatch(_batch: ToolBatch, requests: ToolExecutionRequest[]): Promise<ToolExecutionResponse[]> {
@@ -84,6 +89,28 @@ class GatewayHost implements RuntimeHost {
 
   isAborted(): boolean {
     return false;
+  }
+}
+
+class OutcomeUnknownGatewayHost extends GatewayHost {
+  override async executeBatch(
+    _batch: ToolBatch,
+    requests: ToolExecutionRequest[],
+  ): Promise<ToolExecutionResponse[]> {
+    this.delegated.push(structuredClone(requests));
+    return requests.map((item) => ({
+      tool_call_id: item.toolCallId,
+      ok: false,
+      summary: "Physical dispatch outcome is unknown.",
+      output: { duplicate_effect_fenced: true },
+      artifacts: [],
+      error: "tool_outcome_unknown",
+      completed_at: new Date().toISOString(),
+      metadata: {
+        tool_transaction_state: "outcome_unknown",
+        physical_effect_executed: "unknown",
+      },
+    }));
   }
 }
 
@@ -175,6 +202,34 @@ function request(
 }
 
 describe("default permission execution custody", () => {
+  test("e01.mutation.outcome-unknown-is-checkpointed-before-loop-failure", async () => {
+    const gateway = new OutcomeUnknownGatewayHost();
+    const input = runtimeInput({ mode: "acceptEdits" });
+    const capabilities = await TypeScriptCapabilityRuntime.open(input);
+    try {
+      const host = new PermissionedCapabilityHost(gateway, input, capabilities);
+      const selected = [request(
+        "unknown-call",
+        "file_write",
+        { path: "G:\\agent-zoo\\zyra\\outcome-unknown.txt", content: "once" },
+        0,
+      )];
+
+      const result = await host.executeBatch(batch(selected), selected);
+
+      expect(result[0]?.error).toBe("tool_outcome_unknown");
+      const checkpoint = gateway.checkpoints.at(-1) as JsonObject;
+      expect(checkpoint.checkpointPhase).toBe("tool_gateway_receipts_settled");
+      const capabilitiesState = checkpoint.typescriptCapabilities as JsonObject;
+      const settlement = capabilitiesState.settlement as JsonObject;
+      const calls = settlement.calls as JsonObject[];
+      expect(calls[0]?.state).toBe("outcome_unknown");
+      expect(calls[0]?.transactionState).toBe("outcome_unknown");
+    } finally {
+      await capabilities.close();
+    }
+  });
+
   test("e01.mutation.permission-deny-is-never-delegated", async () => {
     const gateway = new GatewayHost();
     const input = runtimeInput({ mode: "auto", interactive: false, headless: true });
@@ -876,6 +931,52 @@ describe("execution settlement custody", () => {
     expect(first.call("provider-call-one")!.dispatchCredential).toBe(
       second.call("provider-call-two")!.dispatchCredential,
     );
+  });
+
+  test("authoritative receipt reconciles a restored open call with the same idempotency key", () => {
+    const first = settlementRuntime("logical-recovery-run-one");
+    const logicalCall = (callId: string) => ({
+      ...plannedCall(callId, 0),
+      arguments: { path: "stable.txt", content: "one effect" },
+      metadata: {
+        tool_transaction_turn_index: 2,
+        tool_transaction_step_index: 0,
+        tool_transaction_batch_index: 0,
+      },
+    });
+    first.planBatch({
+      batchId: "logical-recovery-batch-one",
+      executionMode: "serial",
+      calls: [logicalCall("provider-call-one")],
+    });
+    first.recordPermission("provider-call-one", "allow", "allowed");
+    first.beginDelegation("logical-recovery-batch-one", ["provider-call-one"]);
+
+    const restored = settlementRuntime("logical-recovery-run-two");
+    restored.restore(first.snapshot(), true);
+    restored.planBatch({
+      batchId: "logical-recovery-batch-two",
+      executionMode: "serial",
+      calls: [logicalCall("provider-call-two")],
+    });
+    restored.recordPermission("provider-call-two", "allow", "allowed");
+    restored.beginDelegation("logical-recovery-batch-two", ["provider-call-two"]);
+    restored.recordGatewayReceipt({
+      callId: "provider-call-two",
+      ok: false,
+      summary: "Physical dispatch outcome is unknown.",
+      output: { duplicate_effect_fenced: true },
+      error: "tool_outcome_unknown",
+      receiptMetadata: { tool_transaction_state: "outcome_unknown" },
+    });
+
+    expect(restored.call("provider-call-one")?.state).toBe("outcome_unknown");
+    expect(restored.call("provider-call-one")?.transactionState).toBe("outcome_unknown");
+    expect(restored.call("provider-call-one")?.metadata.equivalent_effect_reconciled_by_call_id)
+      .toBe("provider-call-two");
+    expect(restored.batch("logical-recovery-batch-one")?.state).toBe("completed");
+    expect(restored.activeCalls()).toHaveLength(0);
+    expect(restored.audit().ok).toBe(true);
   });
 
   test("settlement progress enforces sequence and bounded storage", () => {

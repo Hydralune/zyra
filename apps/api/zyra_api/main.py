@@ -10,6 +10,7 @@ import sqlite3
 import threading
 import sys
 import time
+import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -235,6 +236,7 @@ from zyra_orchestration.goal_contracts import (
     direct_response_contract,
     goal_delivery_contract,
     goal_contract_matches_projection,
+    independent_role_evidence_satisfied,
     validate_direct_response,
     validate_goal_delivery,
 )
@@ -506,7 +508,10 @@ from zyra_workers import (
     inspect_browser_use_runtime,
 )
 from zyra_workers.edge_pool import IntegratedEdgeExecutionAdapter
-from zyra_workers.subagents.typescript_port import TypeScriptAgentDurablePort
+from zyra_workers.subagents.typescript_port import (
+    TypeScriptAgentDurablePort,
+    typescript_agent_authority_state_root,
+)
 from zyra_evaluation import evaluate_task_trace
 from zyra_evaluation.m1_hardening.api import M1HardeningApi
 from zyra_evaluation.m1_hardening.integration_service import M1IntegrationService
@@ -4918,7 +4923,12 @@ def reset_control_runtime() -> None:
         _LOOPX_CONTROL_KEY = None
 
 
-def get_typescript_agent_port() -> TypeScriptAgentDurablePort:
+def get_typescript_agent_port(
+    *,
+    run_id: str = "",
+    parent_task_id: str = "",
+    parent_session_id: str = "",
+) -> TypeScriptAgentDurablePort:
     """Return the TypeScript Agent runtime's durable/physical port.
 
     Logical AgentTool decisions and child QueryEngine execution are owned by
@@ -4928,6 +4938,19 @@ def get_typescript_agent_port() -> TypeScriptAgentDurablePort:
 
     global _TYPESCRIPT_AGENT_PORT, _TYPESCRIPT_AGENT_PORT_KEY
     root = subagent_state_path().resolve()
+    authority = (run_id, parent_task_id, parent_session_id)
+    if any(authority):
+        if not all(authority):
+            raise ValueError(
+                "TypeScript Agent authority lookup requires run, parent task, "
+                "and parent session identifiers"
+            )
+        root = typescript_agent_authority_state_root(
+            root,
+            run_id=run_id,
+            parent_task_id=parent_task_id,
+            parent_session_id=parent_session_id,
+        )
     workspace_root = workspace_manager_config().data_root.resolve()
     key = f"{root}|{workspace_root}"
     with _TYPESCRIPT_AGENT_PORT_LOCK:
@@ -4942,6 +4965,25 @@ def get_typescript_agent_port() -> TypeScriptAgentDurablePort:
             )
             _TYPESCRIPT_AGENT_PORT_KEY = key
         return _TYPESCRIPT_AGENT_PORT
+
+
+def _typescript_agent_port_for_state(
+    state: Any,
+    *,
+    parent_session_id: str = "",
+) -> TypeScriptAgentDurablePort:
+    """Open the same authority partition used by the TypeScript E03 writer."""
+
+    resolved_session_id = str(
+        parent_session_id
+        or state.metadata.get("query_session_id")
+        or f"task:{state.task_id}"
+    )
+    return get_typescript_agent_port(
+        run_id=str(state.run_id),
+        parent_task_id=str(state.task_id),
+        parent_session_id=resolved_session_id,
+    )
 
 
 def reset_subagent_runtime() -> None:
@@ -6543,12 +6585,6 @@ class _CanonicalFinalVerifierOwner:
             for item in delivery_contract.get("required_executed_paths") or ()
             if str(item)
         }
-        forked_child_tasks = {
-            str(item.get("child_task_id") or "")
-            for item in successful_skill_invocations
-            if str(item.get("execution_mode") or "") == "fork"
-            and str(item.get("child_task_id") or "")
-        }
         final_workspace_mutation_count = int(
             obligation_evidence.get("workspace_mutation_count") or 0
         )
@@ -6590,30 +6626,10 @@ class _CanonicalFinalVerifierOwner:
             or required_executed_paths
             or role_separation_required
         )
-        material_skill_names = required_skill_names.intersection(
-            {"codebase-analysis", "pdf-analysis", "web-research"}
+        role_execution_valid = independent_role_evidence_satisfied(
+            required_skill_names,
+            successful_skill_invocations,
         )
-        material_child_tasks = {
-            str(item.get("child_task_id") or "")
-            for item in successful_skill_invocations
-            if item.get("name") in material_skill_names
-            and str(item.get("execution_mode") or "") == "fork"
-            and str(item.get("child_task_id") or "")
-        }
-        reviewer_child_tasks = {
-            str(item.get("child_task_id") or "")
-            for item in successful_skill_invocations
-            if item.get("name") == "verification"
-            and str(item.get("execution_mode") or "") == "fork"
-            and str(item.get("child_task_id") or "")
-        }
-        role_execution_valid = len(forked_child_tasks) >= 2
-        if material_skill_names and "verification" in required_skill_names:
-            role_execution_valid = bool(
-                material_child_tasks
-                and reviewer_child_tasks
-                and len(material_child_tasks | reviewer_child_tasks) >= 2
-            )
         checks = {
             "requirement_scope_bound": bool(
                 scope.get("requirement_revision")
@@ -7121,6 +7137,7 @@ def graph_execution_context() -> GraphExecutionContext:
             lambda: _ensure_phase2_production_workers(pool_api, restart=True)
         ),
         execution_outcome_recorder=topology_policy.record_execution_outcome,
+        execution_state_projector=_project_task_graph_execution_state,
         final_verifier=final_verifier.verify_final_state,
         completion_gate=topology_policy.evaluate_completion,
     )
@@ -7465,6 +7482,7 @@ def _production_physical_dispatch_port(
         payload["code_worker_context"] = {
             "project_root": str(PROJECT_ROOT),
             "artifact_root": str(artifact_root_path()),
+            "canonical_state_database_path": str(sqlite_path()),
             "workspace_manager": {
                 "state_root": str(workspace.state_root),
                 "data_root": str(workspace.data_root),
@@ -8726,6 +8744,7 @@ def _project_task_execution_failure(
 def _task_execution_started_event(
     state: Any,
     reservation: ReceiptReservation | None,
+    owner: _TaskExecutionOwner,
 ) -> EventRecord:
     """Persist observable task ownership before a long synchronous dispatch."""
 
@@ -8737,6 +8756,9 @@ def _task_execution_started_event(
         "started_at": started_at,
         "receipt_id": reservation.receipt_id if reservation is not None else "",
         "operation": "task.resume",
+        "process_instance_id": owner.process_instance_id,
+        "owner_token": owner.owner_token,
+        "owner_thread_id": owner.thread_id,
     }
     return EventRecord(
         run_id=state.run_id,
@@ -8749,6 +8771,8 @@ def _task_execution_started_event(
             "started_at": started_at,
             "receipt_id": reservation.receipt_id if reservation is not None else "",
             "request_id": reservation.request_id if reservation is not None else "",
+            "process_instance_id": owner.process_instance_id,
+            "owner_token": owner.owner_token,
         },
     )
 
@@ -8853,11 +8877,414 @@ class JsonRequestError(ValueError):
 
 _TASK_LOCKS_GUARD = threading.Lock()
 _TASK_LOCKS: dict[str, threading.RLock] = {}
+_TASK_EXECUTION_INSTANCE_ID = f"api_{uuid.uuid4().hex}"
+
+
+class _TaskExecutionOwner:
+    """One live task mutation owned independently of its response socket."""
+
+    def __init__(
+        self,
+        *,
+        task_id: str,
+        run_id: str,
+        receipt_id: str,
+    ) -> None:
+        self.task_id = task_id
+        self.run_id = run_id
+        self.receipt_id = receipt_id
+        self.process_instance_id = _TASK_EXECUTION_INSTANCE_ID
+        self.owner_token = f"taskexec_{uuid.uuid4().hex}"
+        self.thread = threading.current_thread()
+        self.thread_id = self.thread.ident
+        self.completed = threading.Event()
+        self.response: tuple[HTTPStatus, dict[str, Any]] | None = None
+
+
+_TASK_EXECUTION_OWNERS: dict[str, _TaskExecutionOwner] = {}
 
 
 def _task_lock(task_id: str) -> threading.RLock:
     with _TASK_LOCKS_GUARD:
         return _TASK_LOCKS.setdefault(task_id, threading.RLock())
+
+
+def _acquire_task_execution_owner(
+    state: Any,
+    reservation: ReceiptReservation | None,
+) -> tuple[_TaskExecutionOwner, bool]:
+    """Atomically attach to a live owner or claim a new process-local owner."""
+
+    task_id = str(state.task_id)
+    run_id = str(state.run_id)
+    with _task_lock(task_id):
+        current = _TASK_EXECUTION_OWNERS.get(task_id)
+        if (
+            current is not None
+            and current.run_id == run_id
+            and not current.completed.is_set()
+            and current.thread.is_alive()
+        ):
+            return current, False
+        owner = _TaskExecutionOwner(
+            task_id=task_id,
+            run_id=run_id,
+            receipt_id=(
+                reservation.receipt_id if reservation is not None else ""
+            ),
+        )
+        _TASK_EXECUTION_OWNERS[task_id] = owner
+        return owner, True
+
+
+def _complete_task_execution_owner(
+    owner: _TaskExecutionOwner,
+    *,
+    status: HTTPStatus,
+    body: Mapping[str, Any],
+) -> None:
+    """Publish a terminal result and release only the matching owner token."""
+
+    with _task_lock(owner.task_id):
+        if owner.response is None:
+            owner.response = (status, copy.deepcopy(dict(body)))
+        current = _TASK_EXECUTION_OWNERS.get(owner.task_id)
+        if current is not None and current.owner_token == owner.owner_token:
+            _TASK_EXECUTION_OWNERS.pop(owner.task_id, None)
+        owner.completed.set()
+
+
+def _physical_execution_error(state: Any) -> tuple[str, str]:
+    failure = state.metadata.get("physical_execution_failure_receipt")
+    failure = dict(failure) if isinstance(failure, Mapping) else {}
+    code = str(
+        failure.get("error_code")
+        or failure.get("failure_code")
+        or "physical_execution_failed"
+    )
+    message = str(
+        failure.get("error_message")
+        or failure.get("summary")
+        or "No admissible physical execution retry remains."
+    )
+    for node in state.plan_nodes.values():
+        if str(node.metadata.get("stage") or "") != "execute":
+            continue
+        worker_result = node.metadata.get("worker_result")
+        if isinstance(worker_result, Mapping):
+            code = str(worker_result.get("error") or code)
+            message = str(worker_result.get("summary") or message)
+        break
+    return code, message
+
+
+def _project_task_graph_execution_state(
+    state: Any,
+    events: Sequence[EventRecord],
+    phase: str,
+) -> None:
+    """Persist retry boundaries before the synchronous graph call unwinds.
+
+    Physical attempts and leases are durable independently of the HTTP request
+    stack.  Project their bounded retry decision into TaskState at the same
+    boundary so a detached observer cannot see a permanently stale `running`
+    checkpoint after every admissible attempt has settled.
+    """
+
+    if phase not in {"physical_retry_admitted", "physical_retry_exhausted"}:
+        raise ValueError(f"unsupported task execution projection phase: {phase}")
+    store = get_store()
+    task_id = str(state.task_id)
+    terminal_statuses = {
+        PlanNodeStatus.COMPLETED,
+        PlanNodeStatus.FAILED,
+        PlanNodeStatus.CANCELLED,
+    }
+    owner_to_release: _TaskExecutionOwner | None = None
+    response_status = HTTPStatus.SERVICE_UNAVAILABLE
+    with _task_lock(task_id):
+        canonical = store.load_task(task_id)
+        if canonical is not None and canonical.status in terminal_statuses:
+            selected = canonical
+            response_status = (
+                HTTPStatus.OK
+                if canonical.status == PlanNodeStatus.COMPLETED
+                else HTTPStatus.CONFLICT
+                if canonical.status == PlanNodeStatus.CANCELLED
+                else HTTPStatus.SERVICE_UNAVAILABLE
+            )
+        else:
+            selected = state
+            if phase == "physical_retry_exhausted":
+                marker = state.metadata.get("execution_in_flight")
+                marker = dict(marker) if isinstance(marker, Mapping) else {}
+                state.metadata.pop("execution_in_flight", None)
+                code, message = _physical_execution_error(state)
+                state.metadata["last_execution_error"] = {
+                    "schema": "zyra.task-execution-error/v1",
+                    "error": code,
+                    "message": message,
+                    "retryable": False,
+                    "fallback": False,
+                }
+                state.metadata["task_execution_terminal_reconciliation"] = {
+                    "schema": "zyra.task-execution-terminal-reconciliation/v1",
+                    "phase": phase,
+                    "task_status": str(state.status),
+                    "execution_owner_token": str(marker.get("owner_token") or ""),
+                    "physical_execution_recovery_passes": int(
+                        state.metadata.get("physical_execution_recovery_passes") or 0
+                    ),
+                    "terminal": True,
+                    "reconciled_at": now_iso(),
+                }
+            persist_events(store, events)
+            store.save_checkpoint(state)
+
+        if phase == "physical_retry_exhausted":
+            marker = state.metadata.get("task_execution_terminal_reconciliation")
+            marker = dict(marker) if isinstance(marker, Mapping) else {}
+            current = _TASK_EXECUTION_OWNERS.get(task_id)
+            if (
+                current is not None
+                and current.run_id == str(selected.run_id)
+                and current.owner_token
+                == str(marker.get("execution_owner_token") or "")
+            ):
+                owner_to_release = current
+
+    if owner_to_release is not None:
+        error = RuntimeError(_physical_execution_error(selected)[1])
+        response = _task_execution_error_response(
+            selected,
+            error,
+            events,
+        )
+        response["terminal_reconciliation"] = dict(
+            selected.metadata.get("task_execution_terminal_reconciliation") or {}
+        )
+        _complete_task_execution_owner(
+            owner_to_release,
+            status=response_status,
+            body=response,
+        )
+
+
+def _task_external_deadline_expired(state: Any) -> bool:
+    hints = state.metadata.get("runtime_hints")
+    hints = dict(hints) if isinstance(hints, Mapping) else {}
+    try:
+        deadline_epoch_ms = float(
+            hints.get("external_deadline_epoch_ms") or 0
+        )
+    except (TypeError, ValueError):
+        return False
+    return deadline_epoch_ms > 0 and time.time() * 1000 >= deadline_epoch_ms
+
+
+def _reconcile_expired_task_execution(state: Any) -> Any:
+    """Close an overdue API task from exact terminal WorkerPool custody.
+
+    A physical worker can commit its attempt, lease, and execution receipt
+    while the synchronous task-graph request stack is still unwinding.  The
+    external task deadline is the final point at which another graph retry is
+    admissible.  After it passes, an exact terminal receipt is sufficient to
+    fail closed and release listeners; it is never sufficient to invent task
+    success because verification/finalization may not have run.
+    """
+
+    if str(state.status) in {"completed", "failed", "cancelled"}:
+        return state
+    marker = state.metadata.get("execution_in_flight")
+    if not isinstance(marker, Mapping) or not _task_external_deadline_expired(state):
+        return state
+
+    store = get_store()
+    task_id = str(state.task_id)
+    owner_to_release: _TaskExecutionOwner | None = None
+    terminal_event: EventRecord | None = None
+    selected = state
+
+    # Snapshot the logical owner while holding only its own lock.  Graph and
+    # WorkerPool recovery acquire independent locks and may call back into task
+    # projection; entering them under this lock creates a lock-order cycle.
+    with _task_lock(task_id):
+        canonical = store.load_task(task_id)
+        if canonical is None:
+            return state
+        if str(canonical.status) in {"completed", "failed", "cancelled"}:
+            return canonical
+        canonical_marker = canonical.metadata.get("execution_in_flight")
+        if (
+            not isinstance(canonical_marker, Mapping)
+            or not _task_external_deadline_expired(canonical)
+        ):
+            return canonical
+        source_snapshot = to_jsonable(canonical)
+        canonical_marker = dict(canonical_marker)
+
+    pool_api = get_worker_pool_api()
+    try:
+        pool_api.recover_task_acquisition_from_graph(canonical)
+    except Exception:  # noqa: BLE001 - inconsistent custody must fail closed without guessing.
+        return store.load_task(task_id) or canonical
+    projection = canonical.metadata.get("worker_pool")
+    if not isinstance(projection, Mapping):
+        return store.load_task(task_id) or canonical
+    attempt_id = str(projection.get("attempt_id") or "")
+    lease_id = str(projection.get("lease_id") or "")
+    latest_attempt = pool_api.pool.store.latest_attempt(task_id)
+    lease = pool_api.pool.store.get_lease(lease_id) if lease_id else None
+    receipt = next(
+        (
+            item
+            for item in pool_api.pool.store.receipts_for_task(task_id)
+            if item.attempt_id == attempt_id
+            and item.lease_id == lease_id
+            and item.run_id == canonical.run_id
+        ),
+        None,
+    )
+    if (
+        latest_attempt is None
+        or latest_attempt.run_id != canonical.run_id
+        or latest_attempt.attempt_id != attempt_id
+        or not latest_attempt.terminal
+        or lease is None
+        or lease.task_id != task_id
+        or lease.run_id != canonical.run_id
+        or lease.attempt_id != attempt_id
+        or not lease.terminal
+        or receipt is None
+    ):
+        return store.load_task(task_id) or canonical
+
+    # Re-enter the logical owner only for the compare-and-commit phase.  If a
+    # callback advanced TaskState while cross-store recovery ran, leave that
+    # newer state untouched and let a later observer reconcile its snapshot.
+    with _task_lock(task_id):
+        current_canonical = store.load_task(task_id)
+        if current_canonical is None:
+            return state
+        if str(current_canonical.status) in {"completed", "failed", "cancelled"}:
+            return current_canonical
+        if to_jsonable(current_canonical) != source_snapshot:
+            return current_canonical
+        receipt_projection = receipt.to_dict()
+        outcome = receipt.outcome
+        cancelled = outcome is PhysicalExecutionOutcome.CANCELLED
+        terminal_status = (
+            PlanNodeStatus.CANCELLED if cancelled else PlanNodeStatus.FAILED
+        )
+        error_code = str(
+            receipt.error_code
+            or "task_execution_deadline_expired_after_physical_terminal"
+        )
+        error_message = str(
+            receipt.error_message
+            or receipt.summary
+            or "The external task deadline expired after physical execution settled."
+        )
+        execute_node = next(
+            (
+                node
+                for node in canonical.plan_nodes.values()
+                if str(node.metadata.get("stage") or "") == "execute"
+            ),
+            None,
+        )
+        if execute_node is not None and (
+            outcome is not PhysicalExecutionOutcome.SUCCEEDED
+            or execute_node.status != PlanNodeStatus.COMPLETED
+        ):
+            execute_node.status = terminal_status
+            execute_node.updated_at = now_iso()
+            execute_node.metadata["worker_result"] = {
+                "ok": False,
+                "error": error_code,
+                "summary": error_message,
+                "physical_outcome": str(outcome),
+                "execution_receipt_id": receipt.receipt_id,
+            }
+        canonical.status = terminal_status
+        canonical.updated_at = now_iso()
+        canonical.metadata.pop("execution_in_flight", None)
+        canonical.metadata["worker_pool_receipt"] = receipt_projection
+        canonical.metadata["physical_execution_failure_receipt"] = {
+            **receipt_projection,
+            "schema": "zyra.physical-execution-failure-receipt/v1",
+            "terminal": True,
+            "error_code": error_code,
+            "error_message": error_message,
+        }
+        canonical.metadata["last_execution_error"] = {
+            "schema": "zyra.task-execution-error/v1",
+            "error": error_code,
+            "message": error_message,
+            "retryable": False,
+            "fallback": False,
+        }
+        reconciliation = {
+            "schema": "zyra.task-execution-terminal-reconciliation/v1",
+            "phase": "external_deadline_terminal_receipt",
+            "task_status": str(canonical.status),
+            "execution_owner_token": str(
+                canonical_marker.get("owner_token") or ""
+            ),
+            "attempt_id": attempt_id,
+            "lease_id": lease_id,
+            "execution_receipt_id": receipt.receipt_id,
+            "physical_outcome": str(outcome),
+            "terminal": True,
+            "deadline_expired": True,
+            "reconciled_at": now_iso(),
+        }
+        canonical.metadata["task_execution_terminal_reconciliation"] = (
+            reconciliation
+        )
+        terminal_event = EventRecord(
+            run_id=canonical.run_id,
+            task_id=canonical.task_id,
+            node_id=(
+                execute_node.node_id
+                if execute_node is not None
+                else canonical.root_node_id
+            ),
+            event_type=EventType.SYSTEM_NOTICE,
+            payload=dict(reconciliation),
+        )
+        persist_events(store, [terminal_event])
+        store.save_checkpoint(canonical)
+        selected = canonical
+
+        current = _TASK_EXECUTION_OWNERS.get(task_id)
+        if (
+            current is not None
+            and current.run_id == canonical.run_id
+            and current.owner_token
+            == str(canonical_marker.get("owner_token") or "")
+        ):
+            owner_to_release = current
+
+    if owner_to_release is not None:
+        response = _task_execution_error_response(
+            selected,
+            RuntimeError(_physical_execution_error(selected)[1]),
+            [terminal_event] if terminal_event is not None else [],
+        )
+        response["terminal_reconciliation"] = dict(
+            selected.metadata.get("task_execution_terminal_reconciliation") or {}
+        )
+        _complete_task_execution_owner(
+            owner_to_release,
+            status=(
+                HTTPStatus.CONFLICT
+                if selected.status == PlanNodeStatus.CANCELLED
+                else HTTPStatus.SERVICE_UNAVAILABLE
+            ),
+            body=response,
+        )
+    return selected
 
 
 def _task_node_ids(state: Any) -> set[str]:
@@ -10910,6 +11337,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             if state is None:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
                 return
+            state = _reconcile_expired_task_execution(state)
             self._send_json(HTTPStatus.OK, {"task": to_jsonable(state)})
             return
 
@@ -11449,7 +11877,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             if state is None:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
                 return
-            runtime = get_typescript_agent_port()
+            runtime = _typescript_agent_port_for_state(state)
             tasks = runtime.records(parent_task_id=state.task_id)
             self._send_json(
                 HTTPStatus.OK,
@@ -12297,6 +12725,76 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             if receipt_reservation is False:
                 return
+            execution_owner, owns_execution = _acquire_task_execution_owner(
+                state,
+                (
+                    receipt_reservation
+                    if isinstance(receipt_reservation, ReceiptReservation)
+                    else None
+                ),
+            )
+            while not owns_execution:
+                # The request transport is only an observer.  A disconnected
+                # listener must not fence a handler that is still executing in
+                # this API process, so wait for and reuse the owner's result.
+                while (
+                    not execution_owner.completed.wait(timeout=0.1)
+                    and execution_owner.thread.is_alive()
+                ):
+                    if _task_external_deadline_expired(state):
+                        observed = store.load_task(state.task_id) or state
+                        state = _reconcile_expired_task_execution(observed)
+                owner_response = execution_owner.response
+                if owner_response is None:
+                    # The in-process owner itself exited without publishing a
+                    # result.  This is proof of death, unlike a listener socket
+                    # disconnect, so atomically claim the existing recovery
+                    # path instead of waiting forever.
+                    state = store.load_task(state.task_id) or state
+                    execution_owner, owns_execution = (
+                        _acquire_task_execution_owner(
+                            state,
+                            (
+                                receipt_reservation
+                                if isinstance(
+                                    receipt_reservation,
+                                    ReceiptReservation,
+                                )
+                                else None
+                            ),
+                        )
+                    )
+                    continue
+                owner_status, owner_body = owner_response
+                response_body = copy.deepcopy(owner_body)
+                response_body["execution_attachment"] = {
+                    "schema": "zyra.task-execution-attachment/v1",
+                    "process_instance_id": execution_owner.process_instance_id,
+                    "owner_token": execution_owner.owner_token,
+                    "physical_dispatch_reused": True,
+                }
+                settled_state = store.load_task(state.task_id) or state
+                committed = self._commit_typed_receipt(
+                    receipt_reservation,
+                    status=owner_status,
+                    body=response_body,
+                    binding={
+                        "session_id": str(
+                            settled_state.metadata.get("query_session_id") or ""
+                        ),
+                        "run_id": settled_state.run_id,
+                        "task_id": settled_state.task_id,
+                    },
+                )
+                if committed is None:
+                    return
+                response_body, receipt_headers = committed
+                self._send_json(
+                    owner_status,
+                    response_body,
+                    headers=receipt_headers,
+                )
+                return
             pool_api = None
             pool_sequence = 0
             events: list[EventRecord] = []
@@ -12334,6 +12832,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         if isinstance(receipt_reservation, ReceiptReservation)
                         else None
                     ),
+                    execution_owner,
                 )
                 events.append(started_event)
                 # GET /tasks and event ingress must be able to prove that the
@@ -12394,6 +12893,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     error,
                     events,
                 )
+                _complete_task_execution_owner(
+                    execution_owner,
+                    status=HTTPStatus.SERVICE_UNAVAILABLE,
+                    body=response_body,
+                )
                 committed = self._commit_typed_receipt(
                     receipt_reservation,
                     status=HTTPStatus.SERVICE_UNAVAILABLE,
@@ -12415,23 +12919,67 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     headers=receipt_headers,
                 )
                 return
-            state.metadata.pop("execution_in_flight", None)
             events.extend(
                 event
                 for event in pool_api.pool.events.project_after(pool_api.pool.store, pool_sequence)
                 if event.run_id == state.run_id and event.task_id == state.task_id
             )
-            persist_events(store, events)
-            store.save_checkpoint(state)
+            with _task_lock(state.task_id):
+                canonical = store.load_task(state.task_id)
+                reconciliation = (
+                    canonical.metadata.get(
+                        "task_execution_terminal_reconciliation"
+                    )
+                    if canonical is not None
+                    else None
+                )
+                if (
+                    canonical is not None
+                    and str(canonical.status)
+                    in {"completed", "failed", "cancelled"}
+                    and isinstance(reconciliation, Mapping)
+                    and str(reconciliation.get("execution_owner_token") or "")
+                    == execution_owner.owner_token
+                ):
+                    # A deadline observer already committed the terminal fact.
+                    # The old synchronous stack may eventually unwind, but it
+                    # cannot overwrite that canonical state with its stale copy.
+                    state = canonical
+                    persist_events(store, events)
+                else:
+                    state.metadata.pop("execution_in_flight", None)
+                    persist_events(store, events)
+                    store.save_checkpoint(state)
             curator = curate_terminal_task(store, state)
-            response_body = {
-                "task": to_jsonable(state),
-                "events": [to_jsonable(event) for event in events],
-                "memory_curator": curator,
-            }
+            response_status = HTTPStatus.OK
+            if state.status == PlanNodeStatus.FAILED:
+                _code, terminal_message = _physical_execution_error(state)
+                terminal_error = RuntimeError(terminal_message)
+                response_body = _task_execution_error_response(
+                    state,
+                    terminal_error,
+                    events,
+                )
+                response_body["terminal_reconciliation"] = dict(
+                    state.metadata.get("task_execution_terminal_reconciliation")
+                    or {}
+                )
+                response_body["memory_curator"] = curator
+                response_status = HTTPStatus.SERVICE_UNAVAILABLE
+            else:
+                response_body = {
+                    "task": to_jsonable(state),
+                    "events": [to_jsonable(event) for event in events],
+                    "memory_curator": curator,
+                }
+            _complete_task_execution_owner(
+                execution_owner,
+                status=response_status,
+                body=response_body,
+            )
             committed = self._commit_typed_receipt(
                 receipt_reservation,
-                status=HTTPStatus.OK,
+                status=response_status,
                 body=response_body,
                 binding={
                     "session_id": str(state.metadata.get("query_session_id") or ""),
@@ -12443,7 +12991,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 return
             response_body, receipt_headers = committed
             self._send_json(
-                HTTPStatus.OK,
+                response_status,
                 response_body,
                 headers=receipt_headers,
             )
@@ -12505,7 +13053,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                             "exception_type": type(error).__name__,
                         }
                     )
-            agent_port = get_typescript_agent_port()
+            agent_port = _typescript_agent_port_for_state(state)
             cancelled_subagents = []
             cancelled_physical_children: list[dict[str, Any]] = []
             cancelled_physical_task_ids: set[str] = set()
@@ -12779,7 +13327,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             persist_events(store, run.event_records)
             records_by_id = {
                 item.task_id: item
-                for item in get_typescript_agent_port().records(parent_task_id=state.task_id)
+                for item in _typescript_agent_port_for_state(
+                    state,
+                    parent_session_id=owner_session_id,
+                ).records(parent_task_id=state.task_id)
             }
             physical_receipts = []
             for projection in physical_dispatches:
@@ -12896,7 +13447,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 )
                 return
             persist_events(store, run.event_records)
-            records = get_typescript_agent_port().records(parent_task_id=state.task_id)
+            records = _typescript_agent_port_for_state(
+                state,
+                parent_session_id=owner_session_id,
+            ).records(parent_task_id=state.task_id)
             selected = next((item for item in records if item.task_id == task_id), None)
             selected_status = (
                 selected.status.value
@@ -12938,7 +13492,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             if state is None:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
                 return
-            runtime = get_typescript_agent_port()
+            runtime = _typescript_agent_port_for_state(state)
             try:
                 record = runtime.get_task(parts[3])
             except KeyError:
@@ -16277,7 +16831,7 @@ def _control_context_for_task(
     handlers["registry.help"] = registry_help
 
     def subagent_inspect(_request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
-        snapshot = get_typescript_agent_port().snapshot()
+        snapshot = _typescript_agent_port_for_state(state).snapshot()
         tasks = [
             item
             for item in snapshot["tasks"]
@@ -16292,7 +16846,7 @@ def _control_context_for_task(
     handlers["subagent.inspect"] = subagent_inspect
 
     def subagent_tasks(_request: ControlCommandRequest, _descriptor: Any, _context: Any) -> ControlResult:
-        snapshot = get_typescript_agent_port().snapshot()
+        snapshot = _typescript_agent_port_for_state(state).snapshot()
         tasks = [
             item
             for item in snapshot["tasks"]
@@ -16436,7 +16990,7 @@ def _control_context_for_task(
 
     def subagent_owner(*, action: str, arguments: Any, request: Any) -> dict[str, Any]:
         task_id = str(arguments.get("task_id") or "")
-        runtime = get_typescript_agent_port()
+        runtime = _typescript_agent_port_for_state(state)
         if action == "list":
             snapshot = runtime.snapshot(parent_task_id=state.task_id)
             return {
@@ -17724,7 +18278,7 @@ def _control_context_for_task(
             f"- status: `{state.status}`",
             f"- plan nodes: `{len(state.plan_nodes)}`",
             f"- canonical events: `{len(events)}`",
-            f"- logical subagents: `{len(get_typescript_agent_port().records(parent_task_id=state.task_id))}`",
+            f"- logical subagents: `{len(_typescript_agent_port_for_state(state).records(parent_task_id=state.task_id))}`",
             "",
             "This artifact is generated from live Zyra task state; it is not a static acknowledgement.",
         ])

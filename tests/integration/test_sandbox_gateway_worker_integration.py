@@ -501,6 +501,59 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         self.assertTrue(result.output["artifact_refs"], (result.output, result.metadata))
         self.assertTrue(port.read_bytes("command-output/gateway-output-spill-1.log").exists)
 
+    def test_file_write_reports_created_then_replaced_path_provenance(self) -> None:
+        state = create_task_state("File provenance distinguishes creation from replacement")
+        port, workspace = self._port(state, "CodeWorkerRuntime")
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=port,
+            runtime_services={"sandbox_gateway_required": True},
+        )
+        router = GatewayToolExecutionRouter(bundle)
+
+        class Authority:
+            @staticmethod
+            def validate_and_consume(call, grant, execution_context):
+                return True
+
+        def write(call_id: str, content: str) -> ToolResult:
+            return router.execute(
+                ToolCall(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    tool_name="file_write",
+                    tool_call_id=call_id,
+                    arguments={"path": "checks/random-probe.py", "content": content},
+                    metadata={"session_id": f"provenance-{state.task_id}"},
+                ),
+                permission_grant={"grant_id": f"grant-{call_id}"},
+                permission_authority=Authority(),
+                permission_execution_context={},
+            )
+
+        created = write("provenance-create", "print('first')\n")
+        replaced = write("provenance-replace", "print('second')\n")
+
+        self.assertTrue(created.ok, created)
+        self.assertEqual(created.metadata["workspace_logical_path"], "checks/random-probe.py")
+        self.assertEqual(created.metadata["workspace_path_disposition"], "created")
+        self.assertEqual(created.metadata["workspace_path_created"], "true")
+        self.assertEqual(created.metadata["workspace_path_existed_before"], "false")
+        self.assertEqual(
+            created.output["gateway_receipt"]["metadata"]["workspace_path_disposition"],
+            "created",
+        )
+        self.assertEqual(replaced.metadata["workspace_path_disposition"], "replaced")
+        self.assertEqual(replaced.metadata["workspace_path_created"], "false")
+        self.assertEqual(replaced.metadata["workspace_path_existed_before"], "true")
+        self.assertEqual(
+            replaced.output["gateway_receipt"]["metadata"]["workspace_path_disposition"],
+            "replaced",
+        )
+
     def test_local_shell_stages_the_managed_workspace_and_commits_its_delta(self) -> None:
         state = create_task_state("Local shell shares the managed task workspace")
         port, workspace = self._port(state, "CodeWorkerRuntime")
@@ -860,6 +913,128 @@ class SandboxGatewayWorkerIntegrationTests(unittest.TestCase):
         )
         self.assertTrue(recovered.ok, recovered)
         self.assertIn("healthy", recovered.output["stdout"])
+
+    def test_physical_gateway_preserves_explicit_accepted_return_codes(self) -> None:
+        state = create_task_state("Negative probes retain their real process result")
+        port, workspace = self._port(state, "CodeWorkerRuntime")
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts,
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=port,
+            runtime_services={"sandbox_gateway_required": True},
+        )
+        router = GatewayToolExecutionRouter(bundle)
+
+        class Authority:
+            @staticmethod
+            def validate_and_consume(call, grant, execution_context):
+                return True
+
+        def execute(call_id: str, actual: int, accepted: object) -> ToolResult:
+            return router.execute(
+                ToolCall(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    tool_name="shell",
+                    tool_call_id=call_id,
+                    arguments={
+                        "executable": sys.executable,
+                        "argv": ["-c", f"raise SystemExit({actual})"],
+                        "accepted_return_codes": accepted,
+                        "foreground_wait_seconds": 2,
+                    },
+                    metadata={"session_id": f"accepted-code-{state.task_id}"},
+                ),
+                permission_grant={"grant_id": f"grant-{call_id}"},
+                permission_authority=Authority(),
+                permission_execution_context={},
+            )
+
+        accepted = execute("accepted-unseen-code", 23, [0, 23])
+        self.assertTrue(accepted.ok, accepted)
+        self.assertEqual(accepted.output["termination"], "exited")
+        self.assertEqual(accepted.output["return_code"], 23)
+        self.assertEqual(accepted.output["accepted_return_codes"], [0, 23])
+        self.assertTrue(accepted.output["return_code_accepted"])
+        self.assertEqual(accepted.metadata["return_code"], "23")
+        self.assertEqual(accepted.metadata["accepted_return_codes"], "0,23")
+        self.assertEqual(accepted.metadata["return_code_accepted"], "true")
+        self.assertEqual(
+            accepted.output["gateway_receipt"]["outcome"],
+            "committed",
+        )
+        self.assertEqual(
+            accepted.output["gateway_receipt"]["metadata"]["return_code"],
+            23,
+        )
+
+        rejected = execute("rejected-unseen-code", 17, [23])
+        self.assertFalse(rejected.ok)
+        self.assertEqual(rejected.output["return_code"], 17)
+        self.assertEqual(rejected.output["accepted_return_codes"], [23])
+        self.assertFalse(rejected.output["return_code_accepted"])
+        self.assertEqual(
+            rejected.output["gateway_receipt"]["outcome"],
+            "failed",
+        )
+        self.assertEqual(
+            rejected.output["gateway_receipt"]["metadata"]["return_code"],
+            17,
+        )
+
+        invalid = execute("duplicate-accepted-code", 0, [0, 0])
+        self.assertFalse(invalid.ok)
+        self.assertEqual(invalid.output["code"], "invalid_request")
+        self.assertIn("unique", invalid.output["reason"])
+
+    def test_host_compatibility_uses_the_same_accepted_return_code_contract(
+        self,
+    ) -> None:
+        state = create_task_state("Host compatibility keeps shell result semantics")
+        workspace = self.root / "host-compatibility-workspace"
+        workspace.mkdir()
+        bundle = build_gateway_runtime_bundle(
+            workspace_root=workspace,
+            artifact_root=self.artifacts / "host-compatibility",
+            worker_id="CodeWorkerRuntime",
+            workspace_edit_port=None,
+            runtime_services={"sandbox_gateway_required": False},
+        )
+        router = GatewayToolExecutionRouter(bundle)
+
+        class Authority:
+            @staticmethod
+            def validate_and_consume(call, grant, execution_context):
+                return True
+
+        result = router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="shell",
+                tool_call_id="host-accepted-unseen-code",
+                arguments={
+                    "executable": sys.executable,
+                    "argv": ["-c", "raise SystemExit(29)"],
+                    "accepted_return_codes": [29],
+                    "foreground_wait_seconds": 2,
+                },
+                metadata={"session_id": f"host-accepted-{state.task_id}"},
+            ),
+            permission_grant={"grant_id": "host-accepted-grant"},
+            permission_authority=Authority(),
+            permission_execution_context={},
+        )
+
+        self.assertTrue(result.ok, result)
+        self.assertEqual(result.output["return_code"], 29)
+        self.assertEqual(result.output["accepted_return_codes"], [29])
+        self.assertTrue(result.output["return_code_accepted"])
+        self.assertEqual(result.metadata["sandbox_gateway_host_compatibility"], "true")
+        self.assertEqual(result.output["gateway_receipt"]["outcome"], "committed")
 
     def test_settled_command_timeout_is_recoverable_in_a_new_session(self) -> None:
         state = create_task_state("A settled timeout remains observable to the model")

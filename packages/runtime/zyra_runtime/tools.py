@@ -341,9 +341,12 @@ def default_tool_registry() -> ToolRegistry:
                 (
                     "Run one classified executable with permission policy. Prefer "
                     "executable/argv/cwd/environment for a working directory or environment; "
+                    "argv contains arguments only and must not repeat executable; "
                     "the legacy command string cannot contain shell composition or redirects. "
                     "Foreground execution waits up to 30 seconds by default; set background=true "
-                    "for immediate detachment or foreground_wait_seconds to override the bounded wait."
+                    "for immediate detachment or foreground_wait_seconds to override the bounded wait. "
+                    "Exit code 0 is accepted by default; for a deliberate negative probe, declare "
+                    "the bounded accepted_return_codes list while preserving the real return code."
                 ),
                 "claude-code-best BashTool/PowerShellTool",
                 input_schema={
@@ -369,6 +372,17 @@ def default_tool_registry() -> ToolRegistry:
                             "maximum": 60,
                         },
                         "background": {"type": "boolean"},
+                        "accepted_return_codes": {
+                            "type": "array",
+                            "items": {
+                                "type": "integer",
+                                "minimum": -2147483648,
+                                "maximum": 4294967295,
+                            },
+                            "minItems": 1,
+                            "maxItems": 32,
+                            "uniqueItems": True,
+                        },
                     },
                 },
                 metadata={

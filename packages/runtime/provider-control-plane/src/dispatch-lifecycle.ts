@@ -214,12 +214,28 @@ export class ProviderDispatchLifecycle {
         lastSequence = frame.sequence;
         attemptFrameIds.add(frame.frameId);
         acceptedFrames += 1;
-        if (frame.kind === "text_delta" || frame.kind === "tool_call_delta") outputObserved = true;
+        if (isObservableFrame(frame)) outputObserved = true;
         if (frame.kind === "tool_call_delta") {
-          const providerIndex = frame.metadata.provider_tool_index;
-          const key = frame.toolCallId
-            ?? (typeof providerIndex === "string" || typeof providerIndex === "number"
-              ? `index:${String(providerIndex)}`
+          const providerIndex = frame.metadata.providerIndex;
+          const normalizedIndex = typeof providerIndex === "number"
+            ? String(providerIndex)
+            : typeof providerIndex === "string" && providerIndex.trim()
+              ? providerIndex.trim()
+              : null;
+          const normalizedToolCallId = frame.toolCallId?.trim() || null;
+          const normalizedToolName = frame.toolName?.trim() || null;
+          const argumentProgress = frame.jsonDelta !== null && frame.jsonDelta.length > 0;
+          if (
+            normalizedToolCallId === null
+            && normalizedToolName === null
+            && normalizedIndex === null
+            && !argumentProgress
+          ) {
+            continue;
+          }
+          const key = normalizedToolCallId
+            ?? (normalizedIndex !== null
+              ? `index:${normalizedIndex}`
               : `sequence:${frame.sequence}`);
           const previous = toolArgumentStreams[key];
           const previousRecord = previous && typeof previous === "object" && !Array.isArray(previous)
@@ -565,7 +581,13 @@ function digestRequest(request: ProviderDispatchRequest): string {
 }
 
 function isObservableFrame(frame: ProviderStreamFrame): boolean {
-  return frame.kind === "text_delta" || frame.kind === "tool_call_delta";
+  if (frame.kind === "text_delta") return Boolean(frame.text);
+  if (frame.kind !== "tool_call_delta") return false;
+  return Boolean(
+    frame.toolCallId?.trim()
+    || frame.toolName?.trim()
+    || (frame.jsonDelta !== null && frame.jsonDelta.length > 0),
+  );
 }
 
 function jsonObjectComplete(value: string): boolean {

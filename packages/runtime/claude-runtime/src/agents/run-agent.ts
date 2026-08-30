@@ -96,6 +96,15 @@ export function childRunInput(
       agent_lineage: task.scope.lineage,
       agent_definition_digest: task.definition.digest,
       canonical_agent_owner: "typescript",
+      runtime_lineage: {
+        schema: "zyra.runtime-lineage/v1",
+        relation: "agent",
+        relation_id: task.taskId,
+        parent_run_id: parent.runId,
+        parent_task_id: parent.taskId,
+        parent_session_id: parent.sessionId,
+        parent_worker_request_id: parent.workerRequestId,
+      },
     },
   };
 }
@@ -225,6 +234,15 @@ export function e03ChildRunInput(
       mcp_servers: task.scope.mcpServers,
       canonical_agent_owner: "typescript",
       python_logical_owner: false,
+      runtime_lineage: {
+        schema: "zyra.runtime-lineage/v1",
+        relation: "agent",
+        relation_id: task.identity.attemptId,
+        parent_run_id: parent.runId,
+        parent_task_id: parent.taskId,
+        parent_session_id: parent.sessionId,
+        parent_worker_request_id: parent.workerRequestId,
+      },
     },
   };
 }

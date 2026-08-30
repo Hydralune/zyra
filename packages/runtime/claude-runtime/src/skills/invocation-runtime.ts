@@ -281,10 +281,22 @@ export class SkillInvocationRuntime {
   private async executePlan(plan: SkillInvocationPlan, signal?: AbortSignal): Promise<SkillInvocationResult> {
     const startedAt = this.timestamp();
     let calls = 0;
+    const controller = new AbortController();
+    let timedOut = false;
+    const abortFromParent = (): void => controller.abort(signal?.reason);
+    signal?.addEventListener("abort", abortFromParent, { once: true });
+    if (signal?.aborted) abortFromParent();
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort(invocationError(
+        "skill_invocation_timeout",
+        `skill ${plan.skillName} timed out after ${plan.execution.timeoutMs}ms`,
+      ));
+    }, plan.execution.timeoutMs);
     try {
-      const response = await this.executor({
+      const execution = Promise.resolve(this.executor({
         plan: cloneJson(plan),
-        signal,
+        signal: controller.signal,
         recordToolCall: (_toolName, _argumentsValue) => {
           calls += 1;
           if (plan.effectiveToolScope.maximumCalls !== null && calls > plan.effectiveToolScope.maximumCalls) throw invocationError("skill_tool_call_budget_exceeded", "skill executor exceeded tool call budget");
@@ -292,7 +304,11 @@ export class SkillInvocationRuntime {
         assertToolAllowed: (toolName, namespace, serverId, readOnly) => {
           this.assertToolAllowed(plan.effectiveToolScope, calls, toolName, namespace, serverId, readOnly);
         },
-      });
+      }));
+      const response = await Promise.race([
+        execution,
+        abortPromise(controller.signal, `skill ${plan.skillName} invocation was cancelled`),
+      ]);
       const result: SkillInvocationResult = {
         invocationId: plan.invocationId,
         skillId: plan.skillId,
@@ -323,7 +339,7 @@ export class SkillInvocationRuntime {
       const result: SkillInvocationResult = {
         invocationId: plan.invocationId,
         skillId: plan.skillId,
-        status: signal?.aborted ? "cancelled" : "failed",
+        status: controller.signal.aborted ? "cancelled" : "failed",
         output: null,
         artifacts: [],
         toolCalls: calls,
@@ -336,10 +352,13 @@ export class SkillInvocationRuntime {
           name: error instanceof Error ? error.name : "Error",
           message: error instanceof Error ? error.message : String(error),
         },
-        metadata: {},
+        metadata: timedOut ? { timeout_ms: plan.execution.timeoutMs } : {},
       };
       this.remember(result);
       throw error;
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", abortFromParent);
     }
   }
 
@@ -357,6 +376,23 @@ export class SkillInvocationRuntime {
     this.lastTimestamp = value;
     return value;
   }
+}
+
+function abortPromise(signal: AbortSignal, message: string): Promise<never> {
+  return new Promise((_, reject) => {
+    const rejectAbort = (): void => {
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : invocationError("skill_invocation_cancelled", message),
+      );
+    };
+    if (signal.aborted) {
+      rejectAbort();
+      return;
+    }
+    signal.addEventListener("abort", rejectAbort, { once: true });
+  });
 }
 
 function skillToolNamespace(tool: ToolSpecContract): string {

@@ -62,6 +62,9 @@ _HANDLED_TOOLS = frozenset(
 # just to poll a command that completed moments later.  Keep the window
 # bounded and overridable, but cover that normal isolation overhead by default.
 _DEFAULT_FOREGROUND_WAIT_SECONDS = 30.0
+_MIN_RETURN_CODE = -(2**31)
+_MAX_RETURN_CODE = 2**32 - 1
+_MAX_ACCEPTED_RETURN_CODES = 32
 
 
 def _foreground_wait_seconds(arguments: Mapping[str, Any]) -> float:
@@ -73,6 +76,40 @@ def _foreground_wait_seconds(arguments: Mapping[str, Any]) -> float:
         minimum=0.0,
         maximum=60.0,
     )
+
+
+def _accepted_return_codes(arguments: Mapping[str, Any]) -> tuple[int, ...]:
+    raw = arguments.get("accepted_return_codes")
+    if raw is None:
+        return (0,)
+    if not isinstance(raw, (list, tuple)):
+        raise SandboxGatewayError(
+            GatewayErrorCode.INVALID_REQUEST,
+            "accepted_return_codes must be a JSON array of unique integers",
+            operation="shell",
+        )
+    if not 1 <= len(raw) <= _MAX_ACCEPTED_RETURN_CODES:
+        raise SandboxGatewayError(
+            GatewayErrorCode.INVALID_REQUEST,
+            "accepted_return_codes must contain between 1 and 32 integers",
+            operation="shell",
+        )
+    accepted: list[int] = []
+    for value in raw:
+        if type(value) is not int or not _MIN_RETURN_CODE <= value <= _MAX_RETURN_CODE:
+            raise SandboxGatewayError(
+                GatewayErrorCode.INVALID_REQUEST,
+                "accepted_return_codes entries must be bounded integers",
+                operation="shell",
+            )
+        if value in accepted:
+            raise SandboxGatewayError(
+                GatewayErrorCode.INVALID_REQUEST,
+                "accepted_return_codes entries must be unique",
+                operation="shell",
+            )
+        accepted.append(value)
+    return tuple(accepted)
 
 
 @dataclass(frozen=True, slots=True)
@@ -310,6 +347,7 @@ class GatewayToolExecutionRouter:
         permission_authority: Any,
         permission_execution_context: Any,
     ) -> ToolResult:
+        accepted_return_codes = _accepted_return_codes(call.arguments)
         executable, argv, _environment, _cwd = self.bundle.policy_runtime.command_from_arguments(
             call.arguments
         )
@@ -345,6 +383,7 @@ class GatewayToolExecutionRouter:
                     call,
                     command_identity,
                     cancellation_event=cancellation,
+                    accepted_return_codes=accepted_return_codes,
                     permission_grant=permission_grant,
                     permission_authority=permission_authority,
                     permission_execution_context=permission_execution_context,
@@ -539,6 +578,7 @@ class GatewayToolExecutionRouter:
         identity: WorkerGatewayIdentity,
         *,
         cancellation_event: threading.Event,
+        accepted_return_codes: Sequence[int],
         permission_grant: Any,
         permission_authority: Any,
         permission_execution_context: Any,
@@ -619,6 +659,13 @@ class GatewayToolExecutionRouter:
                 "progressive_delivery_driving_shell": _metadata_flag(
                     call.metadata.get("progressive_delivery_driving_shell")
                 ),
+                "progressive_verification_driving": _metadata_flag(
+                    call.metadata.get("progressive_verification_driving")
+                ),
+                "progressive_verification_scope": str(
+                    call.metadata.get("progressive_verification_scope") or ""
+                ),
+                "accepted_return_codes": list(accepted_return_codes),
             },
         )
         policy = self.bundle.policy_runtime.evaluate_command(envelope)
@@ -633,6 +680,7 @@ class GatewayToolExecutionRouter:
                 "argv": argv,
                 "cwd": cwd,
                 "environment_digest": content_digest(environment),
+                "accepted_return_codes": list(accepted_return_codes),
             },
             policy_digest=policy.policy_digest,
             idempotency_key=envelope.idempotency_key,
@@ -686,6 +734,7 @@ class GatewayToolExecutionRouter:
                 timeout=timeout,
                 stdout_limit=stdout_limit,
                 stderr_limit=stderr_limit,
+                accepted_return_codes=accepted_return_codes,
                 permission_grant=permission_grant,
                 permission_authority=permission_authority,
                 permission_execution_context=permission_execution_context,
@@ -709,6 +758,16 @@ class GatewayToolExecutionRouter:
                 commit_outputs=True,
             )
         process = execution.result
+        mutation_policy_guard = self.bundle.task_mutation_policy_guard
+        if mutation_policy_guard is not None:
+            mutation_policy_guard.observe_command(
+                executable=envelope.executable,
+                argv=envelope.argv,
+                metadata=envelope.metadata,
+                termination=process.termination.value,
+                return_code=process.return_code,
+                command_id=envelope.command_id,
+            )
         stdout = process.output.stdout.decode("utf-8", errors="replace")
         stderr = process.output.stderr.decode("utf-8", errors="replace")
         spill_receipt = self._spill_command_output(call, identity, process.output)
@@ -720,7 +779,11 @@ class GatewayToolExecutionRouter:
                 )
             )
         )
-        succeeded = process.termination == ProcessTermination.EXITED and process.return_code == 0
+        return_code_accepted = (
+            process.termination == ProcessTermination.EXITED
+            and process.return_code in accepted_return_codes
+        )
+        succeeded = return_code_accepted
         outcome = GatewayOutcome.COMMITTED if succeeded else GatewayOutcome.FAILED
         integration_receipt = GatewayExecutionReceipt(
             receipt_id=stable_identifier(
@@ -734,6 +797,8 @@ class GatewayToolExecutionRouter:
                 {
                     "termination": process.termination.value,
                     "return_code": process.return_code,
+                    "accepted_return_codes": list(accepted_return_codes),
+                    "return_code_accepted": return_code_accepted,
                     "stdout_digest": gateway_content_digest(process.output.stdout),
                     "stderr_digest": gateway_content_digest(process.output.stderr),
                     "workspace_state_before_digest": process.metadata.get(
@@ -762,6 +827,8 @@ class GatewayToolExecutionRouter:
             metadata={
                 "termination": process.termination.value,
                 "return_code": process.return_code,
+                "accepted_return_codes": list(accepted_return_codes),
+                "return_code_accepted": return_code_accepted,
                 "stdout_truncated": process.output.stdout_truncated,
                 "stderr_truncated": process.output.stderr_truncated,
                 "combined_truncated": process.output.combined_truncated,
@@ -827,6 +894,10 @@ class GatewayToolExecutionRouter:
         metadata.update(
             {
                 "return_code": str(process.return_code),
+                "accepted_return_codes": ",".join(
+                    str(value) for value in accepted_return_codes
+                ),
+                "return_code_accepted": str(return_code_accepted).lower(),
                 "termination": process.termination.value,
                 "output_bounded": "true",
                 "process_tree_controlled": str(process_tree_controlled).lower(),
@@ -868,6 +939,8 @@ class GatewayToolExecutionRouter:
                 "stderr": stderr,
                 "return_code": process.return_code,
                 "termination": process.termination.value,
+                "accepted_return_codes": list(accepted_return_codes),
+                "return_code_accepted": return_code_accepted,
                 "artifact_refs": list(artifact_refs),
                 "gateway_receipt": integration_receipt.safe_dict(),
                 **(
@@ -941,6 +1014,7 @@ class GatewayToolExecutionRouter:
         timeout: float,
         stdout_limit: int,
         stderr_limit: int,
+        accepted_return_codes: Sequence[int],
         permission_grant: Any,
         permission_authority: Any,
         permission_execution_context: Any,
@@ -973,7 +1047,11 @@ class GatewayToolExecutionRouter:
             environment=environment,
             operation_name="code-worker-host-compatibility",
         )
-        succeeded = host.termination == ProcessTermination.EXITED and host.return_code == 0
+        return_code_accepted = (
+            host.termination == ProcessTermination.EXITED
+            and host.return_code in accepted_return_codes
+        )
+        succeeded = return_code_accepted
         receipt = GatewayExecutionReceipt(
             receipt_id=stable_identifier(
                 "gateway-execution",
@@ -986,6 +1064,8 @@ class GatewayToolExecutionRouter:
                 {
                     "termination": host.termination.value,
                     "return_code": host.return_code,
+                    "accepted_return_codes": list(accepted_return_codes),
+                    "return_code_accepted": return_code_accepted,
                     "stdout_digest": gateway_content_digest(host.stdout),
                     "stderr_digest": gateway_content_digest(host.stderr),
                 }
@@ -1004,6 +1084,8 @@ class GatewayToolExecutionRouter:
             metadata={
                 "termination": host.termination.value,
                 "return_code": host.return_code,
+                "accepted_return_codes": list(accepted_return_codes),
+                "return_code_accepted": return_code_accepted,
                 "stdout_truncated": host.stdout_truncated,
                 "stderr_truncated": host.stderr_truncated,
                 "host_compatibility": True,
@@ -1036,6 +1118,10 @@ class GatewayToolExecutionRouter:
         metadata.update(
             {
                 "return_code": str(host.return_code),
+                "accepted_return_codes": ",".join(
+                    str(value) for value in accepted_return_codes
+                ),
+                "return_code_accepted": str(return_code_accepted).lower(),
                 "termination": host.termination.value,
                 "output_bounded": "true",
                 "process_tree_controlled": "true",
@@ -1052,6 +1138,8 @@ class GatewayToolExecutionRouter:
                 "stderr": host.stderr.decode("utf-8", errors="replace"),
                 "return_code": host.return_code,
                 "termination": host.termination.value,
+                "accepted_return_codes": list(accepted_return_codes),
+                "return_code_accepted": return_code_accepted,
                 "gateway_receipt": receipt.safe_dict(),
             },
             error=None if succeeded else host.failure_code or "gateway_host_command_failed",
@@ -1254,12 +1342,32 @@ class GatewayToolExecutionRouter:
                 "quarantined": file_receipt.quarantined,
                 "quarantine_id": file_receipt.quarantine_id,
                 "content_bytes": file_receipt.content_bytes,
+                "workspace_logical_path": logical_path,
+                "workspace_path_disposition": str(
+                    file_receipt.metadata.get("workspace_path_disposition") or ""
+                ),
+                "workspace_path_created": bool(
+                    file_receipt.metadata.get("workspace_path_created") is True
+                ),
+                "workspace_path_existed_before": bool(
+                    file_receipt.metadata.get("workspace_path_existed_before") is True
+                ),
             },
         )
         self.bundle.receipt_journal.append(receipt, idempotency_key=request.idempotency_key)
         ok = file_receipt.committed and not file_receipt.quarantined
         metadata = self.bundle.event_projector.tool_metadata(receipt)
         metadata["workspace_mutation_committed"] = str(ok).lower()
+        metadata["workspace_logical_path"] = logical_path
+        metadata["workspace_path_disposition"] = str(
+            file_receipt.metadata.get("workspace_path_disposition") or ""
+        )
+        metadata["workspace_path_created"] = str(
+            file_receipt.metadata.get("workspace_path_created") is True
+        ).lower()
+        metadata["workspace_path_existed_before"] = str(
+            file_receipt.metadata.get("workspace_path_existed_before") is True
+        ).lower()
         return ToolResult(
             tool_call_id=call.tool_call_id,
             ok=ok,
@@ -1278,6 +1386,9 @@ class GatewayToolExecutionRouter:
                 "transaction_id": file_receipt.transaction_id,
                 "artifact_ref": file_receipt.artifact_ref,
                 "quarantine_id": file_receipt.quarantine_id,
+                "workspace_path_disposition": metadata["workspace_path_disposition"],
+                "workspace_path_created": metadata["workspace_path_created"],
+                "workspace_path_existed_before": metadata["workspace_path_existed_before"],
                 "gateway_receipt": receipt.safe_dict(),
             },
             artifacts=list(file_receipt.artifact_records),

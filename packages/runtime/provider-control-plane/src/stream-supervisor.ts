@@ -27,6 +27,7 @@ export interface ProviderStreamBudget {
   readonly maximumToolCalls: number;
   readonly maximumToolArgumentCharacters: number;
   readonly maximumProviderNotices: number;
+  readonly maximumResponseBytes: number;
 }
 
 export interface ProviderToolCallSnapshot {
@@ -52,7 +53,9 @@ export interface ProviderStreamSnapshot {
   readonly responseStartedAt: number | null;
   readonly firstOutputAt: number | null;
   readonly lastFrameAt: number | null;
+  readonly lastProgressAt: number | null;
   readonly completedAt: number | null;
+  readonly responseBytes: number;
   readonly frameCount: number;
   readonly nextSequence: number;
   readonly responseStartCount: number;
@@ -101,6 +104,7 @@ const DEFAULT_BUDGET: ProviderStreamBudget = {
   maximumToolCalls: 1_024,
   maximumToolArgumentCharacters: 2_000_000,
   maximumProviderNotices: 10_000,
+  maximumResponseBytes: 16 * 1_024 * 1_024,
 };
 
 // A provider may emit one normalized frame per output token and additional
@@ -144,7 +148,9 @@ export class ProviderStreamSupervisor {
   private responseStartedAtValue: number | null = null;
   private firstOutputAtValue: number | null = null;
   private lastFrameAtValue: number | null = null;
+  private lastProgressAtValue: number | null = null;
   private completedAtValue: number | null = null;
+  private responseBytesValue = 0;
   private frameCountValue = 0;
   private nextSequenceValue = 1;
   private responseStartCountValue = 0;
@@ -205,6 +211,23 @@ export class ProviderStreamSupervisor {
     for (const frame of frames) this.observeFrame(frame);
   }
 
+  observeResponseBytes(totalBytes: number): void {
+    this.assertActive();
+    if (!Number.isSafeInteger(totalBytes) || totalBytes < this.responseBytesValue) {
+      throw this.fail("response_protocol_error", "provider response byte count is invalid", {
+        previousResponseBytes: this.responseBytesValue,
+        actualResponseBytes: totalBytes,
+      });
+    }
+    this.responseBytesValue = totalBytes;
+    if (this.responseBytesValue > this.budget.maximumResponseBytes) {
+      throw this.fail("response_protocol_error", "provider stream exceeded response-byte budget", {
+        responseBytes: this.responseBytesValue,
+        maximumResponseBytes: this.budget.maximumResponseBytes,
+      });
+    }
+  }
+
   checkWatchdog(now = this.now()): void {
     this.assertActive();
     const totalElapsed = now - this.startedAt;
@@ -215,9 +238,9 @@ export class ProviderStreamSupervisor {
         limitMilliseconds: this.budget.totalMilliseconds,
       });
     }
-    if (this.lastFrameAtValue === null) {
+    if (this.lastProgressAtValue === null) {
       if (totalElapsed > this.budget.firstByteMilliseconds) {
-        throw this.fail("stream_timeout", "provider stream did not produce a first frame", {
+        throw this.fail("stream_timeout", "provider stream did not produce semantic output", {
           watchdog: "first_byte",
           elapsedMilliseconds: totalElapsed,
           limitMilliseconds: this.budget.firstByteMilliseconds,
@@ -225,10 +248,10 @@ export class ProviderStreamSupervisor {
       }
       return;
     }
-    const chunkElapsed = now - this.lastFrameAtValue;
+    const chunkElapsed = now - this.lastProgressAtValue;
     if (chunkElapsed > this.budget.chunkMilliseconds) {
-      throw this.fail("stream_timeout", "provider stream stalled between frames", {
-        watchdog: "chunk",
+      throw this.fail("stream_timeout", "provider stream stalled between semantic output frames", {
+        watchdog: "semantic_chunk",
         elapsedMilliseconds: chunkElapsed,
         limitMilliseconds: this.budget.chunkMilliseconds,
       });
@@ -309,7 +332,9 @@ export class ProviderStreamSupervisor {
       responseStartedAt: this.responseStartedAtValue,
       firstOutputAt: this.firstOutputAtValue,
       lastFrameAt: this.lastFrameAtValue,
+      lastProgressAt: this.lastProgressAtValue,
       completedAt: this.completedAtValue,
+      responseBytes: this.responseBytesValue,
       frameCount: this.frameCountValue,
       nextSequence: this.nextSequenceValue,
       responseStartCount: this.responseStartCountValue,
@@ -467,7 +492,14 @@ export class ProviderStreamSupervisor {
         sequence: frame.sequence,
       });
     }
-    const key = this.resolveToolCallKey(frame);
+    const toolCallId = normalizedIdentity(frame.toolCallId);
+    const toolName = normalizedIdentity(frame.toolName);
+    const providerIndex = normalizedProviderIndex(frame.metadata.providerIndex);
+    const argumentProgress = frame.jsonDelta !== null && frame.jsonDelta.length > 0;
+    if (toolCallId === null && toolName === null && providerIndex === null && !argumentProgress) {
+      return;
+    }
+    const key = this.resolveToolCallKey(toolCallId, toolName, providerIndex, frame.sequence);
     let call = this.toolCalls.get(key);
     if (call === undefined) {
       if (this.toolCalls.size >= this.budget.maximumToolCalls) {
@@ -478,8 +510,8 @@ export class ProviderStreamSupervisor {
       }
       call = {
         key,
-        toolCallId: frame.toolCallId,
-        toolName: frame.toolName,
+        toolCallId,
+        toolName,
         assembler: new IncrementalJsonAssembler(this.budget.maximumToolArgumentCharacters),
         firstSequence: frame.sequence,
         lastSequence: frame.sequence,
@@ -487,31 +519,46 @@ export class ProviderStreamSupervisor {
       };
       this.toolCalls.set(key, call);
     }
-    if (frame.toolCallId !== null) {
-      if (call.toolCallId !== null && call.toolCallId !== frame.toolCallId) {
+    if (toolCallId !== null) {
+      if (call.toolCallId !== null && call.toolCallId !== toolCallId) {
         throw this.fail("response_protocol_error", "provider changed tool-call identity mid-stream", {
           key,
           previousToolCallId: call.toolCallId,
-          actualToolCallId: frame.toolCallId,
+          actualToolCallId: toolCallId,
         });
       }
-      call.toolCallId = frame.toolCallId;
+      call.toolCallId = toolCallId;
     }
-    if (frame.toolName !== null) {
-      if (call.toolName !== null && call.toolName !== frame.toolName) {
+    if (toolName !== null) {
+      if (call.toolName !== null && call.toolName !== toolName) {
         throw this.fail("response_protocol_error", "provider changed tool name mid-stream", {
           key,
           previousToolName: call.toolName,
-          actualToolName: frame.toolName,
+          actualToolName: toolName,
         });
       }
-      call.toolName = frame.toolName;
+      call.toolName = toolName;
     }
-    if (frame.jsonDelta !== null) call.assembler.append(frame.jsonDelta);
+    if (frame.jsonDelta !== null) {
+      try {
+        call.assembler.append(frame.jsonDelta);
+      } catch (error) {
+        throw this.fail("response_protocol_error", "provider tool argument transaction is invalid", {
+          toolKey: call.key,
+          toolCallId: call.toolCallId ?? "",
+          toolName: call.toolName ?? "",
+          parserState: error instanceof Error ? error.message : String(error),
+          argumentCharacters: call.assembler.length,
+          sequence: frame.sequence,
+        });
+      }
+    }
     call.lastSequence = frame.sequence;
     call.deltaCount += 1;
     // Model argument bytes are not a physical tool dispatch.
-    this.markOutput(frame.createdAt, false);
+    if (toolCallId !== null || toolName !== null || argumentProgress) {
+      this.markOutput(frame.createdAt, false);
+    }
   }
 
   private observeUsage(frame: ProviderStreamFrame): void {
@@ -522,6 +569,7 @@ export class ProviderStreamSupervisor {
       });
     }
     const leaves = numericLeaves(canonical);
+    let advanced = false;
     for (const leaf of leaves) {
       if (!Number.isFinite(leaf.value) || leaf.value < 0) {
         throw this.fail("response_protocol_error", "provider usage contains an invalid numeric counter", {
@@ -539,9 +587,11 @@ export class ProviderStreamSupervisor {
           sequence: frame.sequence,
         });
       }
+      if (previous === undefined || leaf.value > previous) advanced = true;
       this.usageLeaves.set(leaf.path, leaf.value);
     }
     this.usageValue = canonical;
+    if (advanced) this.markProgress(frame.createdAt);
   }
 
   private observeResponseEnd(frame: ProviderStreamFrame): void {
@@ -555,6 +605,7 @@ export class ProviderStreamSupervisor {
     this.phaseValue = "terminal";
     this.completedAtValue = frame.createdAt;
     this.terminalProviderEventValue = frame.providerEvent;
+    this.markProgress(frame.createdAt);
   }
 
   private observeProviderNotice(frame: ProviderStreamFrame): void {
@@ -568,13 +619,14 @@ export class ProviderStreamSupervisor {
     }
   }
 
-  private resolveToolCallKey(frame: ProviderStreamFrame): string {
-    const providerIndex = frame.metadata.providerIndex;
-    const indexKey = typeof providerIndex === "string" || typeof providerIndex === "number"
-      ? String(providerIndex)
-      : null;
-    if (frame.toolCallId !== null) {
-      const key = `id:${frame.toolCallId}`;
+  private resolveToolCallKey(
+    toolCallId: string | null,
+    toolName: string | null,
+    indexKey: string | null,
+    sequence: number,
+  ): string {
+    if (toolCallId !== null) {
+      const key = `id:${toolCallId}`;
       if (indexKey !== null) this.toolIndexKeys.set(indexKey, key);
       if (this.toolCalls.has(key)) {
         this.currentAnonymousToolKey = key;
@@ -583,7 +635,7 @@ export class ProviderStreamSupervisor {
       const anonymous = this.currentAnonymousToolKey === null ? undefined : this.toolCalls.get(this.currentAnonymousToolKey);
       if (anonymous !== undefined && anonymous.toolCallId === null) {
         this.toolCalls.delete(anonymous.key);
-        const promoted: MutableToolCall = { ...anonymous, key, toolCallId: frame.toolCallId };
+        const promoted: MutableToolCall = { ...anonymous, key, toolCallId };
         this.toolCalls.set(key, promoted);
         this.currentAnonymousToolKey = key;
       }
@@ -600,15 +652,15 @@ export class ProviderStreamSupervisor {
       this.currentAnonymousToolKey = key;
       return key;
     }
-    if (frame.toolName !== null) {
-      const existing = [...this.toolCalls.values()].find((call) => call.toolCallId === null && call.toolName === frame.toolName);
+    if (toolName !== null) {
+      const existing = [...this.toolCalls.values()].find((call) => call.toolCallId === null && call.toolName === toolName);
       if (existing !== undefined) {
         this.currentAnonymousToolKey = existing.key;
         return existing.key;
       }
     }
     if (this.currentAnonymousToolKey !== null) return this.currentAnonymousToolKey;
-    const key = `anonymous:${frame.sequence}`;
+    const key = `anonymous:${sequence}`;
     this.currentAnonymousToolKey = key;
     return key;
   }
@@ -620,6 +672,11 @@ export class ProviderStreamSupervisor {
     if (this.phaseValue === "created" || this.phaseValue === "response_started") {
       this.phaseValue = "output_streaming";
     }
+    this.markProgress(createdAt);
+  }
+
+  private markProgress(createdAt: number): void {
+    this.lastProgressAtValue = createdAt;
   }
 
   private assertIdentity(): void {
@@ -735,6 +792,7 @@ export class ProviderStreamSupervisor {
       routeId: this.lease.routeId,
       phase: this.phaseValue,
       frameCount: this.frameCountValue,
+      responseBytes: this.responseBytesValue,
       nextSequence: this.nextSequenceValue,
       responseStartCount: this.responseStartCountValue,
       responseEndCount: this.responseEndCountValue,
@@ -889,7 +947,24 @@ function normalizeBudget(
       "maximumToolArgumentCharacters",
     ),
     maximumProviderNotices: positiveInteger(override.maximumProviderNotices ?? DEFAULT_BUDGET.maximumProviderNotices, "maximumProviderNotices"),
+    maximumResponseBytes: positiveInteger(
+      override.maximumResponseBytes ?? DEFAULT_BUDGET.maximumResponseBytes,
+      "maximumResponseBytes",
+    ),
   };
+}
+
+function normalizedIdentity(value: string | null): string | null {
+  if (value === null) return null;
+  const normalized = value.trim();
+  return normalized ? normalized : null;
+}
+
+function normalizedProviderIndex(value: JsonValue | undefined): string | null {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized ? normalized : null;
 }
 
 function defaultMaximumFrames(maximumOutputTokens: number): number {

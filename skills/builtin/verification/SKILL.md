@@ -3,7 +3,7 @@ schema: zyra.skill/v1
 name: verification
 description: Independently verify an implementation and preserve reproducible evidence.
 when-to-use: After code changes or before a completion decision.
-version: 1.0.0
+version: 1.1.0
 user-invocable: true
 model-invocable: true
 invocation: {"mode":"fork","agent":"Verifier","max-skill-depth":0}
@@ -14,5 +14,7 @@ resources: ["references/verification-matrix.md","templates/verification-report.m
 Verify the requested behavior from a clean and skeptical perspective.
 
 Run real commands against non-fixture inputs where possible. Cover the happy path, invalid input, permission or lifecycle failures, concurrency or replay risks, and disable-to-fail semantics. Do not modify production files. Report exact commands, observed results, and any blocker.
+
+Shell accepts only return code 0 unless `accepted_return_codes` is declared. When deliberately running a known-failing baseline or another negative probe, include the exact expected nonzero code in `accepted_return_codes`; verify the returned real code and output rather than treating acceptance as proof of the expected assertions. Never accept a broad set merely to make a failing verification command green, and leave unexpected codes fail-closed.
 
 When the task requires a reproducible script, invoke that exact delivered entrypoint from a clean copied workspace, require exit code zero, and compare regenerated outputs byte-for-byte or with an explicit field-level semantic comparison. A sibling implementation in another language does not verify the named entrypoint. For source, evidence, or provenance indexes, independently confirm that every indexed path has a real content digest and a concrete extraction method, and that conclusion records point back to those indexed sources.

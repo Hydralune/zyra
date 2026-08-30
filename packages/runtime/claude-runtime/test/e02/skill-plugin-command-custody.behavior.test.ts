@@ -1707,6 +1707,55 @@ test("skill invocation execution deduplicates exact requests and records backgro
   assert.equal(runtime.inFlightPlans().length, 0);
 });
 
+test("skill invocation enforces the descriptor timeout and propagates cancellation", async () => {
+  const base = descriptor({
+    id: "invoke-timeout-variant",
+    mode: "fork",
+    allowed: ["file_read"],
+    denied: [],
+  });
+  const timed = {
+    ...base,
+    descriptorDigest: digest({ base: base.descriptorDigest, timeout_ms: 25 }),
+    execution: {
+      ...base.execution,
+      timeoutMs: 25,
+    },
+  };
+  const registry = new SkillRegistryRuntime({ now: () => new Date(instant) });
+  registry.commitRevision({ baseRevision: 0, descriptors: [timed] });
+  let invocationId = "";
+  let cancellationObserved = false;
+  const runtime = new SkillInvocationRuntime({
+    registry,
+    resources: new SkillResourceRuntime({
+      workspaceRoot: "G:/variant-workspace",
+      allowOutsideWorkspace: false,
+    }),
+    executor: async (context) => {
+      invocationId = context.plan.invocationId;
+      await new Promise<void>((_resolve, reject) => {
+        const onAbort = (): void => {
+          cancellationObserved = true;
+          reject(context.signal?.reason ?? new Error("missing timeout reason"));
+        };
+        if (context.signal?.aborted) onAbort();
+        else context.signal?.addEventListener("abort", onAbort, { once: true });
+      });
+      return { output: { should_not_complete: true } };
+    },
+  });
+
+  await assert.rejects(
+    runtime.invoke(invocationRequest("invoke-timeout-variant", registry.revision)),
+    /timed out after 25ms/i,
+  );
+  assert.equal(cancellationObserved, true);
+  assert.equal(runtime.inFlightPlans().length, 0);
+  assert.equal(runtime.getResult(invocationId)?.status, "cancelled");
+  assert.equal(runtime.getResult(invocationId)?.metadata.timeout_ms, 25);
+});
+
 test("skill invocation journal fences effect, result, acknowledgement, restore, and reconciliation", () => {
   let tick = 0;
   const now = () => new Date(Date.parse(instant) + tick++ * 1_000);

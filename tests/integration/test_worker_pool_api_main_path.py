@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import os
 import threading
+import time
 import urllib.request
 from contextlib import contextmanager
+from http import HTTPStatus
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
@@ -682,6 +684,450 @@ def test_explicit_resume_rotates_custody_for_active_execution() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    "first_client_detaches",
+    [False, True],
+    ids=["concurrent-listener", "disconnected-listener"],
+)
+def test_explicit_resume_attaches_to_live_execution_owner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    first_client_detaches: bool,
+) -> None:
+    """A second listener must reuse, never supersede, a live dispatch."""
+
+    dispatch_started = threading.Event()
+    attached = threading.Event()
+    release_dispatch = threading.Event()
+    dispatches: list[str] = []
+    fences: list[str] = []
+    acquisitions: list[bool] = []
+    results: list[tuple[int, dict[str, Any]]] = []
+    failures: list[BaseException] = []
+
+    class _JournalStore:
+        @staticmethod
+        def journal(*, limit: int) -> list[Any]:
+            assert limit == 10000
+            return []
+
+    class _Events:
+        @staticmethod
+        def project_after(_store: Any, _sequence: int) -> list[Any]:
+            return []
+
+    class _PoolApi:
+        pool = SimpleNamespace(store=_JournalStore(), events=_Events())
+
+        @staticmethod
+        def route_post(
+            _parts: Any,
+            _payload: Any,
+            *,
+            task_state: Any,
+        ) -> None:
+            assert task_state is not None
+            return None
+
+        @staticmethod
+        def finalize_task(
+            _state: Any,
+            *,
+            success: bool,
+            summary: str,
+        ) -> None:
+            assert success is True
+            assert "completed" in summary
+
+    real_acquire = api_main._acquire_task_execution_owner
+
+    def observe_acquire(
+        state: Any,
+        reservation: Any,
+    ) -> tuple[Any, bool]:
+        owner, acquired = real_acquire(state, reservation)
+        acquisitions.append(acquired)
+        if not acquired:
+            attached.set()
+        return owner, acquired
+
+    def run_graph(state: Any, *, execution_context: Any) -> list[Any]:
+        assert execution_context is not None
+        dispatches.append(state.task_id)
+        dispatch_started.set()
+        assert release_dispatch.wait(timeout=10)
+        state.status = PlanNodeStatus.COMPLETED
+        for node in state.plan_nodes.values():
+            if node.status not in {
+                PlanNodeStatus.CANCELLED,
+                PlanNodeStatus.SUPERSEDED,
+            }:
+                node.status = PlanNodeStatus.COMPLETED
+        return []
+
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Finish one generic long-running task.", "auto_run": False},
+        )["task"]
+        monkeypatch.setattr(api_main, "_acquire_task_execution_owner", observe_acquire)
+        monkeypatch.setattr(api_main, "get_worker_pool_api", lambda: _PoolApi())
+        monkeypatch.setattr(
+            api_main,
+            "_fence_pending_task_reservation",
+            lambda _pool, state, *, reason: fences.append(
+                f"{state.task_id}:{reason}"
+            ),
+        )
+        monkeypatch.setattr(api_main, "run_task_graph", run_graph)
+        monkeypatch.setattr(
+            api_main,
+            "graph_execution_context",
+            lambda: SimpleNamespace(owner="test"),
+        )
+        monkeypatch.setattr(
+            api_main,
+            "curate_terminal_task",
+            lambda _store, _state: None,
+        )
+        path = f"/tasks/{task['task_id']}/run"
+
+        def invoke(resume_id: str, timeout: float) -> None:
+            try:
+                results.append(
+                    _post_with_status(
+                        base_url,
+                        path,
+                        {"resume_invocation_id": resume_id},
+                        timeout=timeout,
+                    )
+                )
+            except BaseException as error:  # noqa: BLE001 - detach is intentional.
+                failures.append(error)
+
+        first = threading.Thread(
+            target=invoke,
+            args=("listener-one", 0.15 if first_client_detaches else 10),
+            daemon=True,
+        )
+        first.start()
+        assert dispatch_started.wait(timeout=5), (
+            results,
+            [repr(error) for error in failures],
+        )
+        if first_client_detaches:
+            first.join(timeout=2)
+            assert not first.is_alive()
+
+        second = threading.Thread(
+            target=invoke,
+            args=("listener-two", 10),
+            daemon=True,
+        )
+        second.start()
+        try:
+            assert attached.wait(timeout=5)
+            assert dispatches == [task["task_id"]]
+            assert len(fences) == 1
+        finally:
+            release_dispatch.set()
+            first.join(timeout=10)
+            second.join(timeout=10)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert acquisitions == [True, False]
+        assert len(results) == (1 if first_client_detaches else 2)
+        assert all(status == 200 for status, _body in results)
+        assert all(body["task"]["status"] == "completed" for _status, body in results)
+        attached_responses = [
+            body for _status, body in results if "execution_attachment" in body
+        ]
+        assert len(attached_responses) == 1
+        assert attached_responses[0]["execution_attachment"][
+            "physical_dispatch_reused"
+        ] is True
+        assert len(failures) == (1 if first_client_detaches else 0)
+
+
+def test_dead_execution_owner_is_replaced_and_cannot_release_successor() -> None:
+    state, _created = api_main.make_task_created_event(
+        "Recover one generic task after its execution thread exits."
+    )
+    owners: list[Any] = []
+
+    def abandon_owner() -> None:
+        owner, acquired = api_main._acquire_task_execution_owner(state, None)
+        assert acquired is True
+        owners.append(owner)
+
+    departed = threading.Thread(target=abandon_owner)
+    departed.start()
+    departed.join(timeout=5)
+    assert not departed.is_alive()
+
+    stale_owner = owners[0]
+    successor, acquired = api_main._acquire_task_execution_owner(state, None)
+    assert acquired is True
+    assert successor.owner_token != stale_owner.owner_token
+
+    started = api_main._task_execution_started_event(state, None, successor)
+    marker = state.metadata["execution_in_flight"]
+    assert marker["process_instance_id"] == api_main._TASK_EXECUTION_INSTANCE_ID
+    assert marker["owner_token"] == successor.owner_token
+    assert started.payload["owner_token"] == successor.owner_token
+
+    api_main._complete_task_execution_owner(
+        stale_owner,
+        status=HTTPStatus.SERVICE_UNAVAILABLE,
+        body={"error": "stale-owner"},
+    )
+    assert api_main._TASK_EXECUTION_OWNERS[state.task_id] is successor
+
+    api_main._complete_task_execution_owner(
+        successor,
+        status=HTTPStatus.OK,
+        body={"task": {"status": "completed"}},
+    )
+    assert state.task_id not in api_main._TASK_EXECUTION_OWNERS
+
+
+def test_exhausted_physical_failure_reconciles_task_and_releases_exact_owner(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Terminalize one arbitrary failed physical execution.", "auto_run": False},
+        )["task"]
+        store = api_main.get_store()
+        state = store.load_task(task["task_id"])
+        assert state is not None
+        owner, acquired = api_main._acquire_task_execution_owner(state, None)
+        assert acquired is True
+        started = api_main._task_execution_started_event(state, None, owner)
+        ensure_default_graph(state)
+        execute = next(
+            node
+            for node in state.plan_nodes.values()
+            if node.metadata.get("stage") == "execute"
+        )
+        execute.status = PlanNodeStatus.FAILED
+        execute.metadata["worker_result"] = {
+            "ok": False,
+            "error": "node_arbitrary_worker_failed",
+            "summary": "arbitrary physical worker failed terminally",
+        }
+        state.status = PlanNodeStatus.FAILED
+        state.metadata["physical_execution_recovery_passes"] = 2
+        state.metadata["physical_execution_failure_receipt"] = {
+            "attempt_id": "attempt-arbitrary-terminal",
+            "outcome": "failed",
+            "terminal": True,
+            "error_code": "node_arbitrary_worker_failed",
+        }
+
+        api_main._project_task_graph_execution_state(
+            state,
+            [started],
+            "physical_retry_exhausted",
+        )
+        # A duplicate terminal callback is diagnostic-only and must not create
+        # a new owner or overwrite the already published result.
+        api_main._project_task_graph_execution_state(
+            state,
+            [started],
+            "physical_retry_exhausted",
+        )
+
+        stored = store.load_task(task["task_id"])
+        assert stored is not None
+        assert stored.status == PlanNodeStatus.FAILED
+        assert "execution_in_flight" not in stored.metadata
+        assert stored.metadata["last_execution_error"]["error"] == (
+            "node_arbitrary_worker_failed"
+        )
+        assert stored.metadata["task_execution_terminal_reconciliation"][
+            "terminal"
+        ] is True
+        assert owner.completed.is_set()
+        assert owner.response is not None
+        assert owner.response[0] == HTTPStatus.SERVICE_UNAVAILABLE
+        assert state.task_id not in api_main._TASK_EXECUTION_OWNERS
+
+
+def test_expired_running_task_reconciles_exact_terminal_worker_receipt_on_get(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {
+                "goal": "Run one arbitrary bounded task and expose its terminal state.",
+                "auto_run": False,
+            },
+        )["task"]
+        store = api_main.get_store()
+        state = store.load_task(task["task_id"])
+        assert state is not None
+        owner, acquired = api_main._acquire_task_execution_owner(state, None)
+        assert acquired is True
+        started = api_main._task_execution_started_event(state, None, owner)
+        state.metadata["runtime_hints"] = {
+            "external_deadline_epoch_ms": int(time.time() * 1000) - 1_000,
+        }
+        receipt = api_main.get_worker_pool_api().finalize_task(
+            state,
+            success=False,
+            summary="arbitrary physical execution failed before API unwind",
+        )
+        assert receipt is not None
+        api_main.persist_events(store, [started])
+        store.save_checkpoint(state)
+
+        first = _get(base_url, f"/tasks/{state.task_id}")["task"]
+        second = _get(base_url, f"/tasks/{state.task_id}")["task"]
+
+        assert first["status"] == "failed"
+        assert second["status"] == "failed"
+        assert "execution_in_flight" not in first["metadata"]
+        reconciliation = first["metadata"][
+            "task_execution_terminal_reconciliation"
+        ]
+        assert reconciliation["phase"] == "external_deadline_terminal_receipt"
+        assert reconciliation["execution_owner_token"] == owner.owner_token
+        assert reconciliation["attempt_id"] == receipt["attempt_id"]
+        assert reconciliation["lease_id"] == receipt["lease_id"]
+        assert reconciliation["execution_receipt_id"] == receipt["receipt_id"]
+        assert owner.completed.is_set()
+        assert owner.response is not None
+        assert owner.response[0] == HTTPStatus.SERVICE_UNAVAILABLE
+        assert state.task_id not in api_main._TASK_EXECUTION_OWNERS
+        terminal_events = [
+            event
+            for event in store.task_events(state.task_id)
+            if event.get("payload", {}).get("phase")
+            == "external_deadline_terminal_receipt"
+        ]
+        assert len(terminal_events) == 1
+
+
+def test_expired_reconciliation_does_not_hold_task_lock_during_graph_recovery(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {
+                "goal": "Close one arbitrary terminal physical attempt without lock inversion.",
+                "auto_run": False,
+            },
+        )["task"]
+        store = api_main.get_store()
+        state = store.load_task(task["task_id"])
+        assert state is not None
+        owner, acquired = api_main._acquire_task_execution_owner(state, None)
+        assert acquired is True
+        api_main._task_execution_started_event(state, None, owner)
+        state.metadata["runtime_hints"] = {
+            "external_deadline_epoch_ms": int(time.time() * 1000) - 1_000,
+        }
+        real_pool_api = api_main.get_worker_pool_api()
+        receipt = real_pool_api.finalize_task(
+            state,
+            success=False,
+            summary="arbitrary terminal result for lock-order regression",
+        )
+        assert receipt is not None
+        store.save_checkpoint(state)
+
+        recovery_entered = threading.Event()
+        task_lock_acquired = threading.Event()
+
+        class _BlockingRecoveryProbe:
+            pool = real_pool_api.pool
+
+            def recover_task_acquisition_from_graph(self, candidate):
+                recovery_entered.set()
+                if not task_lock_acquired.wait(timeout=2):
+                    raise RuntimeError(
+                        "graph recovery was entered while the task lock was held"
+                    )
+                return real_pool_api.recover_task_acquisition_from_graph(candidate)
+
+        results: list[Any] = []
+        failures: list[BaseException] = []
+
+        def reconcile() -> None:
+            try:
+                results.append(api_main._reconcile_expired_task_execution(state))
+            except BaseException as error:  # noqa: BLE001 - relay thread failure.
+                failures.append(error)
+
+        def acquire_task_lock() -> None:
+            with api_main._task_lock(state.task_id):
+                task_lock_acquired.set()
+
+        with patch.object(
+            api_main,
+            "get_worker_pool_api",
+            return_value=_BlockingRecoveryProbe(),
+        ):
+            reconciliation = threading.Thread(target=reconcile)
+            reconciliation.start()
+            assert recovery_entered.wait(timeout=2)
+            probe = threading.Thread(target=acquire_task_lock)
+            probe.start()
+            assert task_lock_acquired.wait(timeout=1)
+            reconciliation.join(timeout=5)
+            probe.join(timeout=5)
+
+        assert not reconciliation.is_alive()
+        assert not probe.is_alive()
+        assert failures == []
+        assert len(results) == 1
+        assert results[0].status == PlanNodeStatus.FAILED
+        assert owner.completed.is_set()
+
+
+def test_late_exhausted_failure_cannot_overwrite_cancelled_canonical_task(
+    tmp_path: Path,
+) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(
+            base_url,
+            "/tasks",
+            {"goal": "Fence a stale arbitrary physical terminal receipt.", "auto_run": False},
+        )["task"]
+        store = api_main.get_store()
+        stale = store.load_task(task["task_id"])
+        canonical = store.load_task(task["task_id"])
+        assert stale is not None and canonical is not None
+        canonical.status = PlanNodeStatus.CANCELLED
+        store.save_checkpoint(canonical)
+        stale.status = PlanNodeStatus.FAILED
+        stale.metadata["physical_execution_failure_receipt"] = {
+            "attempt_id": "attempt-late-terminal",
+            "outcome": "failed",
+            "terminal": True,
+        }
+
+        api_main._project_task_graph_execution_state(
+            stale,
+            [],
+            "physical_retry_exhausted",
+        )
+
+        stored = store.load_task(task["task_id"])
+        assert stored is not None
+        assert stored.status == PlanNodeStatus.CANCELLED
+        assert "task_execution_terminal_reconciliation" not in stored.metadata
+
+
 def test_explicit_resume_reopens_blocked_stage_without_recovery_plan() -> None:
     state, _created = api_main.make_task_created_event(
         "Resume a graph blocked after its execution owner exited."
@@ -1054,6 +1500,15 @@ def test_subagent_api_admits_through_typescript_omp_gate_before_child_execution(
             suspended=suspended,
         )
         assert spawned["canonical_agent_owner"] == "typescript"
+        assert spawned["record"] is not None, json.dumps(
+            {
+                "error": spawned.get("error"),
+                "worker_result": spawned.get("worker_result"),
+                "physical_receipt": spawned.get("physical_receipt"),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
         assert spawned["record"]["status"] == "completed", json.dumps(
             spawned["record"], ensure_ascii=False, sort_keys=True
         )

@@ -576,21 +576,32 @@ export class ClaudeRuntimeCore {
     const restoredObligationEvidence = selectRestoredObligationEvidence(
       input.restoredState,
     );
+    const handoffObligationEvidence = asObject(
+      asObject(input.metadata).task_handoff_obligation_evidence,
+    );
+    const initialObligationEvidence = mergeObligationEvidence(
+      handoffObligationEvidence,
+      restoredObligationEvidence,
+    );
     const successfulSkillInvocations: JsonObject[] = Array.isArray(
-      restoredObligationEvidence.successful_skill_invocations,
+      initialObligationEvidence.successful_skill_invocations,
     )
-      ? restoredObligationEvidence.successful_skill_invocations
+      ? initialObligationEvidence.successful_skill_invocations
         .map((item) => asObject(item))
         .filter((item) => asString(item.name))
       : [];
     const successfulExecutedPaths = new Map<string, JsonObject>();
-    if (Array.isArray(restoredObligationEvidence.successful_executed_paths)) {
-      for (const item of restoredObligationEvidence.successful_executed_paths) {
+    if (Array.isArray(initialObligationEvidence.successful_executed_paths)) {
+      for (const item of initialObligationEvidence.successful_executed_paths) {
         const record = asObject(item);
         const path = asString(record.path);
         if (path) successfulExecutedPaths.set(path, record);
       }
     }
+    const initialObligationWorkspaceMutationCount = Math.max(
+      0,
+      Math.floor(Number(initialObligationEvidence.workspace_mutation_count) || 0),
+    );
     const progressive = new ProgressiveExecutionRuntime({
       constraints: config.runtimeConstraints,
       deliveryContract,
@@ -602,7 +613,10 @@ export class ClaudeRuntimeCore {
       schema: "zyra.runtime-obligation-evidence/v1",
       successful_skill_invocations: successfulSkillInvocations.map((item) => ({ ...item })),
       successful_executed_paths: [...successfulExecutedPaths.values()].map((item) => ({ ...item })),
-      workspace_mutation_count: progressive.snapshot().workspaceMutationCount,
+      workspace_mutation_count: Math.max(
+        initialObligationWorkspaceMutationCount,
+        progressive.snapshot().workspaceMutationCount,
+      ),
     });
     const semanticStall = new SemanticStallRuntime({
       modelName: config.modelName,
@@ -632,6 +646,7 @@ export class ClaudeRuntimeCore {
       ];
     }
 
+    const runtimeLineage = runtimeLineageEventPayload(input);
     const emit = async (phase: string, payload: JsonObject = {}): Promise<void> => {
       eventSequence += 1;
       const publicPayload = publicRuntimeEventPayload(phase, payload);
@@ -645,6 +660,7 @@ export class ClaudeRuntimeCore {
         run_id: input.runId,
         task_id: input.taskId,
         worker_request_id: input.workerRequestId,
+        ...(runtimeLineage ? { runtime_lineage: runtimeLineage } : {}),
       };
       if (phase === "model_stream_report") {
         e01.observeProviderGateway(phase, {
@@ -1651,6 +1667,9 @@ export class ClaudeRuntimeCore {
               step,
               progressive.snapshot().unresolvedVerificationScopes,
             )
+            && !progressive.canCorrectTaskAuthoredVerificationHarness(
+              mutationPathForTool(step),
+            )
           ) {
             immediateResults.set(toolCallId, {
               tool_call_id: toolCallId,
@@ -1760,10 +1779,7 @@ export class ClaudeRuntimeCore {
                 termination: "exited",
               },
             });
-          } else if (
-            progressive.hasUnresolvedVerificationFailures()
-            && isValidationOnlyMutation(step)
-          ) {
+          } else if (shouldBlockValidationOnlyMutation(step, progressive)) {
             immediateResults.set(toolCallId, {
               tool_call_id: toolCallId,
               ok: false,
@@ -1959,6 +1975,9 @@ export class ClaudeRuntimeCore {
                   isClearlyVerificationDrivingTool(step),
                 progressive_verification_scope:
                   verificationScopeForTool(step),
+                progressive_verification_harness_path:
+                  verificationHarnessPathForTool(step),
+                progressive_mutation_path: mutationPathForTool(step),
                 progressive_repair_driving:
                   isClearlyRepairDrivingTool(step)
                   || (
@@ -2151,6 +2170,13 @@ export class ClaudeRuntimeCore {
                 ? e01.snapshot().query.toolCalls
                 : [],
             );
+            const verificationHarnessPath = verificationHarnessPathForToolResult(
+              step,
+              result,
+              step.tool_name === "shell_wait"
+                ? e01.snapshot().query.toolCalls
+                : [],
+            );
             const environmentRecoveryDriving = isEnvironmentRecoveryToolResult(
               step,
               result,
@@ -2167,6 +2193,7 @@ export class ClaudeRuntimeCore {
                     ? {
                         progressive_verification_driving: true,
                         progressive_verification_scope: verificationScope,
+                        progressive_verification_harness_path: verificationHarnessPath,
                       }
                     : {}),
                   ...(environmentRecoveryDriving
@@ -3655,6 +3682,18 @@ export function isValidationOnlyMutation(
   return targets.length > 0 && targets.every((target) => isValidationOnlyDeliveryPath(target));
 }
 
+export function shouldBlockValidationOnlyMutation(
+  step: { tool_name: string; arguments: JsonObject },
+  progressive: ProgressiveExecutionRuntime,
+): boolean {
+  return progressive.hasUnresolvedVerificationFailures()
+    && isValidationOnlyMutation(step)
+    && !progressive.canCorrectTaskAuthoredVerificationHarness(
+      mutationPathForTool(step),
+    )
+    && !progressive.canStageValidationMaterialAfterRepair();
+}
+
 export function isGeneratedDeliveryMutation(
   step: { tool_name: string; arguments: JsonObject },
 ): boolean {
@@ -3782,6 +3821,13 @@ export function verificationScopeForTool(
   return verificationScope(shellInvocationText(step.arguments));
 }
 
+export function verificationHarnessPathForTool(
+  step: { tool_name: string; arguments: JsonObject },
+): string {
+  if (!isClearlyVerificationDrivingTool(step)) return "";
+  return verificationHarnessPath(step.arguments);
+}
+
 export function isClearlyEnvironmentRecoveryTool(
   step: { tool_name: string; arguments: JsonObject },
 ): boolean {
@@ -3861,6 +3907,27 @@ export function verificationScopeForToolResult(
     : "";
 }
 
+export function verificationHarnessPathForToolResult(
+  step: { tool_name: string; arguments: JsonObject },
+  response: ToolExecutionResponse,
+  historicalCalls: readonly {
+    toolCallId: string;
+    name: string;
+    arguments: JsonObject;
+  }[] = [],
+): string {
+  const direct = verificationHarnessPathForTool(step);
+  if (direct) return direct;
+  if (step.tool_name !== "shell_wait") return "";
+  const origin = originatingToolCall(response, historicalCalls);
+  return origin
+    ? verificationHarnessPathForTool({
+        tool_name: origin.name,
+        arguments: origin.arguments,
+      })
+    : "";
+}
+
 function originatingToolCall(
   response: ToolExecutionResponse,
   historicalCalls: readonly {
@@ -3908,6 +3975,70 @@ function shellInvocationText(arguments_: JsonObject): string {
   return [executable, argv].filter(Boolean).join(" ").trim();
 }
 
+function verificationHarnessPath(arguments_: JsonObject): string {
+  const executable = asString(arguments_.executable).trim();
+  const structuredArgv = Array.isArray(arguments_.argv)
+    ? arguments_.argv.filter((item): item is string => typeof item === "string")
+    : [];
+  const tokens = executable
+    ? [executable, ...structuredArgv]
+    : shellInvocationText(arguments_).match(/(?:"[^"]*"|'[^']*'|\S+)/gu)
+      ?.map((item) => item.replace(/^['"]|['"]$/gu, "")) ?? [];
+  if (tokens.length < 2) return "";
+
+  const runner = tokens[0].replaceAll("\\", "/").split("/").at(-1)?.toLowerCase() ?? "";
+  const argv = tokens.slice(1);
+  let selected = "";
+  if (/^python(?:\d+(?:\.\d+)*)?(?:\.exe)?$/iu.test(runner)) {
+    for (let index = 0; index < argv.length; index += 1) {
+      const argument = argv[index];
+      if (["-m", "-c"].includes(argument)) return "";
+      if (["-W", "-X"].includes(argument)) {
+        index += 1;
+        continue;
+      }
+      if (argument.startsWith("-")) continue;
+      selected = argument;
+      break;
+    }
+  } else if (["node", "node.exe", "bun", "bun.exe", "deno", "deno.exe"].includes(runner)) {
+    selected = argv.find((argument) => !argument.startsWith("-")) ?? "";
+  } else if (["pwsh", "pwsh.exe", "powershell", "powershell.exe"].includes(runner)) {
+    const fileIndex = argv.findIndex((argument) => /^-file$/iu.test(argument));
+    selected = fileIndex >= 0 ? argv[fileIndex + 1] ?? "" : "";
+  } else if (["sh", "bash", "dash", "ash"].includes(runner)) {
+    selected = argv.find((argument) => !argument.startsWith("-")) ?? "";
+  }
+  if (!/\.(?:py|pyw|js|mjs|cjs|ts|tsx|ps1|sh)$/iu.test(selected)) return "";
+  return normalizedWorkspaceLogicalPath(selected);
+}
+
+function mutationPathForTool(
+  step: { tool_name: string; arguments: JsonObject },
+): string {
+  if (!["write", "file_write", "edit", "file_edit"].includes(step.tool_name)) return "";
+  return normalizedWorkspaceLogicalPath(
+    asString(step.arguments.path || step.arguments.file_path),
+  );
+}
+
+function normalizedWorkspaceLogicalPath(value: string): string {
+  const normalized = value
+    .trim()
+    .replaceAll("\\", "/")
+    .replace(/^\.\//u, "")
+    .replace(/\/+/gu, "/");
+  if (
+    !normalized
+    || normalized.startsWith("/")
+    || /^[a-z]:\//iu.test(normalized)
+    || normalized.split("/").some((segment) => segment === "..")
+  ) {
+    return "";
+  }
+  return normalized;
+}
+
 function verificationScope(value: string): string {
   const normalized = value
     .toLowerCase()
@@ -3920,6 +4051,66 @@ function verificationScope(value: string): string {
   const semanticScope = semanticVerificationScope(normalized);
   if (semanticScope) return semanticScope;
   return normalized ? `shell:${createHash("sha256").update(normalized).digest("hex").slice(0, 24)}` : "";
+}
+
+type PythonModuleInvocation = {
+  module: string;
+  argv: string[];
+};
+
+function pythonModuleInvocations(value: string): PythonModuleInvocation[] {
+  const invocations: PythonModuleInvocation[] = [];
+  const segments = value
+    .split(/&&|\|\||;|\r?\n/gu)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  for (const segment of segments) {
+    const tokens = segment.match(/(?:"[^"]*"|'[^']*'|[^\s|<>]+)/gu)
+      ?.map((item) => item.replace(/^['"]|['"]$/gu, "")) ?? [];
+    for (let runnerIndex = 0; runnerIndex < tokens.length; runnerIndex += 1) {
+      const runner = tokens[runnerIndex]
+        .replaceAll("\\", "/")
+        .split("/")
+        .at(-1)
+        ?.toLowerCase() ?? "";
+      if (!/^python(?:\d+(?:\.\d+)*)?(?:\.exe)?$/iu.test(runner)) continue;
+
+      let index = runnerIndex + 1;
+      while (index < tokens.length) {
+        const argument = tokens[index];
+        if (argument === "-m") {
+          const module = (tokens[index + 1] ?? "").trim().toLowerCase();
+          if (module && !module.startsWith("-")) {
+            invocations.push({ module, argv: tokens.slice(index + 2) });
+          }
+          break;
+        }
+        // These switches select inline code or terminate interpreter option
+        // processing; a later `-m` is data, not a module invocation.
+        if (argument === "--" || /^-c/u.test(argument)) break;
+        // CPython's global options may legally precede `-m`. -W/-X and the
+        // hash-pyc option consume a following operand unless attached.
+        if (["-W", "-X", "--check-hash-based-pycs"].includes(argument)) {
+          index += 2;
+          continue;
+        }
+        if (/^-(?:W|X).+/u.test(argument)) {
+          index += 1;
+          continue;
+        }
+        if (/^-(?:b|B|d|E|h|i|I|O|P|q|s|S|u|v|V|x)+$/u.test(argument)) {
+          index += 1;
+          continue;
+        }
+        if (/^--(?:help(?:-env|-xoptions|-all)?|version)$/u.test(argument)) {
+          index += 1;
+          continue;
+        }
+        break;
+      }
+    }
+  }
+  return invocations;
 }
 
 function semanticVerificationScope(value: string): string {
@@ -3939,6 +4130,13 @@ function semanticVerificationScope(value: string): string {
   }
 
   const pytestTargets = new Set<string>();
+  for (const invocation of pythonModuleInvocations(value)) {
+    if (invocation.module !== "pytest") continue;
+    const target = invocation.argv.find(
+      (item) => !item.startsWith("-") && /(?:^|\/)tests?(?:\/|$)/u.test(item),
+    );
+    pytestTargets.add(target?.replace(/["']/g, "") ?? "all");
+  }
   for (const match of value.matchAll(
     /(?:^|\s)(?:python(?:3)?\s+-m\s+)?(?:pytest|py\.test)\b([^;&|\r\n]*)/giu,
   )) {
@@ -3973,7 +4171,9 @@ function isClearlyVerificationDrivingShellCommand(value: string): boolean {
     // not turn them into an alternate verification scope.
     if (isDeliveryEvidenceGeneratorCommand(segment)) return false;
     if (/\bpython(?:3)?\b[^;&|]*\s-(?:c|e)\b/i.test(segment)) return false;
-    if (/\bpython(?:3)?\s+-m\s+(?:pytest|unittest|compileall)\b/i.test(segment)) return true;
+    if (pythonModuleInvocations(segment).some(
+      ({ module }) => ["pytest", "unittest", "compileall", "py_compile"].includes(module),
+    )) return true;
     if (/\b(?:pytest|py\.test)\b/i.test(segment)) return true;
     if (/\b(?:npm|pnpm|yarn|bun)\s+(?:test|check|lint|build|typecheck)\b/i.test(segment)) return true;
     if (/\b(?:npm|pnpm|yarn|bun)\s+run\s+(?:test|check|lint|build|typecheck|verify|validate|smoke|e2e|integration)\b/i.test(segment)) return true;
@@ -4286,6 +4486,35 @@ function publicRuntimeEventPayload(phase: string, payload: JsonObject): JsonObje
   };
 }
 
+export function runtimeLineageEventPayload(input: RuntimeRunInput): JsonObject | null {
+  const lineage = asObject(asObject(input.metadata).runtime_lineage);
+  const schema = asString(lineage.schema);
+  const relation = asString(lineage.relation);
+  const relationId = asString(lineage.relation_id);
+  const parentRunId = asString(lineage.parent_run_id);
+  const parentTaskId = asString(lineage.parent_task_id);
+  const parentSessionId = asString(lineage.parent_session_id);
+  const parentWorkerRequestId = asString(lineage.parent_worker_request_id);
+  if (
+    schema !== "zyra.runtime-lineage/v1"
+    || !["agent", "skill"].includes(relation)
+    || !relationId
+    || !parentRunId
+    || !parentTaskId
+    || !parentSessionId
+    || !parentWorkerRequestId
+  ) return null;
+  return {
+    schema,
+    relation,
+    relation_id: relationId,
+    parent_run_id: parentRunId,
+    parent_task_id: parentTaskId,
+    parent_session_id: parentSessionId,
+    parent_worker_request_id: parentWorkerRequestId,
+  };
+}
+
 export function e01RuntimeEventPayload(phase: string, payload: JsonObject): JsonObject {
   if (phase !== "model_request_prepared") return payload;
   const request = asObject(payload.provider_request);
@@ -4387,6 +4616,51 @@ function selectRestoredObligationEvidence(
     if (snapshot.schema === "zyra.runtime-obligation-evidence/v1") return snapshot;
   }
   return {};
+}
+
+function mergeObligationEvidence(...candidates: readonly JsonObject[]): JsonObject {
+  const skills = new Map<string, JsonObject>();
+  const paths = new Map<string, JsonObject>();
+  let workspaceMutationCount = 0;
+  for (const candidate of candidates) {
+    if (candidate.schema !== "zyra.runtime-obligation-evidence/v1") continue;
+    workspaceMutationCount = Math.max(
+      workspaceMutationCount,
+      Math.max(0, Math.floor(Number(candidate.workspace_mutation_count) || 0)),
+    );
+    if (Array.isArray(candidate.successful_skill_invocations)) {
+      for (const item of candidate.successful_skill_invocations) {
+        const record = asObject(item);
+        const name = asString(record.name).trim();
+        if (!name) continue;
+        const key = [name, record.tool_call_id, record.child_task_id]
+          .map((value) => asString(value))
+          .join("\u001f");
+        skills.set(key, record);
+      }
+    }
+    if (Array.isArray(candidate.successful_executed_paths)) {
+      for (const item of candidate.successful_executed_paths) {
+        const record = asObject(item);
+        const path = normalizedWorkspaceLogicalPath(asString(record.path));
+        if (!path) continue;
+        const previous = paths.get(path);
+        if (
+          previous === undefined
+          || Number(record.workspace_mutation_count ?? 0)
+            >= Number(previous.workspace_mutation_count ?? 0)
+        ) {
+          paths.set(path, { ...record, path });
+        }
+      }
+    }
+  }
+  return {
+    schema: "zyra.runtime-obligation-evidence/v1",
+    successful_skill_invocations: [...skills.values()].slice(-64),
+    successful_executed_paths: [...paths.values()].slice(-64),
+    workspace_mutation_count: workspaceMutationCount,
+  };
 }
 
 function selectRestoredSemanticStallSnapshot(

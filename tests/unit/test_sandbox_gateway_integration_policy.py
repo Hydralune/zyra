@@ -179,6 +179,25 @@ class SandboxGatewayIntegrationPolicyTests(unittest.TestCase):
                 }
             )
 
+    def test_structured_argv_rejects_repeated_executable_token(self) -> None:
+        cases = (
+            ("python.exe", "python.exe"),
+            (r"C:\\Python313\\PYTHON.EXE", "python.exe"),
+            ("/usr/local/bin/node", "NODE"),
+        )
+        for executable, repeated in cases:
+            with self.subTest(executable=executable, repeated=repeated):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "argv contains arguments only and must not repeat executable",
+                ):
+                    self.bundle.policy_runtime.command_from_arguments(
+                        {
+                            "executable": executable,
+                            "argv": [repeated, "--version"],
+                        }
+                    )
+
     def test_benchmark_profile_allows_exactly_approved_shell_composition_and_network(self) -> None:
         bundle = build_gateway_runtime_bundle(
             workspace_root=self.workspace,

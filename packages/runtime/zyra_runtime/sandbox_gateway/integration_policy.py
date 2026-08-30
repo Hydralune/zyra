@@ -773,6 +773,10 @@ class GatewayPolicyRuntime:
             raise ValueError("structured executable and argv are required")
         if not executable or "\x00" in executable:
             raise ValueError("executable is invalid")
+        if argv and _executable_name(argv[0]) == _executable_name(executable):
+            raise ValueError(
+                "argv contains arguments only and must not repeat executable"
+            )
         if len(argv) > 512:
             raise ValueError("argv exceeds the gateway item budget")
         if sum(len(item) for item in argv) > self.config.maximum_argument_chars:

@@ -63,6 +63,7 @@ class GatewayRuntimeBundle:
     sealed: bool
     stage_workspace_snapshot: bool = False
     backend_action_dispatch_port: Any | None = None
+    task_mutation_policy_guard: Any | None = None
 
     def descriptor(self) -> dict[str, Any]:
         descriptor = {
@@ -98,7 +99,7 @@ class GatewayRuntimeBundleRegistry:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._bundles: dict[
-            tuple[str, str, str, int, int, bool, bool], GatewayRuntimeBundle
+            tuple[str, str, str, int, int, int, bool, bool], GatewayRuntimeBundle
         ] = {}
 
     def get_or_create(
@@ -114,6 +115,7 @@ class GatewayRuntimeBundleRegistry:
         artifacts = Path(artifact_root).resolve()
         services = dict(runtime_services or {})
         action_port = services.get("backend_action_dispatch_port")
+        mutation_policy_guard = services.get("task_mutation_policy_guard")
         allow_executable_source = bool(
             services.get("sandbox_gateway_allow_executable_source", False)
         )
@@ -126,6 +128,7 @@ class GatewayRuntimeBundleRegistry:
             str(worker_id),
             id(workspace_edit_port),
             id(action_port),
+            id(mutation_policy_guard),
             allow_executable_source,
             stage_workspace_snapshot,
         )
@@ -452,6 +455,7 @@ def build_gateway_runtime_bundle(
             services.get("sandbox_gateway_stage_workspace_snapshot", False)
         ),
         backend_action_dispatch_port=services.get("backend_action_dispatch_port"),
+        task_mutation_policy_guard=services.get("task_mutation_policy_guard"),
     )
 
 

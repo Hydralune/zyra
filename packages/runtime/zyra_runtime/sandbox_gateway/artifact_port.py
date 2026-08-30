@@ -156,6 +156,15 @@ class GatewayFileArtifactPort:
         after = result.access
         transaction = getattr(result, "transaction", None)
         transaction_id = str(getattr(transaction, "transaction_id", ""))
+        path_result = next(
+            (
+                item
+                for item in tuple(getattr(transaction, "path_results", ()) or ())
+                if str(getattr(item, "logical_path", "")) == request.logical_path
+            ),
+            None,
+        )
+        path_disposition = str(getattr(path_result, "disposition", "") or "")
         result_artifacts = tuple(getattr(result, "artifact_refs", ()) or ())
         artifact_ref = ""
         if result_artifacts:
@@ -189,6 +198,9 @@ class GatewayFileArtifactPort:
                 "detected_content_type": decision.detected_content_type,
                 "workspace_owner": "WorkspaceManagerRuntime",
                 "write_owner": "WorkspaceEditPort",
+                "workspace_path_disposition": path_disposition,
+                "workspace_path_created": path_disposition == "created",
+                "workspace_path_existed_before": path_disposition == "replaced",
             },
         )
         if self.event_port is None:

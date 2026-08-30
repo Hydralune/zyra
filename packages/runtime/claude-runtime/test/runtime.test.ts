@@ -59,10 +59,15 @@ import {
   isEnvironmentRecoveryToolResult,
   modelCompactionPrompt,
   preDeliveryInspectionGuidance,
+  runtimeLineageEventPayload,
   shouldCheckpointRuntimePhase,
+  shouldBlockValidationOnlyMutation,
   verificationScopeForTool,
   verificationScopeForToolResult,
+  verificationHarnessPathForTool,
+  verificationHarnessPathForToolResult,
 } from "../src/query-engine.ts";
+import { forkedSkillResourceBudget } from "../src/skills/runtime.ts";
 
 class MemoryHost implements RuntimeHost {
   readonly events: RuntimeEvent[] = [];
@@ -258,6 +263,69 @@ function input(overrides: Partial<RuntimeRunInput> = {}): RuntimeRunInput {
   };
 }
 
+test("forked skills reserve parent closeout and cap inherited provider timeouts", () => {
+  const now = 1_900_000_000_000;
+  const budget = forkedSkillResourceBudget({
+    external_deadline_epoch_ms: now + 95_000,
+    closeout_reserve_seconds: 40,
+    model_api_timeout_milliseconds: 900_000,
+    model_stream_total_timeout_seconds: 1_200,
+  }, 80_000, now);
+
+  assert.equal(budget.deadlineEpochMs, now + 55_000);
+  assert.equal(budget.closeoutReserveSeconds, 11);
+  assert.equal(budget.modelApiTimeoutMilliseconds, 44_000);
+  assert.equal(budget.modelStreamTotalTimeoutMilliseconds, 44_000);
+  assert.throws(
+    () => forkedSkillResourceBudget({
+      external_deadline_epoch_ms: now + 25_000,
+      closeout_reserve_seconds: 30,
+    }, 90_000, now),
+    /parent closeout window is active/i,
+  );
+
+  const defaulted = forkedSkillResourceBudget({}, 600_000, now);
+  assert.equal(defaulted.modelApiTimeoutMilliseconds, 120_000);
+  assert.equal(defaulted.modelStreamTotalTimeoutMilliseconds, 120_000);
+});
+
+test("runtime lineage events expose only complete internal parent bindings", () => {
+  const selected = {
+    metadata: {
+      runtime_lineage: {
+        schema: "zyra.runtime-lineage/v1",
+        relation: "skill",
+        relation_id: "skill-invocation-variant",
+        parent_run_id: "parent-run",
+        parent_task_id: "parent-task",
+        parent_session_id: "parent-session",
+        parent_worker_request_id: "parent-worker",
+        ignored: "not-public",
+      },
+    },
+  } as unknown as RuntimeRunInput;
+  assert.deepEqual(runtimeLineageEventPayload(selected), {
+    schema: "zyra.runtime-lineage/v1",
+    relation: "skill",
+    relation_id: "skill-invocation-variant",
+    parent_run_id: "parent-run",
+    parent_task_id: "parent-task",
+    parent_session_id: "parent-session",
+    parent_worker_request_id: "parent-worker",
+  });
+  selected.metadata = {
+    runtime_lineage: {
+      schema: "zyra.runtime-lineage/v1",
+      relation: "agent",
+      relation_id: "agent-variant",
+      parent_run_id: "parent-run",
+      parent_task_id: "parent-task",
+      parent_session_id: "parent-session",
+    },
+  };
+  assert.equal(runtimeLineageEventPayload(selected), null);
+});
+
 test("runtime owns multi-turn lifecycle and read-only batches", async () => {
   const host = new MemoryHost();
   const result = await new ClaudeRuntimeCore().run(input(), host);
@@ -340,6 +408,54 @@ test("runtime records only completed successful forked skill obligations", async
   assert.equal(invocations[0]?.name, "verification");
   assert.equal(invocations[0]?.child_task_id, "child-passed");
   assert.equal(invocations[0]?.execution_mode, "fork");
+});
+
+test("runtime unions checkpoint and task-handoff obligation evidence", async () => {
+  const result = await new ClaudeRuntimeCore().run(input({
+    turns: [],
+    metadata: {
+      task_handoff_obligation_evidence: {
+        schema: "zyra.runtime-obligation-evidence/v1",
+        successful_skill_invocations: [{
+          name: "service-inspector",
+          tool_call_id: "skill-before-recovery",
+        }],
+        successful_executed_paths: [{
+          path: "scripts/reproduce.py",
+          tool_call_id: "path-before-recovery",
+          workspace_mutation_count: 3,
+        }],
+        workspace_mutation_count: 3,
+      },
+    },
+    restoredState: {
+      obligationEvidence: {
+        schema: "zyra.runtime-obligation-evidence/v1",
+        successful_skill_invocations: [{
+          name: "release-checker",
+          tool_call_id: "skill-after-recovery",
+        }],
+        successful_executed_paths: [{
+          path: "scripts/reproduce.py",
+          tool_call_id: "path-after-recovery",
+          workspace_mutation_count: 4,
+        }],
+        workspace_mutation_count: 4,
+      },
+    },
+  }), new MemoryHost());
+
+  const evidence = result.sessionSnapshot.obligationEvidence as JsonObject;
+  assert.deepEqual(
+    (evidence.successful_skill_invocations as JsonObject[]).map((item) => item.name),
+    ["service-inspector", "release-checker"],
+  );
+  assert.deepEqual(evidence.successful_executed_paths, [{
+    path: "scripts/reproduce.py",
+    tool_call_id: "path-after-recovery",
+    workspace_mutation_count: 4,
+  }]);
+  assert.equal(evidence.workspace_mutation_count, 4);
 });
 
 test("runtime records exact script execution but rejects source inspection", async () => {
@@ -5886,6 +6002,148 @@ test("progressive execution rejects a compound verification that crashes after t
   assert.equal(progressive.snapshot().verificationCount, 1);
 });
 
+test("explicitly accepted nonzero verification probes preserve semantic verification state", () => {
+  const cases: Array<{
+    name: string;
+    returnCode: number;
+    output: JsonObject;
+    metadata: Record<string, string>;
+  }> = [
+    {
+      name: "output-contract",
+      returnCode: 23,
+      output: {
+        accepted_return_codes: [0, 23],
+        return_code_accepted: true,
+      },
+      metadata: {},
+    },
+    {
+      name: "metadata-contract",
+      returnCode: 29,
+      output: {},
+      metadata: {
+        accepted_return_codes: "0,29",
+        return_code_accepted: "true",
+      },
+    },
+  ];
+
+  for (const scenario of cases) {
+    const request: ToolExecutionRequest = {
+      toolCallId: `negative-probe-${scenario.name}`,
+      toolName: "shell",
+      arguments: {
+        command: "python -m unittest discover",
+        accepted_return_codes: [0, scenario.returnCode],
+      },
+      turnIndex: 0,
+      stepIndex: 0,
+      batchId: `negative-probe-${scenario.name}`,
+      batchIndex: 0,
+      batchSize: 1,
+      executionMode: "serial_non_read_only",
+      metadata: {
+        progressive_verification_driving: true,
+        progressive_verification_scope: `shell:negative:${scenario.name}`,
+      },
+    };
+    const response: ToolExecutionResponse = {
+      tool_call_id: request.toolCallId,
+      ok: true,
+      summary: "expected failing baseline completed",
+      output: {
+        stdout: "Ran 5 tests\nFAILED (failures=3)\n3 failed",
+        return_code: scenario.returnCode,
+        ...scenario.output,
+      },
+      artifacts: [],
+      metadata: {
+        workspace_mutation_committed: "false",
+        ...scenario.metadata,
+      },
+    };
+
+    const alreadyVerified = new ProgressiveExecutionRuntime({
+      deliveryContract: { workspace_mutation_required: true },
+      continuityProgress: {
+        requiredDeliveryMissing: false,
+        workspaceMutationCount: 2,
+        verificationCount: 1,
+      },
+    });
+    alreadyVerified.observeToolResult(request, response, false);
+    const preserved = alreadyVerified.snapshot();
+    assert.equal(preserved.verificationCount, 1, scenario.name);
+    assert.deepEqual(preserved.unresolvedVerificationScopes, [], scenario.name);
+    assert.ok(
+      preserved.progressReasons.includes("expected_nonzero_verification_probe_observed"),
+      scenario.name,
+    );
+
+    const awaitingGreenVerification = new ProgressiveExecutionRuntime({
+      deliveryContract: { workspace_mutation_required: true },
+      continuityProgress: {
+        requiredDeliveryMissing: false,
+        workspaceMutationCount: 1,
+      },
+    });
+    awaitingGreenVerification.observeToolResult(request, response, false);
+    const neutral = awaitingGreenVerification.snapshot();
+    assert.equal(neutral.verificationCount, 0, scenario.name);
+    assert.deepEqual(neutral.unresolvedVerificationScopes, [], scenario.name);
+  }
+});
+
+test("nonzero verification results fail closed when the acceptance contract mismatches", () => {
+  const scope = "shell:negative:mismatched-contract";
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 2,
+      verificationCount: 1,
+    },
+  });
+  const request: ToolExecutionRequest = {
+    toolCallId: "negative-probe-mismatch",
+    toolName: "shell",
+    arguments: {
+      command: "python -m unittest discover",
+      accepted_return_codes: [0, 23],
+    },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "negative-probe-mismatch",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: scope,
+    },
+  };
+
+  progressive.observeToolResult(request, {
+    tool_call_id: request.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: {
+      stdout: "2 failed",
+      return_code: 17,
+      accepted_return_codes: [0, 23],
+      return_code_accepted: true,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const failed = progressive.snapshot();
+  assert.equal(failed.verificationCount, 0);
+  assert.deepEqual(failed.unresolvedVerificationScopes, [scope]);
+  assert.ok(failed.progressReasons.includes("post_delivery_verification_failed"));
+});
+
 test("shell wrapper failures do not replace semantic verification debt", () => {
   const integrationScope = "shell:afctl:test:integration";
   const progressive = new ProgressiveExecutionRuntime({
@@ -6050,6 +6308,71 @@ test("shell wrapper failures do not replace semantic verification debt", () => {
   assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, [integrationScope]);
 });
 
+test("pre-execution permission denials do not create semantic verification debt", () => {
+  const scenarios: Array<{
+    name: string;
+    output: Record<string, string | boolean>;
+    error: string;
+  }> = [{
+    name: "error contract",
+    output: { replan_required: true },
+    error: "permission_denied",
+  }, {
+    name: "permission-effect contract",
+    output: { permission_effect: "deny", side_effect_executed: false },
+    error: "capability_blocked",
+  }];
+  for (const scenario of scenarios) {
+    const progressive = new ProgressiveExecutionRuntime({
+      deliveryContract: { workspace_mutation_required: true },
+      continuityProgress: {
+        requiredDeliveryMissing: false,
+        workspaceMutationCount: 4,
+        repairMutationCount: 4,
+      },
+    });
+    const scope = `shell:python:${scenario.name.replaceAll(" ", "-")}`;
+    progressive.observeToolResult({
+      toolCallId: `permission-denied-${scenario.name}`,
+      toolName: "shell",
+      arguments: {
+        executable: "python",
+        argv: ["../scripts/smoke_fixed_lib.py"],
+        cwd: "order-lib",
+      },
+      turnIndex: 0,
+      stepIndex: 0,
+      batchId: `permission-denied-${scenario.name}`,
+      batchIndex: 0,
+      batchSize: 1,
+      executionMode: "serial_non_read_only",
+      metadata: {
+        progressive_verification_driving: true,
+        progressive_verification_scope: scope,
+      },
+    }, {
+      tool_call_id: `permission-denied-${scenario.name}`,
+      ok: false,
+      summary: "autonomous mode denies unruled high-risk or unknown capability",
+      output: scenario.output,
+      artifacts: [],
+      error: scenario.error,
+      metadata: { workspace_mutation_committed: "false" },
+    }, false);
+
+    const observed = progressive.snapshot();
+    assert.equal(observed.verificationCount, 0, scenario.name);
+    assert.deepEqual(observed.unresolvedVerificationScopes, [], scenario.name);
+    assert.deepEqual(observed.unresolvedVerificationFailures, [], scenario.name);
+    assert.equal(progressive.failedVerificationScopeAwaitingRepair(scope), false, scenario.name);
+    assert.match(
+      observed.progressReasons.join(" "),
+      /verification_invocation_failed_before_behavioral_result/,
+      scenario.name,
+    );
+  }
+});
+
 test("missing generated verification prerequisites do not create semantic debt", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
@@ -6095,6 +6418,132 @@ test("missing generated verification prerequisites do not create semantic debt",
     observed.progressReasons.join(" "),
     /verification_invocation_failed_before_behavioral_result/,
   );
+});
+
+test("missing selected verification runners are invocation failures but product imports remain debt", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 5,
+      repairMutationCount: 5,
+    },
+  });
+  const observe = (
+    toolCallId: string,
+    output: JsonObject,
+    metadata: JsonObject = {},
+  ): void => {
+    progressive.observeToolResult({
+      toolCallId,
+      toolName: "shell",
+      arguments: { command: "python -B -m pytest checks/" },
+      turnIndex: 0,
+      stepIndex: 0,
+      batchId: toolCallId,
+      batchIndex: 0,
+      batchSize: 1,
+      executionMode: "serial_non_read_only",
+      metadata: {
+        progressive_verification_driving: true,
+        progressive_verification_scope: "shell:pytest:checks/",
+      },
+    }, {
+      tool_call_id: toolCallId,
+      ok: false,
+      summary: "verification command failed",
+      output,
+      artifacts: [],
+      error: "sandbox_command_failed",
+      metadata: { workspace_mutation_committed: "false", ...metadata },
+    }, false);
+  };
+
+  observe("missing-windows-entrypoint", {
+    stderr: "'python3' is not recognized as an internal or external command",
+    return_code: 9009,
+  });
+  assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, []);
+
+  observe("missing-selected-runner", {
+    stderr: "python: No module named 'pytest'",
+    return_code: 1,
+  });
+  assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, []);
+
+  observe("explicit-spawn-failure", {
+    reason: "process could not be created",
+    termination_kind: "failed_to_start",
+  });
+  assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, []);
+
+  observe("missing-product-import", {
+    stderr: "ModuleNotFoundError: No module named 'release_domain'",
+    return_code: 1,
+  });
+  assert.deepEqual(
+    progressive.snapshot().unresolvedVerificationScopes,
+    ["shell:pytest:checks/"],
+  );
+  assert.equal(
+    progressive.snapshot().unresolvedVerificationFailures[0]?.failureKind,
+    "nonzero_exit",
+  );
+});
+
+test("structured shell executable duplication is pre-behavioral across path and case variants", () => {
+  const scenarios = [
+    { executable: "python.exe", repeated: "python.exe" },
+    { executable: "C:\\Python313\\PYTHON.EXE", repeated: "python.exe" },
+    { executable: "/usr/local/bin/node", repeated: "NODE" },
+  ];
+  for (const scenario of scenarios) {
+    const progressive = new ProgressiveExecutionRuntime({
+      deliveryContract: { workspace_mutation_required: true },
+      continuityProgress: {
+        requiredDeliveryMissing: false,
+        workspaceMutationCount: 2,
+        repairMutationCount: 1,
+      },
+    });
+    const scope = `shell:duplicate:${scenario.repeated.toLowerCase()}`;
+    progressive.observeToolResult({
+      toolCallId: `duplicate-${scenario.repeated}`,
+      toolName: "shell",
+      arguments: {
+        executable: scenario.executable,
+        argv: [scenario.repeated, "-m", "unittest", "discover"],
+        cwd: "project",
+      },
+      turnIndex: 0,
+      stepIndex: 0,
+      batchId: `duplicate-${scenario.repeated}`,
+      batchIndex: 0,
+      batchSize: 1,
+      executionMode: "serial_non_read_only",
+      metadata: {
+        progressive_verification_driving: true,
+        progressive_verification_scope: scope,
+      },
+    }, {
+      tool_call_id: `duplicate-${scenario.repeated}`,
+      ok: false,
+      summary: "argv contains arguments only and must not repeat executable",
+      output: { return_code: 2 },
+      artifacts: [],
+      error: "ValueError",
+      metadata: { workspace_mutation_committed: "false" },
+    }, false);
+
+    const observed = progressive.snapshot();
+    assert.deepEqual(observed.unresolvedVerificationScopes, [], scenario.executable);
+    assert.equal(observed.verificationCount, 0, scenario.executable);
+    assert.match(
+      observed.progressReasons.join(" "),
+      /verification_invocation_failed_before_behavioral_result/,
+      scenario.executable,
+    );
+  }
 });
 
 test("restore drops invocation-only verification debt", () => {
@@ -6443,6 +6892,161 @@ test("blocked validation and verifier-runner edits do not reopen inspection", ()
   assert.equal(progressive.snapshot().recoveryInspectionAllowance, 0);
 });
 
+test("validation material can be staged only after a real repair and cannot settle debt", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+      repairMutationCount: 0,
+    },
+  });
+  const verification: ToolExecutionRequest = {
+    toolCallId: "public-tests-failed",
+    toolName: "shell",
+    arguments: {
+      executable: "python",
+      argv: ["-m", "unittest", "discover", "-s", "tests", "-v"],
+    },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "public-tests-failed",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:python:public-suite",
+    },
+  };
+  progressive.observeToolResult(verification, {
+    tool_call_id: verification.toolCallId,
+    ok: false,
+    summary: "public suite failed",
+    output: { stderr: "AssertionError: expected true", return_code: 1 },
+    artifacts: [],
+    error: "sandbox_command_failed",
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const directValidationWrite = {
+    tool_name: "file_write",
+    arguments: { path: "tests/test_regression.py", content: "assert repaired()" },
+  };
+  const shellValidationWrite = {
+    tool_name: "shell",
+    arguments: { command: "sed -i 's/old/new/' tests/test_regression.py" },
+  };
+  assert.equal(
+    shouldBlockValidationOnlyMutation(directValidationWrite, progressive),
+    true,
+  );
+  assert.equal(
+    shouldBlockValidationOnlyMutation(shellValidationWrite, progressive),
+    true,
+  );
+
+  const implementationRepair: ToolExecutionRequest = {
+    toolCallId: "implementation-repair",
+    toolName: "file_write",
+    arguments: { path: "src/order.py", content: "def repaired(): return True" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "implementation-repair",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_mutation_path: "src/order.py",
+      progressive_repair_driving: true,
+    },
+  };
+  progressive.observeToolResult(implementationRepair, {
+    tool_call_id: implementationRepair.toolCallId,
+    ok: true,
+    summary: "implementation replaced",
+    output: {
+      path: "src/order.py",
+      workspace_path_disposition: "replaced",
+      workspace_path_created: "false",
+    },
+    artifacts: [],
+    metadata: {
+      workspace_mutation_committed: "true",
+      workspace_logical_path: "src/order.py",
+      workspace_path_disposition: "replaced",
+      workspace_path_created: "false",
+    },
+  }, false);
+
+  assert.equal(progressive.snapshot().repairMutationCount, 1);
+  assert.equal(
+    shouldBlockValidationOnlyMutation(directValidationWrite, progressive),
+    false,
+  );
+  assert.equal(
+    shouldBlockValidationOnlyMutation(shellValidationWrite, progressive),
+    false,
+  );
+
+  const validationStage: ToolExecutionRequest = {
+    toolCallId: "validation-stage",
+    toolName: "file_write",
+    arguments: directValidationWrite.arguments,
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "validation-stage",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_mutation_path: "tests/test_regression.py",
+      progressive_repair_driving: false,
+    },
+  };
+  progressive.observeToolResult(validationStage, {
+    tool_call_id: validationStage.toolCallId,
+    ok: true,
+    summary: "new regression test staged",
+    output: {
+      path: "tests/test_regression.py",
+      workspace_path_disposition: "created",
+      workspace_path_created: "true",
+    },
+    artifacts: [],
+    metadata: {
+      workspace_mutation_committed: "true",
+      workspace_logical_path: "tests/test_regression.py",
+      workspace_path_disposition: "created",
+      workspace_path_created: "true",
+    },
+  }, false);
+
+  const staged = progressive.snapshot();
+  assert.equal(staged.workspaceMutationCount, 3);
+  assert.equal(staged.repairMutationCount, 1);
+  assert.equal(staged.verificationCount, 0);
+  assert.deepEqual(
+    staged.unresolvedVerificationScopes,
+    ["shell:python:public-suite"],
+  );
+
+  progressive.observeToolResult({
+    ...verification,
+    toolCallId: "public-tests-passed",
+  }, {
+    tool_call_id: "public-tests-passed",
+    ok: true,
+    summary: "public suite passed",
+    output: { stdout: "12 passed", return_code: 0 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, []);
+  assert.equal(progressive.snapshot().verificationCount, 1);
+});
+
 test("pre-delivery verification opens a bounded diagnostic inspection window", () => {
   const progressive = new ProgressiveExecutionRuntime({
     constraints: {
@@ -6682,6 +7286,13 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isGeneratedDeliveryInspection({ tool_name: "file_read", arguments: { path: "services/worker/state.py" } }, true), false);
   assert.equal(isClearlyRepairDrivingTool(shell("ls evidence/test-farm 2>/dev/null; ls .runtime/ 2>/dev/null")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("python -m pytest tests -q")), true);
+  for (const command of [
+    "python -B -m unittest discover -s tests -v",
+    "python3.12 -I -B -m pytest tests/unit -q",
+    "C:\\Python312\\python.exe -X dev -W error -m compileall src",
+  ]) {
+    assert.equal(isClearlyVerificationDrivingTool(shell(command)), true, command);
+  }
   assert.equal(isClearlyVerificationDrivingTool(shell("npm run typecheck && npm test")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py simulate")), true);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/smoke_closure.py")), true);
@@ -6691,8 +7302,11 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyVerificationDrivingTool(shell("python work/gen_deliverables.py")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("python tools/afctl.py request-acceptance")), false);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell(".runtime/venv/bin/python", ["-m", "pytest", "-q"])), true);
+  assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["-B", "-m", "unittest", "discover", "-s", "tests", "-v"])), true);
+  assert.equal(isClearlyVerificationDrivingTool(structuredShell("python3.11", ["-I", "-X", "dev", "-m", "pytest", "tests/api"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["tools/afctl.py", "simulate"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["-c", "import json; print(json.load(open('submission/manifest.json')))"])), false);
+  assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["-c", "print('-m pytest')"])), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("cat submission/manifest.json")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("git status --short && sha256sum submission/*")), false);
   assert.equal(isClearlyVerificationDrivingTool(shell("python -c \"import json; json.load(open('submission/manifest.json'))\"")), false);
@@ -6861,6 +7475,218 @@ test("query engine propagates background verification lineage to shell_wait", ()
     tool_name: "shell_wait",
     arguments: { job_id: "gateway-command-job:services-up" },
   }, recoveryResponse, [recoveryOrigin]), true);
+});
+
+test("verification harness provenance follows structured commands and background lineage", () => {
+  const harnessPath = "checks/generated/alpha-482-smoke.py";
+  const structured = {
+    tool_name: "shell",
+    arguments: {
+      executable: "C:\\Python312\\python.exe",
+      argv: ["-B", harnessPath],
+    },
+  };
+  assert.equal(verificationHarnessPathForTool(structured), harnessPath);
+  assert.equal(verificationHarnessPathForTool({
+    tool_name: "shell",
+    arguments: { command: `python -B ${harnessPath}` },
+  }), harnessPath);
+  assert.equal(verificationHarnessPathForTool({
+    tool_name: "shell",
+    arguments: { executable: "python", argv: ["-m", "unittest", "discover"] },
+  }), "");
+
+  const origin = {
+    toolCallId: "call-harness-background",
+    name: structured.tool_name,
+    arguments: structured.arguments,
+  };
+  const terminal: ToolExecutionResponse = {
+    tool_call_id: "call-harness-wait",
+    ok: false,
+    summary: "assertion failed",
+    output: {
+      return_code: 1,
+      gateway_receipt: {
+        invocation_ref: { tool_call_id: origin.toolCallId },
+      },
+    },
+    artifacts: [],
+    metadata: {},
+  };
+  assert.equal(verificationHarnessPathForToolResult({
+    tool_name: "shell_wait",
+    arguments: { job_id: "job-harness" },
+  }, terminal, [origin]), harnessPath);
+});
+
+test("task-authored harness correction is revision-bound and requires independent verification", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+  });
+  const request = (
+    toolCallId: string,
+    toolName: string,
+    arguments_: JsonObject,
+    metadata: JsonObject,
+  ): ToolExecutionRequest => ({
+    toolCallId,
+    toolName,
+    arguments: arguments_,
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: toolCallId,
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata,
+  });
+  const mutationResult = (
+    toolCallId: string,
+    path: string,
+    disposition: "created" | "replaced",
+  ): ToolExecutionResponse => ({
+    tool_call_id: toolCallId,
+    ok: true,
+    summary: `workspace path ${disposition}`,
+    output: {
+      path,
+      workspace_path_disposition: disposition,
+      workspace_path_created: String(disposition === "created"),
+    },
+    artifacts: [],
+    metadata: {
+      workspace_mutation_committed: "true",
+      workspace_logical_path: path,
+      workspace_path_disposition: disposition,
+      workspace_path_created: String(disposition === "created"),
+    },
+  });
+
+  const sourceEdit = request("source-edit", "file_write", { path: "src/service.py" }, {
+    progressive_mutation_path: "src/service.py",
+    progressive_repair_driving: true,
+  });
+  progressive.observeToolResult(
+    sourceEdit,
+    mutationResult(sourceEdit.toolCallId, "src/service.py", "replaced"),
+    false,
+  );
+  const harnessWrite = request("harness-create", "file_write", {
+    path: "checks/generated/alpha-482-smoke.py",
+  }, {
+    progressive_mutation_path: "checks/generated/alpha-482-smoke.py",
+    progressive_repair_driving: false,
+  });
+  progressive.observeToolResult(
+    harnessWrite,
+    mutationResult(
+      harnessWrite.toolCallId,
+      "checks/generated/alpha-482-smoke.py",
+      "created",
+    ),
+    false,
+  );
+  const harnessVerification = request("harness-run", "shell", {
+    executable: "python",
+    argv: ["-B", "checks/generated/alpha-482-smoke.py"],
+  }, {
+    progressive_verification_driving: true,
+    progressive_verification_scope: "shell:python:alpha-482-smoke",
+    progressive_verification_harness_path: "checks/generated/alpha-482-smoke.py",
+  });
+  progressive.observeToolResult(harnessVerification, {
+    tool_call_id: harnessVerification.toolCallId,
+    ok: false,
+    summary: "assertion mismatch",
+    output: { stderr: "AssertionError: expected 9, observed 8", return_code: 1 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const failed = progressive.snapshot();
+  assert.equal(failed.unresolvedVerificationFailures[0].failureKind, "nonzero_exit");
+  assert.equal(
+    failed.unresolvedVerificationFailures[0].validationHarnessPath,
+    "checks/generated/alpha-482-smoke.py",
+  );
+  assert.equal(progressive.canCorrectTaskAuthoredVerificationHarness(
+    "checks/generated/alpha-482-smoke.py",
+  ), true);
+  const restored = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    restored: failed,
+  });
+  assert.deepEqual(restored.snapshot().taskAuthoredPathRevisions, [{
+    path: "checks/generated/alpha-482-smoke.py",
+    revision: 1,
+  }]);
+  assert.equal(restored.failedVerificationScopeAwaitingRepair(
+    "shell:python:alpha-482-smoke",
+  ), true);
+
+  const renamedHelper = request("renamed-helper", "file_write", {
+    path: "scripts/cleanup_smoke.py",
+  }, {
+    progressive_mutation_path: "scripts/cleanup_smoke.py",
+    progressive_repair_driving: true,
+  });
+  const repairGeneration = progressive.snapshot().repairMutationCount;
+  progressive.observeToolResult(
+    renamedHelper,
+    mutationResult(renamedHelper.toolCallId, "scripts/cleanup_smoke.py", "created"),
+    false,
+  );
+  assert.equal(progressive.snapshot().repairMutationCount, repairGeneration);
+  assert.equal(progressive.failedVerificationScopeAwaitingRepair(
+    "shell:python:alpha-482-smoke",
+  ), true);
+
+  const harnessEdit = request("harness-correct", "file_write", {
+    path: "checks/generated/alpha-482-smoke.py",
+  }, {
+    progressive_mutation_path: "checks/generated/alpha-482-smoke.py",
+    progressive_repair_driving: false,
+  });
+  progressive.observeToolResult(
+    harnessEdit,
+    mutationResult(
+      harnessEdit.toolCallId,
+      "checks/generated/alpha-482-smoke.py",
+      "replaced",
+    ),
+    false,
+  );
+  assert.equal(progressive.failedVerificationScopeAwaitingRepair(
+    "shell:python:alpha-482-smoke",
+  ), false);
+  progressive.observeToolResult(harnessVerification, {
+    tool_call_id: harnessVerification.toolCallId,
+    ok: true,
+    summary: "smoke passed",
+    output: { stdout: "ok", return_code: 0 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+  assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, []);
+  assert.equal(progressive.snapshot().verificationCount, 0);
+
+  const official = request("official-suite", "shell", {
+    executable: "python",
+    argv: ["-m", "unittest", "discover"],
+  }, {
+    progressive_verification_driving: true,
+    progressive_verification_scope: "shell:python:unittest",
+  });
+  progressive.observeToolResult(official, {
+    tool_call_id: official.toolCallId,
+    ok: true,
+    summary: "official suite passed",
+    output: { stdout: "42 passed", return_code: 0 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+  assert.equal(progressive.snapshot().verificationCount, 1);
 });
 
 test("progressive execution reapplies the current delivery contract after restore", () => {

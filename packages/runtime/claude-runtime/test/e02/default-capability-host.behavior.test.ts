@@ -10,6 +10,7 @@ import {
   normalizeBenchmarkContainerFileArguments,
   type ArtifactReceipt,
   type ArtifactRequest,
+  type CapabilitySupervisionIdentity,
   type JsonObject,
   type RuntimeEvent,
   type RuntimeHost,
@@ -89,6 +90,54 @@ class CommitOnlyGateway implements RuntimeHost {
     return false;
   }
 }
+
+class SupervisedGateway extends CommitOnlyGateway {
+  readonly controller = new AbortController();
+
+  superviseCapability<T>(
+    _request: ToolExecutionRequest,
+    _identity: CapabilitySupervisionIdentity,
+    operation: (signal?: AbortSignal) => Promise<T>,
+  ): Promise<T> {
+    return operation(this.controller.signal);
+  }
+}
+
+test("permissioned child hosts combine parent cancellation with delegated supervision", async () => {
+  const parent = new AbortController();
+  const gateway = new SupervisedGateway();
+  const host = new PermissionedCapabilityHost(
+    gateway,
+    {
+      runId: "variant-parent-run",
+      sessionId: "variant-parent-session",
+      workerRequestId: "variant-parent-worker",
+      restoredState: null,
+    } as RuntimeRunInput,
+    {} as TypeScriptCapabilityRuntime,
+    parent.signal,
+  );
+  let observed: AbortSignal | undefined;
+  const supervised = host.superviseCapability(
+    { toolCallId: "variant-child-call" } as ToolExecutionRequest,
+    { namespace: "skill", serverId: "", version: "2", schemaDigest: "skill-v2" },
+    async (signal) => {
+      observed = signal;
+      await new Promise<void>((_resolve, reject) => {
+        const onAbort = (): void => reject(signal?.reason ?? new Error("cancelled"));
+        if (signal?.aborted) onAbort();
+        else signal?.addEventListener("abort", onAbort, { once: true });
+      });
+      return "unreachable";
+    },
+  );
+
+  parent.abort(new Error("parent skill timed out"));
+  await assert.rejects(supervised, /parent skill timed out/i);
+  assert.equal(observed?.aborted, true);
+  assert.equal(host.isAborted(), true);
+  assert.equal(gateway.controller.signal.aborted, false);
+});
 
 test("e02.default-path binds permission permit and capability execution to the caller session revision", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "zyra-e02-default-host-"));
@@ -209,6 +258,98 @@ test("e02.default-path honors canonical access_mode metadata when inferring perm
       requestBinding?: { operation?: string };
     };
     assert.equal(decision.requestBinding?.operation, "read");
+  } finally {
+    await capabilities.close();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("e02.default-path treats artifact materialization as a bounded write", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "zyra-e02-artifact-write-"));
+  const input: RuntimeRunInput = {
+    runId: "e02-artifact-write-run",
+    taskId: "e02-artifact-write-task",
+    nodeId: "e02-artifact-write-node",
+    workerRequestId: "e02-artifact-write-worker",
+    sessionId: "e02-artifact-write-session",
+    messages: [],
+    turns: [],
+    tools: [
+      {
+        name: "artifact_write",
+        purpose: "persist evidence",
+        source: "test",
+        input_schema: { type: "object" },
+        output_schema: {},
+        metadata: { access_mode: "artifact_write", read_only: "false" },
+      },
+      {
+        name: "checkpoint",
+        purpose: "read or persist a checkpoint",
+        source: "test",
+        input_schema: { type: "object" },
+        output_schema: {},
+        metadata: { access_mode: "read_only", read_only: "true" },
+      },
+    ],
+    config: {
+      permissionPolicy: { mode: "auto", default_effect: "allow" },
+      runtimeConstraints: {
+        workspaceRoot: workspace,
+        watchSkills: false,
+        watchPlugins: false,
+      },
+    },
+  };
+  const capabilities = await TypeScriptCapabilityRuntime.open(input);
+  try {
+    const gateway = new CommitOnlyGateway();
+    const host = new PermissionedCapabilityHost(gateway, input, capabilities);
+    const batch: ToolBatch = {
+      batchId: "e02-artifact-write-batch",
+      turnIndex: 0,
+      executionMode: "serial_non_read_only",
+      steps: [],
+    };
+    const calls: ToolExecutionRequest[] = [
+      {
+        toolCallId: "e02-artifact-write-call",
+        toolName: "artifact_write",
+        arguments: { content: "bounded evidence" },
+        turnIndex: 0,
+        stepIndex: 0,
+        batchId: batch.batchId,
+        batchIndex: 0,
+        batchSize: 2,
+        executionMode: batch.executionMode,
+        metadata: {},
+      },
+      {
+        toolCallId: "e02-checkpoint-artifact-call",
+        toolName: "checkpoint",
+        arguments: { write_artifact: true },
+        turnIndex: 0,
+        stepIndex: 1,
+        batchId: batch.batchId,
+        batchIndex: 1,
+        batchSize: 2,
+        executionMode: batch.executionMode,
+        metadata: {},
+      },
+    ];
+
+    const results = await host.executeBatch(batch, calls);
+
+    assert.deepEqual(results.map((result) => result.ok), [true, true]);
+    assert.deepEqual(
+      gateway.delegated.map((request) => {
+        const decision = request.permissionDecision as unknown as {
+          requestBinding?: { operation?: string };
+        };
+        return decision.requestBinding?.operation;
+      }),
+      ["write", "write"],
+    );
   } finally {
     await capabilities.close();
     await rm(workspace, { recursive: true, force: true });

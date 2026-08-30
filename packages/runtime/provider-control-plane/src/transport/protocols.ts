@@ -129,11 +129,7 @@ function decodeOpenAiChat(value: Record<string, unknown>, eventName: string | nu
           toolName: typeof fn.name === "string" ? fn.name : null,
           jsonDelta: typeof fn.arguments === "string" ? fn.arguments : null,
           providerEvent: eventName,
-          metadata: {
-            providerIndex: typeof tool.index === "number" || typeof tool.index === "string"
-              ? tool.index
-              : "",
-          },
+          metadata: providerIndexMetadata(tool.index),
         }));
       }
     }
@@ -160,11 +156,7 @@ function decodeOpenAiResponses(value: Record<string, unknown>, eventName: string
       toolName: typeof value.name === "string" ? value.name : null,
       jsonDelta: value.delta,
       providerEvent: type,
-      metadata: {
-        providerIndex: typeof value.output_index === "number" || typeof value.output_index === "string"
-          ? value.output_index
-          : typeof value.item_id === "string" ? value.item_id : "",
-      },
+      metadata: providerIndexMetadata(value.output_index ?? value.item_id),
     })];
   }
   if (type === "response.completed") {
@@ -193,11 +185,7 @@ function decodeAnthropic(value: Record<string, unknown>, eventName: string | nul
         ? JSON.stringify(block.input)
         : null,
       providerEvent: type,
-      metadata: {
-        providerIndex: typeof value.index === "number" || typeof value.index === "string"
-          ? value.index
-          : "",
-      },
+      metadata: providerIndexMetadata(value.index),
     })];
     if (block.type === "text" && typeof block.text === "string" && block.text) return [state.frame("text_delta", { text: block.text, providerEvent: type })];
     return [];
@@ -209,11 +197,7 @@ function decodeAnthropic(value: Record<string, unknown>, eventName: string | nul
     if (delta.type === "input_json_delta" && typeof delta.partial_json === "string") return [state.frame("tool_call_delta", {
       jsonDelta: delta.partial_json,
       providerEvent: type,
-      metadata: {
-        providerIndex: typeof value.index === "number" || typeof value.index === "string"
-          ? value.index
-          : "",
-      },
+      metadata: providerIndexMetadata(value.index),
     })];
     return [];
   }
@@ -225,6 +209,13 @@ function decodeAnthropic(value: Record<string, unknown>, eventName: string | nul
   }
   if (type === "message_stop") return [state.frame("response_end", { providerEvent: type })];
   return [];
+}
+
+function providerIndexMetadata(value: unknown): JsonRecord {
+  if (typeof value === "number" && Number.isFinite(value)) return { providerIndex: value };
+  if (typeof value !== "string") return {};
+  const normalized = value.trim();
+  return normalized ? { providerIndex: normalized } : {};
 }
 
 function providerProtocolError(value: unknown, state: ProtocolFrameState): ProviderControlPlaneError {

@@ -2023,6 +2023,7 @@ export class E02CapabilityCoordinator {
         skillResources: canonicalize(plan.resources),
         effectiveToolScope: cloneJson(plan.effectiveToolScope),
         maximumTurns: plan.execution.maximumTurns,
+        timeoutMs: plan.execution.timeoutMs,
         skillAncestry: childSkillAncestry,
         remainingSkillDepth: childDepthRemaining,
         sandbox: plan.execution.sandbox,

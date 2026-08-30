@@ -357,6 +357,77 @@ def _has_verifiable_interrupted_delivery(
     )
 
 
+def _merge_task_workspace_delivery(
+    current: Any,
+    workspace_delta: Mapping[str, Any],
+    *,
+    workspace_id: str,
+) -> dict[str, Any]:
+    """Merge task delivery across same-workspace physical recoveries.
+
+    CodeWorker deltas are physical-attempt-local, while delivery is a logical
+    task projection.  Explicit deletion wins until a later attempt recreates
+    or modifies the path; a new workspace binding starts a fresh projection.
+    """
+
+    previous = dict(current) if isinstance(current, Mapping) else {}
+    if (
+        previous.get("schema") != "zyra.task-workspace-delivery/v1"
+        or str(previous.get("workspace_id") or "") != workspace_id
+    ):
+        previous = {}
+
+    def paths(value: Any) -> list[str]:
+        if not isinstance(value, Sequence) or isinstance(
+            value,
+            (str, bytes, bytearray),
+        ):
+            return []
+        return [
+            normalized
+            for item in value
+            if (normalized := str(item or "").strip().replace("\\", "/"))
+        ]
+
+    created = set(paths(previous.get("created_paths")))
+    modified = set(paths(previous.get("modified_paths")))
+    deleted = set(paths(previous.get("deleted_paths")))
+    changed = set(paths(previous.get("changed_paths")))
+
+    incoming_created = set(paths(workspace_delta.get("created")))
+    incoming_modified = set(paths(workspace_delta.get("modified")))
+    incoming_deleted = set(paths(workspace_delta.get("deleted")))
+    incoming_changed = set(paths(workspace_delta.get("changed")))
+    incoming_live = (
+        incoming_created | incoming_modified | incoming_changed
+    ) - incoming_deleted
+
+    for path in incoming_deleted:
+        created.discard(path)
+        modified.discard(path)
+        changed.discard(path)
+        deleted.add(path)
+    for path in incoming_live:
+        deleted.discard(path)
+        changed.add(path)
+    for path in incoming_created:
+        created.add(path)
+        modified.discard(path)
+    for path in incoming_modified:
+        if path not in created:
+            modified.add(path)
+
+    return {
+        "schema": "zyra.task-workspace-delivery/v1",
+        "workspace_id": workspace_id,
+        "created_paths": sorted(created),
+        "modified_paths": sorted(modified),
+        "deleted_paths": sorted(deleted),
+        "changed_paths": sorted(changed),
+        "physical_location_redacted": True,
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class _PhysicalWorkerRun:
     """Task-graph projection of one canonical physical operator call."""
@@ -2518,15 +2589,11 @@ class Phase2StrongestProductionBridge:
         if final_text:
             state.metadata["final_answer"] = final_text
         if code_worker_execution:
-            state.metadata["delivery"] = {
-                "schema": "zyra.task-workspace-delivery/v1",
-                "workspace_id": expected_workspace_id,
-                "created_paths": list(workspace_delta.get("created") or ()),
-                "modified_paths": list(workspace_delta.get("modified") or ()),
-                "deleted_paths": list(workspace_delta.get("deleted") or ()),
-                "changed_paths": list(workspace_delta.get("changed") or ()),
-                "physical_location_redacted": True,
-            }
+            state.metadata["delivery"] = _merge_task_workspace_delivery(
+                state.metadata.get("delivery"),
+                workspace_delta,
+                workspace_id=expected_workspace_id,
+            )
         if response_contract is not None:
             state.metadata["goal_contract_verification"] = dict(
                 response_verification

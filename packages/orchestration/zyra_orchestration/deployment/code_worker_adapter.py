@@ -12,17 +12,19 @@ import tempfile
 import threading
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 from urllib.parse import urlparse
 
 from zyra_core import AgentMessage, AgentRole, MessageIntent, to_jsonable
 from zyra_integrations.e02_ports import materialize_bundled_skills
+from zyra_memory import SQLiteStore
 from zyra_runtime import JsonPermissionStore, WorkerRequest
 from zyra_runtime.artifacts import LocalArtifactStore
 from zyra_runtime.provider_control_plane import ProviderControlPlaneClient
 from zyra_runtime.sandbox_gateway import (
     DockerCliSandboxConnector,
     DockerSandboxBackend,
+    ProcessTermination,
     canonical_logical_path,
 )
 from zyra_workers import (
@@ -37,8 +39,16 @@ from zyra_workspace import (
     WorkspaceManagerRuntime,
 )
 
-from ..goal_contracts import direct_response_contract, validate_provenance_index
+from ..goal_contracts import (
+    direct_response_contract,
+    independent_role_evidence_satisfied,
+    validate_provenance_index,
+)
 from .errors import DispatchRejected
+from .task_mutation_policy import (
+    TaskMutationPolicy,
+    TaskMutationPolicyGuard,
+)
 
 
 DEFAULT_PHYSICAL_QUERY_CONTEXT_BUDGET_CHARS = 400_000
@@ -289,36 +299,16 @@ def _evaluate_delivery_completion(
     role_separation_required = (
         delivery_contract.get("role_separation_required") is True
     )
-    forked_skill_invocations = [
-        item
+    distinct_children = {
+        str(item.get("child_task_id") or "")
         for item in skill_invocations
         if str(item.get("execution_mode") or "") == "fork"
         and str(item.get("child_task_id") or "")
-    ]
-    distinct_children = {
-        str(item.get("child_task_id") or "")
-        for item in forked_skill_invocations
     }
-    material_skills = required_skills.intersection(
-        {"codebase-analysis", "pdf-analysis", "web-research"}
+    role_execution_valid = independent_role_evidence_satisfied(
+        required_skills,
+        skill_invocations,
     )
-    material_children = {
-        str(item.get("child_task_id") or "")
-        for item in forked_skill_invocations
-        if item.get("name") in material_skills
-    }
-    reviewer_children = {
-        str(item.get("child_task_id") or "")
-        for item in forked_skill_invocations
-        if item.get("name") == "verification"
-    }
-    role_execution_valid = len(distinct_children) >= 2
-    if material_skills and "verification" in required_skills:
-        role_execution_valid = bool(
-            material_children
-            and reviewer_children
-            and len(material_children | reviewer_children) >= 2
-        )
     if role_separation_required and not role_execution_valid:
         failed.append("independent_roles_executed")
     current_mutation_count = max(
@@ -444,6 +434,43 @@ def _physical_permission_session_id(
     return f"{base}:recovery:{recovery_pass}"
 
 
+def _canonical_evidence_readers(
+    context: Mapping[str, Any],
+    *,
+    artifact_root: Path,
+    parent_task_id: str,
+) -> tuple[
+    Callable[[str], list[dict[str, Any]]],
+    Callable[[str], dict[str, Any] | None],
+]:
+    """Bind forked physical roles to their parent's canonical evidence.
+
+    Skill forks use derived child task identifiers for their own runtime
+    lineage.  Those identifiers are not independent canonical API tasks, so
+    trace/checkpoint tools must resolve the physical parent task instead.
+    """
+
+    database_path = _required_path(
+        context.get("canonical_state_database_path"),
+        "canonical_state_database_path",
+    )
+    expected_path = (artifact_root.parent / "zyra.sqlite3").resolve()
+    if database_path != expected_path:
+        raise ValueError(
+            "canonical state database is not owned by the task artifact root"
+        )
+    canonical_store = SQLiteStore(database_path)
+
+    def read_events(_requested_task_id: str) -> list[dict[str, Any]]:
+        return canonical_store.task_events(parent_task_id)
+
+    def read_checkpoint(_requested_task_id: str) -> dict[str, Any] | None:
+        state = canonical_store.load_task(parent_task_id)
+        return to_jsonable(state) if state is not None else None
+
+    return read_events, read_checkpoint
+
+
 def execute_code_worker_operator(
     *,
     payload: Mapping[str, Any],
@@ -486,6 +513,29 @@ def execute_code_worker_operator(
     layer_index = int(payload.get("layer_index") or 0)
     if not run_id or not task_id or not goal or layer_index < 1:
         raise ValueError("physical CodeWorker identity, goal or layer is incomplete")
+    event_reader, checkpoint_reader = _canonical_evidence_readers(
+        context,
+        artifact_root=artifact_root,
+        parent_task_id=task_id,
+    )
+    delivery_contract = (
+        dict(payload.get("delivery_contract"))
+        if isinstance(payload.get("delivery_contract"), Mapping)
+        else {}
+    )
+    mutation_policy = TaskMutationPolicy.from_mapping(
+        delivery_contract.get("mutation_policy")
+        if isinstance(delivery_contract.get("mutation_policy"), Mapping)
+        else {}
+    )
+    mutation_policy_guard = TaskMutationPolicyGuard(
+        mutation_policy,
+        state_root=(
+            Path(node_data_root).resolve()
+            / "task-mutation-policy"
+            / _safe_id(task_id)
+        ),
+    )
 
     manager = WorkspaceManagerRuntime(
         WorkspaceManagerConfig(
@@ -551,12 +601,14 @@ def execute_code_worker_operator(
             manager,
             access,
             benchmark_mirror=benchmark_mirror,
+            mutation_policy_guard=mutation_policy_guard,
             **edit_port_arguments,
         )
     else:
-        edit_port = WorkspaceEditPort(
+        edit_port = _TaskContractWorkspaceEditPort(
             manager,
             access,
+            mutation_policy_guard=mutation_policy_guard,
             **edit_port_arguments,
         )
 
@@ -611,6 +663,11 @@ def execute_code_worker_operator(
         "physical_dispatch_goal_digest": _digest(goal),
         "synthetic_turns_forbidden": True,
     }
+    # An absolute physical deadline belongs to every physical dispatch, not
+    # only to the optional Docker benchmark binding.  Host-backed work must
+    # enter the same no-new-side-effects closeout window before its outer API
+    # and receipt owners reach their deadline.
+    constraints.update(_physical_resource_runtime_constraints(context))
     if benchmark_binding is not None:
         constraints.update(_benchmark_runtime_constraints(context))
         constraints["benchmark_container_workdir"] = str(
@@ -621,11 +678,6 @@ def execute_code_worker_operator(
             workspace_root=workspace_root,
             container_ref_digest=str(benchmark_binding["container_ref_digest"]),
         )
-    delivery_contract = (
-        dict(payload.get("delivery_contract"))
-        if isinstance(payload.get("delivery_contract"), Mapping)
-        else {}
-    )
     goal_contract = (
         dict(payload.get("goal_contract"))
         if isinstance(payload.get("goal_contract"), Mapping)
@@ -719,6 +771,11 @@ def execute_code_worker_operator(
             )
             if task_handoff is not None
             else {},
+            "task_handoff_obligation_evidence": dict(
+                task_handoff.get("obligation_evidence") or {}
+            )
+            if task_handoff is not None
+            else {},
             # Metadata-only semantic continuity: hashes and counters, never
             # raw reasoning, tool arguments, results, custody, or authority.
             "task_handoff_semantic_stall": dict(
@@ -738,6 +795,22 @@ def execute_code_worker_operator(
     runtime_services: dict[str, Any] = {
         "workspace_edit_port": edit_port,
         "workspace_gateway_required": True,
+        "task_mutation_policy": {
+            "enabled": mutation_policy.enabled,
+            "protected_source_roots": list(
+                mutation_policy.protected_source_roots
+            ),
+            "required_pre_mutation_evidence": list(
+                mutation_policy.required_pre_mutation_evidence
+            ),
+            "protect_existing_test_files": (
+                mutation_policy.protect_existing_test_files
+            ),
+            "inherit_across_execution_lineage": (
+                mutation_policy.inherit_across_execution_lineage
+            ),
+        },
+        "task_mutation_policy_guard": mutation_policy_guard,
         "sandbox_gateway_state_root": sandbox_gateway_state_root,
         # The default local-process backend owns an isolated execution root.
         # Stage the current managed task workspace before each command so file
@@ -796,6 +869,7 @@ def execute_code_worker_operator(
                 workdir=str(benchmark_binding["workdir"]),
                 docker_executable=str(benchmark_binding["docker_executable"]),
                 benchmark_mirror=benchmark_mirror,
+                mutation_policy_guard=mutation_policy_guard,
             ),
         )
     runtime = CodeWorkerRuntime(
@@ -815,6 +889,8 @@ def execute_code_worker_operator(
         permission_auto_available=True,
         permission_accept_edits_available=True,
         runtime_services=runtime_services,
+        event_reader=event_reader,
+        checkpoint_reader=checkpoint_reader,
     )
     lease_heartbeat = _WorkspaceLeaseHeartbeat(
         manager,
@@ -1005,6 +1081,22 @@ def _code_worker_query_context_budget_chars(
     return max(32_000, int(raw_budget))
 
 
+def _physical_resource_runtime_constraints(
+    context: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Carry one authoritative physical deadline and closeout reserve."""
+
+    deadline = context.get("external_deadline_epoch_ms")
+    if deadline in (None, "", 0, 0.0):
+        return {}
+    return {
+        "external_deadline_epoch_ms": int(deadline),
+        "closeout_reserve_seconds": (
+            _physical_deadline_closeout_reserve_seconds(context)
+        ),
+    }
+
+
 def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]:
     """Carry bounded, externally verified benchmark settings across processes."""
 
@@ -1012,15 +1104,11 @@ def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]
     # closeout no longer depends on it; the generic resource fields below are
     # authoritative for every caller that provides a deadline.
     constraints: dict[str, Any] = {"benchmark_physical_dispatch": True}
-    deadline = context.get("external_deadline_epoch_ms")
-    if deadline not in (None, "", 0, 0.0):
-        closeout_reserve = _benchmark_deadline_closeout_reserve_seconds(context)
-        constraints.update(
-            {
-                "external_deadline_epoch_ms": int(deadline),
-                "closeout_reserve_seconds": closeout_reserve,
-                "benchmark_closeout_reserve_seconds": closeout_reserve,
-            }
+    resource_constraints = _physical_resource_runtime_constraints(context)
+    constraints.update(resource_constraints)
+    if "closeout_reserve_seconds" in resource_constraints:
+        constraints["benchmark_closeout_reserve_seconds"] = (
+            resource_constraints["closeout_reserve_seconds"]
         )
     if context.get("benchmark_long_horizon") is True:
         raw_timeout = context.get("model_api_timeout_seconds")
@@ -1047,20 +1135,28 @@ def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]
             raw_stream_total = os.environ.get(
                 "ZYRA_MODEL_STREAM_TOTAL_TIMEOUT_SECONDS"
             )
-        if raw_stream_total not in (None, "", 0, 0.0):
-            stream_total_seconds = float(raw_stream_total)
-            if not 30.0 <= stream_total_seconds <= 1_800.0:
-                raise ValueError(
-                    "long-horizon model stream total timeout must be between 30 and 1800 seconds"
-                )
-            constraints.update(
-                {
-                    "model_stream_total_timeout_seconds": stream_total_seconds,
-                    "model_stream_total_timeout_milliseconds": int(
-                        stream_total_seconds * 1_000
-                    ),
-                }
+        # A successful SSE response outlives the connection/header watchdog and
+        # is governed by its own semantic-idle and total-stream bounds. Keep the
+        # operator override, but never leave the physical long-horizon path with
+        # an unbounded active stream: the already validated API timeout is the
+        # conservative default envelope.
+        stream_total_seconds = (
+            timeout_seconds
+            if raw_stream_total in (None, "", 0, 0.0)
+            else float(raw_stream_total)
+        )
+        if not 30.0 <= stream_total_seconds <= 1_800.0:
+            raise ValueError(
+                "long-horizon model stream total timeout must be between 30 and 1800 seconds"
             )
+        constraints.update(
+            {
+                "model_stream_total_timeout_seconds": stream_total_seconds,
+                "model_stream_total_timeout_milliseconds": int(
+                    stream_total_seconds * 1_000
+                ),
+            }
+        )
         raw_attempts = context.get("api_retry_max_attempts")
         if raw_attempts in (None, "", 0):
             raw_attempts = os.environ.get("ZYRA_API_RETRY_MAX_ATTEMPTS")
@@ -1119,6 +1215,17 @@ def _benchmark_agent_closeout_reserve_seconds(context: Mapping[str, Any]) -> flo
 def _benchmark_deadline_closeout_reserve_seconds(
     context: Mapping[str, Any],
 ) -> float:
+    """Backward-compatible benchmark name for the physical reserve."""
+
+    return _physical_deadline_closeout_reserve_seconds(context)
+
+
+def _physical_deadline_closeout_reserve_seconds(
+    context: Mapping[str, Any],
+) -> float:
+    explicit = context.get("closeout_reserve_seconds")
+    if explicit not in (None, "", 0, 0.0):
+        return max(1.0, float(explicit))
     explicit = context.get("benchmark_closeout_reserve_seconds")
     if explicit not in (None, "", 0, 0.0):
         return max(1.0, float(explicit))
@@ -1356,6 +1463,29 @@ def _execution_prompt(
         requirements.append(
             "Use at least two distinct successful forked skill child tasks for the explicitly "
             "separated roles, and run the independent verification role after the final workspace mutation."
+        )
+    mutation_policy = (
+        dict(delivery_contract.get("mutation_policy") or {})
+        if isinstance(delivery_contract.get("mutation_policy"), Mapping)
+        else {}
+    )
+    for path in mutation_policy.get("protected_source_roots") or ():
+        if str(path):
+            requirements.append(
+                f"This source input is physically protected: {path}. Read it, but make "
+                "all repair changes in the isolated working/output copy requested by the user."
+            )
+    if "existing_test_baseline" in (
+        mutation_policy.get("required_pre_mutation_evidence") or ()
+    ):
+        requirements.append(
+            "Run the existing test suite first. The physical mutation gate remains closed "
+            "until that test command reaches a terminal result; a failing baseline is valid evidence."
+        )
+    if mutation_policy.get("protect_existing_test_files") is True:
+        requirements.append(
+            "Existing test files are physically protected. You may add a new root-cause "
+            "test where the user permits it, but do not rewrite a test that already exists."
         )
     expected_contents = delivery_contract.get("expected_file_contents")
     if isinstance(expected_contents, Mapping):
@@ -1662,6 +1792,7 @@ def _provider_prompt_bindings(
 ) -> dict[str, dict[str, Any]]:
     bindings: dict[str, dict[str, Any]] = {}
     bound_runtime_identity: tuple[str, str, str, str] | None = None
+    bound_runtime_identities: set[tuple[str, str, str, str]] = set()
     for event in runtime_events:
         if not isinstance(event, Mapping):
             continue
@@ -1688,6 +1819,25 @@ def _provider_prompt_bindings(
                 for name in ("run_id", "task_id", "session_id", "worker_request_id")
             )
             identity_complete = all(runtime_identity)
+            raw_lineage = query.get("runtime_lineage")
+            lineage = raw_lineage if isinstance(raw_lineage, Mapping) else {}
+            lineage_relation = str(lineage.get("relation") or "").strip()
+            lineage_relation_id = str(lineage.get("relation_id") or "").strip()
+            parent_runtime_identity = tuple(
+                str(lineage.get(name) or "").strip()
+                for name in (
+                    "parent_run_id",
+                    "parent_task_id",
+                    "parent_session_id",
+                    "parent_worker_request_id",
+                )
+            )
+            lineage_complete = bool(
+                lineage.get("schema") == "zyra.runtime-lineage/v1"
+                and lineage_relation in {"agent", "skill"}
+                and lineage_relation_id
+                and all(parent_runtime_identity)
+            )
             initial_goal_match = bool(
                 expected_initial_prompt_digest
                 and initial_prompt_digest == expected_initial_prompt_digest
@@ -1696,15 +1846,39 @@ def _provider_prompt_bindings(
                 bound_runtime_identity is None
                 and identity_complete
                 and initial_goal_match
+                and not lineage
             ):
                 bound_runtime_identity = runtime_identity
+                bound_runtime_identities.add(runtime_identity)
+            lineage_bound = bool(
+                identity_complete
+                and lineage_complete
+                and parent_runtime_identity in bound_runtime_identities
+                and runtime_identity != parent_runtime_identity
+                and runtime_identity[0] == parent_runtime_identity[0]
+            )
+            if lineage_bound:
+                bound_runtime_identities.add(runtime_identity)
             task_chain_bound = bool(
                 identity_complete
-                and bound_runtime_identity is not None
-                and runtime_identity == bound_runtime_identity
+                and runtime_identity in bound_runtime_identities
             )
+            prior = bindings.get(request_id)
+            if (
+                prior is not None
+                and tuple(prior.get("_runtime_identity") or ()) != runtime_identity
+            ):
+                prior.update(
+                    {
+                        "goal_present": False,
+                        "goal_binding": "identity_collision",
+                        "runtime_identity_verified": False,
+                    }
+                )
+                continue
             bindings.setdefault(request_id, {}).update(
                 {
+                    "_runtime_identity": runtime_identity,
                     "messages_digest": messages_digest,
                     # A long-running CodeWorker replaces its first user message
                     # with a compaction/restore summary. The summary has a new
@@ -1716,7 +1890,10 @@ def _provider_prompt_bindings(
                     "goal_present": task_chain_bound,
                     "goal_binding": (
                         "initial_prompt"
-                        if task_chain_bound and initial_goal_match
+                        if runtime_identity == bound_runtime_identity
+                        and initial_goal_match
+                        else f"authorized_{lineage_relation}_descendant"
+                        if task_chain_bound and lineage_bound
                         else "runtime_continuation"
                         if task_chain_bound
                         else "unbound"
@@ -1739,9 +1916,17 @@ def _provider_prompt_bindings(
             ).strip()
             if not request_id or not provider_request_digest:
                 continue
-            bindings.setdefault(request_id, {}).update(
-                {"provider_request_digest": provider_request_digest}
+            runtime_identity = tuple(
+                str(query.get(name) or "").strip()
+                for name in ("run_id", "task_id", "session_id", "worker_request_id")
             )
+            binding = bindings.get(request_id)
+            if (
+                binding is None
+                or tuple(binding.get("_runtime_identity") or ()) != runtime_identity
+            ):
+                continue
+            binding.update({"provider_request_digest": provider_request_digest})
     return bindings
 
 
@@ -2215,7 +2400,40 @@ class _BenchmarkWorkspaceMirror:
             }
 
 
-class _BenchmarkWorkspaceEditPort(WorkspaceEditPort):
+class _TaskContractWorkspaceEditPort(WorkspaceEditPort):
+    """Workspace transaction port with one task-lineage mutation guard."""
+
+    def __init__(
+        self,
+        *args: Any,
+        mutation_policy_guard: TaskMutationPolicyGuard | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._mutation_policy_guard = mutation_policy_guard
+
+    def apply(self, *args: Any, **kwargs: Any) -> Any:
+        mutations = args[0] if args else kwargs.get("mutations")
+        guard = getattr(self, "_mutation_policy_guard", None)
+        if guard is not None and guard.enabled:
+            root = self.manager.internal_task_root(self.current_access()).resolve()
+            for mutation in mutations or ():
+                logical_path = canonical_logical_path(
+                    str(mutation.logical_path),
+                    allow_root=False,
+                )
+                target = root.joinpath(*logical_path.split("/")).resolve(
+                    strict=False
+                )
+                target.relative_to(root)
+                guard.assert_mutation(
+                    logical_path,
+                    existed=target.exists(),
+                )
+        return super().apply(*args, **kwargs)
+
+
+class _BenchmarkWorkspaceEditPort(_TaskContractWorkspaceEditPort):
     """Workspace transaction port synchronized with a benchmark container."""
 
     def __init__(
@@ -2251,6 +2469,104 @@ class _BenchmarkWorkspaceEditPort(WorkspaceEditPort):
             return result
 
 
+def _capture_task_policy_transaction(
+    root: Path,
+    guard: TaskMutationPolicyGuard,
+    *,
+    excluded_prefixes: tuple[str, ...],
+) -> dict[str, Any]:
+    """Capture bytes that a governed shell may need to roll back."""
+
+    before = _workspace_manifest(root, excluded_prefixes=excluded_prefixes)
+    baseline_satisfied_before = guard.baseline_satisfied
+    transaction_root = guard.state_root / "transactions"
+    transaction_root.mkdir(parents=True, exist_ok=True)
+    backup_root = Path(
+        tempfile.mkdtemp(prefix="command-", dir=transaction_root)
+    ).resolve()
+    for logical_path in sorted(before):
+        should_copy = bool(
+            (guard.policy.baseline_required and not baseline_satisfied_before)
+            or guard.policy.protects_path(logical_path)
+            or (
+                guard.policy.protect_existing_test_files
+                and guard.policy.is_existing_test_path(logical_path)
+            )
+        )
+        if not should_copy:
+            continue
+        source = root.joinpath(*logical_path.split("/")).resolve()
+        source.relative_to(root)
+        destination = backup_root.joinpath(*logical_path.split("/"))
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+    return {
+        "root": root,
+        "backup_root": backup_root,
+        "before": before,
+        "baseline_satisfied_before": baseline_satisfied_before,
+        "excluded_prefixes": excluded_prefixes,
+    }
+
+
+def _restore_task_policy_transaction(
+    snapshot: Mapping[str, Any],
+    guard: TaskMutationPolicyGuard,
+) -> tuple[tuple[str, ...], Mapping[str, Mapping[str, Any]]]:
+    """Restore prohibited shell deltas before the next tool can observe them."""
+
+    root = _required_path(snapshot.get("root"), "task policy workspace root")
+    backup_root = _required_path(
+        snapshot.get("backup_root"), "task policy transaction backup"
+    )
+    before = dict(snapshot.get("before") or {})
+    excluded_prefixes = tuple(snapshot.get("excluded_prefixes") or ())
+    after = _workspace_manifest(root, excluded_prefixes=excluded_prefixes)
+    prohibited = guard.prohibited_delta(
+        before,
+        after,
+        baseline_satisfied_before=bool(
+            snapshot.get("baseline_satisfied_before")
+        ),
+    )
+    for logical_path in prohibited:
+        target = root.joinpath(*logical_path.split("/")).resolve(strict=False)
+        target.relative_to(root)
+        backup = backup_root.joinpath(*logical_path.split("/"))
+        if logical_path not in before:
+            if target.is_symlink() or target.is_file():
+                target.unlink()
+            elif target.exists():
+                shutil.rmtree(target)
+            continue
+        if not backup.is_file() or backup.is_symlink():
+            raise RuntimeError(
+                "task mutation policy backup is missing a protected file"
+            )
+        if target.is_symlink() or target.is_file():
+            target.unlink()
+        elif target.exists():
+            shutil.rmtree(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(backup, target)
+    restored = _workspace_manifest(root, excluded_prefixes=excluded_prefixes)
+    for logical_path in prohibited:
+        if logical_path in before:
+            if (
+                logical_path not in restored
+                or restored[logical_path].get("sha256")
+                != before[logical_path].get("sha256")
+            ):
+                raise RuntimeError(
+                    "task mutation policy could not restore a protected file"
+                )
+        elif logical_path in restored:
+            raise RuntimeError(
+                "task mutation policy could not remove a prohibited created file"
+            )
+    return prohibited, restored
+
+
 class _BenchmarkDockerCliSandboxConnector(DockerCliSandboxConnector):
     """Synchronize shell dispatch with the managed file-tool mirror."""
 
@@ -2258,10 +2574,12 @@ class _BenchmarkDockerCliSandboxConnector(DockerCliSandboxConnector):
         self,
         *,
         benchmark_mirror: _BenchmarkWorkspaceMirror,
+        mutation_policy_guard: TaskMutationPolicyGuard | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._benchmark_mirror = benchmark_mirror
+        self._mutation_policy_guard = mutation_policy_guard
 
     def execute(self, *args: Any, **kwargs: Any) -> Any:
         envelope = args[1] if len(args) > 1 else kwargs.get("envelope")
@@ -2276,8 +2594,32 @@ class _BenchmarkDockerCliSandboxConnector(DockerCliSandboxConnector):
         host_workspace = self._benchmark_mirror.binding.get(
             "canonical_host_workspace"
         )
+        if (
+            self._mutation_policy_guard is not None
+            and self._mutation_policy_guard.enabled
+            and not host_workspace
+        ):
+            raise RuntimeError(
+                "task mutation policy requires the canonical benchmark host workspace"
+            )
+        policy_snapshot: dict[str, Any] | None = None
         with self._benchmark_mirror.guard:
             self._benchmark_mirror.push_to_container()
+            if (
+                self._mutation_policy_guard is not None
+                and self._mutation_policy_guard.enabled
+                and host_workspace
+            ):
+                policy_snapshot = _capture_task_policy_transaction(
+                    _required_path(
+                        host_workspace,
+                        "benchmark canonical host workspace",
+                    ),
+                    self._mutation_policy_guard,
+                    excluded_prefixes=_benchmark_mirror_excludes(
+                        self._benchmark_mirror.binding
+                    ),
+                )
             before = (
                 _workspace_state_snapshot(
                     _required_path(
@@ -2291,30 +2633,131 @@ class _BenchmarkDockerCliSandboxConnector(DockerCliSandboxConnector):
                 if track_delivery and host_workspace
                 else None
             )
-        result = super().execute(*args, **kwargs)
-        if before is None:
-            return result
-        with self._benchmark_mirror.guard:
-            after = _workspace_state_snapshot(
-                _required_path(
-                    host_workspace,
-                    "benchmark canonical host workspace",
-                ),
-                excluded_prefixes=_benchmark_mirror_excludes(
-                    self._benchmark_mirror.binding
-                ),
+        policy_restored = policy_snapshot is None
+
+        def restore_policy_snapshot() -> tuple[
+            tuple[str, ...],
+            Mapping[str, Mapping[str, Any]] | None,
+        ]:
+            nonlocal policy_restored
+            if policy_snapshot is None:
+                return (), None
+            with self._benchmark_mirror.guard:
+                prohibited_paths, restored = _restore_task_policy_transaction(
+                    policy_snapshot,
+                    self._mutation_policy_guard,
+                )
+            policy_restored = True
+            if prohibited_paths:
+                self._mutation_policy_guard.record_shell_denial(
+                    command_id=str(getattr(envelope, "command_id", "")),
+                    prohibited_paths=prohibited_paths,
+                )
+            return prohibited_paths, restored
+
+        try:
+            try:
+                result = super().execute(*args, **kwargs)
+            except BaseException:  # noqa: BLE001 - restore before propagating.
+                restore_policy_snapshot()
+                raise
+            prohibited: tuple[str, ...] = ()
+            restored_manifest: Mapping[str, Mapping[str, Any]] | None = None
+            if policy_snapshot is not None:
+                prohibited, restored_manifest = restore_policy_snapshot()
+                if prohibited:
+                    reason = (
+                        "task mutation policy reverted prohibited workspace changes "
+                        f"({len(prohibited)} path(s)); run the required baseline first "
+                        "or write only to the isolated output copy"
+                    )
+                    result = replace(
+                        result,
+                        return_code=126,
+                        termination=ProcessTermination.EXITED,
+                        output=replace(
+                            result.output,
+                            stderr=(
+                                result.output.stderr
+                                + (("\n" if result.output.stderr else "") + reason).encode(
+                                    "utf-8"
+                                )
+                            ),
+                        ),
+                        error_code="task_mutation_policy_denied",
+                        cancellation_reason=reason,
+                        metadata={
+                            **dict(result.metadata),
+                            "task_mutation_policy_denied": True,
+                            "task_mutation_policy_prohibited_path_count": len(
+                                prohibited
+                            ),
+                        },
+                    )
+                elif envelope is not None:
+                    self._mutation_policy_guard.observe_command(
+                        executable=str(getattr(envelope, "executable", "")),
+                        argv=tuple(getattr(envelope, "argv", ()) or ()),
+                        metadata=dict(getattr(envelope, "metadata", {}) or {}),
+                        termination=result.termination.value,
+                        return_code=result.return_code,
+                        command_id=str(getattr(envelope, "command_id", "")),
+                    )
+            if before is None:
+                if restored_manifest is None:
+                    return result
+                initial_manifest = dict(policy_snapshot.get("before") or {})
+                mutated = bool(
+                    result.ok
+                    and _digest(initial_manifest) != _digest(restored_manifest)
+                )
+                return replace(
+                    result,
+                    metadata={
+                        **dict(result.metadata),
+                        "workspace_mutation_committed": mutated,
+                        "task_mutation_policy_enforced": True,
+                        "task_mutation_policy_baseline_satisfied": (
+                            self._mutation_policy_guard.baseline_satisfied
+                        ),
+                    },
+                )
+            with self._benchmark_mirror.guard:
+                after = _workspace_state_snapshot(
+                    _required_path(
+                        host_workspace,
+                        "benchmark canonical host workspace",
+                    ),
+                    excluded_prefixes=_benchmark_mirror_excludes(
+                        self._benchmark_mirror.binding
+                    ),
+                )
+            mutated = bool(result.ok and before["digest"] != after["digest"])
+            return replace(
+                result,
+                metadata={
+                    **dict(result.metadata),
+                    "workspace_mutation_committed": mutated,
+                    "workspace_state_mode": str(after["mode"]),
+                    "workspace_state_before_digest": str(before["digest"]),
+                    "workspace_state_after_digest": str(after["digest"]),
+                    "task_mutation_policy_enforced": bool(policy_snapshot),
+                    "task_mutation_policy_baseline_satisfied": (
+                        self._mutation_policy_guard.baseline_satisfied
+                        if self._mutation_policy_guard is not None
+                        else False
+                    ),
+                },
             )
-        mutated = bool(result.ok and before["digest"] != after["digest"])
-        return replace(
-            result,
-            metadata={
-                **dict(result.metadata),
-                "workspace_mutation_committed": mutated,
-                "workspace_state_mode": str(after["mode"]),
-                "workspace_state_before_digest": str(before["digest"]),
-                "workspace_state_after_digest": str(after["digest"]),
-            },
-        )
+        finally:
+            if policy_snapshot is not None and policy_restored:
+                shutil.rmtree(
+                    _required_path(
+                        policy_snapshot.get("backup_root"),
+                        "task policy transaction backup",
+                    ),
+                    ignore_errors=True,
+                )
 
 
 def _benchmark_docker_binding(

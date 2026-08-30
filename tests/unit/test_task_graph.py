@@ -246,6 +246,116 @@ class TaskGraphTests(unittest.TestCase):
         self.assertIsNone(_consume_execution_retry_request(state))
         self.assertEqual(state.metadata["physical_execution_recovery_passes"], 2)
 
+    def test_physical_retry_exhaustion_projects_one_terminal_task_outcome(self) -> None:
+        from zyra_runtime import WorkerResult
+
+        state = create_task_state("Terminalize a generic exhausted physical task.")
+        ensure_default_graph(state)
+        state.status = PlanNodeStatus.RUNNING
+        state.metadata["physical_execution_recovery_passes"] = 2
+        for node in state.plan_nodes.values():
+            stage = str(node.metadata.get("stage") or "")
+            if node.node_id == state.root_node_id or stage in {"plan", "route"}:
+                node.status = PlanNodeStatus.COMPLETED
+            else:
+                node.status = PlanNodeStatus.PENDING
+        failure = WorkerResult(
+            request_id="terminal-worker-call",
+            ok=False,
+            summary="terminal physical worker failure",
+            error="node_code_worker_failed",
+            metadata={"physical_execution_replan_requested": "true"},
+        )
+        projections: list[tuple[str, PlanNodeStatus]] = []
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            context = GraphExecutionContext(
+                project_root=root,
+                workspace_root=root / "workspace",
+                artifact_root=root / "artifacts",
+                physical_execution_runner=lambda *_args: (
+                    SimpleNamespace(worker_result=failure, event_records=[]),
+                    "physical-worker",
+                ),
+                execution_state_projector=lambda projected, _events, phase: (
+                    projections.append((phase, projected.status))
+                ),
+            )
+            events = run_task_graph(state, execution_context=context)
+
+        self.assertEqual(state.status, PlanNodeStatus.FAILED)
+        self.assertEqual(projections, [("physical_retry_exhausted", PlanNodeStatus.FAILED)])
+        self.assertEqual(
+            state.metadata["canonical_task_outcome"]["task_status"],
+            "failed",
+        )
+        self.assertTrue(state.metadata["canonical_task_outcome"]["terminal"])
+        self.assertEqual(
+            sum(
+                event.payload.get("schema")
+                == "zyra.physical-retry-exhausted-task-projection/v1"
+                for event in events
+            ),
+            1,
+        )
+
+    def test_live_physical_retry_checkpoints_running_without_terminal_projection(self) -> None:
+        from zyra_runtime import WorkerResult
+
+        state = create_task_state("Keep a generic admitted physical retry live.")
+        ensure_default_graph(state)
+        state.status = PlanNodeStatus.RUNNING
+        for node in state.plan_nodes.values():
+            stage = str(node.metadata.get("stage") or "")
+            if node.node_id == state.root_node_id or stage in {"plan", "route"}:
+                node.status = PlanNodeStatus.COMPLETED
+            else:
+                node.status = PlanNodeStatus.PENDING
+        failure = WorkerResult(
+            request_id="retryable-worker-call",
+            ok=False,
+            summary="checkpointed partial delivery",
+            error="code_worker_delivery_incomplete",
+            metadata={
+                "physical_execution_replan_requested": "true",
+                "checkpointed_side_effect_recovery_requested": "true",
+            },
+        )
+        success = WorkerResult(
+            request_id="recovered-worker-call",
+            ok=True,
+            summary="recovered physical execution",
+        )
+        calls = 0
+        projections: list[tuple[str, PlanNodeStatus]] = []
+
+        def runner(*_args):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return SimpleNamespace(worker_result=failure, event_records=[]), "physical-worker"
+            return SimpleNamespace(worker_result=success, event_records=[]), "physical-worker"
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            context = GraphExecutionContext(
+                project_root=root,
+                workspace_root=root / "workspace",
+                artifact_root=root / "artifacts",
+                physical_execution_runner=runner,
+                execution_state_projector=lambda projected, _events, phase: (
+                    projections.append((phase, projected.status))
+                ),
+            )
+            run_task_graph(state, execution_context=context)
+
+        self.assertGreaterEqual(calls, 2)
+        self.assertEqual(projections[0], ("physical_retry_admitted", PlanNodeStatus.RUNNING))
+        self.assertNotIn(
+            "physical_execution_terminal_projection",
+            state.metadata,
+        )
+
     def test_formal_route_revalidates_one_covered_baseline_before_placement(self) -> None:
         state = create_task_state("Revalidate one transient formal baseline.")
         state.metadata["sealed_autonomous"] = True

@@ -44,6 +44,15 @@ export async function* readSse(
       if (event !== null) yield event;
     }
   } finally {
+    // A semantic watchdog, response budget, caller abort, or protocol decoder
+    // can stop iteration while the socket is still producing bytes. Cancel the
+    // reader before releasing its lock so the provider connection cannot stay
+    // alive after the dispatch has reached a terminal failure.
+    try {
+      await reader.cancel("provider SSE iteration settled");
+    } catch {
+      // Preserve the dispatch result or the original stream failure.
+    }
     reader.releaseLock();
   }
 }

@@ -30,6 +30,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
   private readonly delegate: RuntimeHost;
   private readonly input: RuntimeRunInput;
   private readonly capabilities: TypeScriptCapabilityRuntime;
+  private readonly abortSignal?: AbortSignal;
   private readonly settlement: ToolExecutionSettlementRuntime;
   private lastRuntimeSnapshot: JsonObject;
 
@@ -37,10 +38,12 @@ export class PermissionedCapabilityHost implements RuntimeHost {
     delegate: RuntimeHost,
     input: RuntimeRunInput,
     capabilities: TypeScriptCapabilityRuntime,
+    abortSignal?: AbortSignal,
   ) {
     this.delegate = delegate;
     this.input = input;
     this.capabilities = capabilities;
+    this.abortSignal = abortSignal;
     this.lastRuntimeSnapshot = asObject(input.restoredState);
     this.settlement = new ToolExecutionSettlementRuntime({
       runtimeId: `execution-settlement:${input.sessionId}:${input.workerRequestId}`,
@@ -80,8 +83,16 @@ export class PermissionedCapabilityHost implements RuntimeHost {
     identity: CapabilitySupervisionIdentity,
     operation: (signal?: AbortSignal) => Promise<T>,
   ): Promise<T> {
-    return this.delegate.superviseCapability?.(request, identity, operation)
-      ?? operation(undefined);
+    if (!this.delegate.superviseCapability) return operation(this.abortSignal);
+    return this.delegate.superviseCapability(
+      request,
+      identity,
+      (delegateSignal) => withCombinedAbortSignal(
+        this.abortSignal,
+        delegateSignal,
+        operation,
+      ),
+    );
   }
 
   async executeBatch(
@@ -121,7 +132,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
         toolName: canonicalToolName,
         namespace: identity.namespace,
         serverId: identity.serverId,
-        operation: inferOperation(canonicalToolName, tool),
+        operation: inferOperation(canonicalToolName, tool, argumentsValue),
         workspaceRoot: workspaceRoot(this.input),
         arguments: argumentsValue,
         issueExecutionPermit: local,
@@ -224,6 +235,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
     }
     const committed = await this.delegate.executeBatch(batch, enriched);
     if (awaitingApproval) return committed;
+    let gatewayReceiptRecorded = false;
     for (let index = 0; index < committed.length; index += 1) {
       const request = enriched[index];
       const receipt = committed[index];
@@ -243,6 +255,16 @@ export class PermissionedCapabilityHost implements RuntimeHost {
         error: receipt.error ?? null,
         receiptMetadata: receipt.metadata,
         intermediate: request.permissionOnly && permissionCommitAccepted(receipt),
+      });
+      gatewayReceiptRecorded = true;
+    }
+    if (gatewayReceiptRecorded) {
+      // A gateway receipt is the first authoritative boundary after physical
+      // dispatch. Persist it before the query loop can fail or stop so a
+      // restart never falls back to the older dispatch-intent snapshot.
+      await this.checkpointState({
+        ...this.lastRuntimeSnapshot,
+        checkpointPhase: "tool_gateway_receipts_settled",
       });
     }
     const output: ToolExecutionResponse[] = [];
@@ -273,7 +295,12 @@ export class PermissionedCapabilityHost implements RuntimeHost {
                 const routedChild = await bindProviderControlPlaneChildRoute(this.input, childInput);
                 return new ClaudeRuntimeCore().run(
                   routedChild,
-                  new PermissionedCapabilityHost(this.delegate, routedChild, this.capabilities),
+                  new PermissionedCapabilityHost(
+                    this.delegate,
+                    routedChild,
+                    this.capabilities,
+                    signal,
+                  ),
                 );
               },
             },
@@ -286,6 +313,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
               operation: inferOperation(
                 request.toolName,
                 this.input.tools.find((item) => item.name === request.toolName),
+                request.arguments,
               ),
               metadata: request.metadata,
               signal,
@@ -385,7 +413,7 @@ export class PermissionedCapabilityHost implements RuntimeHost {
   }
 
   isAborted(): boolean {
-    return this.delegate.isAborted();
+    return Boolean(this.abortSignal?.aborted) || this.delegate.isAborted();
   }
 
   snapshot(): JsonObject {
@@ -395,6 +423,28 @@ export class PermissionedCapabilityHost implements RuntimeHost {
       settlement: this.settlement.snapshot() as unknown as JsonObject,
       capabilities: capabilities as unknown as JsonObject,
     };
+  }
+}
+
+async function withCombinedAbortSignal<T>(
+  first: AbortSignal | undefined,
+  second: AbortSignal | undefined,
+  operation: (signal?: AbortSignal) => Promise<T>,
+): Promise<T> {
+  if (!first) return operation(second);
+  if (!second || first === second) return operation(first);
+  const controller = new AbortController();
+  const abortFromFirst = (): void => controller.abort(first.reason);
+  const abortFromSecond = (): void => controller.abort(second.reason);
+  first.addEventListener("abort", abortFromFirst, { once: true });
+  second.addEventListener("abort", abortFromSecond, { once: true });
+  if (first.aborted) abortFromFirst();
+  else if (second.aborted) abortFromSecond();
+  try {
+    return await operation(controller.signal);
+  } finally {
+    first.removeEventListener("abort", abortFromFirst);
+    second.removeEventListener("abort", abortFromSecond);
   }
 }
 
@@ -537,11 +587,16 @@ function inferToolIdentity(
 function inferOperation(
   toolName: string,
   tool?: RuntimeRunInput["tools"][number],
+  argumentsValue: JsonObject = {},
 ): string {
   const metadata = asObject(tool?.metadata);
   const accessMode = asString(metadata.access_mode).trim().toLowerCase();
   if (accessMode === "read") return "read";
-  if (accessMode === "write") return "write";
+  if (accessMode === "write" || accessMode === "artifact_write") return "write";
+  if (
+    (toolName === "checkpoint" || toolName === "trace")
+    && argumentsValue.write_artifact === true
+  ) return "write";
   if (metadata.read_only === true || asString(metadata.read_only).toLowerCase() === "true") {
     return "read";
   }

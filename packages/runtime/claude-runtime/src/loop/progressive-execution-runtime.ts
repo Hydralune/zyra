@@ -20,7 +20,14 @@ export interface UnresolvedVerificationFailure {
   failureKind: "reported_checks" | "reported_failure" | "nonzero_exit" | "transport_failure";
   attemptCount: number;
   lastObservedWorkspaceMutationCount: number;
+  validationHarnessPath?: string;
+  lastObservedValidationHarnessRevision?: number;
   diagnosticSummary?: string;
+}
+
+export interface TaskAuthoredPathRevision {
+  path: string;
+  revision: number;
 }
 
 export interface ProgressiveExecutionSnapshot {
@@ -35,6 +42,7 @@ export interface ProgressiveExecutionSnapshot {
   artifactCount: number;
   workspaceMutationCount: number;
   repairMutationCount: number;
+  taskAuthoredPathRevisions: TaskAuthoredPathRevision[];
   verificationCount: number;
   unresolvedVerificationScopes: string[];
   unresolvedVerificationFailures: UnresolvedVerificationFailure[];
@@ -136,6 +144,7 @@ export class ProgressiveExecutionRuntime {
         artifactCount: 0,
         workspaceMutationCount: 0,
         repairMutationCount: 0,
+        taskAuthoredPathRevisions: [],
         verificationCount: 0,
         unresolvedVerificationScopes: [],
         unresolvedVerificationFailures: [],
@@ -228,6 +237,9 @@ export class ProgressiveExecutionRuntime {
         repairMutationCount: restored.repairMutationCount === undefined
           ? nonnegativeInteger(restored.workspaceMutationCount)
           : nonnegativeInteger(restored.repairMutationCount),
+        taskAuthoredPathRevisions: restoreTaskAuthoredPathRevisions(
+          restored.taskAuthoredPathRevisions,
+        ),
         verificationNudgeCount: nonnegativeInteger(
           restored.verificationNudgeCount,
         ),
@@ -259,6 +271,10 @@ export class ProgressiveExecutionRuntime {
       continuity.repairMutationCount === undefined
         ? nonnegativeInteger(continuity.workspaceMutationCount)
         : nonnegativeInteger(continuity.repairMutationCount),
+    );
+    this.state.taskAuthoredPathRevisions = mergeTaskAuthoredPathRevisions(
+      this.state.taskAuthoredPathRevisions,
+      restoreTaskAuthoredPathRevisions(continuity.taskAuthoredPathRevisions),
     );
     if (
       asBoolean(continuity.requiredDeliveryMissing)
@@ -465,6 +481,34 @@ export class ProgressiveExecutionRuntime {
       response.metadata.workspace_mutation_committed ?? "false",
     ).toLowerCase() === "true";
     const mutated = response.ok && mutationCommitted;
+    const mutationPath = normalizedWorkspacePath(
+      response.metadata.workspace_logical_path
+      ?? response.output.path
+      ?? request.metadata.progressive_mutation_path
+      ?? request.arguments.path
+      ?? request.arguments.file_path,
+    );
+    const workspacePathCreated = String(
+      response.metadata.workspace_path_created
+      ?? response.output.workspace_path_created
+      ?? "false",
+    ).toLowerCase() === "true"
+      || String(
+        response.metadata.workspace_path_disposition
+        ?? response.output.workspace_path_disposition
+        ?? "",
+      ).toLowerCase() === "created";
+    if (mutated && mutationPath) {
+      const existingPath = this.state.taskAuthoredPathRevisions.find(
+        (entry) => entry.path === mutationPath,
+      );
+      if (existingPath) {
+        existingPath.revision += 1;
+      } else if (workspacePathCreated) {
+        this.state.taskAuthoredPathRevisions.push({ path: mutationPath, revision: 1 });
+        this.state.taskAuthoredPathRevisions = this.state.taskAuthoredPathRevisions.slice(-128);
+      }
+    }
     const verificationDriving = asBoolean(
       request.metadata.progressive_verification_driving,
     );
@@ -477,7 +521,22 @@ export class ProgressiveExecutionRuntime {
     const environmentRecoveryDriving = asBoolean(
       request.metadata.progressive_environment_recovery_driving,
     );
-    const repairMutated = mutated && repairDriving;
+    const taskAuthoredHarnessFailure = this.state.unresolvedVerificationFailures.find(
+      (failure) => Boolean(failure.validationHarnessPath),
+    );
+    const exactHarnessMutation = mutationPath
+      ? this.state.unresolvedVerificationFailures.some(
+        (failure) => failure.validationHarnessPath === mutationPath,
+      )
+      : false;
+    // A correction to the exact task-authored harness advances that harness's
+    // own revision, not the business-repair generation. While such debt is
+    // open, creating an unrelated path also cannot impersonate a repair. A
+    // replacement of an existing implementation path remains valid repair.
+    const repairMutated = mutated
+      && repairDriving
+      && !exactHarnessMutation
+      && !(workspacePathCreated && taskAuthoredHarnessFailure !== undefined);
     const artifacts = response.artifacts.length;
     const background = String(
       response.metadata.background_status
@@ -489,13 +548,25 @@ export class ProgressiveExecutionRuntime {
     const backgroundTerminal = ["completed", "failed", "cancelled", "stopped"].includes(background);
     const verificationInvocationFailed = verificationDriving
       && !backgroundRunning
-      && isRetryableVerificationInvocationFailure(response);
+      && isRetryableVerificationInvocationFailure(request, response);
+    const expectedNonzeroVerificationProbe = verificationDriving
+      && !backgroundRunning
+      && explicitlyAcceptedNonzeroResult(response);
     const verificationPassed = verificationDriving
       && !verificationInvocationFailed
+      && !expectedNonzeroVerificationProbe
       && verificationResultPassed(response, background);
     const verificationScope = String(
       request.metadata.progressive_verification_scope ?? "",
     ).trim();
+    const verificationHarnessPath = normalizedWorkspacePath(
+      request.metadata.progressive_verification_harness_path,
+    );
+    const taskAuthoredVerificationHarness = verificationHarnessPath
+      ? this.state.taskAuthoredPathRevisions.find(
+        (entry) => entry.path === verificationHarnessPath,
+      )
+      : undefined;
     const environmentRecoverySucceeded = response.ok
       && environmentRecoveryDriving
       && !backgroundRunning
@@ -603,7 +674,13 @@ export class ProgressiveExecutionRuntime {
         this.state.unresolvedVerificationFailures = this.state.unresolvedVerificationFailures
           .filter((failure) => failure.scope !== verificationScope);
       }
-      if (this.state.unresolvedVerificationScopes.length > 0) {
+      if (taskAuthoredVerificationHarness) {
+        // A task may use a scratch harness to diagnose and repair its own
+        // assertions. Passing that harness clears its exact debt but never
+        // substitutes for a fresh independent/official verification scope.
+        this.state.verificationCount = 0;
+        this.record("task_authored_verification_harness_passed");
+      } else if (this.state.unresolvedVerificationScopes.length > 0) {
         this.state.verificationCount = 0;
         this.record("post_delivery_verification_other_scope_still_failed");
       } else if (this.state.verificationCount === 0) {
@@ -634,6 +711,15 @@ export class ProgressiveExecutionRuntime {
       this.state.verificationNudgeCount = 0;
       this.state.lastVerificationNudgeProviderRound = 0;
       this.record("verification_invocation_failed_before_behavioral_result");
+    } else if (
+      expectedNonzeroVerificationProbe
+      && !this.state.requiredDeliveryMissing
+    ) {
+      // A deliberately failing baseline or negative probe can be a successful
+      // command without being a green verification. Preserve both prior
+      // verification credit and prior semantic debt: the explicit return-code
+      // contract is evidence about the probe, not the delivered behavior.
+      this.record("expected_nonzero_verification_probe_observed");
     } else if (
       verificationDriving
       && !backgroundRunning
@@ -679,6 +765,8 @@ export class ProgressiveExecutionRuntime {
           response,
           this.state.repairMutationCount,
           existingFailure,
+          taskAuthoredVerificationHarness?.path,
+          taskAuthoredVerificationHarness?.revision,
         );
         this.state.unresolvedVerificationFailures = mergeVerificationFailures(
           this.state.unresolvedVerificationFailures,
@@ -983,8 +1071,36 @@ export class ProgressiveExecutionRuntime {
     const failure = this.state.unresolvedVerificationFailures.find(
       (candidate) => candidate.scope === normalized,
     );
-    return failure !== undefined
-      && failure.lastObservedWorkspaceMutationCount >= this.state.repairMutationCount;
+    if (failure === undefined) return false;
+    const businessRepairPending = failure.lastObservedWorkspaceMutationCount
+      >= this.state.repairMutationCount;
+    if (!failure.validationHarnessPath) return businessRepairPending;
+    const currentHarnessRevision = this.state.taskAuthoredPathRevisions.find(
+      (entry) => entry.path === failure.validationHarnessPath,
+    )?.revision ?? 0;
+    const harnessCorrectionPending = currentHarnessRevision
+      <= (failure.lastObservedValidationHarnessRevision ?? 0);
+    return businessRepairPending && harnessCorrectionPending;
+  }
+
+  canCorrectTaskAuthoredVerificationHarness(path: string): boolean {
+    const normalized = normalizedWorkspacePath(path);
+    if (!normalized) return false;
+    return this.state.unresolvedVerificationFailures.some(
+      (failure) => failure.validationHarnessPath === normalized,
+    ) && this.state.taskAuthoredPathRevisions.some(
+      (entry) => entry.path === normalized,
+    );
+  }
+
+  canStageValidationMaterialAfterRepair(): boolean {
+    // Validation-only bytes never count as the business repair and never
+    // clear semantic debt. Once a real repair generation exists, however,
+    // they may need to be staged so the same failing scope can execute
+    // against those repaired bytes. The task mutation owner remains
+    // responsible for rejecting rewrites of immutable/existing tests.
+    return !this.state.requiredDeliveryMissing
+      && this.state.repairMutationCount > 0;
   }
 
   backgroundShellSlotsRemaining(): number {
@@ -1120,6 +1236,16 @@ function restoreVerificationFailures(
       lastObservedWorkspaceMutationCount: nonnegativeInteger(
         failure.lastObservedWorkspaceMutationCount,
       ),
+      ...(normalizedWorkspacePath(failure.validationHarnessPath)
+        ? {
+            validationHarnessPath: normalizedWorkspacePath(
+              failure.validationHarnessPath,
+            ),
+            lastObservedValidationHarnessRevision: nonnegativeInteger(
+              failure.lastObservedValidationHarnessRevision,
+            ),
+          }
+        : {}),
       ...(diagnosticSummary ? { diagnosticSummary } : {}),
     });
   }
@@ -1135,6 +1261,7 @@ function retryableVerificationInvocationFailureScopes(value: unknown): string[] 
       && (
         isRetryableVerificationInvocationDiagnostic(
           String(failure.diagnosticSummary ?? ""),
+          String(failure.scope ?? ""),
         )
         || (
           (!Array.isArray(failure.failedChecks) || failure.failedChecks.length === 0)
@@ -1152,7 +1279,10 @@ function isRetryableStoredVerificationInvocationFailure(
 ): boolean {
   return failure.failureKind === "transport_failure"
     && (
-      isRetryableVerificationInvocationDiagnostic(failure.diagnosticSummary ?? "")
+      isRetryableVerificationInvocationDiagnostic(
+        failure.diagnosticSummary ?? "",
+        failure.scope,
+      )
       || (
         failure.failedChecks.length === 0
         && failure.failedCount === null
@@ -1162,8 +1292,22 @@ function isRetryableStoredVerificationInvocationFailure(
 }
 
 function isRetryableVerificationInvocationFailure(
+  request: ToolExecutionRequest,
   response: ToolExecutionResponse,
 ): boolean {
+  const responseError = String(response.error ?? "").trim().toLowerCase();
+  const permissionEffect = String(
+    response.output.permission_effect
+    ?? response.metadata.permission_effect
+    ?? "",
+  ).trim().toLowerCase();
+  // PermissionCoordinator denials settle before the gateway starts a process.
+  // They are invocation failures, not evidence that the delivered behavior is
+  // wrong. Recording their command-derived scope as semantic debt creates an
+  // impossible loop because the exact denied invocation can never clear it.
+  if (responseError === "permission_denied" || permissionEffect === "deny") {
+    return true;
+  }
   const text = [
     response.output.stderr,
     response.output.stdout,
@@ -1172,10 +1316,50 @@ function isRetryableVerificationInvocationFailure(
     response.summary,
     response.error,
   ].filter((value): value is string => typeof value === "string").join("\n");
-  return isRetryableVerificationInvocationDiagnostic(text);
+  const terminationKind = String(
+    response.metadata.termination_kind
+    ?? response.metadata.process_termination_kind
+    ?? response.output.termination_kind
+    ?? response.output.status
+    ?? response.output.code
+    ?? "",
+  ).trim().toLowerCase();
+  if (["failed_to_start", "process_start_failed", "spawn_failed"].includes(terminationKind)) {
+    return true;
+  }
+  const returnCode = Number(
+    response.output.return_code
+    ?? response.output.exit_code
+    ?? response.metadata.return_code,
+  );
+  // cmd.exe reserves 9009 for a command that could not be located. The
+  // requested verifier never started, so this cannot establish a behavioral
+  // failure for the delivered bytes.
+  if (returnCode === 9009) return true;
+  if (structuredArgvRepeatsExecutable(request)) return true;
+  const executable = invokedExecutable(request);
+  if (executable && executableUnavailableDiagnostic(text, executable)) return true;
+  return isRetryableVerificationInvocationDiagnostic(
+    text,
+    String(request.metadata.progressive_verification_scope ?? ""),
+  );
 }
 
-function isRetryableVerificationInvocationDiagnostic(value: string): boolean {
+function structuredArgvRepeatsExecutable(request: ToolExecutionRequest): boolean {
+  const explicit = String(request.arguments.executable ?? "").trim();
+  const argv = Array.isArray(request.arguments.argv) ? request.arguments.argv : [];
+  const first = typeof argv[0] === "string" ? argv[0].trim() : "";
+  if (!explicit || !first) return false;
+  const basename = (value: string): string => (
+    value.replace(/\\/gu, "/").split("/").at(-1)?.toLowerCase() ?? ""
+  );
+  return basename(explicit) === basename(first);
+}
+
+function isRetryableVerificationInvocationDiagnostic(
+  value: string,
+  verificationScope = "",
+): boolean {
   return /(?:^|\n)(?:sh|dash|ash|bash):[^\n]*\bbad substitution\b/iu.test(value)
     || /\bPIPESTATUS(?:\[[^\]]+\])?:\s*(?:parameter not set|unbound variable)\b/iu.test(value)
     || /\b(?:shell|command) was blocked by SandboxGateway\b/iu.test(value)
@@ -1195,7 +1379,35 @@ function isRetryableVerificationInvocationDiagnostic(value: string): boolean {
     // as an invocation prerequisite, not semantic debt: otherwise the failed
     // verification guard blocks the very manifest/report generator named by
     // the diagnostic and creates a deterministic recovery deadlock.
-    || /\b(?:manifest|submission|deliverables?|artifacts?|reports?)\b[^\n]{0,160}\bmissing\b[^\n]{0,240}\b(?:create|generate|produce|write|provide)\b[^\n]{0,160}\bbefore\b[^\n]{0,80}\b(?:verification|validation|acceptance)\b/iu.test(value);
+    || /\b(?:manifest|submission|deliverables?|artifacts?|reports?)\b[^\n]{0,160}\bmissing\b[^\n]{0,240}\b(?:create|generate|produce|write|provide)\b[^\n]{0,160}\bbefore\b[^\n]{0,80}\b(?:verification|validation|acceptance)\b/iu.test(value)
+    || scopedRunnerModuleUnavailable(value, verificationScope);
+}
+
+function scopedRunnerModuleUnavailable(value: string, verificationScope: string): boolean {
+  const runner = verificationScope.split(":")[0]?.toLowerCase() === "shell"
+    ? verificationScope.split(":")[1]?.trim().toLowerCase() ?? ""
+    : "";
+  if (!/^[a-z0-9._-]+$/u.test(runner)) return false;
+  const missingModules = [...value.matchAll(/\bNo module named\s+['"]([^'"]+)['"]/giu)]
+    .map((match) => String(match[1] ?? "").trim().toLowerCase());
+  // Match only the selected verification runner. An unrelated application
+  // import failure proves that the runner did start and must remain semantic
+  // verification debt.
+  return missingModules.some((missing) => missing === runner);
+}
+
+function invokedExecutable(request: ToolExecutionRequest): string {
+  const explicit = String(request.arguments.executable ?? "").trim();
+  const command = String(request.arguments.command ?? "").trim();
+  const commandMatch = command.match(/^(?:["']([^"']+)["']|(\S+))/u);
+  const token = explicit || commandMatch?.[1] || commandMatch?.[2] || "";
+  return String(token).replace(/\\/gu, "/").split("/").at(-1)?.toLowerCase() ?? "";
+}
+
+function executableUnavailableDiagnostic(value: string, executable: string): boolean {
+  if (!/^[a-z0-9._+-]+$/u.test(executable)) return false;
+  const escaped = executable.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  return new RegExp(`(?:^|\\n)[^\\n]*\\b${escaped}\\b[^\\n]*(?:command not found|is not recognized)`, "iu").test(value);
 }
 
 function mergeVerificationFailures(
@@ -1241,6 +1453,8 @@ function verificationFailure(
   response: ToolExecutionResponse,
   workspaceMutationCount: number,
   existing?: UnresolvedVerificationFailure,
+  validationHarnessPath?: string,
+  validationHarnessRevision?: number,
 ): UnresolvedVerificationFailure {
   const text = [response.output.stdout, response.output.stderr, response.summary]
     .filter((value): value is string => typeof value === "string")
@@ -1269,10 +1483,10 @@ function verificationFailure(
     : Number(rawReturnCode);
   const failureKind: UnresolvedVerificationFailure["failureKind"] = failedChecks.size > 0
     ? "reported_checks"
-    : !response.ok
-      ? "transport_failure"
-      : Number.isFinite(returnCode) && returnCode !== 0
-        ? "nonzero_exit"
+    : Number.isFinite(returnCode) && returnCode !== 0
+      ? "nonzero_exit"
+      : !response.ok
+        ? "transport_failure"
         : "reported_failure";
   // A concrete result from a new verification attempt supersedes diagnostics
   // from the previous attempt. Follow-up inspection output for this attempt is
@@ -1300,8 +1514,62 @@ function verificationFailure(
     failureKind,
     attemptCount: (existing?.attemptCount ?? 0) + 1,
     lastObservedWorkspaceMutationCount: workspaceMutationCount,
+    ...(normalizedWorkspacePath(validationHarnessPath)
+      ? {
+          validationHarnessPath: normalizedWorkspacePath(validationHarnessPath),
+          lastObservedValidationHarnessRevision: nonnegativeInteger(
+            validationHarnessRevision,
+          ),
+        }
+      : {}),
     ...(diagnosticSummary ? { diagnosticSummary } : {}),
   };
+}
+
+function restoreTaskAuthoredPathRevisions(value: unknown): TaskAuthoredPathRevision[] {
+  if (!Array.isArray(value)) return [];
+  const restored: TaskAuthoredPathRevision[] = [];
+  for (const item of value) {
+    const record = asObject(item);
+    const path = normalizedWorkspacePath(record.path);
+    const revision = nonnegativeInteger(record.revision);
+    if (!path || revision === 0) continue;
+    restored.push({ path, revision });
+  }
+  return mergeTaskAuthoredPathRevisions([], restored);
+}
+
+function mergeTaskAuthoredPathRevisions(
+  current: readonly TaskAuthoredPathRevision[],
+  incoming: readonly TaskAuthoredPathRevision[],
+): TaskAuthoredPathRevision[] {
+  const merged = new Map<string, number>();
+  for (const record of [...current, ...incoming]) {
+    const path = normalizedWorkspacePath(record.path);
+    if (!path) continue;
+    merged.set(path, Math.max(merged.get(path) ?? 0, nonnegativeInteger(record.revision)));
+  }
+  return [...merged.entries()]
+    .map(([path, revision]) => ({ path, revision }))
+    .sort((left, right) => left.path.localeCompare(right.path))
+    .slice(-128);
+}
+
+function normalizedWorkspacePath(value: unknown): string {
+  const normalized = String(value ?? "")
+    .trim()
+    .replaceAll("\\", "/")
+    .replace(/^\.\//u, "")
+    .replace(/\/+/gu, "/");
+  if (
+    !normalized
+    || normalized.startsWith("/")
+    || /^[a-z]:\//iu.test(normalized)
+    || normalized.split("/").some((segment) => segment === "..")
+  ) {
+    return "";
+  }
+  return normalized;
 }
 
 function verificationDiagnosticSummary(response: ToolExecutionResponse): string {
@@ -1525,4 +1793,37 @@ function verificationResultPassed(
     || /["']?failed["']?\s*:\s*[1-9]\d*\b/i.test(text)
     || /["']?failed_(?:shards|tests|checks)["']?\s*:\s*\[\s*["']/i.test(text)
   );
+}
+
+function explicitlyAcceptedNonzeroResult(
+  response: ToolExecutionResponse,
+): boolean {
+  if (!response.ok) return false;
+  const rawReturnCode = response.output.return_code
+    ?? response.output.exit_code
+    ?? response.metadata.return_code;
+  const returnCode = Number(rawReturnCode);
+  if (!Number.isInteger(returnCode) || returnCode === 0) return false;
+
+  const acceptedFlag = asBoolean(response.output.return_code_accepted)
+    || response.metadata.return_code_accepted === "true";
+  if (!acceptedFlag) return false;
+
+  const outputCodes = response.output.accepted_return_codes;
+  if (Array.isArray(outputCodes)) {
+    return outputCodes.some((value) => (
+      typeof value === "number"
+      && Number.isInteger(value)
+      && value === returnCode
+    ));
+  }
+
+  return String(response.metadata.accepted_return_codes ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .some((value) => {
+      const acceptedCode = Number(value);
+      return Number.isInteger(acceptedCode) && acceptedCode === returnCode;
+    });
 }

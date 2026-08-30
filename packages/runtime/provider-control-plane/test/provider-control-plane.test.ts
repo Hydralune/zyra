@@ -18,6 +18,7 @@ import {
   type TransportProtocol,
 } from "../src/index.ts";
 import { ProviderControlPlaneRpcServer, RPC_PROTOCOL } from "../src/stdio-server.ts";
+import { ProviderTransportRuntime } from "../src/transport/runtime.ts";
 import {
   DEEPSEEK_API_KEY_ENV,
   DEEPSEEK_CREDENTIAL_ID,
@@ -896,6 +897,276 @@ test("an explicit stream-total watchdog bounds active SSE progress", async (t) =
       && error.message.includes("total lifetime"),
   );
   assert.equal(capture.requests.length, 1);
+});
+
+test("semantic watchdog ignores identityless empty tool deltas", (t) => {
+  let now = 1_000;
+  const { controlPlane, secrets } = makeControlPlane(t, { clock: { now: () => now } });
+  installProvider(controlPlane, secrets, {
+    providerId: "semantic-progress",
+    modelId: "semantic-progress-model",
+    baseUrl: "http://127.0.0.1:1",
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(routeRequest("semantic-progress", "semantic-progress-model"));
+  const request = dispatchRequest(route.routeId);
+  const supervisor = new ProviderStreamSupervisor(request, route, {
+    now: () => now,
+    budget: { firstByteMilliseconds: 20, chunkMilliseconds: 20 },
+  });
+  const frame = (
+    sequence: number,
+    kind: ProviderStreamFrame["kind"],
+    metadata: ProviderStreamFrame["metadata"] = {},
+    text: string | null = null,
+  ): ProviderStreamFrame => ({
+    frameId: `semantic-${sequence}`,
+    dispatchId: request.dispatchId,
+    routeId: request.routeId,
+    sequence,
+    kind,
+    text,
+    toolCallId: null,
+    toolName: null,
+    jsonDelta: null,
+    usage: {},
+    providerEvent: null,
+    createdAt: now,
+    metadata,
+  });
+
+  supervisor.observe([frame(1, "response_start")]);
+  now += 1;
+  supervisor.observe([frame(2, "text_delta", {}, "x")]);
+  const metadataVariants: ProviderStreamFrame["metadata"][] = [
+    {},
+    { providerIndex: "" },
+    { providerIndex: "   " },
+  ];
+  for (const metadata of metadataVariants) {
+    now += 5;
+    supervisor.observe([frame(supervisor.snapshot().nextSequence, "tool_call_delta", metadata)]);
+  }
+  now += 6;
+
+  assert.throws(
+    () => supervisor.checkWatchdog(),
+    (error: unknown) => error instanceof ProviderControlPlaneError
+      && error.kind === "partial_response_observed"
+      && error.detail.watchdog === "semantic_chunk",
+  );
+  const snapshot = supervisor.snapshot();
+  assert.equal(snapshot.frameCount, 5);
+  assert.equal(snapshot.toolCalls.length, 0);
+  assert.equal(snapshot.lastFrameAt, 1_016);
+  assert.equal(snapshot.lastProgressAt, 1_001);
+});
+
+test("identityless empty tool entries cannot keep a live transport or lifecycle transaction open", async (t) => {
+  const capture = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.write('data: {"choices":[{"delta":{"content":"x"},"finish_reason":null}]}\n\n');
+    const keepalive = setInterval(() => {
+      response.write('data: {"choices":[{"delta":{"tool_calls":[{}]},"finish_reason":null}]}\n\n');
+    }, 5);
+    response.on("close", () => clearInterval(keepalive));
+  });
+  t.after(() => capture.close());
+  const { controlPlane, secrets } = makeControlPlane(t);
+  const credentialId = installProvider(controlPlane, secrets, {
+    providerId: "empty-tool-keepalive",
+    modelId: "empty-tool-keepalive-model",
+    baseUrl: capture.baseUrl,
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(
+    routeRequest("empty-tool-keepalive", "empty-tool-keepalive-model"),
+  );
+
+  let observed: unknown;
+  try {
+    await controlPlane.dispatch({
+      ...dispatchRequest(route.routeId),
+      timeoutMilliseconds: 500,
+      chunkTimeoutMilliseconds: 100,
+    });
+  } catch (error) {
+    observed = error;
+  }
+  assert.ok(observed instanceof ProviderControlPlaneError);
+  assert.equal(observed.kind, "partial_response_observed");
+  assert.equal(observed.detail.watchdog, "semantic_chunk");
+  const lifecycle = controlPlane.dispatches.require("dispatch-turn-1");
+  assert.equal(lifecycle.outputObserved, true);
+  assert.deepEqual(lifecycle.toolArgumentStreams, {});
+  const credential = controlPlane.credentials.get(credentialId);
+  assert.equal(credential.status, "active");
+  assert.equal(credential.failureCount, 0);
+});
+
+test("transport chunk timeout after output is reconciled and never replayed", async (t) => {
+  const capture = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.flushHeaders();
+    response.write('data: {"choices":[{"delta":{"content":"observed"},"finish_reason":null}]}\n\n');
+  });
+  t.after(() => capture.close());
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "quiet-after-output",
+    modelId: "quiet-after-output-model",
+    baseUrl: capture.baseUrl,
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(
+    routeRequest("quiet-after-output", "quiet-after-output-model"),
+  );
+
+  await assert.rejects(
+    controlPlane.dispatch({
+      ...dispatchRequest(route.routeId),
+      timeoutMilliseconds: 500,
+      chunkTimeoutMilliseconds: 25,
+    }),
+    (error: unknown) => error instanceof ProviderControlPlaneError
+      && error.kind === "partial_response_observed"
+      && error.outputObserved
+      && error.detail.upstreamLayer === "transport",
+  );
+  assert.equal(capture.requests.length, 1);
+  const attempts = controlPlane.store.listAttempts("dispatch-turn-1");
+  assert.equal(attempts.length, 1);
+  assert.equal(attempts[0]?.failureKind, "partial_response_observed");
+  assert.equal(controlPlane.dispatches.require("dispatch-turn-1").state, "reconcile_required");
+});
+
+test("completed tool arguments reject a later unbound fragment as a structured protocol failure", (t) => {
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "sealed-tool-arguments",
+    modelId: "sealed-tool-arguments-model",
+    baseUrl: "http://127.0.0.1:1",
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(
+    routeRequest("sealed-tool-arguments", "sealed-tool-arguments-model"),
+  );
+  const request = dispatchRequest(route.routeId);
+  const supervisor = new ProviderStreamSupervisor(request, route, { now: () => 2_000 });
+  const frame = (
+    sequence: number,
+    toolCallId: string | null,
+    toolName: string | null,
+    jsonDelta: string | null,
+    metadata: ProviderStreamFrame["metadata"],
+  ): ProviderStreamFrame => ({
+    frameId: `sealed-${sequence}`,
+    dispatchId: request.dispatchId,
+    routeId: request.routeId,
+    sequence,
+    kind: "tool_call_delta",
+    text: null,
+    toolCallId,
+    toolName,
+    jsonDelta,
+    usage: {},
+    providerEvent: null,
+    createdAt: 2_000,
+    metadata,
+  });
+
+  supervisor.observe([
+    frame(1, "call-sealed", "write_file", '{"path":"result.txt"}', { providerIndex: 7 }),
+  ]);
+  let observed: unknown;
+  try {
+    supervisor.observe([frame(2, null, null, " trailing", {})]);
+  } catch (error) {
+    observed = error;
+  }
+  assert.ok(observed instanceof ProviderControlPlaneError);
+  assert.equal(observed.kind, "partial_response_observed");
+  assert.match(observed.message, /tool argument transaction is invalid/);
+  assert.equal(
+    observed.detail.parserState,
+    "tool arguments must start with a JSON object or array",
+  );
+});
+
+test("response-byte budget is independent from normalized frame and character budgets", (t) => {
+  const { controlPlane, secrets } = makeControlPlane(t);
+  installProvider(controlPlane, secrets, {
+    providerId: "byte-budget",
+    modelId: "byte-budget-model",
+    baseUrl: "http://127.0.0.1:1",
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(routeRequest("byte-budget", "byte-budget-model"));
+  const supervisor = new ProviderStreamSupervisor(dispatchRequest(route.routeId), route, {
+    now: () => 3_000,
+    budget: { maximumResponseBytes: 8 },
+  });
+
+  supervisor.observeResponseBytes(8);
+  assert.throws(
+    () => supervisor.observeResponseBytes(9),
+    (error: unknown) => error instanceof ProviderControlPlaneError
+      && error.kind === "response_protocol_error"
+      && error.detail.maximumResponseBytes === 8,
+  );
+});
+
+test("repeated protocol failures do not block a healthy credential", async (t) => {
+  let healthy = false;
+  const capture = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    if (!healthy) {
+      response.end("data: not-json\n\n");
+      return;
+    }
+    response.end('data: {"choices":[{"delta":{"content":"recovered"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+  });
+  t.after(() => capture.close());
+  const { controlPlane, secrets } = makeControlPlane(t);
+  const credentialId = installProvider(controlPlane, secrets, {
+    providerId: "protocol-isolation",
+    modelId: "protocol-isolation-model",
+    baseUrl: capture.baseUrl,
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(
+    routeRequest("protocol-isolation", "protocol-isolation-model"),
+  );
+  const transport = new ProviderTransportRuntime(
+    controlPlane.store,
+    controlPlane.routes,
+    controlPlane.credentials,
+    secrets,
+  );
+
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    await assert.rejects(
+      transport.dispatch({
+        ...dispatchRequest(route.routeId),
+        dispatchId: `protocol-failure-${attempt}`,
+        idempotencyKey: `protocol-failure-${attempt}`,
+      }),
+      (error: unknown) => error instanceof ProviderControlPlaneError
+        && error.kind === "response_protocol_error",
+    );
+  }
+  const afterFailures = controlPlane.credentials.get(credentialId);
+  assert.equal(afterFailures.status, "active");
+  assert.equal(afterFailures.failureCount, 0);
+
+  healthy = true;
+  const recovered = await transport.dispatch({
+    ...dispatchRequest(route.routeId),
+    dispatchId: "protocol-recovered",
+    idempotencyKey: "protocol-recovered",
+  });
+  assert.equal(recovered.text, "recovered");
+  assert.equal(controlPlane.credentials.get(credentialId).status, "active");
 });
 
 test("large output windows admit valid normalized streams beyond the fixed legacy frame cap", (t) => {

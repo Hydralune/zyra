@@ -61,6 +61,9 @@ class GraphExecutionContext:
     execution_outcome_recorder: (
         Callable[[TaskState, PlanNode, Any], Mapping[str, Any]] | None
     ) = None
+    execution_state_projector: (
+        Callable[[TaskState, Sequence[EventRecord], str], None] | None
+    ) = None
     # Restarts crashed deployment nodes and rebinds their worker manifests.
     # Recovery needs this before replanning: placement is bound to a process
     # identity, so a lost node must be replaced before a new lease can be
@@ -107,6 +110,9 @@ class GraphExecutionContext:
         execution_outcome_recorder: (
             Callable[[TaskState, PlanNode, Any], Mapping[str, Any]] | None
         ) = None,
+        execution_state_projector: (
+            Callable[[TaskState, Sequence[EventRecord], str], None] | None
+        ) = None,
         physical_runtime_refresher: (
             Callable[[], Mapping[str, Any] | None] | None
         ) = None,
@@ -133,6 +139,7 @@ class GraphExecutionContext:
             physical_execution_runner=physical_execution_runner,
             physical_runtime_refresher=physical_runtime_refresher,
             execution_outcome_recorder=execution_outcome_recorder,
+            execution_state_projector=execution_state_projector,
             final_verifier=final_verifier,
             completion_gate=completion_gate,
         )
@@ -428,6 +435,12 @@ def run_task_graph(
                 },
             )
         )
+        if execution_context is not None and execution_context.execution_state_projector:
+            execution_context.execution_state_projector(
+                state,
+                tuple(events),
+                "physical_retry_admitted",
+            )
         try:
             events.extend(run_task_graph(state, execution_context))
         finally:
@@ -435,6 +448,71 @@ def run_task_graph(
             # in run metadata would make every later route claim the recovery
             # dwell exemption, including a resume of this task.
             state.metadata.pop("physical_execution_recovery_active", None)
+        return events
+
+    if state.status == PlanNodeStatus.FAILED:
+        terminal_projection = state.metadata.get(
+            "physical_execution_terminal_projection"
+        )
+        if not isinstance(terminal_projection, Mapping):
+            failure_receipt = state.metadata.get(
+                "physical_execution_failure_receipt"
+            )
+            failure_receipt = (
+                dict(failure_receipt)
+                if isinstance(failure_receipt, Mapping)
+                else {}
+            )
+            terminal_projection = {
+                "schema": "zyra.physical-retry-exhausted-task-projection/v1",
+                "task_id": state.task_id,
+                "run_id": state.run_id,
+                "task_status": str(state.status),
+                "terminal": True,
+                "physical_execution_recovery_passes": int(
+                    state.metadata.get("physical_execution_recovery_passes") or 0
+                ),
+                "physical_failure_receipt": failure_receipt,
+                "projected_at": now_iso(),
+            }
+            state.metadata["physical_execution_terminal_projection"] = (
+                terminal_projection
+            )
+            _commit_canonical_task_outcome(
+                state,
+                verifier={},
+                gate={},
+                diagnostics=(
+                    {
+                        "schema": "zyra.task-outcome-diagnostic/v1",
+                        "stage": "physical_execution",
+                        "error_type": str(
+                            failure_receipt.get("error_code")
+                            or "physical_execution_failed"
+                        ),
+                        "message": str(
+                            failure_receipt.get("error_message")
+                            or "No admissible physical execution retry remains."
+                        ),
+                        "recoverable": False,
+                    },
+                ),
+            )
+            events.append(
+                EventRecord(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    event_type=EventType.SYSTEM_NOTICE,
+                    node_id=state.root_node_id,
+                    payload=dict(terminal_projection),
+                )
+            )
+        if execution_context is not None and execution_context.execution_state_projector:
+            execution_context.execution_state_projector(
+                state,
+                tuple(events),
+                "physical_retry_exhausted",
+            )
         return events
 
     if _all_stage_nodes_completed(state):

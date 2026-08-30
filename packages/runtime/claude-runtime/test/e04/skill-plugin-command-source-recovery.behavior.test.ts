@@ -291,6 +291,12 @@ test("e04-skill-plugin-command", async () => {
     }, executionContext(input, childCalls), { toolCallId: "e04-invoke-skill-1" });
     assert.equal(childCalls.length, 1);
     assert.match(childCalls[0]!.taskId, /:skill:e04-fork-skill:/);
+    assert.match(childCalls[0]!.sessionId, /^skill-session-[a-f0-9]{32}$/);
+    assert.notEqual(childCalls[0]!.sessionId, input.sessionId);
+    assert.equal(
+      ((((childCalls[0]!.metadata as JsonObject).runtime_lineage as JsonObject).parent_session_id)),
+      input.sessionId,
+    );
     assert.equal(childCalls[0]!.restoredState, null);
     assert.deepEqual(childCalls[0]!.turns, []);
     assert.deepEqual(childCalls[0]!.tools.map((tool) => tool.name), ["file_read"]);
@@ -326,6 +332,8 @@ test("e04-skill-plugin-command", async () => {
     assert.match(String(childCalls[0]!.messages.at(-2)?.content), /already executing.*e04-fork-skill/i);
     assert.match(String(childCalls[0]!.messages.at(-2)?.content), /sole objective is this bound skill body/i);
     assert.match(String(childCalls[0]!.messages.at(-2)?.content), /Do not invoke sibling skills or agents/i);
+    assert.match(String(childCalls[0]!.messages.at(-2)?.content), /inspect and test the parent workspace/i);
+    assert.doesNotMatch(String(childCalls[0]!.messages.at(-2)?.content), /do not.*run parent-level verification/i);
     assert.match(String(childCalls[0]!.messages.at(-2)?.content), /Return immediately once the bounded skill result/i);
     assert.equal(childCalls[0]!.messages.at(-1)?.role, "user");
     assert.match(String(childCalls[0]!.messages.at(-1)?.content), /docs\/e04-evidence\.md/);
@@ -346,6 +354,7 @@ test("e04-skill-plugin-command", async () => {
     }, executionContext(noMatchParent, noMatchChildren), { toolCallId: "e04-invoke-skill-no-match" });
     assert.equal(noMatchChildren.length, 1);
     assert.deepEqual(noMatchChildren[0]!.tools, []);
+    assert.notEqual(noMatchChildren[0]!.sessionId, childCalls[0]!.sessionId);
 
     const plugins = await capabilities.execute("list_plugins", {}, undefined, { toolCallId: "e04-list-plugins-1" });
     assert.equal((plugins.output.plugins as JsonObject[])[0]?.plugin_id, "e04-plugin");

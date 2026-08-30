@@ -31,6 +31,7 @@ from zyra_workers import CodeWorkerRuntime  # noqa: E402
 from zyra_workers.typescript_claude_runtime import (  # noqa: E402
     TypeScriptClaudeQueryEngine,
     TypeScriptRuntimeError,
+    build_task_handoff_projection,
     load_task_handoff_projection,
 )
 
@@ -698,8 +699,23 @@ def test_dispatched_non_idempotent_tool_is_fenced_after_restart(
     settlement = recovered_snapshot["typescript_runtime_snapshot"][
         "typescriptCapabilities"
     ]["settlement"]
-    assert settlement["calls"][0]["transactionState"] == "outcome_unknown"
-    assert settlement["calls"][0]["dispatchCredential"]
+    assert settlement["calls"] and all(
+        call["transactionState"] == "outcome_unknown"
+        for call in settlement["calls"]
+    ), (
+        recovered.worker_result.error,
+        [
+            (
+                call["callId"],
+                call["state"],
+                call["transactionState"],
+                call.get("idempotencyKey"),
+            )
+            for call in settlement["calls"]
+        ],
+        recovered.worker_result.events[-3:],
+    )
+    assert all(call["dispatchCredential"] for call in settlement["calls"])
 
 
 def test_pre_dispatch_intent_recovers_once_with_the_same_idempotency_key(
@@ -845,6 +861,101 @@ def test_host_checkpoint_compare_and_swap_rejects_stale_writer(tmp_path: Path) -
     with pytest.raises(TypeScriptRuntimeError) as captured:
         stale._persist_incremental_checkpoint(session_id, {"value": 2})
     assert captured.value.code == "typescript_runtime_checkpoint_stale_writer"
+
+
+def test_child_checkpoint_uses_its_declared_session_without_mutating_parent(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path)
+    engine = TypeScriptClaudeQueryEngine(runtime.execution_context)
+    parent_session = "physical-parent-session-randomized"
+    child_session = "skill-session-unseen-variant"
+    engine._primary_checkpoint_session_id = parent_session
+    parent = engine._persist_incremental_checkpoint(
+        parent_session,
+        {
+            "task_id": "parent-task-randomized",
+            "session_id": parent_session,
+            "e01Runtime": {"sessionId": parent_session},
+            "phase": "running",
+            "parent_marker": "must-remain",
+        },
+    )
+    parent_path = engine._checkpoint_path(parent_session)
+    parent_bytes = parent_path.read_bytes()
+    parent_revision = engine._checkpoint_revision
+    parent_signature = engine._checkpoint_file_signature
+
+    child, primary = engine._persist_runtime_checkpoint_snapshot(
+        parent_session_id=parent_session,
+        checkpoint={
+            "task_id": "parent-task-randomized:skill:verification:variant",
+            "session_id": child_session,
+            "e01Runtime": {"sessionId": child_session},
+            "phase": "running",
+            "child_marker": "isolated",
+        },
+        correlation_id="checkpoint:child:variant",
+    )
+
+    child_path = engine._checkpoint_path(child_session)
+    assert primary is False
+    assert child_path != parent_path
+    assert child_path.exists()
+    assert child["session_id"] == child_session
+    assert child["host_checkpoint_revision"] == 1
+    assert child["child_marker"] == "isolated"
+    assert "parent_marker" not in child
+    assert parent_path.read_bytes() == parent_bytes
+    assert engine._checkpoint_revision == parent_revision
+    assert engine._checkpoint_file_signature == parent_signature
+    assert json.loads(parent_bytes)["host_checkpoint_commit_id"] == parent[
+        "host_checkpoint_commit_id"
+    ]
+
+
+def test_child_checkpoint_compare_and_swap_rejects_independent_stale_writer(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path)
+    current = TypeScriptClaudeQueryEngine(runtime.execution_context)
+    stale = TypeScriptClaudeQueryEngine(runtime.execution_context)
+    child_session = "skill-session-stale-variant"
+    assert current._load_incremental_checkpoint(child_session) == {}
+    assert stale._load_incremental_checkpoint(child_session) == {}
+
+    current._persist_incremental_checkpoint(
+        child_session,
+        {"task_id": "child-task", "session_id": child_session},
+    )
+    with pytest.raises(TypeScriptRuntimeError) as captured:
+        stale._persist_incremental_checkpoint(
+            child_session,
+            {"task_id": "child-task", "session_id": child_session},
+        )
+
+    assert captured.value.code == "typescript_runtime_checkpoint_stale_writer"
+
+
+def test_checkpoint_rejects_disagreeing_declared_session_identities(
+    tmp_path: Path,
+) -> None:
+    engine = TypeScriptClaudeQueryEngine(_runtime(tmp_path).execution_context)
+
+    with pytest.raises(TypeScriptRuntimeError) as captured:
+        engine._persist_runtime_checkpoint_snapshot(
+            parent_session_id="parent-session",
+            checkpoint={
+                "session_id": "child-session-a",
+                "e01Runtime": {"sessionId": "child-session-b"},
+            },
+            correlation_id="checkpoint:mismatch",
+        )
+
+    assert captured.value.code == "typescript_runtime_checkpoint_identity"
+    assert not engine._checkpoint_path("parent-session").exists()
+    assert not engine._checkpoint_path("child-session-a").exists()
+    assert not engine._checkpoint_path("child-session-b").exists()
 
 
 def test_host_checkpoint_same_writer_skips_reparsing_unchanged_file(
@@ -1169,6 +1280,107 @@ def test_cross_session_handoff_keeps_rich_progress_when_latest_segment_is_sparse
     ]
     assert handoff["recent_tool_observations"][0]["summary"] == "138 tests passed"
     assert handoff["authority_transfer"] is False
+
+
+def test_cross_session_handoff_merges_task_obligations_and_path_revisions(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path)
+    checkpoint_root = (
+        Path(runtime.execution_context.artifact_store.root) / ".runtime-checkpoints"
+    )
+    checkpoint_root.mkdir(parents=True, exist_ok=True)
+
+    older = build_task_handoff_projection(
+        {
+            "task_id": "evidence-task",
+            "run_id": "evidence-run",
+            "session_id": "older-session",
+            "progressiveExecution": {
+                "providerRounds": 8,
+                "workspaceMutationCount": 3,
+                "repairMutationCount": 2,
+                "verificationCount": 0,
+                "requiredDeliveryMissing": False,
+                "taskAuthoredPathRevisions": [
+                    {"path": "checks/alpha-smoke.py", "revision": 1}
+                ],
+            },
+            "obligationEvidence": {
+                "schema": "zyra.runtime-obligation-evidence/v1",
+                "successful_skill_invocations": [
+                    {"name": "service-inspector", "tool_call_id": "skill-old"}
+                ],
+                "successful_executed_paths": [
+                    {
+                        "path": "scripts/reproduce.py",
+                        "tool_call_id": "run-old",
+                        "workspace_mutation_count": 3,
+                    }
+                ],
+                "workspace_mutation_count": 3,
+            },
+        }
+    )
+    newer = build_task_handoff_projection(
+        {
+            "task_id": "evidence-task",
+            "run_id": "evidence-run",
+            "session_id": "newer-session",
+            "progressiveExecution": {
+                "providerRounds": 2,
+                "workspaceMutationCount": 0,
+                "verificationCount": 0,
+                "requiredDeliveryMissing": True,
+                "taskAuthoredPathRevisions": [
+                    {"path": "checks/alpha-smoke.py", "revision": 2},
+                    {"path": "checks/beta-smoke.py", "revision": 1},
+                ],
+            },
+            "obligationEvidence": {
+                "schema": "zyra.runtime-obligation-evidence/v1",
+                "successful_skill_invocations": [
+                    {"name": "release-checker", "tool_call_id": "skill-new"}
+                ],
+                "successful_executed_paths": [],
+                "workspace_mutation_count": 0,
+            },
+        }
+    )
+    older_path = checkpoint_root / "typescript-e01-evidence-old.json.handoff.json"
+    newer_path = checkpoint_root / "typescript-e01-evidence-new.json.handoff.json"
+    older_path.write_text(json.dumps(older), encoding="utf-8")
+    newer_path.write_text(json.dumps(newer), encoding="utf-8")
+    os.utime(older_path, ns=(1_000_000_000, 1_000_000_000))
+    os.utime(newer_path, ns=(2_000_000_000, 2_000_000_000))
+
+    handoff = load_task_handoff_projection(
+        runtime.execution_context.artifact_store.root,
+        task_id="evidence-task",
+        run_id="evidence-run",
+        current_session_id="fresh-session",
+    )
+
+    assert handoff is not None
+    assert [
+        item["name"]
+        for item in handoff["obligation_evidence"]["successful_skill_invocations"]
+    ] == ["service-inspector", "release-checker"]
+    assert handoff["obligation_evidence"]["successful_executed_paths"] == [
+        {
+            "path": "scripts/reproduce.py",
+            "tool_call_id": "run-old",
+            "workspace_mutation_count": 3,
+        }
+    ]
+    expected_revisions = [
+        {"path": "checks/alpha-smoke.py", "revision": 2},
+        {"path": "checks/beta-smoke.py", "revision": 1},
+    ]
+    assert handoff["progress"]["taskAuthoredPathRevisions"] == expected_revisions
+    assert handoff["execution_continuity"]["taskAuthoredPathRevisions"] == (
+        expected_revisions
+    )
 
 
 def test_cross_session_handoff_recovers_safe_progress_from_legacy_sidecar(

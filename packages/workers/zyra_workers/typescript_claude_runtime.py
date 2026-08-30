@@ -217,6 +217,121 @@ def _semantic_stall_handoff_state(checkpoint: Mapping[str, Any]) -> dict[str, An
     }
 
 
+def _obligation_evidence_handoff_state(
+    checkpoint: Mapping[str, Any],
+) -> dict[str, Any]:
+    raw = checkpoint.get("obligationEvidence")
+    if not isinstance(raw, Mapping):
+        return {}
+    skills: list[dict[str, Any]] = []
+    for item in raw.get("successful_skill_invocations") or ():
+        if not isinstance(item, Mapping) or not str(item.get("name") or ""):
+            continue
+        skills.append(
+            {
+                field: item.get(field)
+                for field in (
+                    "name",
+                    "tool_call_id",
+                    "child_task_id",
+                    "execution_mode",
+                    "event_sequence",
+                    "workspace_mutation_count",
+                )
+                if item.get(field) is not None
+            }
+        )
+    paths: list[dict[str, Any]] = []
+    for item in raw.get("successful_executed_paths") or ():
+        if not isinstance(item, Mapping) or not str(item.get("path") or ""):
+            continue
+        paths.append(
+            {
+                field: item.get(field)
+                for field in (
+                    "path",
+                    "tool_call_id",
+                    "event_sequence",
+                    "workspace_mutation_count",
+                )
+                if item.get(field) is not None
+            }
+        )
+    return {
+        "schema": "zyra.runtime-obligation-evidence/v1",
+        "successful_skill_invocations": skills[-64:],
+        "successful_executed_paths": paths[-64:],
+        "workspace_mutation_count": _nonnegative_count(
+            raw.get("workspace_mutation_count")
+        ),
+    }
+
+
+def _merge_task_obligation_evidence(
+    projections: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    skills: dict[str, dict[str, Any]] = {}
+    paths: dict[str, dict[str, Any]] = {}
+    workspace_mutation_count = 0
+    for projection in reversed(projections):
+        evidence = projection.get("obligation_evidence")
+        if not isinstance(evidence, Mapping):
+            continue
+        workspace_mutation_count = max(
+            workspace_mutation_count,
+            _nonnegative_count(evidence.get("workspace_mutation_count")),
+        )
+        for item in evidence.get("successful_skill_invocations") or ():
+            if not isinstance(item, Mapping):
+                continue
+            key = "\x1f".join(
+                str(item.get(field) or "")
+                for field in ("name", "tool_call_id", "child_task_id")
+            )
+            if key.strip("\x1f"):
+                skills[key] = dict(item)
+        for item in evidence.get("successful_executed_paths") or ():
+            if not isinstance(item, Mapping):
+                continue
+            key = str(item.get("path") or "").replace("\\", "/")
+            if key:
+                previous = paths.get(key)
+                if previous is None or _nonnegative_count(
+                    item.get("workspace_mutation_count")
+                ) >= _nonnegative_count(previous.get("workspace_mutation_count")):
+                    paths[key] = dict(item)
+    if not skills and not paths:
+        return {}
+    return {
+        "schema": "zyra.runtime-obligation-evidence/v1",
+        "successful_skill_invocations": list(skills.values())[-64:],
+        "successful_executed_paths": list(paths.values())[-64:],
+        "workspace_mutation_count": workspace_mutation_count,
+    }
+
+
+def _merge_task_authored_path_revisions(
+    projections: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    revisions: dict[str, int] = {}
+    for projection in reversed(projections):
+        progress = projection.get("progress")
+        if not isinstance(progress, Mapping):
+            continue
+        for item in progress.get("taskAuthoredPathRevisions") or ():
+            if not isinstance(item, Mapping):
+                continue
+            path = str(item.get("path") or "").strip().replace("\\", "/")
+            revision = _nonnegative_count(item.get("revision"))
+            if not path or revision == 0:
+                continue
+            revisions[path] = max(revisions.get(path, 0), revision)
+    return [
+        {"path": path, "revision": revision}
+        for path, revision in sorted(revisions.items())[-128:]
+    ]
+
+
 def build_task_handoff_projection(checkpoint: Mapping[str, Any]) -> dict[str, Any]:
     """Project a bounded, non-authoritative task handoff from a checkpoint.
 
@@ -318,6 +433,7 @@ def build_task_handoff_projection(checkpoint: Mapping[str, Any]) -> dict[str, An
         "targetedRepairReserveVersion",
         "verificationDiagnosticVersion",
         "repairContextId",
+        "taskAuthoredPathRevisions",
     )
     projection = {
         "schema": _HANDOFF_SCHEMA,
@@ -341,6 +457,7 @@ def build_task_handoff_projection(checkpoint: Mapping[str, Any]) -> dict[str, An
             for field in progress_fields
             if progressive.get(field) is not None
         },
+        "obligation_evidence": _obligation_evidence_handoff_state(checkpoint),
         # Only hashes, counters and detector labels cross a session fence.
         # Raw reasoning, tool arguments and tool results are deliberately absent.
         "semantic_stall": _semantic_stall_handoff_state(checkpoint),
@@ -499,6 +616,9 @@ def _execution_continuity_progress(
         ):
             if progress.get(field) is not None:
                 continuity[field] = _nonnegative_count(progress.get(field))
+        path_revisions = _merge_task_authored_path_revisions(projections)
+        if path_revisions:
+            continuity["taskAuthoredPathRevisions"] = path_revisions
         if progress.get("repairContextId"):
             continuity["repairContextId"] = str(progress["repairContextId"])
         if verification_debt is not None:
@@ -644,6 +764,13 @@ def load_task_handoff_projection(
             newest_progress["unresolvedVerificationFailures"] = failures
             if scopes or failures:
                 newest_progress["verificationCount"] = 0
+        task_authored_path_revisions = _merge_task_authored_path_revisions(
+            matched_sidecars
+        )
+        if task_authored_path_revisions:
+            newest_progress["taskAuthoredPathRevisions"] = (
+                task_authored_path_revisions
+            )
         newest["progress"] = newest_progress
         newest["latest_compact_summary"] = next(
             (
@@ -661,6 +788,9 @@ def load_task_handoff_projection(
             matched_sidecars
         )
         newest["execution_continuity"] = _execution_continuity_progress(
+            matched_sidecars
+        )
+        newest["obligation_evidence"] = _merge_task_obligation_evidence(
             matched_sidecars
         )
         newest["semantic_stall_continuity"] = next(
@@ -803,6 +933,11 @@ class TypeScriptClaudeQueryEngine:
         self._last_tool_batch_evidence: dict[str, Any] = {}
         self._checkpoint_revision = 0
         self._checkpoint_file_signature: tuple[int, int] | None = None
+        self._primary_checkpoint_session_id: str | None = None
+        self._checkpoint_revisions: dict[str, int] = {}
+        self._checkpoint_file_signatures: dict[
+            str, tuple[int, int] | None
+        ] = {}
         self._runtime_process_epoch = 0
         self._protocol_frame_trace: list[dict[str, Any]] = []
         self._checkpoint_writer_id = hashlib.sha256(
@@ -997,6 +1132,7 @@ class TypeScriptClaudeQueryEngine:
         command, transport = self._runtime_command()
         timeout_seconds = _typescript_runtime_timeout_seconds(constraints)
         raw_restored_runtime_state = self.config.restored_runtime_state or {}
+        self._primary_checkpoint_session_id = session_id
         nested_session_snapshot = raw_restored_runtime_state.get("session_snapshot")
         restored_runtime_state = (
             dict(nested_session_snapshot)
@@ -1367,37 +1503,14 @@ class TypeScriptClaudeQueryEngine:
                 outbound_sequence += 1
                 continue
             if kind == "runtime.checkpoint":
-                checkpoint = dict(payload.get("snapshot") or {})
-                if "e02" in checkpoint and self._latest_runtime_checkpoint:
-                    checkpoint = {
-                        **self._latest_runtime_checkpoint,
-                        **checkpoint,
-                        "e02": checkpoint["e02"],
-                        "checkpointPhase": checkpoint.get("checkpointPhase"),
-                        "checkpointEventSequence": max(
-                            int(
-                                self._latest_runtime_checkpoint.get(
-                                    "checkpointEventSequence"
-                                )
-                                or 0
-                            ),
-                            int(checkpoint.get("checkpointEventSequence") or 0),
-                        ),
-                    }
-                for host_managed_key in (
-                    "runtime_fault_receipts",
-                    "terminal_result_receipts",
-                ):
-                    if host_managed_key in self._latest_runtime_checkpoint:
-                        checkpoint[host_managed_key] = to_jsonable(
-                            self._latest_runtime_checkpoint[host_managed_key]
-                        )
-                checkpoint["tool_effect_receipts"] = to_jsonable(self._tool_effect_receipts)
-                checkpoint["tool_batch_evidence"] = to_jsonable(self._last_tool_batch_evidence)
-                checkpoint["runtime_process_epoch"] = self._runtime_process_epoch
-                checkpoint["last_checkpoint_correlation_id"] = correlation_id
-                checkpoint = self._persist_incremental_checkpoint(session_id, checkpoint)
-                self._latest_runtime_checkpoint = checkpoint
+                checkpoint, primary_checkpoint = (
+                    self._persist_runtime_checkpoint_snapshot(
+                        parent_session_id=session_id,
+                        checkpoint=dict(payload.get("snapshot") or {}),
+                        correlation_id=correlation_id,
+                    )
+                )
+                checkpoint_session_id = str(checkpoint.get("session_id") or "")
                 fault_point = str(constraints.get("typescript_fault_injection") or "")
                 final_checkpoint = bool(
                     isinstance(checkpoint.get("e02"), Mapping)
@@ -1415,7 +1528,12 @@ class TypeScriptClaudeQueryEngine:
                         "checkpoint_correlation_id": correlation_id,
                     })
                     checkpoint["runtime_fault_receipts"] = fault_receipts
-                    self._latest_runtime_checkpoint = self._persist_incremental_checkpoint(session_id, checkpoint)
+                    checkpoint = self._persist_incremental_checkpoint(
+                        checkpoint_session_id,
+                        checkpoint,
+                    )
+                    if primary_checkpoint:
+                        self._latest_runtime_checkpoint = checkpoint
                     raise TypeScriptRuntimeError(
                         "typescript_runtime_fault_injected",
                         f"Killed TypeScript owner at {fault_point} in epoch {self._runtime_process_epoch}.",
@@ -2094,8 +2212,11 @@ class TypeScriptClaudeQueryEngine:
     def _load_incremental_checkpoint(self, session_id: str) -> dict[str, Any]:
         path = self._checkpoint_path(session_id)
         if not path.exists():
-            self._checkpoint_revision = 0
-            self._checkpoint_file_signature = None
+            self._checkpoint_revisions[session_id] = 0
+            self._checkpoint_file_signatures[session_id] = None
+            if session_id == self._primary_checkpoint_session_id:
+                self._checkpoint_revision = 0
+                self._checkpoint_file_signature = None
             return {}
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
@@ -2109,12 +2230,103 @@ class TypeScriptClaudeQueryEngine:
                 "typescript_runtime_checkpoint_identity",
                 "Durable TypeScript checkpoint does not match the logical session.",
             )
-        self._checkpoint_revision = int(
+        revision = int(
             value.get("host_checkpoint_revision") or value.get("revision") or 0
         )
         stat = path.stat()
-        self._checkpoint_file_signature = (stat.st_size, stat.st_mtime_ns)
+        signature = (stat.st_size, stat.st_mtime_ns)
+        self._checkpoint_revisions[session_id] = revision
+        self._checkpoint_file_signatures[session_id] = signature
+        if session_id == self._primary_checkpoint_session_id:
+            self._checkpoint_revision = revision
+            self._checkpoint_file_signature = signature
         return value
+
+    @staticmethod
+    def _declared_checkpoint_session_id(
+        checkpoint: Mapping[str, Any],
+        *,
+        fallback_session_id: str,
+    ) -> str:
+        top_level = str(checkpoint.get("session_id") or "").strip()
+        e01_runtime = checkpoint.get("e01Runtime")
+        nested = (
+            str(
+                e01_runtime.get("sessionId")
+                or e01_runtime.get("session_id")
+                or ""
+            ).strip()
+            if isinstance(e01_runtime, Mapping)
+            else ""
+        )
+        if top_level and nested and top_level != nested:
+            raise TypeScriptRuntimeError(
+                "typescript_runtime_checkpoint_identity",
+                "Runtime checkpoint session identities disagree across the snapshot.",
+            )
+        selected = top_level or nested or str(fallback_session_id).strip()
+        if not selected:
+            raise TypeScriptRuntimeError(
+                "typescript_runtime_checkpoint_identity",
+                "Runtime checkpoint does not declare or inherit a logical session.",
+            )
+        return selected
+
+    def _persist_runtime_checkpoint_snapshot(
+        self,
+        *,
+        parent_session_id: str,
+        checkpoint: Mapping[str, Any],
+        correlation_id: str,
+    ) -> tuple[dict[str, Any], bool]:
+        """Route one runtime frame to its declared session persistence owner."""
+
+        checkpoint_session_id = self._declared_checkpoint_session_id(
+            checkpoint,
+            fallback_session_id=parent_session_id,
+        )
+        primary_checkpoint = checkpoint_session_id == parent_session_id
+        prepared = dict(checkpoint)
+        if primary_checkpoint:
+            if "e02" in prepared and self._latest_runtime_checkpoint:
+                prepared = {
+                    **self._latest_runtime_checkpoint,
+                    **prepared,
+                    "e02": prepared["e02"],
+                    "checkpointPhase": prepared.get("checkpointPhase"),
+                    "checkpointEventSequence": max(
+                        int(
+                            self._latest_runtime_checkpoint.get(
+                                "checkpointEventSequence"
+                            )
+                            or 0
+                        ),
+                        int(prepared.get("checkpointEventSequence") or 0),
+                    ),
+                }
+            for host_managed_key in (
+                "runtime_fault_receipts",
+                "terminal_result_receipts",
+            ):
+                if host_managed_key in self._latest_runtime_checkpoint:
+                    prepared[host_managed_key] = to_jsonable(
+                        self._latest_runtime_checkpoint[host_managed_key]
+                    )
+            prepared["tool_effect_receipts"] = to_jsonable(
+                self._tool_effect_receipts
+            )
+            prepared["tool_batch_evidence"] = to_jsonable(
+                self._last_tool_batch_evidence
+            )
+        prepared["runtime_process_epoch"] = self._runtime_process_epoch
+        prepared["last_checkpoint_correlation_id"] = correlation_id
+        persisted = self._persist_incremental_checkpoint(
+            checkpoint_session_id,
+            prepared,
+        )
+        if primary_checkpoint:
+            self._latest_runtime_checkpoint = persisted
+        return persisted, primary_checkpoint
 
     def _persist_incremental_checkpoint(
         self,
@@ -2130,12 +2342,16 @@ class TypeScriptClaudeQueryEngine:
         with _CHECKPOINT_LOCKS_GUARD:
             checkpoint_lock = _CHECKPOINT_LOCKS.setdefault(lock_key, threading.RLock())
         with checkpoint_lock:
+            if session_id not in self._checkpoint_revisions:
+                self._load_incremental_checkpoint(session_id)
+            expected_revision = self._checkpoint_revisions[session_id]
+            expected_signature = self._checkpoint_file_signatures.get(session_id)
             current_revision = 0
             if path.exists():
                 stat = path.stat()
                 observed_signature = (stat.st_size, stat.st_mtime_ns)
-                if observed_signature == self._checkpoint_file_signature:
-                    current_revision = self._checkpoint_revision
+                if observed_signature == expected_signature:
+                    current_revision = expected_revision
                 else:
                     try:
                         current = json.loads(path.read_text(encoding="utf-8"))
@@ -2152,11 +2368,11 @@ class TypeScriptClaudeQueryEngine:
                     current_revision = int(
                         current.get("host_checkpoint_revision") or current.get("revision") or 0
                     )
-            if current_revision != self._checkpoint_revision:
+            if current_revision != expected_revision:
                 raise TypeScriptRuntimeError(
                     "typescript_runtime_checkpoint_stale_writer",
                     "Durable TypeScript checkpoint compare-and-swap rejected a stale writer: "
-                    f"expected {self._checkpoint_revision}, observed {current_revision}.",
+                    f"expected {expected_revision}, observed {current_revision}.",
                 )
             jsonable_checkpoint = to_jsonable(dict(checkpoint))
             if not isinstance(jsonable_checkpoint, dict):
@@ -2167,9 +2383,10 @@ class TypeScriptClaudeQueryEngine:
             payload = jsonable_checkpoint
             next_revision = current_revision + 1
             payload["session_id"] = session_id
-            payload["protocol_frame_trace"] = to_jsonable(
-                self._protocol_frame_trace
-            )
+            if session_id == self._primary_checkpoint_session_id:
+                payload["protocol_frame_trace"] = to_jsonable(
+                    self._protocol_frame_trace
+                )
             payload["host_checkpoint_parent_revision"] = current_revision
             payload["host_checkpoint_revision"] = next_revision
             payload["host_checkpoint_writer_id"] = self._checkpoint_writer_id
@@ -2209,9 +2426,13 @@ class TypeScriptClaudeQueryEngine:
                 # later session if an external Windows reader momentarily
                 # prevents the small acceleration sidecar from being replaced.
                 pass
-            self._checkpoint_revision = next_revision
             stat = path.stat()
-            self._checkpoint_file_signature = (stat.st_size, stat.st_mtime_ns)
+            signature = (stat.st_size, stat.st_mtime_ns)
+            self._checkpoint_revisions[session_id] = next_revision
+            self._checkpoint_file_signatures[session_id] = signature
+            if session_id == self._primary_checkpoint_session_id:
+                self._checkpoint_revision = next_revision
+                self._checkpoint_file_signature = signature
             return payload
 
     def _persist_terminal_receipt(

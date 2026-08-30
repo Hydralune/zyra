@@ -37,6 +37,7 @@ export interface ForkedSkillExecutionInput {
   skillResources: JsonValue;
   effectiveToolScope: SkillToolScope;
   maximumTurns: number;
+  timeoutMs: number;
   skillAncestry?: string[];
   remainingSkillDepth?: number;
   sandbox: string;
@@ -52,6 +53,11 @@ const SKILL_TOOLS = new Set([
   "list_plugins",
   "plugin_command",
 ]);
+
+// Keep the no-parent-override fallback aligned with the provider runtime's
+// ordinary request envelope. A fork still caps this value to its own active
+// execution window; this is not a replacement for the skill deadline.
+const DEFAULT_FORKED_SKILL_MODEL_TIMEOUT_MILLISECONDS = 120_000;
 
 export class TypeScriptSkillRuntime {
   static assertSourceRuntimeEnabled(): void {
@@ -80,9 +86,15 @@ export class TypeScriptSkillRuntime {
         : new Error("forked skill execution was aborted");
     }
     const parent = input.parentInput;
+    const parentConstraints = asObject(parent.config.runtimeConstraints);
+    const childBudget = forkedSkillResourceBudget(parentConstraints, input.timeoutMs);
     const childInput: RuntimeRunInput = {
       ...parent,
       taskId: input.childTaskId,
+      // Checkpoints are keyed by physical session identity. A fork therefore
+      // needs its own deterministic session even though it retains explicit
+      // parent lineage for trace/checkpoint reader delegation.
+      sessionId: forkedSkillSessionId(parent, input),
       workerRequestId: input.workerRequestId,
       // A parent QueryEngine snapshot is identity-bound to its task.  Passing
       // it into the forked skill would make the child restore parent E01/E02
@@ -101,7 +113,8 @@ export class TypeScriptSkillRuntime {
             `You are already executing the bound Zyra Markdown skill ${input.skillName} (${input.skillId}).`,
             "Execute its rendered body directly under the exact tool scope and budgets.",
             "Treat inherited parent task text solely as reference context; your sole objective is this bound skill body.",
-            "Do not invoke sibling skills or agents, run parent-level verification, or create or finalize parent deliverables.",
+            "Do not invoke sibling skills or agents, or create or finalize parent deliverables.",
+            "You may inspect and test the parent workspace when this bound skill requires it, but do not mutate production files or claim task-level completion.",
             "Do not invoke this skill or any active ancestor skill again; recursive skill invocation is rejected.",
             "Return immediately once the bounded skill result or artifact is ready.",
           ].join(" "),
@@ -128,7 +141,7 @@ export class TypeScriptSkillRuntime {
           input.maximumTurns,
         ),
         runtimeConstraints: {
-          ...asObject(parent.config.runtimeConstraints),
+          ...parentConstraints,
           // A forked skill returns a bounded child result to its parent.  The
           // parent remains the owner of task-level workspace delivery, so its
           // fail-closed delivery duplicate must not turn a read/extract child
@@ -141,6 +154,14 @@ export class TypeScriptSkillRuntime {
           skill_tool_scope: cloneJson(input.effectiveToolScope as unknown as JsonObject),
           skill_sandbox: input.sandbox,
           skill_network_allowed: input.allowNetwork,
+          external_deadline_epoch_ms: childBudget.deadlineEpochMs,
+          closeout_reserve_seconds: childBudget.closeoutReserveSeconds,
+          model_api_timeout_seconds: childBudget.modelApiTimeoutMilliseconds / 1_000,
+          model_api_timeout_milliseconds: childBudget.modelApiTimeoutMilliseconds,
+          model_stream_total_timeout_seconds:
+            childBudget.modelStreamTotalTimeoutMilliseconds / 1_000,
+          model_stream_total_timeout_milliseconds:
+            childBudget.modelStreamTotalTimeoutMilliseconds,
         },
       },
       metadata: {
@@ -156,6 +177,15 @@ export class TypeScriptSkillRuntime {
         e02_skill_invocation: true,
         skill_invocation_id: input.invocationId,
         parent_task_id: parent.taskId,
+        runtime_lineage: {
+          schema: "zyra.runtime-lineage/v1",
+          relation: "skill",
+          relation_id: input.invocationId,
+          parent_run_id: parent.runId,
+          parent_task_id: parent.taskId,
+          parent_session_id: parent.sessionId,
+          parent_worker_request_id: parent.workerRequestId,
+        },
       },
     };
     return runChild(childInput);
@@ -531,6 +561,94 @@ export class TypeScriptSkillRuntime {
       },
     };
   }
+}
+
+function forkedSkillSessionId(
+  parent: RuntimeRunInput,
+  input: ForkedSkillExecutionInput,
+): string {
+  const identity = [
+    parent.runId,
+    parent.taskId,
+    parent.sessionId,
+    input.childTaskId,
+    input.invocationId,
+  ].join("\0");
+  return `skill-session-${createHash("sha256").update(identity).digest("hex").slice(0, 32)}`;
+}
+
+export interface ForkedSkillResourceBudget {
+  deadlineEpochMs: number;
+  closeoutReserveSeconds: number;
+  modelApiTimeoutMilliseconds: number;
+  modelStreamTotalTimeoutMilliseconds: number;
+}
+
+export function forkedSkillResourceBudget(
+  parentConstraints: JsonObject,
+  timeoutMs: number,
+  nowEpochMs = Date.now(),
+): ForkedSkillResourceBudget {
+  const boundedTimeoutMs = Math.max(1, Math.floor(timeoutMs));
+  let deadlineEpochMs = nowEpochMs + boundedTimeoutMs;
+  const parentDeadline = Number(parentConstraints.external_deadline_epoch_ms);
+  const parentReserveSeconds = Number(parentConstraints.closeout_reserve_seconds);
+  if (
+    Number.isFinite(parentDeadline)
+    && parentDeadline > 0
+    && Number.isFinite(parentReserveSeconds)
+    && parentReserveSeconds > 0
+  ) {
+    deadlineEpochMs = Math.min(
+      deadlineEpochMs,
+      Math.floor(parentDeadline - parentReserveSeconds * 1_000),
+    );
+  } else if (Number.isFinite(parentDeadline) && parentDeadline > 0) {
+    deadlineEpochMs = Math.min(deadlineEpochMs, Math.floor(parentDeadline));
+  }
+  const availableMs = deadlineEpochMs - nowEpochMs;
+  if (availableMs <= 1_000) {
+    throw Object.assign(
+      new Error("forked skill cannot start because the parent closeout window is active"),
+      { name: "SkillParentCloseoutError", code: "skill_parent_closeout_active" },
+    );
+  }
+  const closeoutReserveMs = Math.max(
+    1_000,
+    Math.min(60_000, Math.floor(availableMs * 0.2), Math.floor(availableMs / 2)),
+  );
+  const activeExecutionMs = Math.max(100, availableMs - closeoutReserveMs);
+  const configuredModelTimeoutMs = positiveMilliseconds(
+    parentConstraints.model_api_timeout_milliseconds,
+    Number(parentConstraints.model_api_timeout_seconds) * 1_000,
+    DEFAULT_FORKED_SKILL_MODEL_TIMEOUT_MILLISECONDS,
+  );
+  const configuredStreamTotalTimeoutMs = positiveMilliseconds(
+    parentConstraints.model_stream_total_timeout_milliseconds,
+    Number(parentConstraints.model_stream_total_timeout_seconds) * 1_000,
+    configuredModelTimeoutMs,
+  );
+  return {
+    deadlineEpochMs,
+    closeoutReserveSeconds: closeoutReserveMs / 1_000,
+    modelApiTimeoutMilliseconds: Math.max(
+      100,
+      Math.min(configuredModelTimeoutMs, activeExecutionMs),
+    ),
+    modelStreamTotalTimeoutMilliseconds: Math.max(
+      100,
+      Math.min(configuredStreamTotalTimeoutMs, activeExecutionMs),
+    ),
+  };
+}
+
+function positiveMilliseconds(
+  primary: unknown,
+  secondary: unknown,
+  fallback: number,
+): number {
+  const selected = Number(primary) || Number(secondary) || fallback;
+  return Math.max(100, Math.floor(selected));
 }
 
 export function parseSkillRoots(value: unknown, defaults: string[]): RuntimeRoot[] {

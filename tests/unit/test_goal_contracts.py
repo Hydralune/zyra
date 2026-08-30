@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from zyra_orchestration.deployment.models import (
     DeploymentProfile,
     Sensitivity,
@@ -11,6 +13,7 @@ from zyra_orchestration.goal_contracts import (
     direct_response_contract,
     goal_delivery_contract,
     goal_contract_matches_projection,
+    independent_role_evidence_satisfied,
     validate_direct_response,
     validate_goal_delivery,
 )
@@ -65,6 +68,147 @@ def test_verification_is_exact_and_projection_bound() -> None:
     stale = contract.to_dict()
     stale["expected_response"] = "not-ok"
     assert goal_contract_matches_projection("收到请回复ok", stale) is False
+
+
+def test_role_separation_accepts_inline_analysis_with_distinct_fork_roles() -> None:
+    required = {
+        "codebase-analysis",
+        "code-change",
+        "failure-recovery",
+        "verification",
+    }
+    invocations = [
+        {
+            "name": "codebase-analysis",
+            "execution_mode": "inline",
+            "child_task_id": "inline-analysis",
+        },
+        {
+            "name": "code-change",
+            "execution_mode": "inline",
+            "child_task_id": "inline-change",
+        },
+        {
+            "name": "failure-recovery",
+            "execution_mode": "fork",
+            "child_task_id": "child-recovery",
+        },
+        {
+            "name": "verification",
+            "execution_mode": "fork",
+            "child_task_id": "child-verifier",
+        },
+    ]
+
+    assert independent_role_evidence_satisfied(required, invocations) is True
+
+
+def test_role_separation_rejects_repeated_children_in_one_role() -> None:
+    invocations = [
+        {
+            "name": "verification",
+            "execution_mode": "fork",
+            "child_task_id": "child-verifier-one",
+        },
+        {
+            "name": "verification",
+            "execution_mode": "fork",
+            "child_task_id": "child-verifier-two",
+        },
+    ]
+
+    assert (
+        independent_role_evidence_satisfied(
+            {"codebase-analysis", "verification"},
+            invocations,
+        )
+        is False
+    )
+
+
+def test_role_separation_keeps_forked_material_reviewer_pairing() -> None:
+    invocations = [
+        {
+            "name": "failure-recovery",
+            "execution_mode": "fork",
+            "child_task_id": "child-recovery",
+        },
+        {
+            "name": "verification",
+            "execution_mode": "fork",
+            "child_task_id": "child-verifier",
+        },
+    ]
+
+    assert (
+        independent_role_evidence_satisfied(
+            {"pdf-analysis", "failure-recovery", "verification"},
+            invocations,
+        )
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    ("required", "invocations", "expected"),
+    (
+        (
+            {"codebase-analysis", "failure-recovery", "verification"},
+            (
+                ("verification", "fork", "review-91"),
+                ("codebase-analysis", "inline", "analysis-local"),
+                ("failure-recovery", "fork", "recovery-27"),
+            ),
+            True,
+        ),
+        (
+            {"codebase-analysis", "verification"},
+            (
+                ("verification", "fork", "shared-child"),
+                ("failure-recovery", "fork", "shared-child"),
+            ),
+            False,
+        ),
+        (
+            {"codebase-analysis", "verification"},
+            (
+                ("failure-recovery", "fork", "recovery-a"),
+                ("failure-recovery", "fork", "recovery-b"),
+            ),
+            False,
+        ),
+        (
+            {"web-research", "failure-recovery", "verification"},
+            (
+                ("verification", "fork", "review-web"),
+                ("web-research", "fork", "source-web"),
+                ("failure-recovery", "fork", "recovery-web"),
+            ),
+            True,
+        ),
+    ),
+    ids=(
+        "inline-material-order-and-identifiers-vary",
+        "one-child-cannot-claim-two-roles",
+        "required-verifier-must-execute",
+        "fork-capable-material-keeps-review-pairing",
+    ),
+)
+def test_role_separation_is_identity_and_order_independent(
+    required: set[str],
+    invocations: tuple[tuple[str, str, str], ...],
+    expected: bool,
+) -> None:
+    records = [
+        {
+            "name": name,
+            "execution_mode": execution_mode,
+            "child_task_id": child_task_id,
+        }
+        for name, execution_mode, child_task_id in invocations
+    ]
+
+    assert independent_role_evidence_satisfied(required, records) is expected
 
 
 def test_physical_code_worker_uses_typescript_provider_tool_loop(
@@ -481,6 +625,80 @@ def test_delivery_contract_compiles_explicit_runtime_obligations() -> None:
     )
     assert contract.loopx_required is True
     assert contract.role_separation_required is True
+
+
+@pytest.mark.parametrize(
+    ("goal", "expected"),
+    (
+        (
+            "请在 `deliverables/` 中交付 change_report.md，并保留清晰的变更轨迹。",
+            {"report-writing", "trace-summary"},
+        ),
+        (
+            "Deliver `output/audit-report.json` and preserve the execution trace.",
+            {"report-writing", "trace-summary"},
+        ),
+        (
+            "生成 `notes/summary.md`，记录诊断追踪和验证结论。",
+            {"trace-summary"},
+        ),
+    ),
+    ids=("chinese-change-report", "english-audit-report", "trace-with-non-report"),
+)
+def test_delivery_contract_infers_skills_from_typed_outputs(
+    goal: str,
+    expected: set[str],
+) -> None:
+    contract = goal_delivery_contract(goal)
+
+    assert set(contract.required_skills) == expected
+
+
+def test_delivery_contract_does_not_infer_skills_from_input_mentions() -> None:
+    contract = goal_delivery_contract(
+        "Inspect the existing `inputs/prior-report.json`; do not save or retain a trace."
+    )
+
+    assert contract.required_paths == ()
+    assert contract.required_skills == ()
+
+
+def test_delivery_contract_compiles_generic_ordered_mutation_policy() -> None:
+    goals = (
+        (
+            "`inputs/widget-kit/` is a small library. Work in an isolated copy. "
+            "Run the existing tests and save the baseline before editing. "
+            "Do not modify existing tests; new regression tests are allowed.",
+            "inputs/widget-kit",
+        ),
+        (
+            "`fixtures/ledger-core/` 是待修复库，请在隔离副本中完成。"
+            "运行现有测试并保存基线；不得修改既有测试的业务断言。",
+            "fixtures/ledger-core",
+        ),
+    )
+
+    for goal, source_root in goals:
+        policy = goal_delivery_contract(goal).to_dict()["mutation_policy"]
+        assert policy == {
+            "schema": "zyra.task-mutation-policy/v1",
+            "enabled": True,
+            "protected_source_roots": [source_root],
+            "required_pre_mutation_evidence": ["existing_test_baseline"],
+            "protect_existing_test_files": True,
+            "inherit_across_execution_lineage": True,
+        }
+
+
+def test_delivery_contract_does_not_invent_mutation_policy() -> None:
+    policy = goal_delivery_contract(
+        "Inspect `inputs/widget-kit/` and explain the architecture."
+    ).to_dict()["mutation_policy"]
+
+    assert policy["enabled"] is False
+    assert policy["protected_source_roots"] == []
+    assert policy["required_pre_mutation_evidence"] == []
+    assert policy["protect_existing_test_files"] is False
 
 
 def test_provenance_index_requires_digest_and_extraction_method(tmp_path) -> None:

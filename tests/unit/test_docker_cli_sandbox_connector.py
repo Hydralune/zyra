@@ -447,6 +447,8 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 "benchmark_long_horizon": True,
                 "model_api_timeout_seconds": 300.0,
                 "model_api_timeout_milliseconds": 300_000,
+                "model_stream_total_timeout_seconds": 300.0,
+                "model_stream_total_timeout_milliseconds": 300_000,
             },
         )
         # The long-horizon marker does not invent a separate internal budget.
@@ -482,6 +484,24 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
         )
         self.assertEqual(constraints["api_retry_max_attempts"], 2)
         self.assertEqual(constraints["max_length_continuations"], 2)
+
+    def test_long_horizon_stream_default_tracks_the_validated_api_envelope(self) -> None:
+        for timeout_seconds in (45.5, 600.0):
+            with self.subTest(timeout_seconds=timeout_seconds):
+                constraints = code_worker_adapter._benchmark_runtime_constraints(
+                    {
+                        "benchmark_long_horizon": True,
+                        "model_api_timeout_seconds": timeout_seconds,
+                    }
+                )
+                self.assertEqual(
+                    constraints["model_stream_total_timeout_seconds"],
+                    timeout_seconds,
+                )
+                self.assertEqual(
+                    constraints["model_stream_total_timeout_milliseconds"],
+                    int(timeout_seconds * 1_000),
+                )
 
     def test_benchmark_command_budget_preserves_agent_closeout_time(self) -> None:
         self.assertEqual(
