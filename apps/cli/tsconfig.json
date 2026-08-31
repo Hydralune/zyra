@@ -9,6 +9,7 @@
   },
   "include": [
     "src/**/*.ts",
-    "test/**/*.ts"
+    "test/**/*.ts",
+    "../../scripts/product_tui_smoke.ts"
   ]
 }

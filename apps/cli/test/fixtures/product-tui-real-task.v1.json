@@ -1,0 +1,244 @@
+{
+  "schema": "zyra.product-tui-real-task-fixture/v1",
+  "capture": {
+    "source": "local daemon canonical task plus event-ingress snapshot",
+    "captured_at": "2026-08-31T16:53:32.029Z",
+    "physical_run": true,
+    "sanitized": true,
+    "sanitization": [
+      "task, run, session, node, event, artifact and workspace identities replaced",
+      "digests, receipts, physical locations and provider metadata removed",
+      "event payloads reduced to fields needed to prove projection behavior"
+    ],
+    "observed_frame_count": 144,
+    "observed_event_type_counts": {
+      "runtime.agent.message": 57,
+      "runtime.artifact.committed": 12,
+      "runtime.audit.finding": 25,
+      "runtime.backend.dispatch.requested": 21,
+      "runtime.node.created": 5,
+      "runtime.node.failed": 1,
+      "runtime.node.updated": 19,
+      "runtime.task.created": 1,
+      "runtime.topology.route": 3
+    },
+    "not_observed": [
+      "runtime.text.started",
+      "runtime.text.delta",
+      "runtime.text.ended",
+      "runtime.task.completed",
+      "runtime.permission.pending",
+      "runtime.tool.called"
+    ]
+  },
+  "task": {
+    "taskId": "task_fixture_simple",
+    "runId": "run_fixture_simple",
+    "sessionId": "session_fixture_simple",
+    "rootNodeId": "node_fixture_root",
+    "userGoal": "测试，收到请回复",
+    "status": "completed",
+    "createdAt": "2026-08-31T09:54:36.000Z",
+    "updatedAt": "2026-08-31T09:54:53.348Z",
+    "planNodes": [
+      {
+        "nodeId": "node_fixture_route",
+        "title": "Route",
+        "description": "Select the worker and control route for the executable node.",
+        "status": "completed",
+        "parentNodeId": "node_fixture_root",
+        "dependsOn": [],
+        "artifactIds": [],
+        "updatedAt": "2026-08-31T09:54:40.000Z",
+        "metadata": {}
+      },
+      {
+        "nodeId": "node_fixture_plan",
+        "title": "Plan",
+        "description": "Decompose the user goal into an executable task graph.",
+        "status": "completed",
+        "parentNodeId": "node_fixture_root",
+        "dependsOn": [],
+        "artifactIds": [],
+        "updatedAt": "2026-08-31T09:54:39.000Z",
+        "metadata": {}
+      },
+      {
+        "nodeId": "node_fixture_finalize",
+        "title": "Finalize",
+        "description": "Finalize the trace and mark the task ready for inspection.",
+        "status": "completed",
+        "parentNodeId": "node_fixture_root",
+        "dependsOn": [],
+        "artifactIds": [],
+        "updatedAt": "2026-08-31T09:54:53.000Z",
+        "metadata": {}
+      },
+      {
+        "nodeId": "node_fixture_root",
+        "title": "Root task",
+        "description": "测试，收到请回复",
+        "status": "completed",
+        "dependsOn": [],
+        "artifactIds": [],
+        "updatedAt": "2026-08-31T09:54:53.348Z",
+        "metadata": {}
+      },
+      {
+        "nodeId": "node_fixture_verify",
+        "title": "Verify",
+        "description": "Check node outputs, event coverage, and checkpoint readiness.",
+        "status": "completed",
+        "parentNodeId": "node_fixture_root",
+        "dependsOn": [],
+        "artifactIds": [],
+        "updatedAt": "2026-08-31T09:54:52.000Z",
+        "metadata": {}
+      },
+      {
+        "nodeId": "node_fixture_execute",
+        "title": "Execute",
+        "description": "Run the current node through the selected worker runtime.",
+        "status": "completed",
+        "parentNodeId": "node_fixture_root",
+        "assignedWorkerId": "worker_fixture",
+        "dependsOn": [],
+        "artifactIds": [],
+        "updatedAt": "2026-08-31T09:54:51.000Z",
+        "metadata": {}
+      }
+    ],
+    "artifacts": [],
+    "metadata": {
+      "final_answer": "收到！已收到您的测试消息。\n\n这是一个简单的连通性测试，无需进行任何工作区变更。如果您接下来有具体的任务需求（例如创建或修改文件、运行命令等），请直接告诉我，我会立即执行。",
+      "delivery": {
+        "schema": "zyra.task-workspace-delivery/v1",
+        "changed_paths": [],
+        "created_paths": [],
+        "modified_paths": [],
+        "deleted_paths": [],
+        "physical_location_redacted": true,
+        "workspace_id": "workspace_fixture"
+      },
+      "canonical_task_outcome": {
+        "schema": "zyra.task-outcome/v1",
+        "task_status": "completed",
+        "terminal": true,
+        "diagnostics": []
+      }
+    },
+    "binding": {
+      "taskId": "task_fixture_simple",
+      "runId": "run_fixture_simple",
+      "sessionId": "session_fixture_simple"
+    },
+    "terminal": true,
+    "active": false
+  },
+  "frames": [
+    {
+      "schema": "zyra.event-ingress-frame/v1",
+      "kind": "event",
+      "source": "runtime-event-spine",
+      "generation": 1,
+      "taskId": "task_fixture_simple",
+      "sequence": 1,
+      "previousSequence": 0,
+      "eventId": "event_fixture_001",
+      "eventType": "runtime.task.created",
+      "event": { "inline": {}, "artifactRefs": [] },
+      "raw": {}
+    },
+    {
+      "schema": "zyra.event-ingress-frame/v1",
+      "kind": "event",
+      "source": "runtime-event-spine",
+      "generation": 1,
+      "taskId": "task_fixture_simple",
+      "sequence": 2,
+      "previousSequence": 1,
+      "eventId": "event_fixture_002",
+      "eventType": "runtime.node.created",
+      "event": { "inline": {}, "artifactRefs": [] },
+      "raw": {}
+    },
+    {
+      "schema": "zyra.event-ingress-frame/v1",
+      "kind": "event",
+      "source": "runtime-event-spine",
+      "generation": 1,
+      "taskId": "task_fixture_simple",
+      "sequence": 3,
+      "previousSequence": 2,
+      "eventId": "event_fixture_003",
+      "eventType": "runtime.agent.message",
+      "event": { "inline": { "legacy_event_type": "agent_message" }, "artifactRefs": [] },
+      "raw": {}
+    },
+    {
+      "schema": "zyra.event-ingress-frame/v1",
+      "kind": "event",
+      "source": "runtime-event-spine",
+      "generation": 1,
+      "taskId": "task_fixture_simple",
+      "sequence": 4,
+      "previousSequence": 3,
+      "eventId": "event_fixture_004",
+      "eventType": "runtime.backend.dispatch.requested",
+      "event": { "inline": {}, "artifactRefs": [] },
+      "raw": {}
+    },
+    {
+      "schema": "zyra.event-ingress-frame/v1",
+      "kind": "event",
+      "source": "runtime-event-spine",
+      "generation": 1,
+      "taskId": "task_fixture_simple",
+      "sequence": 5,
+      "previousSequence": 4,
+      "eventId": "event_fixture_005",
+      "eventType": "runtime.audit.finding",
+      "event": { "inline": {}, "artifactRefs": [] },
+      "raw": {}
+    },
+    {
+      "schema": "zyra.event-ingress-frame/v1",
+      "kind": "event",
+      "source": "runtime-event-spine",
+      "generation": 1,
+      "taskId": "task_fixture_simple",
+      "sequence": 6,
+      "previousSequence": 5,
+      "eventId": "event_fixture_006",
+      "eventType": "runtime.node.failed",
+      "event": { "inline": { "reason": "superseded by task resume physical dispatch" }, "artifactRefs": [] },
+      "raw": {}
+    },
+    {
+      "schema": "zyra.event-ingress-frame/v1",
+      "kind": "event",
+      "source": "runtime-event-spine",
+      "generation": 1,
+      "taskId": "task_fixture_simple",
+      "sequence": 7,
+      "previousSequence": 6,
+      "eventId": "event_fixture_007",
+      "eventType": "runtime.artifact.committed",
+      "event": { "inline": { "artifact_count": 2 }, "artifactRefs": [] },
+      "raw": {}
+    },
+    {
+      "schema": "zyra.event-ingress-frame/v1",
+      "kind": "event",
+      "source": "runtime-event-spine",
+      "generation": 1,
+      "taskId": "task_fixture_simple",
+      "sequence": 8,
+      "previousSequence": 7,
+      "eventId": "event_fixture_008",
+      "eventType": "runtime.agent.message",
+      "event": { "inline": { "legacy_event_type": "system_notice" }, "artifactRefs": [] },
+      "raw": {}
+    }
+  ]
+}

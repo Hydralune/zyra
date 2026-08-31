@@ -1,0 +1,75 @@
+export const ZYRA_UI_EVENT_SCHEMA = "zyra.ui-event/v1" as const
+
+export type UiConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected"
+export type UiPermissionDecision = "allow" | "deny"
+export type UiFileChangeKind = "created" | "modified" | "deleted" | "renamed"
+
+export interface UiPermissionRequest {
+  requestId: string
+  action: string
+  target?: string
+  reason?: string
+  risk?: string
+  expiresAt?: string
+  scope?: string
+  decisions: readonly UiPermissionDecision[]
+}
+
+export interface UiFileChange {
+  path: string
+  kind: UiFileChangeKind
+  previousPath?: string
+}
+
+interface UiEventBase {
+  schema: typeof ZYRA_UI_EVENT_SCHEMA
+  eventId: string
+  occurredAt?: string
+}
+
+export type ZyraUiEvent =
+  | (UiEventBase & { type: "session.started"; sessionId: string; taskId?: string })
+  | (UiEventBase & { type: "user.message"; messageId: string; text: string })
+  | (UiEventBase & { type: "assistant.message.started"; messageId: string })
+  | (UiEventBase & { type: "assistant.message.delta"; messageId: string; text: string })
+  | (UiEventBase & {
+      type: "assistant.message.completed"
+      messageId: string
+      text: string
+      source: "stream" | "canonical_final_answer"
+    })
+  | (UiEventBase & { type: "activity.started"; activityId: string; label: string })
+  | (UiEventBase & { type: "activity.updated"; activityId: string; label: string })
+  | (UiEventBase & { type: "activity.completed"; activityId: string; label: string; outcome?: string })
+  | (UiEventBase & { type: "tool.started"; toolCallId: string; name: string; summary: string })
+  | (UiEventBase & { type: "tool.updated"; toolCallId: string; summary: string })
+  | (UiEventBase & { type: "tool.completed"; toolCallId: string; summary: string })
+  | (UiEventBase & { type: "tool.failed"; toolCallId: string; message: string })
+  | (UiEventBase & { type: "permission.requested"; request: UiPermissionRequest })
+  | (UiEventBase & { type: "permission.resolved"; requestId: string; decision: string })
+  | (UiEventBase & { type: "workspace.changed"; changes: readonly UiFileChange[] })
+  | (UiEventBase & { type: "subagent.updated"; agentId: string; label: string; status: string })
+  | (UiEventBase & { type: "task.completed"; taskId: string; finalAnswer: string })
+  | (UiEventBase & { type: "task.failed"; taskId: string; message: string; recovery?: string })
+  | (UiEventBase & { type: "task.cancelled"; taskId: string; message: string })
+  | (UiEventBase & { type: "transport.reconnecting"; attempt: number })
+  | (UiEventBase & { type: "transport.recovered" })
+
+export interface UiPermissionSnapshot {
+  requestId: string
+  status: string
+  prompt?: string
+  reason?: string
+  toolName?: string
+  operation?: string
+  target?: string
+  risk?: string
+  expiresAt?: string
+  scope?: string
+  selectable?: boolean
+}
+
+export interface UiTransportSnapshot {
+  state: UiConnectionState
+  attempt?: number
+}

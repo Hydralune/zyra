@@ -22,6 +22,7 @@
     "typecheck": "tsc -p packages/runtime/claude-runtime/tsconfig.json && tsc -p packages/runtime/provider-control-plane/tsconfig.json && tsc -p packages/runtime/runtime-event-spine/tsconfig.json && tsc -p packages/memory/curator-state-machine/tsconfig.json && tsc -p packages/memory/retrieval-algorithms/tsconfig.json && tsc -p packages/memory/skill-memory-runtime/tsconfig.json && tsc -p packages/core/typed-api-client/tsconfig.json && tsc -p packages/commands/tsconfig.json && tsc -p apps/cli/tsconfig.json && tsc -p apps/web/tsconfig.json",
     "typecheck:cli": "tsc -p packages/core/typed-api-client/tsconfig.json && tsc -p packages/commands/tsconfig.json && tsc -p apps/cli/tsconfig.json",
     "test:cli": "bun test ./apps/cli/test",
+    "product-tui:smoke": "bun scripts/product_tui_smoke.ts",
     "cli": "bun apps/cli/src/index.ts",
     "typecheck:web": "tsc -p packages/core/typed-api-client/tsconfig.json && tsc -p packages/commands/tsconfig.json && tsc -p apps/web/tsconfig.json",
     "test:web": "bun test ./packages/core/typed-api-client/test ./apps/web/test ./apps/web/src/features/long-horizon/loopx",
