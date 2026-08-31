@@ -206,24 +206,9 @@ export class SkillCoordinator {
   toolSpecs(): ToolSpecContract[] {
     return [
       toolSpec("list_skills", "List TypeScript-owned Markdown skills", {}, "read"),
-      toolSpec("search_skills", "Search TypeScript-owned Markdown skills", {
-        query: { type: "string", description: "Search text matched against skill names, descriptions, aliases, and tags." },
-        tags: { type: "array", items: { type: "string" } },
-        limit: { type: "integer" },
-      }, "read"),
-      toolSpec("skill", "Invoke a TypeScript-owned Markdown skill with context and tool-scope budgets", {
-        skill: { type: "string", description: "Skill name or alias from list_skills/search_skills." },
-        arguments: { type: "object", description: "Skill-specific arguments; place task-specific fields here." },
-        resources: {
-          type: "array",
-          items: { type: "string" },
-          description: "Optional resource IDs or relative resource paths. Required resources are always loaded.",
-        },
-      }, "execute", ["skill"]),
-      toolSpec("read_skill_resource", "Read declared resources. Omit resources to load all; required resources are always included.", {
-        skill: { type: "string", description: "Skill name or alias from list_skills/search_skills." },
-        resources: { type: "array", items: { type: "string" }, description: "Optional resource IDs or relative paths." },
-      }, "read", ["skill"]),
+      toolSpec("search_skills", "Search TypeScript-owned Markdown skills", { query: { type: "string" }, tags: { type: "array", items: { type: "string" } }, limit: { type: "integer" } }, "read"),
+      toolSpec("skill", "Invoke a TypeScript-owned Markdown skill with context and tool-scope budgets", { skill: { type: "string" }, arguments: { type: "object" }, resources: { type: "array", items: { type: "string" } } }, "execute", ["skill"]),
+      toolSpec("read_skill_resource", "Read a declared skill resource through the TypeScript resource boundary", { skill: { type: "string" }, resources: { type: "array", items: { type: "string" } } }, "read", ["skill"]),
       toolSpec("reload_skills", "Atomically rescan and commit disk skill changes", {}, "execute"),
     ];
   }
@@ -355,11 +340,7 @@ export class SkillCoordinator {
     const skillName = requiredString(argumentsValue, "skill");
     const resolution = this.registry.resolve(skillName);
     if (toolName === "read_skill_resource") {
-      const selectedResources = stringArray(argumentsValue.resources);
-      const contents = await this.resources.load(
-        resolution.descriptor,
-        selectedResources.length ? selectedResources : undefined,
-      );
+      const contents = await this.resources.load(resolution.descriptor, stringArray(argumentsValue.resources));
       return result(`Loaded ${contents.length} resources for ${skillName}`, { resources: canonicalize(contents), skill_id: resolution.skillId, registry_revision: resolution.revision });
     }
     if (toolName !== "skill") throw new Error(`skill coordinator does not own ${toolName}`);
@@ -805,12 +786,7 @@ function toolSpec(name: string, purpose: string, properties: JsonObject, accessM
     name,
     purpose,
     source: "typescript-skill",
-    input_schema: {
-      type: "object",
-      properties,
-      additionalProperties: false,
-      ...(required.length ? { required } : {}),
-    },
+    input_schema: { type: "object", properties, ...(required.length ? { required } : {}) },
     output_schema: { type: "object" },
     metadata: { access_mode: accessMode, canonical_runtime_owner: "typescript" },
     execution_provenance: { namespace: "skill", server_id: "", version: "2", source: "zyra-e02-skill-coordinator" },

@@ -649,11 +649,7 @@ export class E02CapabilityCoordinator {
         limit: { type: "integer" },
       }, "read"),
       e02Tool("e02_projection", "Read a redacted, cursor-stable projection of TypeScript E02 state", {
-        action: {
-          type: "string",
-          enum: ["capture", "read", "snapshot", "page", "diff", "list", "subscribe", "pending", "ack"],
-          description: "Projection operation. Omit for capture; read and snapshot are aliases for capture.",
-        },
+        action: { type: "string" },
         domains: { type: "array", items: { type: "string" } },
         projection_id: { type: "string" },
         from_projection_id: { type: "string" },
@@ -1676,10 +1672,7 @@ export class E02CapabilityCoordinator {
       });
     }
     if (toolName === "e02_projection") {
-      const requestedAction = optionalString(argumentsValue.action) || "capture";
-      const action = requestedAction === "read" || requestedAction === "snapshot"
-        ? "capture"
-        : requestedAction;
+      const action = optionalString(argumentsValue.action) || "capture";
       if (action === "capture") {
         const projection = this.projections.capture(this.snapshot() as unknown as JsonObject, {
           domains: projectionDomains(argumentsValue.domains),
@@ -4366,7 +4359,7 @@ function e02Tool(
     name,
     purpose,
     source: "typescript-e02-control",
-    input_schema: { type: "object", properties, additionalProperties: false },
+    input_schema: { type: "object", properties },
     output_schema: { type: "object" },
     metadata: {
       access_mode: accessMode,

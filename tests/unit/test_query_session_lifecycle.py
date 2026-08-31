@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -15,7 +14,6 @@ for package_path in [
         sys.path.insert(0, str(package_path))
 
 from zyra_runtime import (  # noqa: E402
-    LocalArtifactStore,
     QueryMessageRole,
     QuerySession,
     QueryStreamEventType,
@@ -24,50 +22,9 @@ from zyra_runtime import (  # noqa: E402
     replay_from_snapshot,
     snapshot_checkpoint_metadata,
 )
-from zyra_runtime.claude_session_lifecycle import ClaudeSessionLifecycleRuntime  # noqa: E402
 
 
 class QuerySessionLifecycleTests(unittest.TestCase):
-    def test_session_artifacts_redact_secret_like_content_before_persistence(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            secret = "test-session-secret-123456789"
-            session = QuerySession(
-                run_id="run-secret",
-                task_id="task-secret",
-                node_id="node-code",
-                worker_request_id="workerreq-secret",
-            )
-            turn = session.start_turn(1, user_content=f"API_KEY={secret}")
-            session.end_turn(ok=True, stop_reason=StopReason.END_TURN)
-            session.complete_session(ok=True)
-            lifecycle = ClaudeSessionLifecycleRuntime(
-                artifact_store=LocalArtifactStore(tmpdir),
-                runtime_source="typescript",
-                runtime_id="runtime-secret-test",
-            )
-
-            artifacts = lifecycle.materialize_session_artifacts(
-                session,
-                run_id=session.run_id,
-                task_id=session.task_id,
-                producer_node_id=session.node_id,
-            )
-            snapshot_text = Path(artifacts.snapshot_artifact.uri).read_text(encoding="utf-8")
-            transcript_text = Path(artifacts.transcript_artifact.uri).read_text(encoding="utf-8")
-
-            self.assertNotIn(secret, snapshot_text)
-            self.assertNotIn(secret, transcript_text)
-            self.assertIn("[REDACTED]", snapshot_text)
-            self.assertIn("[REDACTED]", transcript_text)
-            self.assertGreaterEqual(
-                int(artifacts.snapshot_artifact.metadata["durable_secret_redaction_count"]),
-                1,
-            )
-            self.assertGreaterEqual(
-                int(artifacts.transcript_artifact.metadata["durable_secret_redaction_count"]),
-                1,
-            )
-
     def test_normal_turn_builds_parent_uuid_chain_snapshot_and_replay(self) -> None:
         session = QuerySession(
             run_id="run-test",

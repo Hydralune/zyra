@@ -249,7 +249,6 @@ class ClaudeSessionLifecycleRuntime:
             kind=ArtifactKind.STRUCTURED_DATA,
             extension=".json",
             producer_node_id=producer_node_id,
-            redact_secrets=True,
         )
         transcript_artifact = self.artifact_store.write_text(
             run_id=run_id,
@@ -259,7 +258,6 @@ class ClaudeSessionLifecycleRuntime:
             kind=ArtifactKind.TRACE,
             extension=".jsonl",
             producer_node_id=producer_node_id,
-            redact_secrets=True,
         )
         checkpoint = ClaudeSessionCheckpoint.from_snapshot(
             snapshot,
@@ -502,7 +500,6 @@ class ClaudeSessionLifecycleRuntime:
             kind=ArtifactKind.STRUCTURED_DATA,
             extension=".json",
             producer_node_id=producer_node_id,
-            redact_secrets=True,
         )
 
     def write_restore_report_artifact(
@@ -521,7 +518,6 @@ class ClaudeSessionLifecycleRuntime:
             kind=ArtifactKind.STRUCTURED_DATA,
             extension=".json",
             producer_node_id=producer_node_id,
-            redact_secrets=True,
         )
 
     def checkpoint_metadata(self, checkpoint: ClaudeSessionCheckpoint | None = None) -> dict[str, str]:

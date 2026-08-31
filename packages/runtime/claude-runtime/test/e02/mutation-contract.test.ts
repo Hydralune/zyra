@@ -762,45 +762,6 @@ test("e02.mutation.skill-4", async () => {
   assert.deepEqual(await resources.load(descriptor), []);
 });
 
-test("e02.mutation.skill-required-resources-survive-optional-selection", async () => {
-  const root = await mkdtemp(join(tmpdir(), "zyra-e02-required-resource-"));
-  try {
-    await writeFile(join(root, "required.md"), "required evidence", "utf8");
-    await writeFile(join(root, "optional.md"), "optional notes", "utf8");
-    const base = skillDescriptor(root);
-    const descriptor: SkillDescriptor = {
-      ...base,
-      resources: [{
-        resourceId: "required-evidence",
-        path: "required.md",
-        kind: "markdown",
-        required: true,
-        maximumBytes: 4_096,
-        charset: "utf-8",
-        mediaType: "text/markdown",
-        digest: null,
-        metadata: {},
-      }, {
-        resourceId: "optional-notes",
-        path: "optional.md",
-        kind: "markdown",
-        required: false,
-        maximumBytes: 4_096,
-        charset: "utf-8",
-        mediaType: "text/markdown",
-        digest: null,
-        metadata: {},
-      }],
-    };
-    const resources = new SkillResourceRuntime({ workspaceRoot: root });
-    const selected = await resources.load(descriptor, ["missing-optional"]);
-    assert.deepEqual(selected.map((resource) => resource.resourceId), ["required-evidence"]);
-    assert.equal(selected[0]?.text, "required evidence");
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
 test("e02.mutation.skill-5", async () => {
   const { invocation, registry } = skillRuntime("G:/workspace");
   const request: SkillInvocationRequest = {

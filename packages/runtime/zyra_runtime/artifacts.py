@@ -211,30 +211,9 @@ class LocalArtifactStore:
         producer_node_id: str | None = None,
         metadata: dict[str, Any] | None = None,
         encoding: str = "utf-8",
-        redact_secrets: bool = False,
     ) -> ArtifactRef:
-        effective_content = str(content)
-        effective_metadata = dict(metadata or {})
-        if redact_secrets:
-            # Import lazily so the artifact primitive remains usable while the
-            # sandbox-gateway package is still being initialized.
-            from .sandbox_gateway.redaction import SecretRedactor
-
-            report = SecretRedactor().redact_text(
-                effective_content,
-                source="local_artifact_store",
-            )
-            effective_content = str(report.value)
-            effective_metadata.update(
-                {
-                    "durable_secret_redaction": True,
-                    "durable_secret_redaction_count": len(report.findings),
-                    "durable_secret_redaction_input_digest": report.input_digest,
-                    "durable_secret_redaction_output_digest": report.output_digest,
-                }
-            )
         normalized_encoding = normalize_text_encoding(encoding)
-        encoded = effective_content.encode(normalized_encoding)
+        encoded = content.encode(normalized_encoding)
         return self._commit_bytes(
             run_id=run_id,
             task_id=task_id,
@@ -243,7 +222,7 @@ class LocalArtifactStore:
             kind=kind,
             extension=extension,
             producer_node_id=producer_node_id,
-            metadata=effective_metadata,
+            metadata=metadata,
             declared_encoding=normalized_encoding,
         )
 

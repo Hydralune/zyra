@@ -232,23 +232,18 @@ test("e02.default-path honors canonical access_mode metadata when inferring perm
   const capabilities = await TypeScriptCapabilityRuntime.open(input);
   try {
     const runtimeInput = { ...input, tools: capabilities.mergeToolSpecs(input.tools) };
-    const projectionSpec = runtimeInput.tools.find((tool) => tool.name === "e02_projection");
-    assert.deepEqual(
-      ((projectionSpec?.input_schema.properties as JsonObject).action as JsonObject).enum,
-      ["capture", "read", "snapshot", "page", "diff", "list", "subscribe", "pending", "ack"],
-    );
     const gateway = new CommitOnlyGateway();
     const host = new PermissionedCapabilityHost(gateway, runtimeInput, capabilities);
     const batch: ToolBatch = {
       batchId: "e02-access-mode-batch",
       turnIndex: 0,
       executionMode: "concurrent_read_only",
-      steps: [{ tool_name: "e02_projection", arguments: { action: "read" } }],
+      steps: [{ tool_name: "e02_projection", arguments: { action: "list" } }],
     };
     const [result] = await host.executeBatch(batch, [{
       toolCallId: "e02-access-mode-call",
       toolName: "e02_projection",
-      arguments: { action: "read" },
+      arguments: { action: "list" },
       turnIndex: 0,
       stepIndex: 0,
       batchId: batch.batchId,

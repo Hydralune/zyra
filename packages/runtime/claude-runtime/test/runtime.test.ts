@@ -1451,7 +1451,6 @@ test("runtime externalizes large tool results and compacts context", async () =>
   }>;
   assert.equal(result.ok, true);
   assert.ok(result.artifacts.length >= 2);
-  assert.ok(host.artifacts.some((artifact) => artifact.metadata?.redact_secrets_on_write === true));
   assert.ok(result.contextCompactionCount >= 1);
   assert.ok(state.compact.boundaries.length >= 1);
   assert.equal(state.compact.cleanup.generation, 1);
