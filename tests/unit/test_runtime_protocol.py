@@ -144,6 +144,31 @@ class RuntimeProtocolTests(unittest.TestCase):
             self.assertEqual(Path(artifact.uri).read_text(encoding="utf-8"), "artifact body")
             self.assertEqual(artifact.kind, ArtifactKind.MARKDOWN)
 
+    def test_local_artifact_store_redacts_secret_like_text_only_when_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state = create_task_state("Persist internal runtime evidence.")
+            store = LocalArtifactStore(tmpdir)
+            secret = "test-token-material-123456789"
+            artifact = store.write_text(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                content=f'{{"API_KEY":"{secret}","status":"observed"}}',
+                title="Internal transcript",
+                kind=ArtifactKind.TRACE,
+                extension=".json",
+                producer_node_id=state.root_node_id,
+                redact_secrets=True,
+            )
+
+            persisted = Path(artifact.uri).read_text(encoding="utf-8")
+            self.assertNotIn(secret, persisted)
+            self.assertIn("[REDACTED]", persisted)
+            self.assertTrue(artifact.metadata["durable_secret_redaction"])
+            self.assertGreaterEqual(
+                int(artifact.metadata["durable_secret_redaction_count"]),
+                1,
+            )
+
     def test_local_artifact_store_describes_and_previews_text_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             state = create_task_state("Preview an artifact.")

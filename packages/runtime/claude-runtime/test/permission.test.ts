@@ -212,3 +212,35 @@ test("canonical verification scripts remain sandboxed but do not require a human
   assert.equal(risk.level, "medium");
   assert.ok(risk.deterministicSignals.includes("runtime:canonical-verification"));
 });
+
+test("autonomous mode admits a statically bounded read-only shell wrapper", () => {
+  const evaluator = new TypeScriptPermissionEvaluator({
+    mode: "auto",
+    interactive: false,
+    headless: true,
+    workspace_root: "C:/workspace",
+    rules: [],
+  }, { sessionId: "session-1", workspaceRoot: "C:/workspace" });
+  const read = evaluator.evaluate({
+    ...base,
+    toolCallId: "read-wrapper",
+    arguments: {
+      executable: "pwsh",
+      argv: ["-NoProfile", "-Command", "Get-ChildItem src"],
+    },
+  });
+  const mutation = evaluator.evaluate({
+    ...base,
+    toolCallId: "mutation-wrapper",
+    arguments: {
+      executable: "pwsh",
+      argv: ["-NoProfile", "-Command", "Remove-Item src/important.ts"],
+    },
+  });
+
+  const readRisk = read.metadata.risk as { level: string; deterministicSignals: string[] };
+  assert.equal(read.effect, "allow");
+  assert.equal(readRisk.level, "medium");
+  assert.ok(readRisk.deterministicSignals.includes("command:transparent-read-wrapper:transparent-read-wrapper:0"));
+  assert.equal(mutation.effect, "deny");
+});

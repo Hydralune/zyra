@@ -30,7 +30,12 @@ export class SkillResourceRuntime {
 
   async load(skill: SkillDescriptor, selected?: string[]): Promise<SkillResourceContent[]> {
     const selection = selected ? new Set(selected) : null;
-    const descriptors = skill.resources.filter((resource) => !selection || selection.has(resource.resourceId) || selection.has(resource.path));
+    const descriptors = skill.resources.filter((resource) =>
+      resource.required
+      || !selection
+      || selection.has(resource.resourceId)
+      || selection.has(resource.path)
+    );
     const output: SkillResourceContent[] = [];
     let totalBytes = 0;
     for (const resource of descriptors) {

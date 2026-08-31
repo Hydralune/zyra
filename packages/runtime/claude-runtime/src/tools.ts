@@ -166,6 +166,17 @@ function validateSchema(schemaValue: JsonObject, value: JsonValue, path: string)
       }
     }
     const properties = asObject(schema.properties);
+    if (schema.additionalProperties === false) {
+      for (const key of Object.keys(record)) {
+        if (!(key in properties)) {
+          failures.push({
+            path: path + "." + key,
+            code: "additional_property",
+            message: "property is not allowed",
+          });
+        }
+      }
+    }
     for (const [key, childSchema] of Object.entries(properties)) {
       if (key in record) {
         failures.push(...validateSchema(asObject(childSchema), record[key], path + "." + key));
@@ -175,6 +186,16 @@ function validateSchema(schemaValue: JsonObject, value: JsonValue, path: string)
   if (expectedType === "array" && Array.isArray(value) && schema.items) {
     value.forEach((item, index) => {
       failures.push(...validateSchema(asObject(schema.items), item, path + "[" + String(index) + "]"));
+    });
+  }
+  if (
+    Array.isArray(schema.enum)
+    && !schema.enum.some((candidate) => JSON.stringify(candidate) === JSON.stringify(value))
+  ) {
+    failures.push({
+      path,
+      code: "enum",
+      message: "value is not in the allowed enum",
     });
   }
   return failures;

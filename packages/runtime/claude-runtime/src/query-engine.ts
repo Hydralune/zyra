@@ -2679,6 +2679,7 @@ export class ClaudeRuntimeCore {
             session_id: input.sessionId,
             turn_index: turnIndex,
             removed_message_count: compact.removedCount,
+            redact_secrets_on_write: true,
           },
         });
         artifacts.push(artifact);

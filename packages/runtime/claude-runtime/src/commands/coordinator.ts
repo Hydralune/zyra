@@ -288,12 +288,12 @@ export class CommandCoordinator {
       ),
       commandTool(
         "command",
-        "Invoke a TypeScript-owned local, skill, MCP, plugin, or control command",
+        "Invoke a Zyra slash command, not an operating-system command. Use the shell tool for executables or shell syntax.",
         {
-          input: { type: "string" },
-          command: { type: "string" },
-          arguments: { type: "array" },
-          options: { type: "object" },
+          input: { type: "string", description: "Complete slash-command line beginning with '/', for example /skills list." },
+          command: { type: "string", description: "Registered slash-command name, with or without the leading '/'." },
+          arguments: { type: "array", items: { type: "string" }, description: "Slash-command arguments; never shell argv." },
+          options: { type: "object", description: "Structured options accepted by the selected slash command." },
         },
         "execute",
       ),
@@ -1011,6 +1011,7 @@ function commandTool(
     input_schema: {
       type: "object",
       properties,
+      additionalProperties: false,
       ...(required.length ? { required } : {}),
     },
     output_schema: {

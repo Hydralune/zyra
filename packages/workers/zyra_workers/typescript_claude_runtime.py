@@ -3380,6 +3380,7 @@ class TypeScriptClaudeQueryEngine:
             kind = ArtifactKind(kind_value)
         except ValueError:
             kind = ArtifactKind.STRUCTURED_DATA
+        metadata = dict(payload.get("metadata") or {})
         artifact = self.context.artifact_store.write_text(
             run_id=run_id,
             task_id=task_id,
@@ -3388,6 +3389,8 @@ class TypeScriptClaudeQueryEngine:
             kind=kind,
             extension=str(payload.get("extension") or ".txt"),
             producer_node_id=node_id,
+            metadata=metadata,
+            redact_secrets=_truthy(metadata.get("redact_secrets_on_write")),
         )
         self._host_artifacts.append(artifact)
         return artifact

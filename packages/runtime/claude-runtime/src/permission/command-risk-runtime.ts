@@ -217,6 +217,18 @@ const readOnlyExecutables = new Set([
   "git",
 ]);
 
+const readOnlyGitSubcommands = new Set([
+  "status",
+  "diff",
+  "show",
+  "log",
+  "rev-parse",
+  "ls-files",
+  "ls-tree",
+  "cat-file",
+  "grep",
+]);
+
 const executableRules: ExecutableRule[] = [
   {
     names: destructiveExecutables,
@@ -410,6 +422,21 @@ export class PermissionCommandRiskRuntime {
         -18,
         segment.index,
         "command executable is normally observational",
+        segment.raw,
+        {
+          executable,
+          non_idempotent: false,
+        },
+      ));
+    }
+    if (shellExecutables.has(executable) && transparentReadOnlyShellPayload(segment)) {
+      output.push(signal(
+        `transparent-read-wrapper:${segment.index}`,
+        "transparent-read-wrapper",
+        "low",
+        -12,
+        segment.index,
+        "shell interpreter wraps one statically bounded observational command",
         segment.raw,
         {
           executable,
@@ -785,6 +812,34 @@ export class PermissionCommandRiskRuntime {
     }
     return output;
   }
+}
+
+function transparentReadOnlyShellPayload(segment: CommandSegment): boolean {
+  if (
+    segment.dynamicExpansion
+    || segment.commandSubstitution
+    || segment.redirections.length > 0
+  ) {
+    return false;
+  }
+  const executable = basename(segment.executable);
+  const flags = executable === "cmd" || executable === "cmd.exe"
+    ? new Set(["/c"])
+    : new Set(["-c", "-command"]);
+  const index = segment.arguments.findIndex((argument) => flags.has(argument.toLowerCase()));
+  if (index < 0 || index >= segment.arguments.length - 1) return false;
+  const payload = segment.arguments.slice(index + 1).join(" ").trim();
+  if (!payload || /(?:&&|\|\||[|;`]|\$\(|\r|\n|\x00|(?:^|\s)(?:>{1,2}|<{1,2}|2>|2>>|&>)(?:\s|$))/.test(payload)) {
+    return false;
+  }
+  const tokens = payload.match(/(?:"[^"]*"|'[^']*'|\S+)/g) ?? [];
+  const head = basename((tokens[0] ?? "").replace(/^['"]|['"]$/g, ""));
+  if (!readOnlyExecutables.has(head)) return false;
+  if (head !== "git") return true;
+  const subcommand = (tokens.find((token, tokenIndex) =>
+    tokenIndex > 0 && !token.startsWith("-")
+  ) ?? "").replace(/^['"]|['"]$/g, "").toLowerCase();
+  return readOnlyGitSubcommands.has(subcommand);
 }
 
 function normalizeCommand(value: string): string {

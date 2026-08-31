@@ -289,6 +289,7 @@ export class ToolResultRuntime {
         tool_call_id: result.tool_call_id,
         original_chars: originalChars,
         budget_chars: maxChars,
+        redact_secrets_on_write: true,
       },
     });
     const previewChars = Math.max(0, Math.min(maxChars, serialized.length));

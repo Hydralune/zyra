@@ -492,10 +492,19 @@ test("e01.mutation.tool-schema", () => {
   const registry = new RuntimeToolRegistry([{
     name: "write",
     description: "write a value",
-    input_schema: { type: "object", required: ["value"], properties: { value: { type: "string" } } },
+    input_schema: {
+      type: "object",
+      required: ["value"],
+      additionalProperties: false,
+      properties: { value: { type: "string", enum: ["allowed"] } },
+    },
     metadata: {},
   } as any]);
   expect(registry.validate({ tool_name: "write", arguments: {} } as any)).not.toHaveLength(0);
+  expect(registry.validate({ tool_name: "write", arguments: { value: "other" } } as any))
+    .toContainEqual(expect.objectContaining({ path: "$.value", code: "enum" }));
+  expect(registry.validate({ tool_name: "write", arguments: { value: "allowed", path: "wrong-level" } } as any))
+    .toContainEqual(expect.objectContaining({ path: "$.path", code: "additional_property" }));
 });
 
 test("e01.mutation.write-serialization", () => {
