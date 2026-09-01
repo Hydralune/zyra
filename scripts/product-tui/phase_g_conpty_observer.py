@@ -15,6 +15,7 @@ import threading
 import time
 from typing import Any
 from urllib.parse import urlsplit
+from urllib.parse import urlencode
 from urllib.request import urlopen
 
 from zyra_workers.terminal import PtySpawnOptions, spawn_pty
@@ -24,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 ANSI = re.compile(rb"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))", re.DOTALL)
 DEVELOPER_EVENT_FLOOD = re.compile(rb"\b\d{6}\s+(?:event|model|artifact|error)\s+runtime\.")
 MAX_CAPTURE_BYTES = 8 * 1024 * 1024
+TERMINAL_STATUSES = frozenset({"completed", "failed", "blocked", "cancelled", "killed"})
 
 
 class RollingCapture:
@@ -57,6 +59,8 @@ class AttachResult:
     reported_status: str
     control_command: str | None
     control_receipt: str | None
+    waited_for_terminal: bool
+    canonical_status_at_detach: str
     developer_event_flood_visible: bool
     bracketed_paste_enabled: bool
     bracketed_paste_disabled: bool
@@ -89,7 +93,7 @@ def _wait_for(capture: RollingCapture, marker: str, timeout: float) -> None:
 
 def _wait_for_reported_status(capture: RollingCapture, task_id: str, timeout: float) -> str:
     pattern = re.compile(
-        rf"task {re.escape(task_id)} · (pending|running|completed|failed|cancelled|interrupted)"
+        rf"task {re.escape(task_id)} · (pending|running|paused|completed|failed|blocked|cancelled|killed|interrupted)"
     )
     deadline = time.monotonic() + timeout
     while True:
@@ -153,6 +157,66 @@ def _canonical_task(base_url: str, task_id: str) -> dict[str, Any]:
     return task
 
 
+def _wait_for_canonical_terminal(
+    process: object,
+    base_url: str,
+    task_id: str,
+    timeout: float,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout
+    while True:
+        task = _canonical_task(base_url, task_id)
+        if task.get("terminal") is True or task.get("status") in TERMINAL_STATUSES:
+            return task
+        exit_code = process.poll()  # type: ignore[attr-defined]
+        if exit_code is not None:
+            raise RuntimeError(f"product TUI exited with {exit_code} before canonical terminal state")
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"canonical task {task_id} did not settle within {timeout:.3f}s")
+        time.sleep(1.0)
+
+
+def _ingress_statistics(base_url: str, task_id: str) -> dict[str, Any]:
+    with urlopen(f"{base_url}/tasks/{task_id}/event-ingress/capabilities", timeout=10) as response:
+        capabilities = json.load(response)
+    generation = capabilities.get("generation")
+    if not isinstance(generation, int) or generation < 1:
+        raise AssertionError("event ingress capabilities omitted a valid generation")
+    cursor: str | None = None
+    frames = 0
+    event_types: dict[str, int] = {}
+    next_sequence = 0
+    for _page in range(10_000):
+        query: dict[str, object] = {"generation": generation, "limit": 1000}
+        if cursor is not None:
+            query["cursor"] = cursor
+        with urlopen(
+            f"{base_url}/tasks/{task_id}/event-ingress/snapshot?{urlencode(query)}",
+            timeout=30,
+        ) as response:
+            payload = json.load(response)
+        page_frames = payload.get("frames")
+        if not isinstance(page_frames, list):
+            raise AssertionError("event ingress snapshot omitted frames")
+        frames += len(page_frames)
+        for frame in page_frames:
+            if isinstance(frame, dict) and isinstance(frame.get("eventType"), str):
+                event_type = str(frame["eventType"])
+                event_types[event_type] = event_types.get(event_type, 0) + 1
+        next_sequence = int(payload.get("nextSequence") or next_sequence)
+        cursor = payload.get("cursor") if isinstance(payload.get("cursor"), str) else cursor
+        if payload.get("hasMore") is not True:
+            if payload.get("complete") is not True:
+                raise AssertionError("event ingress snapshot stopped before reaching a complete delta cursor")
+            return {
+                "generation": generation,
+                "frame_count": frames,
+                "next_sequence": next_sequence,
+                "event_type_counts": dict(sorted(event_types.items())),
+            }
+    raise AssertionError("event ingress snapshot exceeded the bounded page budget")
+
+
 def _attach_cycle(
     cycle: int,
     base_url: str,
@@ -162,6 +226,8 @@ def _attach_cycle(
     timeout: float,
     state_dir: Path,
     control_command: str | None,
+    wait_terminal: bool,
+    task_timeout: float,
 ) -> AttachResult:
     command = subprocess.list2cmdline([
         "node",
@@ -207,6 +273,12 @@ def _attach_cycle(
             process.resize(18 + (index % 43), 60 + (index % 141))
             if index % 25 == 0:
                 time.sleep(0.005)
+        canonical = _wait_for_canonical_terminal(process, base_url, task_id, task_timeout) \
+            if wait_terminal else _canonical_task(base_url, task_id)
+        canonical_status = str(canonical.get("status") or "unknown")
+        if wait_terminal:
+            _type_command(process, "/status")
+            _wait_for(capture, f"task {task_id} · {canonical_status}", timeout)
         detach_started = time.monotonic()
         _type_command(process, "/exit")
         exit_code = process.wait(timeout=timeout)
@@ -226,6 +298,8 @@ def _attach_cycle(
             reported_status=reported_status,
             control_command=control_command,
             control_receipt=control_receipt,
+            waited_for_terminal=wait_terminal,
+            canonical_status_at_detach=canonical_status,
             developer_event_flood_visible=DEVELOPER_EVENT_FLOOD.search(material) is not None,
             bracketed_paste_enabled=b"\x1b[?2004h" in material,
             bracketed_paste_disabled=b"\x1b[?2004l" in material,
@@ -234,7 +308,8 @@ def _attach_cycle(
         if (
             result.exit_code != 0
             or not result.task_identity_visible
-            or result.reported_status not in {"pending", "running", "completed", "failed", "cancelled", "interrupted"}
+            or result.reported_status not in {"pending", "running", "paused", "completed", "failed", "blocked", "cancelled", "killed", "interrupted"}
+            or (result.waited_for_terminal and result.canonical_status_at_detach not in TERMINAL_STATUSES)
             or (result.control_command is not None and result.control_receipt is None)
             or result.developer_event_flood_visible
             or result.bracketed_paste_enabled
@@ -258,6 +333,14 @@ def main() -> int:
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--resizes", type=int, default=250)
     parser.add_argument("--timeout", type=float, default=60.0)
+    parser.add_argument("--task-timeout", type=float, default=7_200.0)
+    parser.add_argument(
+        "--wait-terminal-cycle",
+        type=int,
+        choices=(0, 1, 2),
+        default=2,
+        help="attach cycle that remains active until canonical settlement; 0 disables",
+    )
     parser.add_argument(
         "--control-command",
         help="submit one receipt-producing slash mutation during the selected attach cycle",
@@ -281,6 +364,8 @@ def main() -> int:
     report = arguments.report.resolve(strict=False)
     if not 0 <= arguments.resizes <= 10_000:
         raise SystemExit("--resizes must be between 0 and 10000")
+    if arguments.timeout <= 0 or arguments.task_timeout <= 0:
+        raise SystemExit("--timeout and --task-timeout must be positive")
     if report.exists():
         raise SystemExit("--report must not overwrite an existing file")
     control_command = arguments.control_command.strip() if arguments.control_command else None
@@ -304,6 +389,8 @@ def main() -> int:
                 arguments.timeout,
                 Path(state),
                 control_command if index == arguments.control_cycle else None,
+                arguments.wait_terminal_cycle == index,
+                arguments.task_timeout,
             )
             for index in (1, 2)
         ]
@@ -325,6 +412,7 @@ def main() -> int:
             "command": control_command,
             "receipt_observed": any(item.control_receipt is not None for item in cycles),
         },
+        "ingress": _ingress_statistics(arguments.base_url, arguments.task_id),
         "cycles": [asdict(item) for item in cycles],
         "all_passed": True,
     }
