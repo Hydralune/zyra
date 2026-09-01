@@ -789,6 +789,7 @@ export async function observeProductTask(input: {
 
   let controlSession: CliControlSession | undefined
   let permissionSession: CliPermissionSession | undefined = input.permissionSession
+  let controlLoop: Promise<void> | undefined
   const refreshPermissions = async (): Promise<void> => {
     if (!permissionSession?.available) return
     const pending = await permissionSession.pending(observationSignal)
@@ -808,7 +809,7 @@ export async function observeProductTask(input: {
     }).catch((error) => {
       input.shell.notice(`权限控制保持关闭 · ${controlError(error)}`)
     })
-    void runProductControlLoop({
+    controlLoop = runProductControlLoop({
       shell: input.shell,
       controls: controlSession,
       permissions: permissionSession,
@@ -988,6 +989,7 @@ export async function observeProductTask(input: {
     }
   }
   if (detached) {
+    await controlLoop
     return {
       exitCode: CliExitCode.SUCCESS,
       status: "detached",
@@ -1017,6 +1019,7 @@ export async function observeProductTask(input: {
   projection.complete()
   renderProjection(true)
   input.shell.detachInput()
+  await controlLoop
   return {
     exitCode: terminalExitCode(task),
     status: task.status,

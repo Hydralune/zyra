@@ -105,6 +105,24 @@ def _wait_for_reported_status(capture: RollingCapture, task_id: str, timeout: fl
         time.sleep(0.02)
 
 
+def _request_status_until(
+    process: object,
+    capture: RollingCapture,
+    task_id: str,
+    expected_status: str,
+    timeout: float,
+) -> None:
+    marker = f"task {task_id} · {expected_status}"
+    deadline = time.monotonic() + timeout
+    while marker not in _visible(capture):
+        if process.poll() is not None:  # type: ignore[attr-defined]
+            raise RuntimeError("product TUI exited before canonical status reconciliation")
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"missing TUI marker {marker!r}:\n{_visible(capture)[-2_000:]}")
+        _type_command(process, "/status")
+        time.sleep(0.75)
+
+
 def _wait_for_control_receipt(capture: RollingCapture, command_name: str, timeout: float) -> str:
     pattern = re.compile(
         rf"(queued|accepted|executing|applied|completed|failed|cancelled|rejected) "
@@ -276,8 +294,7 @@ def _attach_cycle(
             if wait_terminal else _canonical_task(base_url, task_id)
         canonical_status = str(canonical.get("status") or "unknown")
         if wait_terminal:
-            _type_command(process, "/status")
-            _wait_for(capture, f"task {task_id} · {canonical_status}", timeout)
+            _request_status_until(process, capture, task_id, canonical_status, timeout)
         detach_started = time.monotonic()
         _type_command(process, "/exit")
         exit_code = process.wait(timeout=timeout)
