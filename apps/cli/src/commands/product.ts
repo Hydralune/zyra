@@ -1548,7 +1548,10 @@ async function runProductSession(input: {
     }
 
     if (!next) break
-    if (!terminalReady && input.ensureTerminal) {
+    // Attaching to an existing canonical task is observation/control, not a
+    // request for a new local execution backend. Register the terminal node
+    // lazily only when this process is about to create a new goal.
+    if (!terminalReady && input.ensureTerminal && next.kind === "goal") {
       input.shell.notice("正在连接本地执行环境…")
       await input.ensureTerminal()
       terminalReady = true
