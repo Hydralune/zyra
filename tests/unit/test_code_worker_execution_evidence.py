@@ -137,3 +137,66 @@ def test_execution_evidence_projects_redacted_verification_command_receipts() ->
     assert "sk-secret-value" not in receipt["command"]
     assert "libin" not in receipt["command"]
     assert "[REDACTED]" in receipt["command"]
+
+
+def test_execution_evidence_projects_structured_verification_command() -> None:
+    obligation = {
+        "schema": "zyra.runtime-obligation-evidence/v1",
+        "verification_command_receipts": [
+            {
+                "schema": "zyra.verification-command-receipt/v1",
+                "tool_call_id": "tool-shell",
+                "originating_tool_call_id": "tool-shell",
+                "scope": "shell:unittest:tests",
+                "status": "passed",
+                "exit_code": 0,
+                "workspace_mutation_count": 4,
+            }
+        ],
+        "workspace_mutation_count": 4,
+    }
+    result = SimpleNamespace(
+        session_snapshot={
+            "typescript_runtime_snapshot": {
+                "modelIteration": {"finalText": "done"},
+                "obligationEvidence": obligation,
+                "e01Runtime": {
+                    "query": {
+                        "toolCalls": [
+                            {
+                                "toolCallId": "tool-shell",
+                                "name": "shell",
+                                "arguments": {
+                                    "executable": "python",
+                                    "argv": [
+                                        "-B",
+                                        "-m",
+                                        "unittest",
+                                        "discover",
+                                        "-s",
+                                        "tests",
+                                        "-v",
+                                    ],
+                                },
+                            }
+                        ]
+                    }
+                },
+            }
+        },
+        event_records=(),
+        tool_call_count=1,
+        turn_count=1,
+        artifacts=(),
+    )
+
+    evidence = _execution_evidence(result)
+
+    receipt = evidence["obligation_evidence"][
+        "verification_command_receipts"
+    ][0]
+    assert receipt["command"] == (
+        "python -B -m unittest discover -s tests -v"
+    )
+    assert receipt["status"] == "passed"
+    assert receipt["exit_code"] == 0

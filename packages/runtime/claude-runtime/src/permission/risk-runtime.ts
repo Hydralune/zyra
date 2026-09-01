@@ -160,7 +160,12 @@ export class PermissionRiskRuntime {
     }
     if (context.namespace === "plugin") add(30, "plugin:capability", "plugin-owned capability requires explicit policy");
     if (context.namespace === "skill" && context.toolName === "skill") add(20, "skill:context-mutation", "skill invocation mutates context and tool scope");
-    if (!safeWorkspaceBinding(identity)) add(60, "workspace:path-escape", "requested path is outside the bound workspace");
+    if (!safeWorkspaceBinding(identity)) {
+      // Crossing the granted workspace boundary remains high risk even when
+      // the requested operation is nominally read-only.  Offset the read-only
+      // discount instead of allowing path escape to be classified as medium.
+      add(85, "workspace:path-escape", "requested path is outside the bound workspace");
+    }
     const command = commandText(context.arguments);
     if (command) {
       const commandReport = this.commandRisk.analyze(command, {

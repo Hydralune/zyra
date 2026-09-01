@@ -102,7 +102,18 @@ def _type_command(process: object, command: str) -> None:
         process.write(character.encode("utf-8"))  # type: ignore[attr-defined]
         time.sleep(0.02)
     time.sleep(0.15)
-    process.write(b"\r")  # type: ignore[attr-defined]
+    # ConPTY can coalesce deliberately paced writes into the Windows paste
+    # detector window.  The first Enter may therefore finish paste capture and
+    # the second may accept a completion.  Once submission succeeds, a third
+    # empty Enter is harmless.
+    for _attempt in range(3):
+        if process.poll() is not None:  # type: ignore[attr-defined]
+            return
+        try:
+            process.write(b"\r")  # type: ignore[attr-defined]
+        except OSError:
+            return
+        time.sleep(0.25)
 
 
 def _canonical_task(base_url: str, task_id: str) -> dict[str, Any]:

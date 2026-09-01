@@ -5,6 +5,7 @@ import hashlib
 import os
 import queue
 import re
+import shlex
 import shutil
 import subprocess
 import threading
@@ -171,6 +172,28 @@ def _bounded_verification_command(value: Any) -> str:
     return text[:4_096].strip()
 
 
+def _verification_command_from_arguments(arguments: Mapping[str, Any]) -> str:
+    """Render either supported shell invocation shape as reviewable evidence.
+
+    The governed shell accepts both a free-form ``command`` and the safer
+    structured ``executable`` + ``argv`` form.  Evidence projection must not
+    discard the latter merely because no shell string was supplied by the
+    model.  ``shlex.join`` is used only for presentation; the rendered value is
+    never executed and still passes through the normal secret/path redactor.
+    """
+
+    command = _bounded_verification_command(arguments.get("command"))
+    if command:
+        return command
+    executable = str(arguments.get("executable") or "").strip()
+    raw_argv = arguments.get("argv")
+    if not executable or not isinstance(raw_argv, (list, tuple)):
+        return ""
+    if any(not isinstance(item, str) for item in raw_argv):
+        return ""
+    return _bounded_verification_command(shlex.join([executable, *raw_argv]))
+
+
 def _verification_command_receipts(
     typescript_snapshot: Mapping[str, Any],
     obligation_evidence: Mapping[str, Any],
@@ -200,7 +223,7 @@ def _verification_command_receipts(
         origin = calls.get(origin_id)
         if isinstance(origin, Mapping) and str(origin.get("name") or "") == "shell":
             arguments = selected_mapping(origin.get("arguments"))
-            observed = _bounded_verification_command(arguments.get("command"))
+            observed = _verification_command_from_arguments(arguments)
             if observed:
                 command = observed
         if not command:
