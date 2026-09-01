@@ -1,6 +1,6 @@
 import type { Readable, Writable } from "node:stream"
 import { ZyraApiError, type SessionProjection, type TaskProjection } from "@zyra/typed-api-client"
-import { CliApi, type IngressCapabilities, type IngressFrame, type ProductExecutionConfig } from "../api.ts"
+import { CliApi, type IngressCapabilities, type ProductExecutionConfig } from "../api.ts"
 import { CliExitCode, CliTaskError, type InteractiveCommand, type ResumeCommand } from "../contracts.ts"
 import {
   CliControlSession,
@@ -250,18 +250,23 @@ async function runProductControlLoop(input: {
   }
 }
 
-async function snapshot(input: {
+async function loadProjectionSnapshot(input: {
   api: CliApi
   task: TaskProjection
   capabilities: IngressCapabilities
-}): Promise<{ frames: IngressFrame[]; cursor: string }> {
-  const frames: IngressFrame[] = []
+}): Promise<{ projection: ProductProjection; cursor: string }> {
+  const projection = new ProductProjection({
+    task: input.task,
+    generation: input.capabilities.generation,
+    cursor: input.capabilities.subscriptionCursor,
+  })
   let cursor = input.capabilities.subscriptionCursor
   for await (const page of input.api.snapshotIngress(input.task.taskId, input.capabilities.generation)) {
-    frames.push(...page.frames)
+    for (const frame of page.frames) projection.apply(frame)
     cursor = page.cursor
   }
-  return { frames, cursor }
+  projection.cursor(cursor)
+  return { projection, cursor }
 }
 
 export async function observeProductTask(input: {
@@ -274,20 +279,32 @@ export async function observeProductTask(input: {
 }): Promise<CommandOutcome> {
   let task = input.task
   let capabilities = await input.api.ingressCapabilities(task.taskId)
-  const initial = await snapshot({ api: input.api, task, capabilities })
+  const initial = await loadProjectionSnapshot({ api: input.api, task, capabilities })
   let cursor = initial.cursor
-  let projection = new ProductProjection({
-    task,
-    generation: capabilities.generation,
-    frames: initial.frames,
-    cursor,
-  })
+  let projection = initial.projection
+  let lastProjectionRenderAt = 0
+  let pendingProjectionRender: ReturnType<typeof setTimeout> | undefined
+  const flushProjection = (): void => {
+    pendingProjectionRender = undefined
+    input.shell.update(projection.snapshot().events)
+    lastProjectionRenderAt = performance.now()
+  }
+  const renderProjection = (force = false): void => {
+    const now = performance.now()
+    const remaining = 33 - (now - lastProjectionRenderAt)
+    if (force || remaining <= 0) {
+      if (pendingProjectionRender) clearTimeout(pendingProjectionRender)
+      flushProjection()
+      return
+    }
+    pendingProjectionRender ??= setTimeout(flushProjection, remaining)
+  }
   projection.connected()
-  input.shell.update(projection.snapshot().events)
+  renderProjection(true)
 
   if (!capabilities.sseAvailable && !terminalTask(task)) {
     projection.disconnected()
-    input.shell.update(projection.snapshot().events)
+    renderProjection(true)
     throw new CliTaskError("实时事件流不可用；请恢复 SSE 后重试。", "event_stream_unavailable", {
       recovery: `恢复 SSE 后运行 zyra resume ${task.taskId}`,
       task_id: task.taskId,
@@ -298,7 +315,7 @@ export async function observeProductTask(input: {
   const resumableTerminal = input.resume && ["failed", "blocked"].includes(task.status)
   if (terminalTask(task) && !resumableTerminal) {
     projection.complete()
-    input.shell.update(projection.snapshot().events)
+    renderProjection(true)
     return {
       exitCode: task.status === "completed" ? CliExitCode.SUCCESS : CliExitCode.TASK_FAILED,
       status: task.status,
@@ -314,6 +331,8 @@ export async function observeProductTask(input: {
   const detach = () => {
     if (detached) return
     detached = true
+    if (pendingProjectionRender) clearTimeout(pendingProjectionRender)
+    pendingProjectionRender = undefined
     input.shell.notice(`已从 task ${task.taskId} 分离；未发送 cancel，使用 zyra resume ${task.taskId} 恢复观察和控制。`)
     input.shell.detachInput()
     detachController.abort(new CliTaskError("Product TUI detached from the canonical task.", "product_ui_detached"))
@@ -324,7 +343,7 @@ export async function observeProductTask(input: {
     if (!permissionSession?.available) return
     const pending = await permissionSession.pending(observationSignal)
     projection.permissions(pending.map(permissionSnapshot))
-    input.shell.update(projection.snapshot().events)
+    renderProjection(true)
   }
   if (input.shell.interactive) {
     const controls = new CliControlSession({ api: input.api, task })
@@ -373,7 +392,7 @@ export async function observeProductTask(input: {
           if (outcome.ok) {
             task = outcome.value.task
             projection.refreshTask(task)
-            input.shell.update(projection.snapshot().events)
+            renderProjection(true)
           }
           return outcome
         })
@@ -390,7 +409,7 @@ export async function observeProductTask(input: {
         if (message.kind === "event") {
           projection.apply(message.frame)
           if (message.frame.cursor) cursor = message.frame.cursor
-          input.shell.update(projection.snapshot().events)
+          renderProjection()
           if (message.frame.eventType.startsWith("runtime.permission.")) {
             await refreshPermissions().catch((error) => {
               input.shell.notice(`权限状态刷新失败并保持关闭 · ${controlError(error)}`)
@@ -399,7 +418,7 @@ export async function observeProductTask(input: {
           if (["runtime.task.completed", "runtime.task.failed", "runtime.task.cancelled"].includes(message.frame.eventType)) {
             task = await input.api.task(task.taskId)
             projection.refreshTask(task)
-            input.shell.update(projection.snapshot().events)
+            renderProjection(true)
             if (terminalTask(task)) { settled = true; break }
           }
         } else if (message.kind === "heartbeat" || message.kind === "close") {
@@ -415,7 +434,7 @@ export async function observeProductTask(input: {
           if (terminalTask(task) || (message.kind === "heartbeat" && (input.resume || runSettled))) {
             task = terminalTask(task) ? task : await input.api.task(task.taskId)
             projection.refreshTask(task)
-            input.shell.update(projection.snapshot().events)
+            renderProjection(true)
             if (terminalTask(task)) { settled = true; break }
           }
         }
@@ -426,7 +445,7 @@ export async function observeProductTask(input: {
       }
       task = await input.api.task(task.taskId)
       projection.refreshTask(task)
-      input.shell.update(projection.snapshot().events)
+      renderProjection(true)
       if (terminalTask(task)) { settled = true; break }
       if (runSettled && runOutcome?.ok === false && !mutationTransportDetached(runOutcome.error)) throw runOutcome.error
       recoveryAttempts = 0
@@ -438,7 +457,7 @@ export async function observeProductTask(input: {
       if (observationSignal.aborted) throw observationSignal.reason
       recoveryAttempts += 1
       projection.reconnecting(recoveryAttempts)
-      input.shell.update(projection.snapshot().events)
+      renderProjection(true)
       if (recoveryAttempts > 6) {
         throw new CliTaskError("Product event recovery exhausted its retry budget.", "event_stream_recovery_exhausted", {
           task_id: task.taskId,
@@ -460,20 +479,15 @@ export async function observeProductTask(input: {
       if (replace) {
         capabilities = await input.api.ingressCapabilities(task.taskId)
         task = await input.api.task(task.taskId)
-        const replacement = await snapshot({ api: input.api, task, capabilities })
-        projection = new ProductProjection({
-          task,
-          generation: capabilities.generation,
-          frames: replacement.frames,
-          cursor: replacement.cursor,
-        })
+        const replacement = await loadProjectionSnapshot({ api: input.api, task, capabilities })
+        projection = replacement.projection
         cursor = replacement.cursor
       }
       projection.connected()
       await refreshPermissions().catch((permissionError) => {
         input.shell.notice(`权限状态刷新失败并保持关闭 · ${controlError(permissionError)}`)
       })
-      input.shell.update(projection.snapshot().events)
+      renderProjection(true)
     }
   }
   if (detached) {
@@ -504,7 +518,7 @@ export async function observeProductTask(input: {
   }
   projection.refreshTask(task)
   projection.complete()
-  input.shell.update(projection.snapshot().events)
+  renderProjection(true)
   input.shell.detachInput()
   return {
     exitCode: task.status === "completed" ? CliExitCode.SUCCESS : CliExitCode.TASK_FAILED,

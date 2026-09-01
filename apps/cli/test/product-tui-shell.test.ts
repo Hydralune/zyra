@@ -60,6 +60,35 @@ describe("product TUI shell", () => {
     shell.close()
   })
 
+  test("parses fragmented control keys without inserting escape bytes", async () => {
+    const stdin = new TtyInput()
+    const output = new TtyOutput()
+    const shell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    shell.start()
+    const reading = shell.read(false)
+    stdin.write("甲乙")
+    stdin.write("\u001b[1")
+    stdin.write(";5D")
+    stdin.write("中\r")
+    await expect(reading).resolves.toEqual({ kind: "submit", text: "中甲乙", queue: false })
+    shell.close()
+  })
+
+  test("discards an oversized paste and remains usable", async () => {
+    const stdin = new TtyInput()
+    const output = new TtyOutput()
+    const shell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    shell.start()
+    const reading = shell.read(false)
+    stdin.write("\u001b[200~")
+    stdin.write("x".repeat(300_000))
+    stdin.write("\u001b[201~继续\r")
+    await expect(reading).resolves.toEqual({ kind: "submit", text: "继续", queue: false })
+    expect(output.text).toContain("粘贴超过 262144 bytes，已丢弃")
+    expect(stdin.raw).toBe(false)
+    shell.close()
+  })
+
   test("queues with Tab and interrupts a running task with Escape", async () => {
     const stdin = new TtyInput()
     const output = new TtyOutput()

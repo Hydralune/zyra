@@ -1,7 +1,7 @@
 import type { Readable, Writable } from "node:stream"
 import { StringDecoder } from "node:string_decoder"
 import { editDraftExternally } from "../input/editor.ts"
-import { PromptDraft, PromptHistory, type DraftSnapshot } from "../input/draft.ts"
+import { MAX_PROMPT_BYTES, PromptDraft, PromptHistory, PromptInputLimitError, type DraftSnapshot } from "../input/draft.ts"
 import { acceptCompletion, completionState, type CompletionState } from "./overlay/completion.ts"
 
 const PASTE_START = "\u001b[200~"
@@ -35,6 +35,7 @@ export class ProductComposer {
   #pending = ""
   #paste = ""
   #pasting = false
+  #discardingPaste = false
   #busy = false
   #dispose: (() => void) | undefined
   #settle: ((value: ProductComposerResult) => void) | undefined
@@ -72,7 +73,21 @@ export class ProductComposer {
     this.#changed()
     return new Promise<ProductComposerResult>((resolve, reject) => {
       const data = (chunk: Buffer | string) => {
-        void this.#consume(typeof chunk === "string" ? chunk : this.#decoder.write(chunk)).catch(reject)
+        void this.#consume(typeof chunk === "string" ? chunk : this.#decoder.write(chunk)).catch((error) => {
+          if (error instanceof PromptInputLimitError) {
+            this.#pending = ""
+            this.#paste = ""
+            this.#pasting = false
+            this.#discardingPaste = false
+            this.#onNotice(error.message)
+            this.#changed()
+            return
+          }
+          this.#dispose?.()
+          this.#dispose = undefined
+          this.#settle = undefined
+          reject(error)
+        })
       }
       const end = () => this.#finish({ kind: "exit" })
       this.#settle = resolve
@@ -97,14 +112,30 @@ export class ProductComposer {
       if (this.#pasting) {
         const end = this.#pending.indexOf(PASTE_END)
         if (end < 0) {
-          this.#paste += this.#pending
+          if (!this.#discardingPaste) {
+            if (Buffer.byteLength(this.#paste, "utf8") + Buffer.byteLength(this.#pending, "utf8") > MAX_PROMPT_BYTES) {
+              this.#paste = ""
+              this.#discardingPaste = true
+              this.#onNotice(`粘贴超过 ${MAX_PROMPT_BYTES} bytes，已丢弃；请改用文件或 artifact 引用。`)
+            } else {
+              this.#paste += this.#pending
+            }
+          }
           this.#pending = ""
           return
         }
-        this.#paste += this.#pending.slice(0, end)
-        this.draft.paste(this.#paste)
+        if (!this.#discardingPaste) {
+          const tail = this.#pending.slice(0, end)
+          if (Buffer.byteLength(this.#paste, "utf8") + Buffer.byteLength(tail, "utf8") <= MAX_PROMPT_BYTES) {
+            this.#paste += tail
+            this.draft.paste(this.#paste)
+          } else {
+            this.#onNotice(`粘贴超过 ${MAX_PROMPT_BYTES} bytes，已丢弃；请改用文件或 artifact 引用。`)
+          }
+        }
         this.#paste = ""
         this.#pasting = false
+        this.#discardingPaste = false
         this.#pending = this.#pending.slice(end + PASTE_END.length)
         this.#changed()
         continue
@@ -149,6 +180,12 @@ export class ProductComposer {
           this.draft.move(key === "\u001b[C" ? 1 : -1)
         }
         this.#changed()
+        continue
+      }
+      if (/^\u001b\[[0-9;?]*$/u.test(this.#pending) && this.#pending.length < 32) return
+      const unknownControl = this.#pending.match(/^\u001b\[[0-?]*[ -/]*[@-~]/u)?.[0]
+      if (unknownControl) {
+        this.#pending = this.#pending.slice(unknownControl.length)
         continue
       }
       if (this.#pending.startsWith("\u001b") && this.#pending.length === 2) return

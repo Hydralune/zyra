@@ -182,6 +182,20 @@ describe("stateful product projection recovery", () => {
     expect(projection.snapshot()).toMatchObject({ revision: "1:1", frameCount: 1 })
   })
 
+  test("retains a bounded raw-frame recovery window across 100,000 live events", () => {
+    const projection = new ProductProjection({ task: runningTask, generation: 1 })
+    for (let sequence = 1; sequence <= 100_000; sequence += 1) {
+      projection.apply(frame(sequence, "runtime.agent.message", {}))
+    }
+    const projected = projection.snapshot()
+    expect(projected).toMatchObject({
+      revision: "1:100000",
+      frameCount: 100_000,
+      retainedFrameCount: 20_000,
+    })
+    expect(projected.events.length).toBeLessThan(20)
+  })
+
   test("replaces generation from a canonical snapshot and converges with offline replay", () => {
     const replacementFrames = [
       { ...frame(1, "runtime.text.started", { stream_id: "answer_2" }), generation: 2 },

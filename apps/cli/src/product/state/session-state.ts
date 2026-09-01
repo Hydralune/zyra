@@ -5,6 +5,7 @@ export interface ProductMessageState {
   role: "user" | "assistant"
   text: string
   streaming: boolean
+  truncated?: boolean
 }
 
 export interface ProductActivityState {
@@ -69,6 +70,7 @@ export interface ProductStateLimits {
   issues: number
   changes: number
   diffLines: number
+  messageCharacters: number
 }
 
 const DEFAULT_LIMITS: ProductStateLimits = Object.freeze({
@@ -79,7 +81,16 @@ const DEFAULT_LIMITS: ProductStateLimits = Object.freeze({
   issues: 512,
   changes: 5_000,
   diffLines: 4_000,
+  messageCharacters: 1_000_000,
 })
+
+function boundedMessage(text: string, limit: number): { text: string; truncated?: true } {
+  if (text.length <= limit) return { text }
+  return {
+    text: `${text.slice(0, limit)}\n…[内容已截断；完整内容请在 artifact 或 Web 看板查看]`,
+    truncated: true,
+  }
+}
 
 function boundedLimit(value: number | undefined, fallback: number): number {
   return Math.max(1, Math.floor(value ?? fallback))
@@ -128,6 +139,7 @@ export class ProductSessionState {
       issues: boundedLimit(limits.issues, DEFAULT_LIMITS.issues),
       changes: boundedLimit(limits.changes, DEFAULT_LIMITS.changes),
       diffLines: boundedLimit(limits.diffLines, DEFAULT_LIMITS.diffLines),
+      messageCharacters: boundedLimit(limits.messageCharacters, DEFAULT_LIMITS.messageCharacters),
     })
   }
 
@@ -148,18 +160,21 @@ export class ProductSessionState {
         this.#taskStatus = event.taskId ? "running" : "idle"
         break
       case "user.message":
-        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "user", text: event.text, streaming: false }, this.#limits.messages)
+        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "user", ...boundedMessage(event.text, this.#limits.messageCharacters), streaming: false }, this.#limits.messages)
         break
       case "assistant.message.started":
         this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "assistant", text: "", streaming: true }, this.#limits.messages)
         break
       case "assistant.message.delta": { // Duplicate delivery is removed by the projection contract.
         const prior = this.#messages.get(event.messageId)
-        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "assistant", text: `${prior?.text ?? ""}${event.text}`, streaming: true }, this.#limits.messages)
+        const message = prior?.truncated
+          ? { text: prior.text, truncated: true as const }
+          : boundedMessage(`${prior?.text ?? ""}${event.text}`, this.#limits.messageCharacters)
+        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "assistant", ...message, streaming: true }, this.#limits.messages)
         break
       }
       case "assistant.message.completed":
-        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "assistant", text: event.text, streaming: false }, this.#limits.messages)
+        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "assistant", ...boundedMessage(event.text, this.#limits.messageCharacters), streaming: false }, this.#limits.messages)
         break
       case "activity.started":
       case "activity.updated":

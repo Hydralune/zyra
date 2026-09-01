@@ -1,6 +1,14 @@
 import { createHash } from "node:crypto"
 
 const LARGE_PASTE_BYTES = 8 * 1024
+export const MAX_PROMPT_BYTES = 256 * 1024
+
+export class PromptInputLimitError extends RangeError {
+  constructor() {
+    super(`输入超过 ${MAX_PROMPT_BYTES} bytes；请改用文件或 artifact 引用。`)
+    this.name = "PromptInputLimitError"
+  }
+}
 
 export interface DraftSnapshot {
   text: string
@@ -61,6 +69,7 @@ export class PromptDraft {
   }
 
   set(text: string, cursor = text.length, record = true): DraftSnapshot {
+    if (Buffer.byteLength(text, "utf8") > MAX_PROMPT_BYTES) throw new PromptInputLimitError()
     if (record && (text !== this.#text || cursor !== this.#cursor)) this.#checkpoint()
     this.#text = text
     this.#cursor = boundedCursor(text, cursor)
@@ -69,8 +78,9 @@ export class PromptDraft {
 
   insert(text: string): DraftSnapshot {
     if (!text) return this.snapshot()
-    this.#checkpoint()
     const next = `${this.#text.slice(0, this.#cursor)}${text}${this.#text.slice(this.#cursor)}`
+    if (Buffer.byteLength(next, "utf8") > MAX_PROMPT_BYTES) throw new PromptInputLimitError()
+    this.#checkpoint()
     this.#text = next
     this.#cursor += text.length
     return this.snapshot()
@@ -144,6 +154,7 @@ export class PromptDraft {
 
   paste(text: string): DraftSnapshot {
     const bytes = new TextEncoder().encode(text).byteLength
+    if (bytes + Buffer.byteLength(this.#text, "utf8") > MAX_PROMPT_BYTES) throw new PromptInputLimitError()
     if (bytes < LARGE_PASTE_BYTES) return this.insert(text)
     const digest = createHash("sha256").update(text).digest("hex").slice(0, 16)
     const lines = text.split(/\r?\n/).length

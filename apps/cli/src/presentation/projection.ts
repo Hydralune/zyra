@@ -12,9 +12,12 @@ export interface ProductProjectionSnapshot {
   lastSequence: number
   cursor?: string
   frameCount: number
+  retainedFrameCount: number
   connection: "connecting" | "connected" | "reconnecting" | "disconnected" | "complete"
   events: readonly ZyraUiEvent[]
 }
+
+const MAX_RETAINED_FRAMES = 20_000
 
 function terminal(task: TaskProjection): boolean {
   return task.terminal || ["completed", "failed", "blocked", "cancelled", "killed"].includes(task.status)
@@ -61,6 +64,8 @@ export class ProductProjection {
   #generation: number
   #frames: IngressFrame[] = []
   #bySequence = new Map<number, string>()
+  #frameCount = 0
+  #lastSequence = 0
   #permissions: readonly UiPermissionSnapshot[] = Object.freeze([])
   #transport: UiTransportSnapshot | undefined
   #connection: ProductProjectionSnapshot["connection"] = "connecting"
@@ -106,6 +111,12 @@ export class ProductProjection {
     }
     this.#frames.push(frame)
     this.#bySequence.set(frame.sequence, frame.eventId)
+    this.#frameCount += 1
+    this.#lastSequence = frame.sequence
+    while (this.#frames.length > MAX_RETAINED_FRAMES) {
+      const evicted = this.#frames.shift()
+      if (evicted) this.#bySequence.delete(evicted.sequence)
+    }
     if (frame.cursor) this.#cursor = frame.cursor
     return true
   }
@@ -123,6 +134,12 @@ export class ProductProjection {
     this.#generation = input.generation
     this.#frames = frames
     this.#bySequence = new Map(frames.map((frame) => [frame.sequence, frame.eventId]))
+    this.#frameCount = frames.length
+    this.#lastSequence = frames.at(-1)?.sequence ?? 0
+    if (this.#frames.length > MAX_RETAINED_FRAMES) {
+      this.#frames = this.#frames.slice(-MAX_RETAINED_FRAMES)
+      this.#bySequence = new Map(this.#frames.map((frame) => [frame.sequence, frame.eventId]))
+    }
     this.#cursor = input.cursor ?? frames.at(-1)?.cursor
     if (input.permissions) this.permissions(input.permissions)
     this.#connection = terminal(input.task) ? "complete" : "connecting"
@@ -174,7 +191,7 @@ export class ProductProjection {
   get task(): TaskProjection { return this.#task }
   get terminal(): boolean { return terminal(this.#task) }
   get generation(): number { return this.#generation }
-  get lastSequence(): number { return this.#frames.at(-1)?.sequence ?? 0 }
+  get lastSequence(): number { return this.#lastSequence }
   get revision(): string { return `${this.#generation}:${this.lastSequence}` }
 
   snapshot(): ProductProjectionSnapshot {
@@ -185,7 +202,8 @@ export class ProductProjection {
       revision: this.revision,
       lastSequence: this.lastSequence,
       cursor: this.#cursor,
-      frameCount: this.#frames.length,
+      frameCount: this.#frameCount,
+      retainedFrameCount: this.#frames.length,
       connection: this.#connection,
       events: projectProductEvents({
         task: this.#task,

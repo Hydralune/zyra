@@ -91,6 +91,22 @@ describe("product state kernel", () => {
     expect(state.snapshot().messages.at(-1)?.text).toBe("final")
   })
 
+  test("bounds individual message content with an explicit truncation marker", () => {
+    const state = new ProductSessionState({ messageCharacters: 16 })
+    state.apply({
+      schema: ZYRA_UI_EVENT_SCHEMA,
+      eventId: "large_message",
+      type: "assistant.message.completed",
+      messageId: "message_large",
+      text: "0123456789abcdef-must-not-remain-in-memory",
+      source: "canonical_final_answer",
+    })
+    const message = state.snapshot().messages[0]!
+    expect(message).toMatchObject({ truncated: true })
+    expect(message.text).toContain("0123456789abcdef\n…[内容已截断")
+    expect(message.text).not.toContain("must-not-remain-in-memory")
+  })
+
   test("keeps streaming messages, tools, agents, permissions, and terminal state separate", () => {
     const state = new ProductSessionState()
     const events: ZyraUiEvent[] = [
