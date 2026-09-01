@@ -4,6 +4,7 @@ import type { TaskProjection } from "@zyra/typed-api-client"
 import type { IngressFrame } from "../src/api.ts"
 import { ZYRA_UI_EVENT_SCHEMA, type UiPermissionSnapshot } from "../src/presentation/events.ts"
 import { projectProductEvents } from "../src/presentation/projector.ts"
+import { ProductProjection } from "../src/presentation/projection.ts"
 import { displayWidth, reduceProductEvents, renderProductSnapshot } from "../src/presentation/renderer.ts"
 
 interface RealTaskFixture {
@@ -114,6 +115,66 @@ describe("ZyraUiEvent/v1 product projection", () => {
       expect.objectContaining({ request: expect.objectContaining({ requestId: permission.requestId, action: "写入项目文件", decisions: ["allow", "deny"] }) }),
     ])
     expect(JSON.stringify(projected)).not.toContain("must-not-render")
+  })
+})
+
+describe("stateful product projection recovery", () => {
+  const runningTask: TaskProjection = { ...fixture.task, status: "running", terminal: false, active: true, metadata: {} }
+
+  test("accepts exact replay and rejects a conflicting sequence or gap", () => {
+    const first = frame(1, "runtime.text.started", { stream_id: "answer_1" })
+    const projection = new ProductProjection({ task: runningTask, generation: 1 })
+    expect(projection.apply(first)).toBe(true)
+    expect(projection.apply({ ...first })).toBe(false)
+    expect(() => projection.apply({ ...frame(1, "runtime.audit.finding", {}), eventId: "event_conflict" })).toThrow("reordered")
+    expect(() => projection.apply(frame(3, "runtime.text.delta", { stream_id: "answer_1", presentation_text: "gap" }))).toThrow("gap")
+    expect(projection.snapshot()).toMatchObject({ revision: "1:1", frameCount: 1 })
+  })
+
+  test("replaces generation from a canonical snapshot and converges with offline replay", () => {
+    const replacementFrames = [
+      { ...frame(1, "runtime.text.started", { stream_id: "answer_2" }), generation: 2 },
+      { ...frame(2, "runtime.text.delta", { stream_id: "answer_2", presentation_text: "恢复成功" }), generation: 2 },
+      { ...frame(3, "runtime.text.ended", { stream_id: "answer_2" }), generation: 2 },
+    ]
+    const projection = new ProductProjection({ task: runningTask, generation: 1 })
+    projection.reconnecting(1)
+    projection.replaceSnapshot({ task: runningTask, generation: 2, frames: [...replacementFrames].reverse(), cursor: "cursor_generation_2" })
+    projection.connected()
+    expect(projection.snapshot()).toMatchObject({ generation: 2, revision: "2:3", cursor: "cursor_generation_2", connection: "connected" })
+    expect(reduceProductEvents(projection.snapshot().events).messages).toContainEqual(expect.objectContaining({ role: "assistant", text: "恢复成功" }))
+  })
+
+  test("produces the same product sequence for online apply and offline replay", () => {
+    const frames = [
+      frame(1, "runtime.text.started", { stream_id: "answer_online" }),
+      frame(2, "runtime.text.delta", { stream_id: "answer_online", presentation_text: "一致" }),
+      frame(3, "runtime.text.ended", { stream_id: "answer_online" }),
+      frame(4, "runtime.node.failed", { reason: "recovered internal lease" }),
+    ]
+    const online = new ProductProjection({ task: runningTask, generation: 1 })
+    for (const item of frames) online.apply(item)
+    expect(online.snapshot().events).toEqual(projectProductEvents({ task: runningTask, frames }))
+  })
+
+  test("refreshes canonical terminal state when no raw terminal event exists", () => {
+    const projection = new ProductProjection({ task: runningTask, generation: 1, frames: fixture.frames.map((item) => ({ ...item, taskId: runningTask.taskId })) })
+    projection.refreshTask(fixture.task)
+    const snapshot = projection.snapshot()
+    expect(snapshot.connection).toBe("complete")
+    expect(snapshot.events.at(-1)).toMatchObject({ type: "task.completed", finalAnswer: fixture.task.metadata.final_answer })
+    expect(snapshot.events.some((event) => event.type === "task.failed")).toBe(false)
+  })
+
+  test("rebuilds canonical permission state without duplicating requests", () => {
+    const projection = new ProductProjection({ task: runningTask, generation: 1 })
+    projection.permissions([
+      { requestId: "permission_2", status: "delivered", prompt: "运行测试", selectable: true },
+      { requestId: "permission_2", status: "delivered", prompt: "运行测试", selectable: true },
+    ])
+    expect(projection.snapshot().events.filter((event) => event.type === "permission.requested")).toHaveLength(1)
+    projection.permissions([{ requestId: "permission_2", status: "denied", prompt: "运行测试" }])
+    expect(reduceProductEvents(projection.snapshot().events).permissions).toHaveLength(0)
   })
 })
 
