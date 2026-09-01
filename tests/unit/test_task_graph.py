@@ -167,8 +167,23 @@ class TaskGraphTests(unittest.TestCase):
         state.status = PlanNodeStatus.COMPLETED
         committed = _commit_canonical_task_outcome(
             state,
-            verifier={"schema": "verifier/v1", "passed": True, "decision_id": "ok"},
-            gate={"schema": "gate/v1", "hard_conditions_passed": True, "decision": "exit"},
+            verifier={
+                "schema": "verifier/v1",
+                "passed": True,
+                "decision_id": "ok",
+                "checks": {"artifact_integrity": True, "required_tests": False},
+                "delivery_verification": {
+                    "schema": "delivery/v1",
+                    "passed": True,
+                    "checks": {"required_paths_present": True},
+                },
+            },
+            gate={
+                "schema": "gate/v1",
+                "hard_conditions_passed": True,
+                "decision": "exit",
+                "failed_conditions": [],
+            },
         )
         state.status = PlanNodeStatus.BLOCKED
         observed = _commit_canonical_task_outcome(
@@ -195,6 +210,22 @@ class TaskGraphTests(unittest.TestCase):
         self.assertEqual(
             state.metadata["task_outcome_diagnostics"][0]["stage"],
             "event_sync",
+        )
+        verification = committed["verification"]
+        self.assertEqual(
+            verification["final_verifier"]["checks"],
+            [
+                {"name": "artifact_integrity", "status": "passed", "passed": True},
+                {"name": "required_tests", "status": "failed", "passed": False},
+            ],
+        )
+        self.assertEqual(
+            verification["delivery_verifier"]["checks"],
+            [{"name": "required_paths_present", "status": "passed", "passed": True}],
+        )
+        self.assertEqual(
+            verification["command_evidence"],
+            {"status": "not_recorded", "receipts": []},
         )
 
     def test_benchmark_closeout_window_stops_runtime_recovery_dispatch(self) -> None:

@@ -686,6 +686,20 @@ def _commit_canonical_task_outcome(
     }
     prior_outcomes = state.metadata.get("canonical_task_outcome_history")
     revision = len(prior_outcomes) + 1 if isinstance(prior_outcomes, list) else 1
+    verifier_checks = verifier.get("checks")
+    if not isinstance(verifier_checks, Mapping):
+        verifier_checks = {}
+    delivery_verification = verifier.get("delivery_verification")
+    if not isinstance(delivery_verification, Mapping):
+        delivery_verification = {}
+    delivery_checks = delivery_verification.get("checks")
+    if not isinstance(delivery_checks, Mapping):
+        delivery_checks = {}
+    failed_conditions = gate.get("failed_conditions")
+    if not isinstance(failed_conditions, Sequence) or isinstance(
+        failed_conditions, (str, bytes)
+    ):
+        failed_conditions = ()
     outcome = {
         "schema": "zyra.task-outcome/v1",
         "revision": revision,
@@ -702,11 +716,45 @@ def _commit_canonical_task_outcome(
                 "schema": str(verifier.get("schema") or ""),
                 "passed": verifier.get("passed"),
                 "decision_id": str(verifier.get("decision_id") or ""),
+                "checks": [
+                    {
+                        "name": str(name)[:256],
+                        "status": "passed" if passed is True else "failed",
+                        "passed": passed is True,
+                    }
+                    for name, passed in sorted(verifier_checks.items())
+                    if isinstance(passed, bool)
+                ],
+            },
+            "delivery_verifier": {
+                "schema": str(delivery_verification.get("schema") or ""),
+                "passed": delivery_verification.get("passed"),
+                "checks": [
+                    {
+                        "name": str(name)[:256],
+                        "status": "passed" if passed is True else "failed",
+                        "passed": passed is True,
+                    }
+                    for name, passed in sorted(delivery_checks.items())
+                    if isinstance(passed, bool)
+                ],
             },
             "completion_gate": {
                 "schema": str(gate.get("schema") or ""),
                 "hard_conditions_passed": gate.get("hard_conditions_passed"),
                 "decision": str(gate.get("decision") or ""),
+                "failed_conditions": [
+                    str(item)[:256]
+                    for item in failed_conditions
+                    if str(item).strip()
+                ][:128],
+            },
+            # The final verifier currently owns condition evidence but does not
+            # yet own a command-execution receipt stream. Keep that absence
+            # explicit so product clients never invent commands from a pass.
+            "command_evidence": {
+                "status": "not_recorded",
+                "receipts": [],
             },
         },
         "diagnostics": to_jsonable(tuple(diagnostics)),

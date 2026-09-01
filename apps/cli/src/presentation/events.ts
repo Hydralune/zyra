@@ -26,6 +26,17 @@ export interface UiVerificationSummary {
   status: "passed" | "failed" | "not_run"
   label: string
   details: readonly string[]
+  checks: readonly UiVerificationCheck[]
+  commandEvidence: "recorded" | "not_recorded"
+}
+
+export interface UiVerificationCheck {
+  source: "final_verifier" | "delivery_verifier" | "completion_gate" | "command"
+  name: string
+  status: "passed" | "failed" | "skipped" | "not_run"
+  summary?: string
+  command?: string
+  exitCode?: number
 }
 
 interface UiEventBase {

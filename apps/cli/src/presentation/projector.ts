@@ -6,6 +6,7 @@ import {
   type UiPermissionRequest,
   type UiPermissionSnapshot,
   type UiTransportSnapshot,
+  type UiVerificationCheck,
   type ZyraUiEvent,
 } from "./events.ts"
 
@@ -205,20 +206,62 @@ function verificationSummary(task: TaskProjection): {
   status: "passed" | "failed" | "not_run"
   label: string
   details: readonly string[]
+  checks: readonly UiVerificationCheck[]
+  commandEvidence: "recorded" | "not_recorded"
 } | undefined {
   if (!task.terminal && !["completed", "failed", "blocked", "cancelled", "killed"].includes(task.status)) return undefined
   const outcome = object(task.metadata.canonical_task_outcome)
   const verification = object(outcome.verification)
   const finalVerifier = object(verification.final_verifier)
   const completionGate = object(verification.completion_gate)
-  const failedConditions = stringList(completionGate.failed_conditions).slice(0, 5)
+  const failedConditions = stringList(completionGate.failed_conditions).slice(0, 128)
+  const checks: UiVerificationCheck[] = []
+  const addChecks = (value: unknown, source: UiVerificationCheck["source"]) => {
+    if (!Array.isArray(value)) return
+    for (const item of value.slice(0, 512)) {
+      const selected = object(item)
+      const name = text(selected.name, 256)
+      const status = text(selected.status, 32)
+      if (!name || !["passed", "failed", "skipped", "not_run"].includes(status ?? "")) continue
+      checks.push(Object.freeze({
+        source,
+        name,
+        status: status as UiVerificationCheck["status"],
+        summary: text(selected.summary, 2_000),
+      }))
+    }
+  }
+  addChecks(finalVerifier.checks, "final_verifier")
+  addChecks(object(verification.delivery_verifier).checks, "delivery_verifier")
+  for (const name of failedConditions) checks.push(Object.freeze({ source: "completion_gate", name, status: "failed" }))
+  const commandEvidence = object(verification.command_evidence)
+  const receipts = Array.isArray(commandEvidence.receipts) ? commandEvidence.receipts.slice(0, 256) : []
+  for (const item of receipts) {
+    const receipt = object(item)
+    const command = content(receipt.command, 4_096)
+    const status = text(receipt.status, 32)
+    if (!command || !["passed", "failed", "skipped", "not_run"].includes(status ?? "")) continue
+    checks.push(Object.freeze({
+      source: "command",
+      name: text(receipt.label, 256) ?? command.slice(0, 256),
+      command,
+      status: status as UiVerificationCheck["status"],
+      summary: text(receipt.summary, 2_000),
+      exitCode: Number.isSafeInteger(receipt.exit_code) ? Number(receipt.exit_code) : undefined,
+    }))
+  }
+  const commandEvidenceStatus = receipts.length ? "recorded" as const : "not_recorded" as const
+  const failedDetails = [
+    ...failedConditions,
+    ...checks.filter((item) => item.status === "failed" && item.source !== "completion_gate").map((item) => `${item.source}: ${item.name}`),
+  ].slice(0, 10)
   if (finalVerifier.passed === false || completionGate.hard_conditions_passed === false) {
-    return Object.freeze({ status: "failed", label: "最终验证未通过", details: Object.freeze(failedConditions) })
+    return Object.freeze({ status: "failed", label: "最终验证未通过", details: Object.freeze(failedDetails), checks: Object.freeze(checks), commandEvidence: commandEvidenceStatus })
   }
   if (finalVerifier.passed === true && completionGate.hard_conditions_passed === true) {
-    return Object.freeze({ status: "passed", label: "最终验证通过", details: Object.freeze([]) })
+    return Object.freeze({ status: "passed", label: "最终验证通过", details: Object.freeze([]), checks: Object.freeze(checks), commandEvidence: commandEvidenceStatus })
   }
-  return Object.freeze({ status: "not_run", label: "未记录最终验证", details: Object.freeze([]) })
+  return Object.freeze({ status: "not_run", label: "未记录最终验证", details: Object.freeze([]), checks: Object.freeze(checks), commandEvidence: commandEvidenceStatus })
 }
 
 export function projectProductEvents(input: ProductProjectionInput): readonly ZyraUiEvent[] {

@@ -90,8 +90,19 @@ describe("product file, verification, and failure results", () => {
       canonical_task_outcome: {
         schema: "zyra.task-outcome/v1",
         verification: {
-          final_verifier: { passed: false },
+          final_verifier: {
+            passed: false,
+            checks: [
+              { name: "artifact_integrity", status: "passed", passed: true },
+              { name: "required_tests", status: "failed", passed: false },
+            ],
+          },
+          delivery_verifier: {
+            passed: false,
+            checks: [{ name: "required_paths_present", status: "passed", passed: true }],
+          },
           completion_gate: { hard_conditions_passed: false, failed_conditions: ["unit tests"] },
+          command_evidence: { status: "not_recorded", receipts: [] },
         },
       },
     })
@@ -109,7 +120,15 @@ describe("product file, verification, and failure results", () => {
     expect(state.permissions).toHaveLength(0)
     expect(events).toContainEqual(expect.objectContaining({ type: "permission.resolved", decision: "expired" }))
     expect(state.tools).toContainEqual(expect.objectContaining({ status: "failed", summary: "测试 执行失败（exit_1）" }))
-    expect(state.verification).toMatchObject({ status: "failed", details: ["unit tests"] })
+    expect(state.verification?.status).toBe("failed")
+    expect(state.verification?.details).toEqual(expect.arrayContaining(["unit tests", "final_verifier: required_tests"]))
+    expect(state.verification?.checks).toEqual([
+      { source: "final_verifier", name: "artifact_integrity", status: "passed", summary: undefined },
+      { source: "final_verifier", name: "required_tests", status: "failed", summary: undefined },
+      { source: "delivery_verifier", name: "required_paths_present", status: "passed", summary: undefined },
+      { source: "completion_gate", name: "unit tests", status: "failed" },
+    ])
+    expect(state.verification?.commandEvidence).toBe("not_recorded")
     expect(state.changes).toContainEqual(expect.objectContaining({ path: "src/example.ts", kind: "modified" }))
     expect(rendered).toContain("最终验证未通过")
     expect(rendered).toContain("测试失败，修改未通过验收")

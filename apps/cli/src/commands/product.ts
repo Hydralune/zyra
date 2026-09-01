@@ -88,6 +88,24 @@ function toolLines(view: ProductTuiShell["view"]): string[] {
   })
 }
 
+function verificationLines(view: ProductTuiShell["view"]): string[] {
+  const verification = view.verification
+  if (!verification) return ["当前任务尚未形成 canonical 验证状态。"]
+  const lines = [
+    `${verification.status === "passed" ? "✓" : verification.status === "failed" ? "!" : "○"} ${verification.label}`,
+    `命令级收据：${verification.commandEvidence === "recorded" ? "已记录" : "未记录；不能据此声称执行过某条命令"}`,
+  ]
+  for (const check of verification.checks) {
+    const marker = check.status === "passed" ? "✓" : check.status === "failed" ? "!" : check.status === "skipped" ? "↷" : "○"
+    const command = check.command ? ` · ${check.command}` : ""
+    const exit = check.exitCode === undefined ? "" : ` · exit ${check.exitCode}`
+    const summary = check.summary ? ` · ${check.summary}` : ""
+    lines.push(`${marker} [${check.source}] ${check.name} · ${check.status}${command}${exit}${summary}`)
+  }
+  if (!verification.checks.length) lines.push("没有逐项检查收据；仅显示 canonical 最终门状态。")
+  return lines
+}
+
 function agentLines(view: ProductTuiShell["view"]): string[] {
   if (!view.agents.length) return ["当前没有可见协作代理。"]
   return view.agents.map((agent, index) => `${index + 1}. ${agent.label} · ${agent.status}${agent.summary ? ` · ${agent.summary}` : ""} · ${agent.agentId}`)
@@ -220,6 +238,10 @@ async function runProductControlLoop(input: {
       }
       if (line === "/plan") {
         await input.shell.page("计划与步骤", planLines(input.shell.view))
+        continue
+      }
+      if (line === "/verification" || line === "/verify") {
+        await input.shell.page("验证与收据", verificationLines(input.shell.view))
         continue
       }
       if (line === "/tools") {
@@ -868,6 +890,9 @@ async function runProductSession(input: {
           }
           case "plan":
             await input.shell.page("计划与步骤", planLines(input.shell.view))
+            continue
+          case "verification":
+            await input.shell.page("验证与收据", verificationLines(input.shell.view))
             continue
           case "tools":
             await input.shell.page("工具调用", toolLines(input.shell.view))

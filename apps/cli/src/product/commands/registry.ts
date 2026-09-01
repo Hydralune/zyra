@@ -22,6 +22,7 @@ const LOCAL_COMMANDS: readonly ProductCommandDefinition[] = Object.freeze([
   { name: "mode", description: "选择后续任务执行模式；运行中只读", usage: "/mode [status]", availability: "always" },
   { name: "diff", description: "查看当前任务文件变更", availability: "always" },
   { name: "plan", description: "查看完整计划和步骤状态", availability: "always" },
+  { name: "verification", aliases: ["verify"], description: "查看 canonical 验证检查与命令收据", availability: "always" },
   { name: "tools", description: "查看工具调用、耗时和 artifact", availability: "always" },
   { name: "artifact", description: "查看脱敏且有界的 artifact 预览", usage: "/artifact <artifact-id>", availability: "always" },
   { name: "agents", aliases: ["subagents"], description: "查看协作代理摘要", availability: "always" },
