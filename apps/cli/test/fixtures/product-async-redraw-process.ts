@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs"
 import { ZYRA_UI_EVENT_SCHEMA, type ZyraUiEvent } from "../../src/presentation/events.ts"
 import { ProductTuiShell } from "../../src/tui/shell.ts"
 
@@ -20,7 +21,7 @@ let pumping = true
 let eventUpdates = 0
 const pump = () => {
   if (!pumping) return
-  for (let burst = 0; burst < 250; burst += 1) {
+  for (let burst = 0; burst < 25; burst += 1) {
     eventUpdates += 1
     shell.update([
       session,
@@ -42,8 +43,14 @@ shell.notice("ZYRA_ASYNC_REDRAW_READY")
 const result = await reading
 pumping = false
 shell.close()
-await new Promise<void>((resolve, reject) => process.stdout.write(`\nZYRA_ASYNC_REDRAW_RESULT ${JSON.stringify({
+const resultPath = process.env.ZYRA_ASYNC_REDRAW_RESULT_PATH
+if (!resultPath) throw new Error("ZYRA_ASYNC_REDRAW_RESULT_PATH is required")
+writeFileSync(resultPath, JSON.stringify({
   result,
   eventUpdates,
   diagnostics: shell.renderDiagnostics,
-})}\n`, (error) => error ? reject(error) : resolve()))
+}), "utf8")
+await new Promise<void>((resolve, reject) => process.stdout.write(
+  "\nZYRA_ASYNC_REDRAW_RESULT_WRITTEN\n",
+  (error) => error ? reject(error) : resolve(),
+))

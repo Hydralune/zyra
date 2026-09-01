@@ -50,10 +50,13 @@ def _wait_for(capture: Capture, marker: bytes, timeout: float = 30.0) -> None:
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows ConPTY evidence requires Windows")
-def test_real_conpty_preserves_unicode_input_during_async_redraw_and_resize() -> None:
+def test_real_conpty_preserves_unicode_input_during_async_redraw_and_resize(tmp_path: Path) -> None:
     from zyra_workers.terminal import PtySpawnOptions, spawn_pty
 
     command = subprocess.list2cmdline([str(BUN), str(FIXTURE)])
+    result_path = tmp_path / "async-redraw-result.json"
+    environment = dict(os.environ)
+    environment["ZYRA_ASYNC_REDRAW_RESULT_PATH"] = str(result_path)
     process = spawn_pty(
         PtySpawnOptions(
             command=command,
@@ -61,7 +64,7 @@ def test_real_conpty_preserves_unicode_input_during_async_redraw_and_resize() ->
             shell=os.environ.get("COMSPEC", "cmd.exe"),
             rows=32,
             cols=100,
-            environment=dict(os.environ),
+            environment=environment,
         )
     )
     capture = Capture()
@@ -70,20 +73,19 @@ def test_real_conpty_preserves_unicode_input_during_async_redraw_and_resize() ->
     expected = "中文输入 é 👨‍👩‍👧‍👦 — ConPTY 异步重绘不丢字"
     try:
         _wait_for(capture, b"ZYRA_ASYNC_REDRAW_READY")
-        for index, value in enumerate(expected.encode("utf-8")):
-            process.write(bytes([value]))
+        encoded = expected.encode("utf-8")
+        for index in range(1_000):
+            if index < len(encoded):
+                process.write(bytes([encoded[index]]))
             process.resize(18 + (index % 43), 60 + (index % 141))
             time.sleep(0.001)
         time.sleep(0.15)
         process.write(b"\r")
-        _wait_for(capture, b"ZYRA_ASYNC_REDRAW_RESULT")
+        _wait_for(capture, b"ZYRA_ASYNC_REDRAW_RESULT_WRITTEN")
         exit_code = process.wait(timeout=30)
         reader.join(timeout=5)
         material = capture.value()
-        visible = ANSI.sub(b"", material).decode("utf-8", "replace")
-        match = re.search(r"ZYRA_ASYNC_REDRAW_RESULT (\{[^\r\n]+\})", visible)
-        assert match is not None, visible[-2_000:]
-        result = json.loads(match.group(1))
+        result = json.loads(result_path.read_text(encoding="utf-8"))
 
         assert exit_code == 0
         assert result["result"] == {"kind": "submit", "text": expected, "queue": False}
