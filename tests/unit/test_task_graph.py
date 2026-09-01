@@ -225,8 +225,45 @@ class TaskGraphTests(unittest.TestCase):
         )
         self.assertEqual(
             verification["command_evidence"],
-            {"status": "not_recorded", "receipts": []},
+            {
+                "schema": "zyra.verification-command-evidence/v1",
+                "status": "not_recorded",
+                "receipts": [],
+            },
         )
+
+    def test_canonical_task_outcome_preserves_recorded_command_evidence(self) -> None:
+        state = create_task_state("Expose only canonical command receipts.")
+        state.status = PlanNodeStatus.COMPLETED
+        state.metadata["verification_command_evidence"] = {
+            "schema": "zyra.verification-command-evidence/v1",
+            "status": "recorded",
+            "receipts": [
+                {
+                    "schema": "zyra.verification-command-receipt/v1",
+                    "tool_call_id": "tool-test",
+                    "scope": "shell:pytest:tests/unit",
+                    "label": "unit tests",
+                    "command": "python -m pytest tests/unit --token sk-super-secret",
+                    "status": "passed",
+                    "exit_code": 0,
+                }
+            ],
+        }
+
+        committed = _commit_canonical_task_outcome(
+            state,
+            verifier={"schema": "verifier/v1", "passed": True},
+            gate={"schema": "gate/v1", "hard_conditions_passed": True},
+        )
+
+        evidence = committed["verification"]["command_evidence"]
+        self.assertEqual(evidence["status"], "recorded")
+        self.assertEqual(
+            evidence["receipts"][0]["command"],
+            "python -m pytest tests/unit --token [REDACTED]",
+        )
+        self.assertEqual(evidence["receipts"][0]["exit_code"], 0)
 
     def test_benchmark_closeout_window_stops_runtime_recovery_dispatch(self) -> None:
         state = create_task_state("Do not exceed the external benchmark deadline.")

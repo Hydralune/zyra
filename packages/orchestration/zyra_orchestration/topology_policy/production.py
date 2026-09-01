@@ -428,6 +428,70 @@ def _merge_task_workspace_delivery(
     }
 
 
+def _merge_task_verification_command_evidence(
+    current: Any,
+    incoming: Any,
+) -> dict[str, Any]:
+    """Merge only reviewable, redacted, terminal command receipts."""
+
+    previous = dict(current) if isinstance(current, Mapping) else {}
+    receipts: dict[str, dict[str, Any]] = {}
+
+    def nonnegative(value: Any) -> int:
+        try:
+            return max(0, int(value or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    def admit(value: Any) -> None:
+        if not isinstance(value, Sequence) or isinstance(
+            value,
+            (str, bytes, bytearray),
+        ):
+            return
+        for item in value:
+            if not isinstance(item, Mapping):
+                continue
+            tool_call_id = str(item.get("tool_call_id") or "")[:256]
+            command = str(item.get("command") or "")[:4096]
+            status = str(item.get("status") or "")
+            if (
+                not tool_call_id
+                or not command.strip()
+                or status not in {"passed", "failed", "skipped"}
+            ):
+                continue
+            receipt: dict[str, Any] = {
+                "schema": "zyra.verification-command-receipt/v1",
+                "tool_call_id": tool_call_id,
+                "originating_tool_call_id": str(
+                    item.get("originating_tool_call_id") or tool_call_id
+                )[:256],
+                "scope": str(item.get("scope") or "")[:256],
+                "label": str(
+                    item.get("label") or item.get("scope") or "verification command"
+                )[:256],
+                "command": command,
+                "status": status,
+                "event_sequence": nonnegative(item.get("event_sequence")),
+                "workspace_mutation_count": nonnegative(
+                    item.get("workspace_mutation_count")
+                ),
+            }
+            if isinstance(item.get("exit_code"), int):
+                receipt["exit_code"] = int(item["exit_code"])
+            receipts[tool_call_id] = receipt
+
+    admit(previous.get("receipts"))
+    admit(incoming)
+    selected = list(receipts.values())[-64:]
+    return {
+        "schema": "zyra.verification-command-evidence/v1",
+        "status": "recorded" if selected else "not_recorded",
+        "receipts": selected,
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class _PhysicalWorkerRun:
     """Task-graph projection of one canonical physical operator call."""
@@ -2594,6 +2658,16 @@ class Phase2StrongestProductionBridge:
                 workspace_delta,
                 workspace_id=expected_workspace_id,
             )
+            command_evidence = _merge_task_verification_command_evidence(
+                state.metadata.get("verification_command_evidence"),
+                execution_obligation_evidence.get(
+                    "verification_command_receipts"
+                ),
+            )
+            if command_evidence["status"] == "recorded":
+                state.metadata["verification_command_evidence"] = (
+                    command_evidence
+                )
         if response_contract is not None:
             state.metadata["goal_contract_verification"] = dict(
                 response_verification

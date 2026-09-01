@@ -225,6 +225,7 @@ class DiffFile:
             "path": self.path,
             "previous_path": self.previous_path or None,
             "kind": "binary" if self.binary else self.kind,
+            "change_kind": self.kind,
             "binary": self.binary,
             "oversized": self.patch_bytes > DEFAULT_MAXIMUM_PAGE_BYTES
             or self.line_count > DEFAULT_MAXIMUM_PAGE_LINES,

@@ -12,6 +12,7 @@ from zyra_orchestration.topology_policy.production import (
     _canonical_memory_record_digest,
     _has_verifiable_interrupted_delivery,
     _is_json_array,
+    _merge_task_verification_command_evidence,
     _merge_task_workspace_delivery,
     _PhysicalLeaseHeartbeat,
     _physical_dispatch_payload_binding,
@@ -242,6 +243,38 @@ def test_task_workspace_delivery_merges_retries_with_delete_and_recreate() -> No
     )
     assert rebound["changed_paths"] == ["fresh.txt"]
     assert rebound["deleted_paths"] == []
+
+
+def test_task_verification_command_evidence_merges_terminal_receipts() -> None:
+    first = _merge_task_verification_command_evidence(
+        None,
+        [
+            {
+                "tool_call_id": "tool-one",
+                "scope": "shell:pytest:unit",
+                "command": "python -m pytest tests/unit",
+                "status": "failed",
+                "exit_code": 1,
+            }
+        ],
+    )
+    merged = _merge_task_verification_command_evidence(
+        first,
+        [
+            {
+                "tool_call_id": "tool-two",
+                "scope": "shell:pytest:unit",
+                "command": "python -m pytest tests/unit",
+                "status": "passed",
+                "exit_code": 0,
+            },
+            {"tool_call_id": "tool-invalid", "command": "", "status": "passed"},
+        ],
+    )
+
+    assert merged["status"] == "recorded"
+    assert [item["status"] for item in merged["receipts"]] == ["failed", "passed"]
+    assert [item["exit_code"] for item in merged["receipts"]] == [1, 0]
 
 
 def test_memory_record_digest_ignores_only_refresh_timestamps() -> None:

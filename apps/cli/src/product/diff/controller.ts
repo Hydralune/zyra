@@ -53,14 +53,21 @@ export async function openProductDiff(input: {
   const manifest = parseProductDiffManifest(await input.api.diffReviewManifest(task.taskId, artifact.artifactId, input.signal))
   const selectedFile = await input.shell.pick("选择变更文件", manifest.files.map((file) => ({
     id: file.fileId,
-    label: file.path,
-    detail: `${file.kind} · +${file.additions} -${file.deletions}${file.binary ? " · binary" : ""}`,
+    label: file.previousPath ? `${file.previousPath} → ${file.path}` : file.path,
+    detail: `${file.kind}${file.binary ? " · binary" : ""} · +${file.additions} -${file.deletions}`,
     keywords: [file.previousPath ?? "", file.kind],
   })))
   const file = selectedFile ? manifest.files.find((item) => item.fileId === selectedFile.id) : undefined
   if (!file) return false
   if (file.binary) {
-    await input.shell.page(file.path, ["[二进制文件：终端不显示内容]", `类型：${file.kind}`])
+    await input.shell.page(
+      file.previousPath ? `${file.previousPath} → ${file.path}` : file.path,
+      [
+        "[二进制文件：终端不显示内容]",
+        `变更类型：${file.kind}`,
+        ...(file.previousPath ? [`重命名：${file.previousPath} → ${file.path}`] : []),
+      ],
+    )
     return true
   }
   const lines: string[] = [`--- ${file.previousPath ?? file.path}`, `+++ ${file.path}`]
@@ -82,6 +89,6 @@ export async function openProductDiff(input: {
   if (file.truncated || file.oversized || file.pageCount > pageBudget || lines.length >= 20_000) {
     lines.push("… diff 超出终端安全预算；使用 /ui 查看完整审查。")
   }
-  await input.shell.page(`${file.path} · +${file.additions} -${file.deletions}`, lines)
+  await input.shell.page(`${file.previousPath ? `${file.previousPath} → ` : ""}${file.path} · ${file.kind} · +${file.additions} -${file.deletions}`, lines)
   return true
 }

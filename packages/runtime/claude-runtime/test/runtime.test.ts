@@ -504,6 +504,36 @@ test("runtime records exact script execution but rejects source inspection", asy
   );
 });
 
+test("runtime records terminal verification receipts without command content", async () => {
+  const shellTool = {
+    name: "shell",
+    purpose: "execute shell",
+    source: "test",
+    input_schema: {
+      type: "object",
+      required: ["command"],
+      properties: { command: { type: "string" } },
+    },
+    output_schema: {},
+    metadata: { read_only: "false", concurrency_safe: "false" },
+  };
+  const result = await new ClaudeRuntimeCore().run(input({
+    turns: [[{
+      tool_name: "shell",
+      arguments: { command: "python -m pytest tests/unit" },
+    }]],
+    tools: [shellTool],
+  }), new MemoryHost());
+
+  const evidence = result.sessionSnapshot.obligationEvidence as JsonObject;
+  const receipts = evidence.verification_command_receipts as JsonObject[];
+  assert.equal(receipts.length, 1);
+  assert.equal(receipts[0]?.schema, "zyra.verification-command-receipt/v1");
+  assert.equal(receipts[0]?.status, "passed");
+  assert.equal(receipts[0]?.scope, "shell:pytest:tests/unit");
+  assert.equal(Object.hasOwn(receipts[0] ?? {}, "command"), false);
+});
+
 test("runtime checkpoints durable recovery boundaries instead of observations", () => {
   for (const phase of [
     "session_started",

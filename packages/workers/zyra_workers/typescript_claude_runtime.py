@@ -145,6 +145,94 @@ def _bounded_handoff_text(value: Any, maximum: int = _HANDOFF_MAXIMUM_TEXT_CHARA
     return f"{text[:head]}\n...[handoff truncated]...\n{text[-tail:]}"
 
 
+def _bounded_verification_command(value: Any) -> str:
+    """Return a shareable command while preserving useful test scope."""
+
+    text = _bounded_handoff_text(value, 4_096)
+    text = re.sub(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))", "", text)
+    text = "".join(character for character in text if character in "\t\n" or ord(character) >= 32)
+    text = re.sub(
+        r"(?i)((?:--?|/)(?:api[-_]?key|access[-_]?token|token|password|passwd|secret|authorization|credential)(?:=|\s+))[\"']?[^\s,;\"']+",
+        r"\1[REDACTED]",
+        text,
+    )
+    text = re.sub(
+        r"(?i)(\$env:(?:api[-_]?key|access[-_]?token|token|password|passwd|secret|authorization|credential)\s*=\s*)[\"']?[^\s,;\"']+",
+        r"\1[REDACTED]",
+        text,
+    )
+    text = re.sub(
+        r"(?i)\b[A-Z]:[\\/](?:Users|Documents and Settings)[\\/][^\\/\s\"']+",
+        "<home>",
+        text,
+    )
+    text = re.sub(r"(?i)(?<![A-Za-z0-9])/(?:home|Users)/[^/\s\"']+", "<home>", text)
+    text = re.sub(r"(?<![\\])\\\\[^\\/\s]+[\\/][^\\/\s]+", "<unc>", text)
+    return text[:4_096].strip()
+
+
+def _verification_command_receipts(
+    typescript_snapshot: Mapping[str, Any],
+    obligation_evidence: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    def selected_mapping(value: Any) -> dict[str, Any]:
+        return dict(value) if isinstance(value, Mapping) else {}
+
+    e01_runtime = selected_mapping(typescript_snapshot.get("e01Runtime"))
+    query = selected_mapping(e01_runtime.get("query"))
+    calls = {
+        str(item.get("toolCallId") or ""): item
+        for item in query.get("toolCalls") or ()
+        if isinstance(item, Mapping) and str(item.get("toolCallId") or "")
+    }
+    projected: list[dict[str, Any]] = []
+    for item in obligation_evidence.get("verification_command_receipts") or ():
+        if not isinstance(item, Mapping):
+            continue
+        tool_call_id = str(item.get("tool_call_id") or "")[:256]
+        origin_id = str(
+            item.get("originating_tool_call_id") or tool_call_id
+        )[:256]
+        status = str(item.get("status") or "")
+        if not tool_call_id or status not in {"passed", "failed", "skipped"}:
+            continue
+        command = _bounded_verification_command(item.get("command"))
+        origin = calls.get(origin_id)
+        if isinstance(origin, Mapping) and str(origin.get("name") or "") == "shell":
+            arguments = selected_mapping(origin.get("arguments"))
+            observed = _bounded_verification_command(arguments.get("command"))
+            if observed:
+                command = observed
+        if not command:
+            # A receipt without a reviewable command cannot satisfy the
+            # product command-evidence contract.
+            continue
+        receipt: dict[str, Any] = {
+            "schema": "zyra.verification-command-receipt/v1",
+            "tool_call_id": tool_call_id,
+            "originating_tool_call_id": origin_id,
+            "scope": _bounded_handoff_text(item.get("scope"), 256),
+            "label": _bounded_handoff_text(item.get("scope"), 256)
+            or "verification command",
+            "command": command,
+            "status": status,
+            "event_sequence": _nonnegative_count(item.get("event_sequence")),
+            "workspace_mutation_count": _nonnegative_count(
+                item.get("workspace_mutation_count")
+            ),
+        }
+        raw_exit_code = item.get("exit_code")
+        if raw_exit_code not in (None, ""):
+            try:
+                exit_code = int(raw_exit_code)
+            except (TypeError, ValueError):
+                exit_code = None
+            if exit_code is not None and -(2**31) <= exit_code < 2**31:
+                receipt["exit_code"] = exit_code
+        projected.append(receipt)
+    return projected[-64:]
+
+
 def _handoff_tool_observation(message: Mapping[str, Any]) -> dict[str, Any] | None:
     if str(message.get("role") or "") != "tool":
         return None
@@ -257,10 +345,36 @@ def _obligation_evidence_handoff_state(
                 if item.get(field) is not None
             }
         )
+    receipts: list[dict[str, Any]] = []
+    for item in raw.get("verification_command_receipts") or ():
+        if not isinstance(item, Mapping):
+            continue
+        command = _bounded_verification_command(item.get("command"))
+        status = str(item.get("status") or "")
+        if not command or status not in {"passed", "failed", "skipped"}:
+            continue
+        receipt = {
+            field: item.get(field)
+            for field in (
+                "schema",
+                "tool_call_id",
+                "originating_tool_call_id",
+                "scope",
+                "label",
+                "status",
+                "exit_code",
+                "event_sequence",
+                "workspace_mutation_count",
+            )
+            if item.get(field) is not None
+        }
+        receipt["command"] = command
+        receipts.append(receipt)
     return {
         "schema": "zyra.runtime-obligation-evidence/v1",
         "successful_skill_invocations": skills[-64:],
         "successful_executed_paths": paths[-64:],
+        "verification_command_receipts": receipts[-64:],
         "workspace_mutation_count": _nonnegative_count(
             raw.get("workspace_mutation_count")
         ),
@@ -272,6 +386,7 @@ def _merge_task_obligation_evidence(
 ) -> dict[str, Any]:
     skills: dict[str, dict[str, Any]] = {}
     paths: dict[str, dict[str, Any]] = {}
+    receipts: dict[str, dict[str, Any]] = {}
     workspace_mutation_count = 0
     for projection in reversed(projections):
         evidence = projection.get("obligation_evidence")
@@ -300,12 +415,20 @@ def _merge_task_obligation_evidence(
                     item.get("workspace_mutation_count")
                 ) >= _nonnegative_count(previous.get("workspace_mutation_count")):
                     paths[key] = dict(item)
-    if not skills and not paths:
+        for item in evidence.get("verification_command_receipts") or ():
+            if not isinstance(item, Mapping):
+                continue
+            key = str(item.get("tool_call_id") or "")
+            command = _bounded_verification_command(item.get("command"))
+            if key and command:
+                receipts[key] = {**dict(item), "command": command}
+    if not skills and not paths and not receipts:
         return {}
     return {
         "schema": "zyra.runtime-obligation-evidence/v1",
         "successful_skill_invocations": list(skills.values())[-64:],
         "successful_executed_paths": list(paths.values())[-64:],
+        "verification_command_receipts": list(receipts.values())[-64:],
         "workspace_mutation_count": workspace_mutation_count,
     }
 

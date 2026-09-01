@@ -79,6 +79,37 @@ export interface ProgressiveDecision {
   snapshot: ProgressiveExecutionSnapshot;
 }
 
+export interface VerificationCommandObservation {
+  status: "passed" | "failed" | "skipped";
+  exitCode: number | null;
+}
+
+/**
+ * Project the same terminal verification decision used by the progressive
+ * execution state machine. Background launches are intentionally absent: a
+ * successful spawn is not a successful test run.
+ */
+export function verificationCommandObservation(
+  request: ToolExecutionRequest,
+  response: ToolExecutionResponse,
+): VerificationCommandObservation | null {
+  if (!asBoolean(request.metadata.progressive_verification_driving)) return null;
+  const background = String(
+    response.metadata.background_status
+      ?? response.output.background_status
+      ?? response.output.status
+      ?? "",
+  ).toLowerCase();
+  if (["running", "pending", "queued"].includes(background)) return null;
+  const exitCode = observedReturnCode(response);
+  if (explicitlyAcceptedNonzeroResult(response)) {
+    return { status: "skipped", exitCode };
+  }
+  const passed = !isRetryableVerificationInvocationFailure(request, response)
+    && verificationResultPassed(response, background);
+  return { status: passed ? "passed" : "failed", exitCode };
+}
+
 interface ProgressiveOptions {
   now?: () => number;
   constraints?: JsonObject;
@@ -1702,6 +1733,16 @@ function verificationFailureTargetsGeneratedDelivery(
 function finitePositive(value: unknown): number | null {
   const selected = Number(value);
   return Number.isFinite(selected) && selected > 0 ? selected : null;
+}
+
+function observedReturnCode(response: ToolExecutionResponse): number | null {
+  const raw = response.output.return_code
+    ?? response.output.exit_code
+    ?? response.metadata.return_code
+    ?? response.metadata.exit_code;
+  if (raw === undefined || raw === null || raw === "") return null;
+  const selected = Number(raw);
+  return Number.isSafeInteger(selected) ? selected : null;
 }
 
 function nonnegativeInteger(value: unknown): number {

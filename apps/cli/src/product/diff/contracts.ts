@@ -13,6 +13,30 @@ function contentText(value: unknown, label: string): string {
   return value
 }
 
+function logicalPath(value: unknown, label: string): string {
+  const selected = text(value, label).replaceAll("\\", "/")
+  if (
+    selected.length > 4_096
+    || selected.startsWith("/")
+    || /^[a-z]:\//iu.test(selected)
+    || selected.startsWith("//")
+    || /[\u0000-\u001f\u007f]/u.test(selected)
+    || selected.split("/").some((segment) => !segment || segment === "." || segment === "..")
+  ) {
+    throw new TypeError(`${label} is not a workspace-logical path`)
+  }
+  return selected
+}
+
+const DIFF_KINDS = ["added", "modified", "deleted", "renamed"] as const
+export type ProductDiffChangeKind = typeof DIFF_KINDS[number]
+
+function changeKind(value: unknown, label: string): ProductDiffChangeKind {
+  const selected = text(value, label)
+  if (!(DIFF_KINDS as readonly string[]).includes(selected)) throw new TypeError(`${label} is invalid`)
+  return selected as ProductDiffChangeKind
+}
+
 function integer(value: unknown, fallback = 0): number {
   return Number.isSafeInteger(value) && Number(value) >= 0 ? Number(value) : fallback
 }
@@ -21,7 +45,7 @@ export interface ProductDiffFile {
   fileId: string
   path: string
   previousPath?: string
-  kind: string
+  kind: ProductDiffChangeKind
   binary: boolean
   oversized: boolean
   truncated: boolean
@@ -51,12 +75,25 @@ export function parseProductDiffManifest(value: unknown): ProductDiffManifest {
   const binding = record(source.source, "diff source")
   const files = Array.isArray(source.files) ? source.files.map((item, index) => {
     const file = record(item, `diff file ${index}`)
+    const binary = file.binary === true
+    const rawKind = text(file.kind, "diff file kind")
+    if (binary !== (rawKind === "binary")) throw new TypeError("diff binary kind contract is inconsistent")
+    const kind = changeKind(
+      file.change_kind ?? file.changeKind ?? (rawKind === "binary" ? "modified" : rawKind),
+      "diff change kind",
+    )
+    const previousValue = file.previous_path ?? file.previousPath
+    const previousPath = typeof previousValue === "string" && previousValue
+      ? logicalPath(previousValue, "diff previous path")
+      : undefined
+    if (kind === "renamed" && !previousPath) throw new TypeError("renamed diff file requires previous path")
+    if (kind !== "renamed" && previousPath) throw new TypeError("only renamed diff files may declare previous path")
     return Object.freeze({
       fileId: text(file.file_id ?? file.fileId, "diff file id"),
-      path: text(file.path, "diff file path"),
-      previousPath: typeof (file.previous_path ?? file.previousPath) === "string" ? String(file.previous_path ?? file.previousPath) : undefined,
-      kind: text(file.kind, "diff file kind"),
-      binary: file.binary === true,
+      path: logicalPath(file.path, "diff file path"),
+      previousPath,
+      kind,
+      binary,
       oversized: file.oversized === true,
       truncated: file.truncated === true,
       additions: integer(file.additions),

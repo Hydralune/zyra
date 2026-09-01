@@ -42,6 +42,7 @@ import {
 import {
   PROGRESSIVE_EXECUTION_SNAPSHOT_VERSION,
   ProgressiveExecutionRuntime,
+  verificationCommandObservation,
   type ProgressiveExecutionSnapshot,
 } from "./loop/progressive-execution-runtime.ts";
 import {
@@ -598,6 +599,14 @@ export class ClaudeRuntimeCore {
         if (path) successfulExecutedPaths.set(path, record);
       }
     }
+    const verificationCommandReceipts = new Map<string, JsonObject>();
+    if (Array.isArray(initialObligationEvidence.verification_command_receipts)) {
+      for (const item of initialObligationEvidence.verification_command_receipts) {
+        const record = asObject(item);
+        const toolCallId = asString(record.tool_call_id);
+        if (toolCallId) verificationCommandReceipts.set(toolCallId, record);
+      }
+    }
     const initialObligationWorkspaceMutationCount = Math.max(
       0,
       Math.floor(Number(initialObligationEvidence.workspace_mutation_count) || 0),
@@ -613,6 +622,9 @@ export class ClaudeRuntimeCore {
       schema: "zyra.runtime-obligation-evidence/v1",
       successful_skill_invocations: successfulSkillInvocations.map((item) => ({ ...item })),
       successful_executed_paths: [...successfulExecutedPaths.values()].map((item) => ({ ...item })),
+      verification_command_receipts: [...verificationCommandReceipts.values()]
+        .slice(-64)
+        .map((item) => ({ ...item })),
       workspace_mutation_count: Math.max(
         initialObligationWorkspaceMutationCount,
         progressive.snapshot().workspaceMutationCount,
@@ -2184,26 +2196,54 @@ export class ClaudeRuntimeCore {
                 ? e01.snapshot().query.toolCalls
                 : [],
             );
-            progressive.observeToolResult(
-              {
-                ...observedRequest,
-                metadata: {
-                  ...observedRequest.metadata,
-                  ...(verificationDriving
-                    ? {
-                        progressive_verification_driving: true,
-                        progressive_verification_scope: verificationScope,
-                        progressive_verification_harness_path: verificationHarnessPath,
-                      }
-                    : {}),
-                  ...(environmentRecoveryDriving
-                    ? { progressive_environment_recovery_driving: true }
-                    : {}),
-                },
+            const progressiveRequest = {
+              ...observedRequest,
+              metadata: {
+                ...observedRequest.metadata,
+                ...(verificationDriving
+                  ? {
+                      progressive_verification_driving: true,
+                      progressive_verification_scope: verificationScope,
+                      progressive_verification_harness_path: verificationHarnessPath,
+                    }
+                  : {}),
+                ...(environmentRecoveryDriving
+                  ? { progressive_environment_recovery_driving: true }
+                  : {}),
               },
+            };
+            progressive.observeToolResult(
+              progressiveRequest,
               result,
               registry.readOnly(step.tool_name),
             );
+            const verificationObservation = verificationCommandObservation(
+              progressiveRequest,
+              result,
+            );
+            if (verificationObservation && verificationScope) {
+              const historicalCalls = e01.snapshot().query.toolCalls;
+              const origin = step.tool_name === "shell_wait"
+                ? originatingToolCall(result, historicalCalls)
+                : historicalCalls.find((call) => call.toolCallId === result.tool_call_id);
+              verificationCommandReceipts.set(result.tool_call_id, {
+                schema: "zyra.verification-command-receipt/v1",
+                tool_call_id: result.tool_call_id,
+                originating_tool_call_id: origin?.toolCallId ?? result.tool_call_id,
+                scope: verificationScope,
+                status: verificationObservation.status,
+                ...(verificationObservation.exitCode === null
+                  ? {}
+                  : { exit_code: verificationObservation.exitCode }),
+                event_sequence: eventSequence,
+                workspace_mutation_count: progressive.snapshot().workspaceMutationCount,
+              });
+              while (verificationCommandReceipts.size > 64) {
+                const oldest = verificationCommandReceipts.keys().next().value;
+                if (typeof oldest !== "string") break;
+                verificationCommandReceipts.delete(oldest);
+              }
+            }
           }
           if (result.ok && step.tool_name === "skill") {
             const skillName = asString(step.arguments.name || step.arguments.skill);
@@ -4621,6 +4661,7 @@ function selectRestoredObligationEvidence(
 function mergeObligationEvidence(...candidates: readonly JsonObject[]): JsonObject {
   const skills = new Map<string, JsonObject>();
   const paths = new Map<string, JsonObject>();
+  const verificationReceipts = new Map<string, JsonObject>();
   let workspaceMutationCount = 0;
   for (const candidate of candidates) {
     if (candidate.schema !== "zyra.runtime-obligation-evidence/v1") continue;
@@ -4654,11 +4695,19 @@ function mergeObligationEvidence(...candidates: readonly JsonObject[]): JsonObje
         }
       }
     }
+    if (Array.isArray(candidate.verification_command_receipts)) {
+      for (const item of candidate.verification_command_receipts) {
+        const record = asObject(item);
+        const toolCallId = asString(record.tool_call_id);
+        if (toolCallId) verificationReceipts.set(toolCallId, record);
+      }
+    }
   }
   return {
     schema: "zyra.runtime-obligation-evidence/v1",
     successful_skill_invocations: [...skills.values()].slice(-64),
     successful_executed_paths: [...paths.values()].slice(-64),
+    verification_command_receipts: [...verificationReceipts.values()].slice(-64),
     workspace_mutation_count: workspaceMutationCount,
   };
 }

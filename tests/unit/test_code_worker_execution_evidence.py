@@ -76,3 +76,64 @@ def test_execution_evidence_preserves_runtime_obligation_receipts() -> None:
     evidence = _execution_evidence(result)
 
     assert evidence["obligation_evidence"] == obligation
+
+
+def test_execution_evidence_projects_redacted_verification_command_receipts() -> None:
+    obligation = {
+        "schema": "zyra.runtime-obligation-evidence/v1",
+        "successful_skill_invocations": [],
+        "successful_executed_paths": [],
+        "verification_command_receipts": [
+            {
+                "schema": "zyra.verification-command-receipt/v1",
+                "tool_call_id": "tool-wait",
+                "originating_tool_call_id": "tool-shell",
+                "scope": "shell:pytest:tests/unit",
+                "status": "failed",
+                "exit_code": 1,
+                "workspace_mutation_count": 3,
+            }
+        ],
+        "workspace_mutation_count": 3,
+    }
+    result = SimpleNamespace(
+        session_snapshot={
+            "typescript_runtime_snapshot": {
+                "modelIteration": {"finalText": "done"},
+                "obligationEvidence": obligation,
+                "e01Runtime": {
+                    "query": {
+                        "toolCalls": [
+                            {
+                                "toolCallId": "tool-shell",
+                                "name": "shell",
+                                "arguments": {
+                                    "command": (
+                                        "python -m pytest tests/unit "
+                                        "--token sk-secret-value "
+                                        "C:\\Users\\libin\\private\\case.py"
+                                    )
+                                },
+                            }
+                        ]
+                    }
+                },
+            }
+        },
+        event_records=(),
+        tool_call_count=2,
+        turn_count=1,
+        artifacts=(),
+    )
+
+    evidence = _execution_evidence(result)
+
+    receipt = evidence["obligation_evidence"][
+        "verification_command_receipts"
+    ][0]
+    assert receipt["status"] == "failed"
+    assert receipt["exit_code"] == 1
+    assert "tests/unit" in receipt["command"]
+    assert "sk-secret-value" not in receipt["command"]
+    assert "libin" not in receipt["command"]
+    assert "[REDACTED]" in receipt["command"]

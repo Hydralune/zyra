@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -22,6 +23,34 @@ from zyra_core import (
 )
 
 GRAPH_VERSION = "m3-symbolic-v1"
+
+_COMMAND_SECRET_PATTERNS = (
+    re.compile(r"(?i)\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}"),
+    re.compile(r"(?i)\bsk-[A-Za-z0-9._-]{8,}"),
+    re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^@\s/]+@"),
+    re.compile(
+        r"(?i)((?:api[_-]?key|access[_-]?token|token|password|passwd|secret|"
+        r"authorization|credential)[\"']?\s*[:=]\s*[\"']?)[^\s,;}\\\]\"']{4,}"
+    ),
+    re.compile(
+        r"(?i)((?:--?|/)(?:api[-_]?key|access[-_]?token|token|password|passwd|"
+        r"secret|authorization|credential)(?:=|\s+))[\"']?[^\s,;\"']+"
+    ),
+)
+
+
+def _redacted_command_evidence(value: Any) -> str:
+    text = str(value or "").replace("\x00", "")
+    for pattern in _COMMAND_SECRET_PATTERNS:
+        text = pattern.sub(
+            lambda match: (
+                f"{match.group(1)}[REDACTED]{'@' if '://' in match.group(1) else ''}"
+                if match.lastindex and match.group(1)
+                else "[REDACTED]"
+            ),
+            text,
+        )
+    return text[:4096]
 
 
 @dataclass(frozen=True, slots=True)
@@ -700,6 +729,47 @@ def _commit_canonical_task_outcome(
         failed_conditions, (str, bytes)
     ):
         failed_conditions = ()
+    raw_command_evidence = state.metadata.get("verification_command_evidence")
+    raw_receipts = (
+        raw_command_evidence.get("receipts")
+        if isinstance(raw_command_evidence, Mapping)
+        and raw_command_evidence.get("schema")
+        == "zyra.verification-command-evidence/v1"
+        else ()
+    )
+    command_receipts: list[dict[str, Any]] = []
+    if isinstance(raw_receipts, Sequence) and not isinstance(
+        raw_receipts,
+        (str, bytes, bytearray),
+    ):
+        for item in raw_receipts[:64]:
+            if not isinstance(item, Mapping):
+                continue
+            command = _redacted_command_evidence(item.get("command"))
+            status_value = str(item.get("status") or "")
+            tool_call_id = str(item.get("tool_call_id") or "")[:256]
+            if (
+                not command.strip()
+                or not tool_call_id
+                or status_value not in {"passed", "failed", "skipped"}
+            ):
+                continue
+            receipt: dict[str, Any] = {
+                "schema": "zyra.verification-command-receipt/v1",
+                "tool_call_id": tool_call_id,
+                "originating_tool_call_id": str(
+                    item.get("originating_tool_call_id") or tool_call_id
+                )[:256],
+                "scope": str(item.get("scope") or "")[:256],
+                "label": str(
+                    item.get("label") or item.get("scope") or "verification command"
+                )[:256],
+                "command": command,
+                "status": status_value,
+            }
+            if isinstance(item.get("exit_code"), int):
+                receipt["exit_code"] = int(item["exit_code"])
+            command_receipts.append(receipt)
     outcome = {
         "schema": "zyra.task-outcome/v1",
         "revision": revision,
@@ -749,12 +819,10 @@ def _commit_canonical_task_outcome(
                     if str(item).strip()
                 ][:128],
             },
-            # The final verifier currently owns condition evidence but does not
-            # yet own a command-execution receipt stream. Keep that absence
-            # explicit so product clients never invent commands from a pass.
             "command_evidence": {
-                "status": "not_recorded",
-                "receipts": [],
+                "schema": "zyra.verification-command-evidence/v1",
+                "status": "recorded" if command_receipts else "not_recorded",
+                "receipts": command_receipts,
             },
         },
         "diagnostics": to_jsonable(tuple(diagnostics)),

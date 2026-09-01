@@ -136,6 +136,46 @@ describe("product file, verification, and failure results", () => {
     expect(rendered).not.toContain("runtime.")
   })
 
+  test("preserves canonical command, status, and exit code receipts", () => {
+    const completed = task("completed", {
+      canonical_task_outcome: {
+        schema: "zyra.task-outcome/v1",
+        verification: {
+          final_verifier: { passed: true, checks: [] },
+          delivery_verifier: { passed: true, checks: [] },
+          completion_gate: { hard_conditions_passed: true, failed_conditions: [] },
+          command_evidence: {
+            schema: "zyra.verification-command-evidence/v1",
+            status: "recorded",
+            receipts: [
+              {
+                schema: "zyra.verification-command-receipt/v1",
+                label: "unit tests",
+                command: "python -m pytest tests/unit",
+                status: "passed",
+                exit_code: 0,
+              },
+              { command: "", status: "passed" },
+            ],
+          },
+        },
+      },
+    })
+
+    const state = reduceProductEvents(projectProductEvents({ task: completed }))
+
+    expect(state.verification?.status).toBe("passed")
+    expect(state.verification?.commandEvidence).toBe("recorded")
+    expect(state.verification?.checks).toContainEqual({
+      source: "command",
+      name: "unit tests",
+      command: "python -m pytest tests/unit",
+      status: "passed",
+      summary: undefined,
+      exitCode: 0,
+    })
+  })
+
   test("renders permission risk, expiry, and an unambiguous request identity", () => {
     const running = { ...task("completed", {}), status: "running", terminal: false, active: true }
     const events = projectProductEvents({

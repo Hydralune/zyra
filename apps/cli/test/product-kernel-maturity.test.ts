@@ -253,6 +253,53 @@ describe("canonical diff review contracts", () => {
     })).toThrow("path-disclosure")
   })
 
+  test("represents added, deleted, renamed, and binary change semantics", () => {
+    const manifest = parseProductDiffManifest({
+      schema: "zyra.diff-review-manifest.v1",
+      physical_path_disclosed: false,
+      diff_id: "diff_semantics",
+      source: { artifact_revision: "revision_semantics" },
+      files: [
+        { file_id: "added", path: "src/added.ts", kind: "added", additions: 2 },
+        { file_id: "deleted", path: "src/deleted.ts", kind: "deleted", deletions: 3 },
+        {
+          file_id: "renamed",
+          path: "src/new-name.ts",
+          previous_path: "src/old-name.ts",
+          kind: "renamed",
+        },
+        {
+          file_id: "binary",
+          path: "assets/logo.bin",
+          kind: "binary",
+          change_kind: "modified",
+          binary: true,
+        },
+      ],
+    })
+
+    expect(manifest.files).toEqual([
+      expect.objectContaining({ path: "src/added.ts", kind: "added", binary: false }),
+      expect.objectContaining({ path: "src/deleted.ts", kind: "deleted", binary: false }),
+      expect.objectContaining({ path: "src/new-name.ts", previousPath: "src/old-name.ts", kind: "renamed" }),
+      expect.objectContaining({ path: "assets/logo.bin", kind: "modified", binary: true }),
+    ])
+    expect(() => parseProductDiffManifest({
+      schema: "zyra.diff-review-manifest.v1",
+      physical_path_disclosed: false,
+      diff_id: "diff_escape",
+      source: { artifact_revision: "revision_escape" },
+      files: [{ file_id: "escape", path: "../secret.txt", kind: "modified" }],
+    })).toThrow("workspace-logical path")
+    expect(() => parseProductDiffManifest({
+      schema: "zyra.diff-review-manifest.v1",
+      physical_path_disclosed: false,
+      diff_id: "diff_bad_binary",
+      source: { artifact_revision: "revision_bad_binary" },
+      files: [{ file_id: "bad", path: "logo.bin", kind: "binary", binary: false }],
+    })).toThrow("binary kind")
+  })
+
   test("refuses secret, quarantined, and unverified patch artifacts", () => {
     const task = completedTask(7, "review", "session_review")
     task.artifacts = [

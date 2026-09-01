@@ -281,11 +281,13 @@ function verificationSummary(task: TaskProjection): {
   for (const name of failedConditions) checks.push(Object.freeze({ source: "completion_gate", name, status: "failed" }))
   const commandEvidence = object(verification.command_evidence)
   const receipts = Array.isArray(commandEvidence.receipts) ? commandEvidence.receipts.slice(0, 256) : []
+  let admittedCommandReceipts = 0
   for (const item of receipts) {
     const receipt = object(item)
     const command = content(receipt.command, 4_096)
     const status = text(receipt.status, 32)
     if (!command || !["passed", "failed", "skipped", "not_run"].includes(status ?? "")) continue
+    admittedCommandReceipts += 1
     checks.push(Object.freeze({
       source: "command",
       name: text(receipt.label, 256) ?? command.slice(0, 256),
@@ -295,7 +297,7 @@ function verificationSummary(task: TaskProjection): {
       exitCode: Number.isSafeInteger(receipt.exit_code) ? Number(receipt.exit_code) : undefined,
     }))
   }
-  const commandEvidenceStatus = receipts.length ? "recorded" as const : "not_recorded" as const
+  const commandEvidenceStatus = admittedCommandReceipts > 0 ? "recorded" as const : "not_recorded" as const
   const failedDetails = [
     ...failedConditions,
     ...checks.filter((item) => item.status === "failed" && item.source !== "completion_gate").map((item) => `${item.source}: ${item.name}`),

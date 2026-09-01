@@ -29,7 +29,10 @@ from zyra_runtime.sandbox_gateway.integration_factory import (
 from zyra_runtime.sandbox_gateway.integration_host import GatewayHostProcessRuntime
 
 from .code_worker_bridge import CodeWorkerSidecarClient
-from .typescript_claude_runtime import TypeScriptClaudeQueryEngine
+from .typescript_claude_runtime import (
+    TypeScriptClaudeQueryEngine,
+    _verification_command_receipts,
+)
 from .retrieval_context_runtime import WorkerRetrievalContext, WorkerRetrievalContextRuntime
 
 
@@ -746,6 +749,15 @@ def _execution_evidence(result: Any) -> dict[str, Any]:
     obligation_evidence = _mapping(
         typescript_snapshot.get("obligationEvidence")
     )
+    obligation_evidence = dict(obligation_evidence)
+    verification_receipts = _verification_command_receipts(
+        typescript_snapshot,
+        obligation_evidence,
+    )
+    if verification_receipts:
+        obligation_evidence["verification_command_receipts"] = (
+            verification_receipts
+        )
     final_text = str(model_iteration.get("finalText") or "").strip()
     provider_calls: list[dict[str, Any]] = []
     tool_results: list[dict[str, Any]] = []

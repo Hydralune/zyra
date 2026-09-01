@@ -404,10 +404,12 @@ def test_multifile_manifest_covers_add_delete_rename_and_binary(integration) -> 
     manifest = _manifest(service, artifact)
     files = {item["path"]: item for item in manifest["files"]}
     assert files["src/renamed.txt"]["kind"] == "renamed"
+    assert files["src/renamed.txt"]["change_kind"] == "renamed"
     assert files["src/renamed.txt"]["previous_path"] == "src/old.txt"
     assert files["src/added.txt"]["kind"] == "added"
     assert files["src/delete.txt"]["kind"] == "deleted"
     assert files["src/logo.bin"]["kind"] == "binary"
+    assert files["src/logo.bin"]["change_kind"] == "modified"
     assert files["src/logo.bin"]["binary"] is True
     assert manifest["totals"]["files"] == 4
     assert manifest["totals"]["binary_files"] == 1

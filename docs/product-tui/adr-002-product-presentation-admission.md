@@ -18,6 +18,7 @@
 6. 产品 reducer 使用 `zyra.ui-event/v2`。v2 增加 activity category/severity、tool duration/artifact、worker summary 和 task issue；旧 task 仍从 canonical task + runtime frames 重新投影，不依赖持久化的 v1 UI state。
 7. task terminal state、final answer、permission custody、workspace delivery 和 verifier 仍分别以现有 canonical API/snapshot 为准，presentation 不覆盖这些所有权。
 8. `stdout` / `stderr` 正文继续由 runtime artifact owner 持有；presentation 只准入 artifact identity、stream、脱敏标题、media type 和有上限的字节数。CLI 通过既有 server-redacted range API 按需读取最多 64 KiB，不把原始输出复制进 transcript 或 UI event state。
+9. verification command 由 TypeScript progressive execution 的同一判定函数形成终态回执；后台 spawn 不计为通过，`shell_wait` 绑定原始 shell call。Python custody owner 只在安全投影时从既有私有 tool-call snapshot 补入脱敏命令，task outcome 最多保留 64 条；最终 verifier 通过但没有命令回执时继续明确显示 `not_recorded`。
 
 ## 当前准入集合
 
@@ -32,4 +33,4 @@
 
 - 产品 TUI 不再按 `runtime.*` 名称猜测用户语义。
 - 新增 runtime 内部事件不会自动污染 transcript。
-- runtime-event-spine 已有正式 assistant presentation 准入，但当前物理 CodeWorker 主路径仍不把私有 provider token delta 接入可重放 API ingress；因此真实 provider 运行仍以 canonical final answer 收敛。完整 verification command 和所有 provider/tool 的细粒度 presentation 也仍未完成；覆盖矩阵必须继续标记为部分实现，不能因 v2 契约存在而宣称 Phase D 完成。
+- runtime-event-spine 已有正式 assistant presentation 准入，但当前物理 CodeWorker 主路径仍不把私有 provider token delta 接入可重放 API ingress；因此真实 provider 运行仍以 canonical final answer 收敛。verification command receipt 已形成正式链路，但所有 provider/tool 的细粒度 presentation 和 Phase G 真实负载复验仍未完成；不能因单项契约存在而宣称 Phase D 完成。
