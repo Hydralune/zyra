@@ -594,7 +594,35 @@ docker ps
 
 不要通过操作其他 compose project、历史运行或 Evaluator 私有容器来规避权限问题。
 
-## 12. 交接检查清单
+## 12. 正式发布安装、迁移和卸载
+
+日常开发和教师演示使用前文的源码工作区入口。需要验证“交给另一台机器后能否独立安装”时，使用正式 release 工具，不要复制当前 `.venv` 或 `node_modules`。
+
+先在干净提交上构建两份可重复归档：
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\run_release_pipeline.py `
+  --release-id zyra-替换为提交号 `
+  --expected-commit 替换为完整提交号 `
+  --benchmark-commit 替换为已验证benchmark提交号 `
+  --output-root .tmp\release-candidate `
+  --format zip
+```
+
+发布前必须对上一步生成的精确 archive 做 clean-install。它会在系统临时目录中新建 venv，安装带 hash 的 Python 依赖和 frozen Bun 依赖，构建并探测 Node/Bun CLI 与 Web，执行 transaction install、schema migration、daemon/Web start、semantic health、stop、uninstall 和端口释放：
+
+```powershell
+.\.venv\Scripts\python.exe -m zyra_productization.release.cli `
+  clean-install .tmp\release-candidate\zyra-替换为提交号.zip `
+  --expected-commit 替换为完整提交号 `
+  --output .tmp\clean-install-receipt.json
+```
+
+只有 receipt 顶层 `ready` 为 `true`，且 `source_commit`、`archive_sha256` 与候选一致时才能交付。真实依赖首次下载可能需要二十分钟以上，当前门禁单命令上限为 30 分钟、CI clean-install gate 上限为 60 分钟。
+
+正式安装是事务化的：receipt 中记录 transaction id。升级 state 使用 `migrate <transaction-id> --target-version <n>`，回退使用 `rollback <transaction-id> --target-version <n>`，卸载使用 `uninstall <transaction-id>`；除非明确要删除用户状态，不加 `--purge-state`。详见 `docs/product-tui/release-evidence-20260901.md`。
+
+## 13. 交接检查清单
 
 交给下一位维护者前，至少确认：
 
@@ -610,7 +638,7 @@ docker ps
 - [ ] 对方知道比赛成功必须以独立 Evaluator 为准；
 - [ ] 密钥、运行私有数据和 Evaluator 私有材料没有进入 Git。
 
-## 13. 相关文档
+## 14. 相关文档
 
 - 项目概览：[`README.md`](README.md)
 - CLI 设计与完整命令面：[`apps/cli/README.md`](apps/cli/README.md)
