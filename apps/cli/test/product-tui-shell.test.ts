@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { PassThrough, Writable } from "node:stream"
 import { ZYRA_UI_EVENT_SCHEMA, type ZyraUiEvent } from "../src/presentation/events.ts"
 import { LiveProductRenderer } from "../src/tui/live-renderer.ts"
+import { pickProductItem } from "../src/tui/overlay/list-picker.ts"
 import { ProductTuiShell } from "../src/tui/shell.ts"
 import { emergencyTerminalCleanup, TerminalSessionGuard } from "../src/tui/terminal-session.ts"
 
@@ -223,6 +224,28 @@ describe("product TUI shell", () => {
     expect(stdin.raw).toBe(false)
     expect(stdin.isPaused()).toBe(true)
     shell.close()
+  })
+
+  test("accepts input at the first observable picker paint", async () => {
+    const stdin = new TtyInput()
+    const output = new TtyOutput()
+    let submitted = false
+    const picking = pickProductItem({
+      stdin,
+      output,
+      title: "模型",
+      items: [{ id: "model-1", label: "Model 1" }],
+      onChange: (overlay) => {
+        if (overlay && !submitted) {
+          submitted = true
+          stdin.write("\r")
+        }
+      },
+    })
+
+    await expect(picking).resolves.toMatchObject({ id: "model-1" })
+    expect(stdin.raw).toBe(false)
+    expect(stdin.isPaused()).toBe(true)
   })
 
   test("pages bounded content and restores the terminal after Escape", async () => {

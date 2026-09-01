@@ -42,7 +42,6 @@ export async function pickProductItem(input: {
   stdin.setRawMode?.(true)
   stdin.resume()
   if (input.bracketedPaste !== false) input.output.write("\u001b[?2004h")
-  update()
   try {
     return await new Promise<ProductPickerItem | undefined>((resolve, reject) => {
       let pending = ""
@@ -86,6 +85,10 @@ export async function pickProductItem(input: {
       }
       stdin.on("data", data)
       stdin.once("end", end)
+      // Publishing the overlay is the observable readiness boundary.  Attach
+      // input first so a user (or PTY automation) cannot press Enter in the
+      // small window between the first paint and listener registration.
+      update()
     })
   } finally {
     stdin.setRawMode?.(false)
