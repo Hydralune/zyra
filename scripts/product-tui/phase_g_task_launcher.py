@@ -22,7 +22,6 @@ from zyra_workers.terminal import PtySpawnOptions, spawn_pty
 
 ROOT = Path(__file__).resolve().parents[2]
 ANSI = re.compile(rb"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))", re.DOTALL)
-TASK_ID = re.compile(r"\btask_[a-f0-9]{8,}\b")
 DEVELOPER_EVENT_FLOOD = re.compile(rb"\b\d{6}\s+(?:event|model|artifact|error)\s+runtime\.")
 MAX_CAPTURE_BYTES = 8 * 1024 * 1024
 MAX_GOAL_BYTES = 256 * 1024
@@ -58,15 +57,35 @@ def _visible(capture: RollingCapture) -> str:
     return ANSI.sub(b"", capture.tail()).decode("utf-8", "replace")
 
 
-def _wait_for_task(capture: RollingCapture, timeout: float) -> str:
+def _canonical_tasks(base_url: str) -> dict[str, dict[str, Any]]:
+    with urlopen(f"{base_url}/tasks?limit=1000", timeout=10) as response:
+        payload = json.load(response)
+    tasks = payload.get("tasks", payload)
+    if not isinstance(tasks, list):
+        raise AssertionError("canonical task list response did not contain a task list")
+    result: dict[str, dict[str, Any]] = {}
+    for task in tasks:
+        if not isinstance(task, dict):
+            raise AssertionError("canonical task list contained a non-object task")
+        task_id = task.get("task_id")
+        if not isinstance(task_id, str) or not task_id:
+            raise AssertionError("canonical task list contained a task without an identity")
+        result[task_id] = task
+    return result
+
+
+def _wait_for_new_task(base_url: str, previous: set[str], timeout: float) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
     while True:
-        match = TASK_ID.search(_visible(capture))
-        if match:
-            return match.group(0)
+        tasks = _canonical_tasks(base_url)
+        created = set(tasks).difference(previous)
+        if len(created) == 1:
+            return tasks[created.pop()]
+        if len(created) > 1:
+            raise AssertionError(f"expected exactly one new canonical task, received {sorted(created)!r}")
         if time.monotonic() >= deadline:
-            raise TimeoutError("product TUI did not expose a task identity")
-        time.sleep(0.02)
+            raise TimeoutError("product TUI did not create a new canonical task")
+        time.sleep(0.1)
 
 
 def _wait_for(capture: RollingCapture, marker: str, timeout: float) -> None:
@@ -128,10 +147,10 @@ def main() -> int:
         raise SystemExit("--report must not overwrite an existing file")
     report.parent.mkdir(parents=True, exist_ok=True)
 
+    previous_tasks = set(_canonical_tasks(arguments.base_url))
     command = subprocess.list2cmdline([
         "node",
         str(ROOT / "apps" / "cli" / "dist" / "zyra.js"),
-        goal,
         "--base-url",
         arguments.base_url,
         "--autostart=false",
@@ -158,9 +177,15 @@ def main() -> int:
         started = time.monotonic()
         try:
             _wait_for(capture, ">_ Zyra", arguments.timeout)
-            task_id = _wait_for_task(capture, arguments.timeout)
-            startup_ms = round((time.monotonic() - started) * 1_000, 3)
+            composer_ready_ms = round((time.monotonic() - started) * 1_000, 3)
+            submitted = time.monotonic()
+            _type_command(process, goal)
+            created = _wait_for_new_task(arguments.base_url, previous_tasks, arguments.timeout)
+            task_id = str(created["task_id"])
+            submit_to_canonical_ms = round((time.monotonic() - submitted) * 1_000, 3)
             before = _canonical_task(arguments.base_url, task_id)
+            if before.get("user_goal") != goal:
+                raise AssertionError("canonical task goal did not exactly match the composer submission")
             _type_command(process, "/status")
             _wait_for(capture, f"task {task_id} ·", arguments.timeout)
             _type_command(process, "/exit")
@@ -180,7 +205,8 @@ def main() -> int:
                 "canonical_before_detach": {"status": before.get("status"), "terminal": before.get("terminal")},
                 "canonical_after_detach": {"status": after.get("status"), "terminal": after.get("terminal")},
                 "tui": {
-                    "startup_ms": startup_ms,
+                    "composer_ready_ms": composer_ready_ms,
+                    "submit_to_canonical_ms": submit_to_canonical_ms,
                     "exit_code": exit_code,
                     "output_bytes": capture.total_bytes,
                     "developer_event_flood_visible": DEVELOPER_EVENT_FLOOD.search(material) is not None,
