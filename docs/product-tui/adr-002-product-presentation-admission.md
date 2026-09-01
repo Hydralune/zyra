@@ -36,8 +36,8 @@
 
 - 产品 TUI 不再按 `runtime.*` 名称猜测用户语义。
 - 新增 runtime 内部事件不会自动污染 transcript。
-- provider 解码帧已接入 typed runtime event；带 `runtime_event_bridge` 的 CodeWorker 路径会继续进入 live-only message bus、API SSE 和 CLI reducer。真实 provider 集成测试覆盖 tool-call round、tool observation、最终文本和 started/ended 持久边界；delta 的分块、脱敏与 live-only custody 由相邻 runtime/spine 集成测试覆盖。
-- 比赛主路径的 `provider-code-worker` 运行在独立 deployment-node 进程；其中途 runtime event 尚未通过节点 IPC 回传 API，因此该路径目前只能在 dispatch 完成后返回不含 delta 正文的公开事件。完成节点级流式转发前，不得声称比赛任务已经端到端实时输出。
+- provider 解码帧已接入 typed runtime event；带 `runtime_event_bridge` 的 CodeWorker 路径会继续进入 live-only message bus、API SSE 和 CLI reducer。独立 deployment-node 现在通过认证 HTTP side channel 暴露按 attempt 绑定、带 ordinal/digest 的内存有界 presentation queue；只有 dispatcher 在执行请求中显式订阅时节点才创建队列，未订阅路径不保留 attempt 队列。scheduler 在阻塞的 `/execute` 同时轮询该通道，并把经过 task/run/workload/digest 校验的事件交给 API runtime ingress。通道失败只形成有界告警，不改变任务执行结果；队列溢出显式报告缺口并从仍可用的连续 ordinal 恢复。
+- 真实 provider 集成测试已经证明 tool-call round、tool observation、最终文本以及 started/delta/ended 都在 physical worker 返回 receipt 之前产生；真实独立节点测试证明阻塞 `/execute` 时认证 `/runtime-events` 可以并发响应，dispatcher 测试证明 receipt 返回前可向上游转发。完整的比赛 daemon/provider → node → API SSE → CLI PTY 单任务证据仍须在真实长程负载门中取得；在该证据形成前，只能声称各实际边界及其组合已实现并通过测试，不能声称比赛任务的端到端实时输出已经验收。
 - Web event ingress 已验证并分发 `kind: live`，但默认 Web 产品 transcript 尚未消费该瞬时 observer；CLI/Web 的最终 canonical 事实仍一致，实时呈现对账保持未完成。
 - live delta 不可重放是有意的瞬时语义，不替代 durable cursor/snapshot。CLI 断线或 daemon 重启期间缺失的中间字符只允许由 durable ended/final answer 收敛，不能伪造 replay。
 - verification command receipt 已形成正式链路，但 Phase G 真实长程负载、Web 实时视图和发布级稳定性复验仍未完成；不能因该链路成立而宣称 Phase D 或整份任务完成。

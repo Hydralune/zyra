@@ -215,6 +215,25 @@ class DeploymentNodeClient:
             use_default_timeout=False,
         )
 
+    def runtime_events(
+        self,
+        *,
+        attempt_id: str,
+        after_ordinal: int = 0,
+        limit: int = 256,
+        release: bool = False,
+    ) -> dict[str, Any]:
+        return self.request(
+            "POST",
+            "/runtime-events",
+            {
+                "attempt_id": attempt_id,
+                "after_ordinal": after_ordinal,
+                "limit": limit,
+                "release": release,
+            },
+        )
+
     def inject_fault(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         return self.request("POST", "/faults", payload)
 

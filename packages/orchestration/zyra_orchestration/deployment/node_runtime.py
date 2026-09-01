@@ -9,7 +9,7 @@ import sqlite3
 import threading
 import time
 import zlib
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Mapping
 from contextlib import closing
 from pathlib import Path
@@ -75,7 +75,15 @@ _SECRET_REFERENCE_FIELDS = frozenset(
         "version",
     }
 )
-_RUNTIME_IMPLEMENTATION_VERSION = "phase2-operator-execution-v8"
+_RUNTIME_IMPLEMENTATION_VERSION = "phase2-operator-execution-v9"
+_NODE_RUNTIME_EVENT_QUEUE_CAPACITY = 20_000
+_NODE_RUNTIME_EVENT_PHASES = frozenset(
+    {
+        "assistant_text_started",
+        "assistant_text_delta",
+        "assistant_text_ended",
+    }
+)
 _ALLOWED_OPERATIONS = {
     "analyze-text",
     "compress-text",
@@ -454,6 +462,9 @@ class DeploymentNodeRuntime:
         self._active_dispatches = 0
         self._heartbeat_sequence = 0
         self._provider_runtime: LiveProviderDispatchRuntime | None = None
+        self._runtime_event_queues: dict[str, deque[dict[str, Any]]] = {}
+        self._runtime_event_ordinals: dict[str, int] = {}
+        self._runtime_event_dropped_before: dict[str, int] = {}
         self._faults: dict[str, Any] = {
             "network_down": False,
             "provider_failure": False,
@@ -626,9 +637,128 @@ class DeploymentNodeRuntime:
             "observed_at": now_iso(),
         }
 
+    def runtime_event_page(
+        self,
+        *,
+        attempt_id: str,
+        after_ordinal: int = 0,
+        limit: int = 256,
+        release: bool = False,
+    ) -> dict[str, Any]:
+        """Read bounded transient runtime events for one authenticated dispatch.
+
+        These records are deliberately memory-only.  They provide a progress
+        channel while the canonical deployment receipt is still pending; a
+        node restart may discard them and the durable task/final-answer path
+        remains authoritative.
+        """
+
+        selected = str(attempt_id or "").strip()
+        if not selected or len(selected.encode("utf-8")) > 256:
+            raise ValueError("runtime event attempt_id is invalid")
+        if after_ordinal < 0:
+            raise ValueError("runtime event after_ordinal must be non-negative")
+        if not 1 <= limit <= 1_000:
+            raise ValueError("runtime event limit must be between 1 and 1000")
+        with self._lock:
+            queue = self._runtime_event_queues.get(selected, deque())
+            events = [
+                dict(item)
+                for item in queue
+                if int(item.get("ordinal") or 0) > after_ordinal
+            ][:limit]
+            next_ordinal = (
+                int(events[-1]["ordinal"])
+                if events
+                else max(after_ordinal, self._runtime_event_ordinals.get(selected, 0))
+            )
+            dropped_before = self._runtime_event_dropped_before.get(selected, 0)
+            if release:
+                self._runtime_event_queues.pop(selected, None)
+                self._runtime_event_ordinals.pop(selected, None)
+                self._runtime_event_dropped_before.pop(selected, None)
+        return {
+            "schema": "zyra.deployment-node-runtime-events/v1",
+            "node_id": self.node_id,
+            "generation_id": self.generation_id,
+            "attempt_id": selected,
+            "events": events,
+            "next_ordinal": next_ordinal,
+            "dropped_before_ordinal": dropped_before,
+            "released": bool(release),
+            "durable": False,
+            "canonical_owner": False,
+        }
+
+    def _append_runtime_event(
+        self,
+        *,
+        attempt_id: str,
+        workload: Workload,
+        payload: Mapping[str, Any],
+        transport_sequence: int,
+    ) -> None:
+        phase = str(payload.get("phase") or "")
+        if phase not in _NODE_RUNTIME_EVENT_PHASES:
+            return
+        if (
+            str(payload.get("run_id") or "") != workload.run_id
+            or str(payload.get("task_id") or "") != workload.task_id
+            or payload.get("schema") != "zyra.provider-assistant-presentation/v1"
+            or payload.get("delta_kind") != "assistant_text"
+        ):
+            raise ValueError("node runtime assistant event binding is invalid")
+        normalized = dict(payload)
+        encoded = canonical_json(normalized)
+        if len(encoded) > 8 * 1024:
+            raise ValueError("node runtime assistant event exceeds 8 KiB")
+        with self._lock:
+            queue = self._runtime_event_queues.setdefault(
+                attempt_id,
+                deque(maxlen=_NODE_RUNTIME_EVENT_QUEUE_CAPACITY),
+            )
+            if len(queue) == queue.maxlen and queue:
+                self._runtime_event_dropped_before[attempt_id] = int(
+                    queue[0].get("ordinal") or 0
+                )
+            ordinal = self._runtime_event_ordinals.get(attempt_id, 0) + 1
+            self._runtime_event_ordinals[attempt_id] = ordinal
+            queue.append(
+                {
+                    "schema": "zyra.deployment-node-runtime-event/v1",
+                    "attempt_id": attempt_id,
+                    "workload_id": workload.workload_id,
+                    "run_id": workload.run_id,
+                    "task_id": workload.task_id,
+                    "ordinal": ordinal,
+                    "transport_sequence": max(0, int(transport_sequence)),
+                    "phase": phase,
+                    "payload": normalized,
+                    "payload_digest": digest(normalized),
+                    "observed_at": now_iso(),
+                }
+            )
+
     def execute(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         workload = self._parse_workload(payload)
         attempt_id = str(payload.get("attempt_id") or new_id("attempt"))
+        runtime_event_stream = payload.get("runtime_event_stream")
+        if runtime_event_stream is None:
+            runtime_event_stream_enabled = False
+        elif (
+            isinstance(runtime_event_stream, Mapping)
+            and runtime_event_stream.get("schema")
+            == "zyra.deployment-runtime-event-stream-request/v1"
+            and runtime_event_stream.get("content_policy")
+            == "assistant-presentation-only"
+            and runtime_event_stream.get("durable") is False
+            and isinstance(runtime_event_stream.get("enabled"), bool)
+        ):
+            runtime_event_stream_enabled = bool(
+                runtime_event_stream.get("enabled")
+            )
+        else:
+            raise ValueError("deployment runtime-event stream request is invalid")
         idempotency_key = str(
             payload.get("idempotency_key")
             or workload.idempotency_key
@@ -683,7 +813,11 @@ class DeploymentNodeRuntime:
                     profile=self.policy.profile.value,
                     retryable=True,
                 )
-            result = self._execute_operation(workload)
+            result = self._execute_operation(
+                workload,
+                attempt_id=attempt_id,
+                runtime_event_stream_enabled=runtime_event_stream_enabled,
+            )
             artifact = self._write_artifact(
                 workload,
                 attempt_id=attempt_id,
@@ -946,7 +1080,13 @@ class DeploymentNodeRuntime:
                     operation="admit",
                     details={"path": path},
                 )
-    def _execute_operation(self, workload: Workload) -> dict[str, Any]:
+    def _execute_operation(
+        self,
+        workload: Workload,
+        *,
+        attempt_id: str,
+        runtime_event_stream_enabled: bool,
+    ) -> dict[str, Any]:
         operation = workload.operation
         payload = dict(workload.payload)
         if operation == "analyze-text":
@@ -1046,7 +1186,12 @@ class DeploymentNodeRuntime:
                 "capability_only": True,
             }
         if operation == "phase2-operator-execution":
-            return self._execute_phase2_operator(payload, workload)
+            return self._execute_phase2_operator(
+                payload,
+                workload,
+                attempt_id=attempt_id,
+                runtime_event_stream_enabled=runtime_event_stream_enabled,
+            )
         if operation == "physical-dispatch-proof":
             payload_digest = digest(payload)
             marker = (
@@ -1111,6 +1256,9 @@ class DeploymentNodeRuntime:
         self,
         payload: Mapping[str, Any],
         workload: Workload,
+        *,
+        attempt_id: str,
+        runtime_event_stream_enabled: bool,
     ) -> dict[str, Any]:
         operator = payload.get("operator")
         operator_ref = str(payload.get("operator_ref") or "")
@@ -1206,6 +1354,8 @@ class DeploymentNodeRuntime:
             ),
             layer_index=layer_index,
             workload=workload,
+            attempt_id=attempt_id,
+            runtime_event_stream_enabled=runtime_event_stream_enabled,
         )
         output_contract = tuple(
             str(item) for item in operator.get("output_contract") or () if str(item)
@@ -1321,6 +1471,8 @@ class DeploymentNodeRuntime:
         goal_contract: Mapping[str, Any] | None,
         layer_index: int,
         workload: Workload,
+        attempt_id: str = "",
+        runtime_event_stream_enabled: bool = False,
     ) -> dict[str, Any]:
         is_code_worker = bool(
             operator_ref.startswith("worker:provider-code-worker@")
@@ -1343,6 +1495,16 @@ class DeploymentNodeRuntime:
                 payload=payload,
                 node_id=self.node_id,
                 node_data_root=self.data_root,
+                runtime_event_sink=(
+                    lambda event, transport_sequence: self._append_runtime_event(
+                        attempt_id=attempt_id,
+                        workload=workload,
+                        payload=event,
+                        transport_sequence=transport_sequence,
+                    )
+                    if runtime_event_stream_enabled
+                    else None
+                ),
             )
             provider_call = dict(execution.get("provider_call") or {})
             provider_usage = dict(provider_call.get("usage") or {})

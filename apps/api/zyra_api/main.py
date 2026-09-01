@@ -343,10 +343,12 @@ import threading as _runtime_event_threading
 from pathlib import Path as _RuntimeEventPath
 
 from zyra_runtime.runtime_events import (
+    CodeWorkerRuntimeEventIngress,
     RuntimeEventApiFacade,
     RuntimeEventContractError,
     RuntimeEventProcessError,
     TypeScriptRuntimeEventPort,
+    WorkerIngressIdentity,
     get_runtime_event_spine,
     release_runtime_event_spine,
 )
@@ -7210,7 +7212,7 @@ def _ensure_phase2_production_workers(
             "phase2-operator-execution"
             not in tuple(str(item) for item in semantic.get("operations") or ())
             or semantic.get("runtime_implementation_version")
-            != "phase2-operator-execution-v8"
+            != "phase2-operator-execution-v9"
             or (profile is DeploymentProfile.CLOUD and not credential_ready)
         ):
             process, client, health = orchestrator.processes.start_node(
@@ -7222,7 +7224,7 @@ def _ensure_phase2_production_workers(
             "phase2-operator-execution"
             not in tuple(str(item) for item in semantic.get("operations") or ())
             or semantic.get("runtime_implementation_version")
-            != "phase2-operator-execution-v8"
+            != "phase2-operator-execution-v9"
         ):
             raise RuntimeError(
                 "the production deployment node does not expose the current "
@@ -7554,6 +7556,50 @@ def _production_physical_dispatch_port(
         model_id=model_id or "deepseek-v4-flash",
         execution_budget_ms=execution_budget_ms,
     )
+    runtime_ingress_lock = _runtime_event_threading.RLock()
+    runtime_ingresses: dict[str, CodeWorkerRuntimeEventIngress] = {}
+
+    def forward_runtime_event(record: Mapping[str, Any]) -> None:
+        payload_value = record.get("payload")
+        if not isinstance(payload_value, Mapping):
+            raise RuntimeEventContractError(
+                "deployment runtime event lacks a payload"
+            )
+        payload = dict(payload_value)
+        run_id = str(payload.get("run_id") or "")
+        task_id = str(payload.get("task_id") or "")
+        session_id = str(payload.get("session_id") or "")
+        worker_request_id = str(payload.get("worker_request_id") or "")
+        if (
+            run_id != state.run_id
+            or task_id != state.task_id
+            or not session_id
+            or not worker_request_id
+        ):
+            raise RuntimeEventContractError(
+                "deployment runtime event changed its canonical task binding"
+            )
+        with runtime_ingress_lock:
+            ingress = runtime_ingresses.get(worker_request_id)
+            if ingress is None:
+                ingress = CodeWorkerRuntimeEventIngress(
+                    get_runtime_event_spine_bridge(),
+                    WorkerIngressIdentity(
+                        run_id=run_id,
+                        task_id=task_id,
+                        session_id=session_id,
+                        worker_request_id=worker_request_id,
+                        node_id=str(payload.get("node_id") or "") or None,
+                        worker_id="provider-code-worker",
+                    ),
+                    fail_closed=True,
+                )
+                ingress.admit_query(sequence=0)
+                runtime_ingresses[worker_request_id] = ingress
+            ingress.emit_payload(
+                payload,
+                transport_sequence=int(record.get("transport_sequence") or 0),
+            )
     return PhysicalDispatchCallPort(
         task=task,
         catalog=orchestrator.catalog,
@@ -7562,6 +7608,7 @@ def _production_physical_dispatch_port(
         evidence_store=PhysicalDispatchEvidenceStore(
             artifact_root_path() / "physical-dispatch"
         ),
+        runtime_event_sink=(forward_runtime_event if is_model_code_worker else None),
     )
 
 

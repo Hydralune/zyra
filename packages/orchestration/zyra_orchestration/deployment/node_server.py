@@ -114,6 +114,13 @@ class DeploymentNodeHandler(BaseHTTPRequestHandler):
                 else HTTPStatus.SERVICE_UNAVAILABLE,
                 result,
             )
+        if method == "POST" and path == "/runtime-events":
+            return HTTPStatus.OK, runtime.runtime_event_page(
+                attempt_id=str(payload.get("attempt_id") or ""),
+                after_ordinal=int(payload.get("after_ordinal") or 0),
+                limit=int(payload.get("limit") or 256),
+                release=payload.get("release") is True,
+            )
         if method == "POST" and path == "/checkpoints/export":
             return HTTPStatus.OK, runtime.export_checkpoint(
                 str(payload.get("checkpoint_ref") or "")

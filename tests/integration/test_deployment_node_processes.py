@@ -88,6 +88,9 @@ def test_deployment_node_exits_when_its_supervisor_dies_abruptly(
     environment["ZYRA_STATE_ROOT"] = str(
         (tmp_path / "abrupt-supervisor-state").resolve()
     )
+    environment["ZYRA_DEPLOYMENT_PROFILE_BASE_PORT"] = str(
+        _free_port_block()
+    )
     process = subprocess.Popen(
         [
             sys.executable,
@@ -385,6 +388,80 @@ def test_three_real_profiles_dispatch_recover_and_restart(tmp_path: Path) -> Non
         }
         assert len({item.pid for item in observations.values()}) == 3
         assert all(item.network["in_process"] is False for item in observations.values())
+
+        # The execution request occupies one HTTP handler while the product
+        # progress channel is polled through another authenticated request.
+        # This guards the cross-process concurrency property required by live
+        # provider output, independent of provider availability in this test.
+        concurrent_workload = _workload(
+            DeploymentProfile.DEVICE,
+            task_id=new_id("task_concurrent_runtime_events"),
+            run_id=new_id("run_concurrent_runtime_events"),
+        )
+        concurrent_attempt_id = new_id("attempt_concurrent_runtime_events")
+        concurrent_response: list[dict[str, Any]] = []
+        concurrent_errors: list[BaseException] = []
+        clients[DeploymentProfile.DEVICE].inject_fault(
+            {"kind": "latency", "latency_ms": 750}
+        )
+
+        def execute_concurrent_workload() -> None:
+            try:
+                concurrent_response.append(
+                    clients[DeploymentProfile.DEVICE].execute(
+                        {
+                            "schema": "zyra.deployment-node-execution-request/v1",
+                            "attempt_id": concurrent_attempt_id,
+                            "idempotency_key": (
+                                concurrent_workload.idempotency_key
+                            ),
+                            "workload": concurrent_workload.semantic_dict(),
+                        },
+                        timeout_seconds=5,
+                    )
+                )
+            except BaseException as error:
+                concurrent_errors.append(error)
+
+        concurrent_thread = threading.Thread(
+            target=execute_concurrent_workload,
+            daemon=True,
+        )
+        concurrent_thread.start()
+        active_deadline = time.monotonic() + 3
+        while time.monotonic() < active_deadline:
+            if (
+                int(
+                    clients[DeploymentProfile.DEVICE]
+                    .health()
+                    .get("resource", {})
+                    .get("active_dispatches", 0)
+                )
+                > 0
+            ):
+                break
+            time.sleep(0.02)
+        assert concurrent_thread.is_alive()
+        runtime_page_started = time.monotonic()
+        runtime_page = clients[DeploymentProfile.DEVICE].runtime_events(
+            attempt_id=concurrent_attempt_id,
+        )
+        runtime_page_elapsed = time.monotonic() - runtime_page_started
+        assert runtime_page["schema"] == (
+            "zyra.deployment-node-runtime-events/v1"
+        )
+        assert runtime_page["events"] == []
+        assert runtime_page["durable"] is False
+        assert concurrent_thread.is_alive()
+        assert runtime_page_elapsed < 0.5
+        concurrent_thread.join(timeout=5)
+        clients[DeploymentProfile.DEVICE].inject_fault({"kind": "clear"})
+        assert concurrent_errors == []
+        assert concurrent_response[0]["status"] == "succeeded"
+        assert clients[DeploymentProfile.DEVICE].runtime_events(
+            attempt_id=concurrent_attempt_id,
+            release=True,
+        )["released"] is True
 
         placement = PlacementPolicyRuntime(catalog, store, environment={})
         dispatch = DeploymentDispatchRuntime(store)

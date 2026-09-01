@@ -476,6 +476,7 @@ def execute_code_worker_operator(
     payload: Mapping[str, Any],
     node_id: str,
     node_data_root: str | Path,
+    runtime_event_sink: Callable[..., None] | None = None,
 ) -> dict[str, Any]:
     """Run the existing TypeScript CodeWorker loop inside a deployment node.
 
@@ -818,6 +819,10 @@ def execute_code_worker_operator(
         # already provide this coherence through their dedicated mirror.
         "sandbox_gateway_stage_workspace_snapshot": benchmark_binding is None,
     }
+    if runtime_event_sink is not None:
+        if not callable(runtime_event_sink):
+            raise TypeError("runtime_event_sink must be callable")
+        runtime_services["runtime_event_payload_sink"] = runtime_event_sink
     browser_dispatch_port = BrowserWorkerActionDispatchPort(
         project_root=project_root,
         workspace_root=workspace_root,

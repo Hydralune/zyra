@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from zyra_orchestration.deployment import (
     DeploymentDispatchRuntime,
@@ -45,7 +45,7 @@ PHYSICAL_DISPATCH_MECHANISM_ID = "zyra_physical_dispatch"
 PHYSICAL_DISPATCH_MECHANISM_VERSION = "physical_dispatch_v1"
 PHYSICAL_DISPATCH_VALIDATION_SCHEMA = "zyra.physical-dispatch-validation/v1"
 PHYSICAL_REROUTE_VALIDATION_SCHEMA = "zyra.physical-reroute-validation/v1"
-PHASE2_OPERATOR_RUNTIME_VERSION = "phase2-operator-execution-v8"
+PHASE2_OPERATOR_RUNTIME_VERSION = "phase2-operator-execution-v9"
 
 _LOCATION_TO_PROFILE = {
     "local": DeploymentProfile.DEVICE,
@@ -866,6 +866,7 @@ class PhysicalDispatchCallPort:
         evidence_store: PhysicalDispatchEvidenceStore,
         enabled: bool = True,
         orchestrator_pid: int | None = None,
+        runtime_event_sink: Callable[[Mapping[str, Any]], None] | None = None,
     ) -> None:
         self.task = task
         self.catalog = catalog
@@ -873,6 +874,7 @@ class PhysicalDispatchCallPort:
         self.state_store = state_store
         self.evidence_store = evidence_store
         self.enabled = enabled
+        self.runtime_event_sink = runtime_event_sink
         self.orchestrator_pid = int(orchestrator_pid or os.getpid())
         self.dispatch_runtime = DeploymentDispatchRuntime(
             state_store,
@@ -1169,6 +1171,7 @@ class PhysicalDispatchCallPort:
                 ),
                 timeout_seconds=self.task.dispatch_timeout_seconds,
                 attempt_id=context.attempt_id,
+                runtime_event_sink=self.runtime_event_sink,
             )
         except DeploymentError as error:
             failure = self._record_failure(

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Mapping
 from dataclasses import replace
-from typing import Any
+from queue import Queue
+from typing import Any, Callable
 
 from .errors import DispatchRejected, DispatchTimeout, NodeProtocolError
 from .models import (
@@ -39,6 +41,7 @@ class DeploymentDispatchRuntime:
         checkpoint_ref: str = "",
         timeout_seconds: float | None = None,
         attempt_id: str = "",
+        runtime_event_sink: Callable[[Mapping[str, Any]], None] | None = None,
     ) -> DispatchReceipt:
         if not self.enabled:
             raise DispatchRejected(
@@ -103,14 +106,31 @@ class DeploymentDispatchRuntime:
                 "selected_profile": decision.selected_profile.value,
                 "candidate": candidate.to_dict(),
             },
+            "runtime_event_stream": {
+                "schema": "zyra.deployment-runtime-event-stream-request/v1",
+                "enabled": runtime_event_sink is not None,
+                "content_policy": "assistant-presentation-only",
+                "durable": False,
+            },
             "predecessor_attempt_id": predecessor_attempt_id,
         }
         started = time.monotonic()
+        runtime_event_warnings: list[str] = []
         try:
-            response = client.execute(
-                payload,
-                timeout_seconds=timeout_seconds,
-            )
+            if runtime_event_sink is None:
+                response = client.execute(
+                    payload,
+                    timeout_seconds=timeout_seconds,
+                )
+            else:
+                response, runtime_event_warnings = self._execute_with_runtime_events(
+                    client=client,
+                    payload=payload,
+                    workload=effective_workload,
+                    attempt_id=observed_attempt_id,
+                    timeout_seconds=timeout_seconds,
+                    sink=runtime_event_sink,
+                )
         except TimeoutError as error:
             raise DispatchTimeout(
                 "deployment_dispatch_timeout",
@@ -152,7 +172,207 @@ class DeploymentDispatchRuntime:
             causation_id=decision.decision_id,
             correlation_id=saved.dispatch_id,
         )
+        for warning in runtime_event_warnings[-16:]:
+            self.store.append_event(
+                "deployment.runtime_event_forwarding_warning",
+                {
+                    "attempt_id": observed_attempt_id,
+                    "workload_id": effective_workload.workload_id,
+                    "warning": warning[:1_000],
+                    "task_outcome_affected": False,
+                },
+                component_id=saved.node_id,
+                profile=saved.profile.value,
+                task_id=saved.task_id,
+                run_id=saved.run_id,
+                correlation_id=saved.dispatch_id,
+            )
         return saved
+
+    def _execute_with_runtime_events(
+        self,
+        *,
+        client: DeploymentNodeClient,
+        payload: Mapping[str, Any],
+        workload: Workload,
+        attempt_id: str,
+        timeout_seconds: float | None,
+        sink: Callable[[Mapping[str, Any]], None],
+    ) -> tuple[dict[str, Any], list[str]]:
+        outcome: Queue[tuple[str, Any]] = Queue(maxsize=1)
+
+        def execute() -> None:
+            try:
+                outcome.put(
+                    (
+                        "result",
+                        client.execute(payload, timeout_seconds=timeout_seconds),
+                    )
+                )
+            except BaseException as error:  # preserve the original transport failure.
+                outcome.put(("error", error))
+
+        thread = threading.Thread(
+            target=execute,
+            name=f"zyra-node-dispatch-{attempt_id[:32]}",
+            daemon=True,
+        )
+        thread.start()
+        after_ordinal = 0
+        warnings: list[str] = []
+        while thread.is_alive():
+            try:
+                previous_ordinal = after_ordinal
+                after_ordinal, _count, dropped_before = (
+                    self._forward_runtime_event_page(
+                        client=client,
+                        workload=workload,
+                        attempt_id=attempt_id,
+                        after_ordinal=after_ordinal,
+                        sink=sink,
+                    )
+                )
+                if dropped_before > previous_ordinal:
+                    warnings.append(
+                        "runtime-event presentation queue dropped ordinals "
+                        f"{previous_ordinal + 1}..{dropped_before}"
+                    )
+            except BaseException as error:
+                warnings.append(f"{type(error).__name__}: {error}")
+            thread.join(timeout=0.05)
+        thread.join()
+        for _ in range(64):
+            try:
+                previous_ordinal = after_ordinal
+                next_ordinal, count, dropped_before = (
+                    self._forward_runtime_event_page(
+                        client=client,
+                        workload=workload,
+                        attempt_id=attempt_id,
+                        after_ordinal=after_ordinal,
+                        sink=sink,
+                    )
+                )
+                if dropped_before > previous_ordinal:
+                    warnings.append(
+                        "runtime-event presentation queue dropped ordinals "
+                        f"{previous_ordinal + 1}..{dropped_before}"
+                    )
+                after_ordinal = next_ordinal
+                if count == 0:
+                    break
+            except BaseException as error:
+                warnings.append(f"{type(error).__name__}: {error}")
+                break
+        try:
+            client.runtime_events(
+                attempt_id=attempt_id,
+                after_ordinal=after_ordinal,
+                limit=1,
+                release=True,
+            )
+        except BaseException as error:
+            warnings.append(f"release {type(error).__name__}: {error}")
+        kind, value = outcome.get()
+        if kind == "error":
+            if isinstance(value, BaseException):
+                raise value
+            raise RuntimeError("deployment dispatch thread returned invalid error state")
+        if not isinstance(value, Mapping):
+            raise NodeProtocolError(
+                "deployment_node_response_shape_invalid",
+                "deployment node execution response is not an object",
+                operation="execute",
+            )
+        return dict(value), warnings
+
+    @staticmethod
+    def _forward_runtime_event_page(
+        *,
+        client: DeploymentNodeClient,
+        workload: Workload,
+        attempt_id: str,
+        after_ordinal: int,
+        sink: Callable[[Mapping[str, Any]], None],
+    ) -> tuple[int, int, int]:
+        page = client.runtime_events(
+            attempt_id=attempt_id,
+            after_ordinal=after_ordinal,
+            limit=1_000,
+        )
+        if (
+            page.get("schema") != "zyra.deployment-node-runtime-events/v1"
+            or str(page.get("attempt_id") or "") != attempt_id
+        ):
+            raise NodeProtocolError(
+                "deployment_runtime_event_page_invalid",
+                "deployment node returned an invalid runtime-event page",
+                operation="runtime-events",
+            )
+        try:
+            dropped_before = int(page.get("dropped_before_ordinal") or 0)
+        except (TypeError, ValueError) as error:
+            raise NodeProtocolError(
+                "deployment_runtime_event_cursor_invalid",
+                "deployment runtime-event drop cursor is invalid",
+                operation="runtime-events",
+            ) from error
+        if dropped_before < 0:
+            raise NodeProtocolError(
+                "deployment_runtime_event_cursor_invalid",
+                "deployment runtime-event drop cursor is invalid",
+                operation="runtime-events",
+            )
+        expected = max(after_ordinal, dropped_before)
+        events = page.get("events")
+        if not isinstance(events, list):
+            raise NodeProtocolError(
+                "deployment_runtime_event_page_invalid",
+                "deployment runtime-event page has no event list",
+                operation="runtime-events",
+            )
+        forwarded = 0
+        for raw in events:
+            if not isinstance(raw, Mapping):
+                raise NodeProtocolError(
+                    "deployment_runtime_event_invalid",
+                    "deployment runtime event is not an object",
+                    operation="runtime-events",
+                )
+            event = dict(raw)
+            ordinal = int(event.get("ordinal") or 0)
+            event_payload = event.get("payload")
+            if (
+                event.get("schema")
+                != "zyra.deployment-node-runtime-event/v1"
+                or ordinal != expected + 1
+                or str(event.get("attempt_id") or "") != attempt_id
+                or str(event.get("workload_id") or "") != workload.workload_id
+                or str(event.get("run_id") or "") != workload.run_id
+                or str(event.get("task_id") or "") != workload.task_id
+                or not isinstance(event_payload, Mapping)
+                or event_payload.get("schema")
+                != "zyra.provider-assistant-presentation/v1"
+                or str(event.get("phase") or "")
+                != str(event_payload.get("phase") or "")
+                or str(event.get("payload_digest") or "") != digest(event_payload)
+            ):
+                raise NodeProtocolError(
+                    "deployment_runtime_event_binding_invalid",
+                    "deployment runtime event failed identity or digest validation",
+                    operation="runtime-events",
+                )
+            sink(event)
+            expected = ordinal
+            forwarded += 1
+        next_ordinal = int(page.get("next_ordinal") or expected)
+        if next_ordinal < expected:
+            raise NodeProtocolError(
+                "deployment_runtime_event_cursor_regressed",
+                "deployment runtime-event cursor regressed",
+                operation="runtime-events",
+            )
+        return max(expected, next_ordinal), forwarded, dropped_before
 
     @staticmethod
     def _validate_response(

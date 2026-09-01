@@ -1082,6 +1082,9 @@ class TypeScriptClaudeQueryEngine:
         self._active_runtime_process: subprocess.Popen[str] | None = None
         self._active_stderr_collector: _StderrCollector | None = None
         self._runtime_event_bridge = context.runtime_services.get("runtime_event_bridge")
+        self._runtime_event_payload_sink = context.runtime_services.get(
+            "runtime_event_payload_sink"
+        )
         self._runtime_event_ingress: CodeWorkerRuntimeEventIngress | None = None
         self._fault_observation_sink = context.runtime_services.get(
             "fault_observation_sink"
@@ -1093,6 +1096,10 @@ class TypeScriptClaudeQueryEngine:
             self._fault_observation_sink
         ):
             raise TypeError("fault_observation_sink must be callable")
+        if self._runtime_event_payload_sink is not None and not callable(
+            self._runtime_event_payload_sink
+        ):
+            raise TypeError("runtime_event_payload_sink must be callable")
         if self._fault_observation_sink_required and self._fault_observation_sink is None:
             raise TypeError("default CodeWorker path requires fault_observation_sink")
 
@@ -1524,6 +1531,11 @@ class TypeScriptClaudeQueryEngine:
             correlation_id = str(frame.get("correlation_id") or "")
             payload = dict(frame.get("payload") or {})
             if kind == "runtime.event":
+                if self._runtime_event_payload_sink is not None:
+                    self._runtime_event_payload_sink(
+                        payload,
+                        transport_sequence=int(frame["sequence"]),
+                    )
                 if self._runtime_event_ingress is not None:
                     self._runtime_event_ingress.emit_payload(
                         payload,

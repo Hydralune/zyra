@@ -516,6 +516,23 @@ def test_physical_code_worker_runs_model_tool_observation_model_loop(
 ) -> None:
     requests: list[dict[str, object]] = []
     authorization_seen: list[bool] = []
+    physical_call_returned = threading.Event()
+    streamed_assistant_events: list[tuple[int, dict[str, object], bool]] = []
+
+    def capture_runtime_event(
+        payload: dict[str, object],
+        *,
+        transport_sequence: int,
+    ) -> None:
+        if payload.get("schema") != "zyra.provider-assistant-presentation/v1":
+            return
+        streamed_assistant_events.append(
+            (
+                transport_sequence,
+                dict(payload),
+                physical_call_returned.is_set(),
+            )
+        )
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self) -> None:  # noqa: N802
@@ -738,7 +755,9 @@ def test_physical_code_worker_runs_model_tool_observation_model_loop(
             },
             node_id="cloud-code-worker-test",
             node_data_root=tmp_path / "node",
+            runtime_event_sink=capture_runtime_event,
         )
+        physical_call_returned.set()
 
         direct_task_id = "task-physical-direct-response"
         manager.create_for_task(
@@ -848,6 +867,34 @@ def test_physical_code_worker_runs_model_tool_observation_model_loop(
     assert result["provider_call"]["synthetic_usage"] is False
     assert result["provider_call"]["usage"]["input_tokens"] == 250
     assert result["provider_call"]["usage"]["output_tokens"] == 27
+    streamed_phases = [
+        str(payload.get("phase") or "")
+        for _sequence, payload, _after_return in streamed_assistant_events
+    ]
+    assert {
+        "assistant_text_started",
+        "assistant_text_delta",
+        "assistant_text_ended",
+    }.issubset(streamed_phases), streamed_phases
+    assert all(
+        after_return is False
+        for _sequence, _payload, after_return in streamed_assistant_events
+    )
+    assert any(
+        payload.get("content") == "Created and verified smoke.txt."
+        for _sequence, payload, _after_return in streamed_assistant_events
+    )
+    assert all(
+        len(str(payload.get("content") or "").encode("utf-8")) <= 1_024
+        for _sequence, payload, _after_return in streamed_assistant_events
+    )
+    assistant_stream_json = json.dumps(
+        [payload for _sequence, payload, _after_return in streamed_assistant_events],
+        ensure_ascii=False,
+    )
+    assert '"arguments"' not in assistant_stream_json
+    assert '"tool_calls"' not in assistant_stream_json
+    assert '"thinking"' not in assistant_stream_json
     public_phases = {
         str(event.get("payload", {}).get("query_session", {}).get("phase") or "")
         for event in result["runtime_events"]
