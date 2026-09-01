@@ -109,6 +109,7 @@ export type ZyraUiEvent =
   | (UiEventBase & { type: "subagent.updated"; agentId: string; label: string; status: string; summary?: string; impact?: UiFailureImpact; code?: string; retryable?: boolean; recovery?: string })
   | (UiEventBase & { type: "task.issue"; issueId: string; severity: UiSeverity; message: string; code?: string; retryable?: boolean; recovery?: string; impact?: UiFailureImpact })
   | (UiEventBase & { type: "task.completed"; taskId: string; finalAnswer: string })
+  | (UiEventBase & { type: "task.needs_revision"; taskId: string; message: string; recovery?: string })
   | (UiEventBase & { type: "task.failed"; taskId: string; status?: "failed" | "blocked" | "killed"; message: string; recovery?: string })
   | (UiEventBase & { type: "task.cancelled"; taskId: string; message: string })
   | (UiEventBase & { type: "transport.reconnecting"; attempt: number })

@@ -111,6 +111,7 @@ function renderActivity(lines: string[], state: ProductViewState, width: number)
 
 function localFailureStatus(taskStatus: ProductViewState["taskStatus"]): string {
   if (taskStatus === "running") return "局部失败 · 任务仍在运行"
+  if (taskStatus === "needs_revision") return "局部失败 · 任务等待修订"
   if (taskStatus === "completed") return "局部失败 · 任务已完成"
   if (taskStatus === "failed") return "局部失败 · 任务最终失败"
   if (taskStatus === "blocked") return "局部失败 · 任务已阻塞"
@@ -249,7 +250,7 @@ export function renderProductState(state: ProductViewState, options: ProductRend
 
   if (state.taskMessage) {
     lines.push("")
-    lines.push(...prefixed(state.taskMessage, ["failed", "blocked", "killed"].includes(state.taskStatus) ? "! " : "• ", width))
+    lines.push(...prefixed(state.taskMessage, ["failed", "blocked", "needs_revision", "killed"].includes(state.taskStatus) ? "! " : "• ", width))
   }
   if (state.connection === "reconnecting") {
     lines.push("")

@@ -227,9 +227,10 @@ describe("product task observer", () => {
     expect(output.text).not.toContain("run rejected after canonical failure")
   })
 
-  test("presents canonical needs_revision as a resumable blocked product state", async () => {
-    const output = new Capture()
-    const productShell = shell(output)
+  test("keeps needs_revision controllable until a true canonical terminal state", async () => {
+    const output = new Capture(true)
+    const stdin = new TtyInput()
+    const productShell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
     const pending = task("pending")
     const needsRevision = {
       ...task("needs_revision"),
@@ -237,6 +238,11 @@ describe("product task observer", () => {
       active: true,
       updatedAt: "2026-09-01T00:00:02.000Z",
     } as TaskProjection
+    const failed = {
+      ...task("failed", { failure_reason: "canonical failure after revision request" }),
+      updatedAt: "2026-09-01T00:00:03.000Z",
+    } as TaskProjection
+    const taskReads = [needsRevision, failed]
     const api = {
       async ingressCapabilities() {
         return { taskId: pending.taskId, generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
@@ -253,8 +259,9 @@ describe("product task observer", () => {
       },
       async *streamIngress() {
         yield { kind: "event", taskId: pending.taskId, generation: 1, sequence: 1, frame: frame(1, "runtime.task.failed") }
+        yield { kind: "event", taskId: pending.taskId, generation: 1, sequence: 2, frame: frame(2, "runtime.task.failed") }
       },
-      async task() { return needsRevision },
+      async task() { return taskReads.shift() ?? failed },
     } as unknown as CliApi
 
     productShell.start()
@@ -267,10 +274,11 @@ describe("product task observer", () => {
     })
     productShell.finish()
 
-    expect(result.status).toBe("needs_revision")
+    expect(result.status).toBe("failed")
     expect(result.exitCode).toBe(CliExitCode.TASK_FAILED)
-    expect(productShell.view.taskStatus).toBe("blocked")
+    expect(productShell.view.taskStatus).toBe("failed")
     expect(output.text).toContain("任务需要修订后继续")
+    expect(output.text).toContain("canonical failure after revision request")
     expect(output.text).not.toContain("review requires revision")
   })
 

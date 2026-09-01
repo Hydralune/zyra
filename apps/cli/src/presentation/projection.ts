@@ -21,7 +21,7 @@ const MAX_RETAINED_FRAMES = 20_000
 const MAX_RETAINED_LIVE_FRAMES = 4_096
 
 function terminal(task: TaskProjection): boolean {
-  return task.terminal || ["completed", "failed", "blocked", "needs_revision", "cancelled", "killed"].includes(task.status)
+  return task.terminal || ["completed", "failed", "blocked", "cancelled", "killed"].includes(task.status)
 }
 
 function assistantIdentity(frame: IngressFrame): string | undefined {

@@ -33,7 +33,7 @@ import { mutationTransportDetached, type CommandOutcome } from "../runner.ts"
 import { launchUi } from "../ui.ts"
 
 function terminalTask(task: TaskProjection): boolean {
-  return task.terminal || ["completed", "failed", "blocked", "needs_revision", "cancelled", "killed"].includes(task.status)
+  return task.terminal || ["completed", "failed", "blocked", "cancelled", "killed"].includes(task.status)
 }
 
 function terminalExitCode(task: TaskProjection): CliExitCode {
@@ -747,7 +747,7 @@ export async function observeProductTask(input: {
     })
   }
 
-  const resumableTerminal = input.resume && ["failed", "blocked", "needs_revision"].includes(task.status)
+  const resumableTerminal = input.resume && ["failed", "blocked"].includes(task.status)
   const resumedFromRevision = resumableTerminal ? `${task.status}:${task.updatedAt}` : undefined
   let resumedExecutionAdvanced = !resumableTerminal
   const observationHasSettled = (candidate: TaskProjection): boolean => {
@@ -1589,7 +1589,7 @@ async function runProductSession(input: {
     // so it needs a fresh local terminal node after the previous CLI detached.
     // Terminal history remains observation-only and does not pay this cost.
     const resumesExecution = next.kind === "resume"
-      && (!terminalTask(next.task) || ["failed", "blocked", "needs_revision"].includes(next.task.status))
+      && (!terminalTask(next.task) || ["failed", "blocked"].includes(next.task.status))
     if (!terminalReady && input.ensureTerminal && (next.kind === "goal" || resumesExecution)) {
       input.shell.notice("正在连接本地执行环境…")
       await input.ensureTerminal()

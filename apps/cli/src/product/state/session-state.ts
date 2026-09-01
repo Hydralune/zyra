@@ -69,7 +69,7 @@ export interface ProductViewState {
   plan?: UiPlanSnapshot
   connection: "connected" | "reconnecting" | "disconnected"
   reconnectAttempt?: number
-  taskStatus: "idle" | "running" | "completed" | "failed" | "blocked" | "killed" | "cancelled"
+  taskStatus: "idle" | "running" | "needs_revision" | "completed" | "failed" | "blocked" | "killed" | "cancelled"
   taskMessage?: string
   evicted: Readonly<{ messages: number; activities: number; tools: number; agents: number; issues: number; changes: number }>
 }
@@ -277,6 +277,11 @@ export class ProductSessionState {
       case "task.completed":
         this.#taskId = event.taskId
         this.#taskStatus = "completed"
+        break
+      case "task.needs_revision":
+        this.#taskId = event.taskId
+        this.#taskStatus = "needs_revision"
+        this.#taskMessage = event.recovery ? `${event.message} ${event.recovery}` : event.message
         break
       case "task.failed":
         this.#taskId = event.taskId

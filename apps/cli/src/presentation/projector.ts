@@ -371,7 +371,7 @@ function verificationSummary(task: TaskProjection): {
   checks: readonly UiVerificationCheck[]
   commandEvidence: "recorded" | "not_recorded"
 } | undefined {
-  if (!task.terminal && !["completed", "failed", "blocked", "needs_revision", "cancelled", "killed"].includes(task.status)) return undefined
+  if (!task.terminal && !["completed", "failed", "blocked", "cancelled", "killed"].includes(task.status)) return undefined
   const outcome = object(task.metadata.canonical_task_outcome)
   const verification = object(outcome.verification)
   const finalVerifier = object(verification.final_verifier)
@@ -653,6 +653,16 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
       taskId: task.taskId,
       finalAnswer: finalAnswer ?? "",
     })
+  } else if (task.status === "needs_revision") {
+    push({
+      schema: ZYRA_UI_EVENT_SCHEMA,
+      eventId: `ui:task:${task.taskId}:needs-revision`,
+      occurredAt: task.updatedAt,
+      type: "task.needs_revision",
+      taskId: task.taskId,
+      message: "任务需要修订后继续。",
+      recovery: "使用 /review 或 /redirect 提交修订；/exit 仅分离观察，不取消任务。",
+    })
   } else if (task.status === "cancelled") {
     push({
       schema: ZYRA_UI_EVENT_SCHEMA,
@@ -662,17 +672,15 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
       taskId: task.taskId,
       message: "任务已取消。",
     })
-  } else if (task.terminal || ["failed", "blocked", "needs_revision", "killed"].includes(task.status)) {
+  } else if (task.terminal || ["failed", "blocked", "killed"].includes(task.status)) {
     push({
       schema: ZYRA_UI_EVENT_SCHEMA,
       eventId: `ui:task:${task.taskId}:failed`,
       occurredAt: task.updatedAt,
       type: "task.failed",
       taskId: task.taskId,
-      status: task.status === "blocked" || task.status === "needs_revision"
-        ? "blocked"
-        : task.status === "killed" ? "killed" : "failed",
-      message: task.status === "needs_revision" ? "任务需要修订后继续。" : taskFailure(task),
+      status: task.status === "blocked" || task.status === "killed" ? task.status : "failed",
+      message: taskFailure(task),
       recovery: `可运行 zyra resume ${task.taskId} 查看可恢复状态。`,
     })
   }
