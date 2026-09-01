@@ -459,6 +459,7 @@ async function runProductControlLoop(input: {
   shell: ProductTuiShell
   controls: CliControlSession
   permissions: CliPermissionSession
+  permissionReady: Promise<void>
   signal: AbortSignal
   refreshPermissions: () => Promise<void>
   openWeb: () => Promise<string>
@@ -527,14 +528,17 @@ async function runProductControlLoop(input: {
         continue
       }
       if (line === "/permissions mode") {
+        await input.permissionReady
         input.shell.notice(await pickPermissionMode(input))
         continue
       }
       if (line === "/permissions status") {
+        await input.permissionReady
         input.shell.notice(permissionModeStatus(await input.permissions.mode(input.signal)))
         continue
       }
       if (line === "/permissions") {
+        await input.permissionReady
         input.shell.notice(await resolvePermissionFromPicker(input))
         continue
       }
@@ -599,6 +603,7 @@ async function runProductControlLoop(input: {
         continue
       }
       if (line.toLowerCase() === "a" || line.toLowerCase() === "d") {
+        await input.permissionReady
         const pending = await input.permissions.pending(input.signal)
         if (pending.length !== 1) {
           throw new CliTaskError(
@@ -631,6 +636,7 @@ async function runProductControlLoop(input: {
       } else if (intent.kind === "command-retry") {
         input.shell.notice(formatCommandReceipt(await input.controls.retry(intent.requestId, input.signal)))
       } else if (intent.kind === "permission") {
+        await input.permissionReady
         await input.permissions.resolve({
           requestId: intent.requestId,
           effect: intent.effect,
@@ -756,15 +762,17 @@ export async function observeProductTask(input: {
       task,
       custodyToken: process.env.ZYRA_PERMISSION_CUSTODY_TOKEN,
     })
-    if (await permissionSession.open(observationSignal)) {
-      await refreshPermissions()
-    } else {
-      input.shell.notice(`权限控制保持关闭 · ${permissionSession.custodyError?.code ?? "permission_custody_unavailable"}`)
-    }
+    const permissionReady = permissionSession.open(observationSignal).then(async (opened) => {
+      if (opened) await refreshPermissions()
+      else input.shell.notice(`权限控制保持关闭 · ${permissionSession?.custodyError?.code ?? "permission_custody_unavailable"}`)
+    }).catch((error) => {
+      input.shell.notice(`权限控制保持关闭 · ${controlError(error)}`)
+    })
     void runProductControlLoop({
       shell: input.shell,
       controls: controlSession,
       permissions: permissionSession,
+      permissionReady,
       signal: observationSignal,
       refreshPermissions,
       openWeb: input.openWeb ?? (async () => {

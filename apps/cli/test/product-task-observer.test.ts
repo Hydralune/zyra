@@ -388,6 +388,51 @@ describe("product task observer", () => {
     expect(stdin.raw).toBeFalse()
   })
 
+  test("keeps status and detach usable while permission custody recovery is slow", async () => {
+    const output = new Capture(true)
+    const stdin = new TtyInput()
+    const productShell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    const running = task("running")
+    const api = {
+      async ingressCapabilities() {
+        return { taskId: running.taskId, generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress() {
+        yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async openPermissionSession() { return await new Promise<never>(() => undefined) },
+      async runTask() { return await new Promise<never>(() => undefined) },
+      async *streamIngress(_taskId: string, _cursor: string, _generation: number, signal?: AbortSignal) {
+        await new Promise<void>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
+        })
+      },
+      async task() { return running },
+    } as unknown as CliApi
+
+    productShell.start()
+    const observation = observeProductTask({
+      api,
+      task: running,
+      shell: productShell,
+      signal: new AbortController().signal,
+      resume: true,
+    })
+    const readyDeadline = Date.now() + 500
+    while (!stdin.raw && Date.now() < readyDeadline) await Bun.sleep(5)
+    expect(stdin.raw).toBeTrue()
+    stdin.write("/status\r")
+    const statusDeadline = Date.now() + 500
+    while (!output.text.includes("connection connected") && Date.now() < statusDeadline) await Bun.sleep(5)
+    expect(output.text).toContain("task task_product · running")
+    stdin.write("/exit\r")
+    const result = await observation
+    productShell.finish()
+
+    expect(result.status).toBe("detached")
+    expect(stdin.raw).toBeFalse()
+  })
+
   test("detaches immediately without sending a canonical task cancellation", async () => {
     const output = new Capture(true)
     const stdin = new TtyInput()
