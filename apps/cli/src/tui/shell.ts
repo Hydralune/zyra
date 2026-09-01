@@ -16,7 +16,7 @@ export class ProductTuiShell {
   readonly #interactive: boolean
   readonly #input: Readable
   readonly #output: Writable
-  readonly #candidates: readonly string[]
+  #candidates: readonly string[]
   readonly #renderer: LiveProductRenderer
   readonly #composer: ProductComposer
   readonly #state = new ProductSessionState()
@@ -80,6 +80,10 @@ export class ProductTuiShell {
   get alternateScreenUsed(): false { return this.#renderer.alternateScreenUsed }
   get interactive(): boolean { return this.#interactive }
   get view(): ProductViewState { return this.#state.snapshot() }
+
+  addCandidates(candidates: readonly string[]): void {
+    this.#candidates = Object.freeze([...new Set([...this.#candidates, ...candidates])].sort())
+  }
 
   start(): void { this.#renderer.start() }
 

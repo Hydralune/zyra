@@ -529,8 +529,10 @@ export async function observeProductTask(input: {
   }
 }
 
-async function candidates(cwd: string): Promise<readonly string[]> {
-  return [...productCommandCandidates(), ...await workspaceReferenceCandidates(cwd)]
+function beginWorkspaceIndex(shell: ProductTuiShell, cwd: string): void {
+  void workspaceReferenceCandidates(cwd)
+    .then((references) => shell.addCandidates(references))
+    .catch(() => undefined)
 }
 
 async function appendFinalDiff(input: {
@@ -557,14 +559,16 @@ export async function executeProductInteractive(input: {
   stdout: Writable
   signal: AbortSignal
   cwd?: string
+  ensureTerminal?: () => Promise<void>
 }): Promise<CommandOutcome> {
   const cwd = input.cwd ?? process.cwd()
   const tty = Boolean((input.stdin as Readable & { isTTY?: boolean }).isTTY)
   if (!input.command.goal && !tty) {
     throw new CliTaskError("zyra without a goal requires an interactive terminal.", "interactive_terminal_required")
   }
-  const shell = new ProductTuiShell({ stdin: input.stdin, output: input.stdout, workspace: cwd, candidates: await candidates(cwd) })
+  const shell = new ProductTuiShell({ stdin: input.stdin, output: input.stdout, workspace: cwd, candidates: productCommandCandidates() })
   shell.start()
+  beginWorkspaceIndex(shell, cwd)
   try {
     return await runProductSession({
       api: input.api,
@@ -574,6 +578,7 @@ export async function executeProductInteractive(input: {
       tty,
       baseUrl: input.command.baseUrl,
       startupTimeoutMs: input.command.startupTimeoutMs,
+      ensureTerminal: input.ensureTerminal,
       initial: input.command.goal ? { kind: "goal", goal: input.command.goal } : undefined,
     })
   } finally {
@@ -588,12 +593,14 @@ export async function executeProductResume(input: {
   stdout: Writable
   signal: AbortSignal
   cwd?: string
+  ensureTerminal?: () => Promise<void>
 }): Promise<CommandOutcome> {
   const cwd = input.cwd ?? process.cwd()
   const resolved = await input.api.resolveTask(input.command.identity)
   const tty = Boolean((input.stdin as Readable & { isTTY?: boolean }).isTTY)
-  const shell = new ProductTuiShell({ stdin: input.stdin, output: input.stdout, workspace: cwd, candidates: await candidates(cwd) })
+  const shell = new ProductTuiShell({ stdin: input.stdin, output: input.stdout, workspace: cwd, candidates: productCommandCandidates() })
   shell.start()
+  beginWorkspaceIndex(shell, cwd)
   try {
     return await runProductSession({
       api: input.api,
@@ -603,6 +610,7 @@ export async function executeProductResume(input: {
       tty,
       baseUrl: input.command.baseUrl,
       startupTimeoutMs: input.command.startupTimeoutMs,
+      ensureTerminal: input.ensureTerminal,
       initial: { kind: "resume", task: resolved.task },
     })
   } finally {
@@ -709,6 +717,7 @@ async function runProductSession(input: {
   baseUrl: string
   startupTimeoutMs: number
   initial?: ProductSessionInput
+  ensureTerminal?: () => Promise<void>
 }): Promise<CommandOutcome> {
   let next = input.initial
   let sessionId = next?.kind === "resume"
@@ -719,6 +728,7 @@ async function runProductSession(input: {
   let executionConfig: ProductModelSelection | undefined = executionConfigFromTask(currentTask)
   let executionMode: ProductExecutionMode = "standard"
   let lastOutcome: CommandOutcome | undefined
+  let terminalReady = false
 
   while (!input.signal.aborted) {
     if (!next) {
@@ -826,6 +836,12 @@ async function runProductSession(input: {
     }
 
     if (!next) break
+    if (!terminalReady && input.ensureTerminal) {
+      input.shell.notice("正在连接本地执行环境…")
+      await input.ensureTerminal()
+      terminalReady = true
+      input.shell.notice(undefined)
+    }
     input.shell.beginTask()
     const task = next.kind === "resume"
       ? next.task

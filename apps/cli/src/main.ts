@@ -304,10 +304,12 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
         )
       : undefined
     cancelTimer?.unref()
+    const executionBaseUrl = command.baseUrl
+    const executionTimeoutMs = command.timeoutMs
     let outcome: CommandOutcome
     let terminal: TerminalNodeLifecycle | undefined
     try {
-      if (terminalMode) {
+      if (terminalMode && !productMode) {
         terminal = await TerminalNodeLifecycle.create({
           baseUrl: command.baseUrl,
           token,
@@ -316,6 +318,16 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
         })
         const registration = await terminal.start()
         if (command.kind === "dev") stderr.write(`terminal node ${registration.backend_id} registered · generation ${registration.generation.slice(0, 8)}\n`)
+      }
+      const ensureProductTerminal = async (): Promise<void> => {
+        if (terminal) return
+        terminal = await TerminalNodeLifecycle.create({
+          baseUrl: executionBaseUrl,
+          token,
+          timeoutMs: Math.min(executionTimeoutMs || 15_000, 15_000),
+          startupRoot: process.cwd(),
+        })
+        await terminal.start()
       }
       if (command.kind === "run") outcome = await executeRun({
         command,
@@ -327,9 +339,9 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       })
       else if (command.kind === "scenario") outcome = await executeScenario({ command, api, output })
       else if (command.kind === "interactive") {
-        outcome = await executeProductInteractive({ command, api, stdin, stdout, signal: signal.controller.signal })
+        outcome = await executeProductInteractive({ command, api, stdin, stdout, signal: signal.controller.signal, ensureTerminal: ensureProductTerminal })
       } else if (command.kind === "resume") {
-        outcome = await executeProductResume({ command, api, stdin, stdout, signal: signal.controller.signal })
+        outcome = await executeProductResume({ command, api, stdin, stdout, signal: signal.controller.signal, ensureTerminal: ensureProductTerminal })
       } else if (command.kind === "dev") {
         const developerCommand: InteractiveCommand = {
           kind: "interactive",

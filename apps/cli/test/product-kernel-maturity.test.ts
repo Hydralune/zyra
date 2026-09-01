@@ -251,6 +251,7 @@ describe("product commands and continuous session", () => {
 
   test("runs two terminal tasks in one TUI process with one canonical session id", async () => {
     const calls: Array<{ goal: string; sessionId?: string }> = []
+    let terminalStarts = 0
     let latest: TaskProjection | undefined
     const api = {
       async createPendingTask(goal: string, _sealed: boolean, sessionId?: string) {
@@ -276,6 +277,7 @@ describe("product commands and continuous session", () => {
       stdout,
       signal: new AbortController().signal,
       cwd: "G:\\agent-zoo\\zyra",
+      ensureTerminal: async () => { terminalStarts += 1 },
     })
     await waitUntil(() => calls.length === 1 && stdin.raw)
     stdin.write("第二轮\r")
@@ -286,6 +288,7 @@ describe("product commands and continuous session", () => {
     expect(calls.map((item) => item.goal)).toEqual(["第一轮", "第二轮"])
     expect(calls[0]?.sessionId).toMatch(/^product:/)
     expect(calls[1]!.sessionId).toBe(String(calls[0]!.sessionId))
+    expect(terminalStarts).toBe(1)
     expect(stdout.text).toContain("第一轮")
     expect(stdout.text).toContain("第二轮")
     expect(stdin.raw).toBe(false)

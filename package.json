@@ -23,6 +23,7 @@
     "typecheck:cli": "tsc -p packages/core/typed-api-client/tsconfig.json && tsc -p packages/commands/tsconfig.json && tsc -p apps/cli/tsconfig.json",
     "test:cli": "bun test ./apps/cli/test",
     "product-tui:smoke": "bun scripts/product_tui_smoke.ts",
+    "product-tui:conpty": ".venv\\Scripts\\python.exe scripts/product-tui/windows_conpty_gate.py",
     "cli": "bun apps/cli/src/index.ts",
     "typecheck:web": "tsc -p packages/core/typed-api-client/tsconfig.json && tsc -p packages/commands/tsconfig.json && tsc -p apps/web/tsconfig.json",
     "test:web": "bun test ./packages/core/typed-api-client/test ./apps/web/test ./apps/web/src/features/long-horizon/loopx",
