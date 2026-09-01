@@ -1004,7 +1004,16 @@ export async function observeProductTask(input: {
     }
   }
   if (input.signal.aborted) throw input.signal.reason
-  if (runSettled && runOutcome?.ok === false && !mutationTransportDetached(runOutcome.error)) throw runOutcome.error
+  // A rejected run mutation can race the canonical terminal event.  Once the
+  // task owner has committed a terminal result, that result is authoritative;
+  // surfacing the transport rejection would replace a useful failed/blocked
+  // product state with a generic CLI contract error during detach or resume.
+  if (
+    runSettled
+    && runOutcome?.ok === false
+    && !mutationTransportDetached(runOutcome.error)
+    && !terminalTask(task)
+  ) throw runOutcome.error
 
   task = await input.api.task(task.taskId)
   if (!terminalTask(task) && runResult) {

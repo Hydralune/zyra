@@ -185,6 +185,48 @@ describe("product task observer", () => {
     expect(output.text).not.toContain("\u001b[?1049")
   })
 
+  test("keeps the canonical terminal failure when the run mutation rejects concurrently", async () => {
+    const output = new Capture()
+    const productShell = shell(output)
+    const pending = task("pending")
+    const failed = task("failed", { failure_reason: "no provider/model route satisfies the request constraints" })
+    const api = {
+      async ingressCapabilities() {
+        return { taskId: pending.taskId, generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress() {
+        yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask() {
+        await Promise.resolve()
+        throw new HttpResponseError(409, "run rejected after canonical failure", {
+          code: "contract_run_rejected",
+          body: {},
+        })
+      },
+      async *streamIngress() {
+        await Promise.resolve()
+        yield { kind: "event", taskId: pending.taskId, generation: 1, sequence: 1, frame: frame(1, "runtime.task.failed") }
+      },
+      async task() { return failed },
+    } as unknown as CliApi
+
+    productShell.start()
+    const result = await observeProductTask({
+      api,
+      task: pending,
+      shell: productShell,
+      signal: new AbortController().signal,
+      resume: false,
+    })
+    productShell.finish()
+
+    expect(result.status).toBe("failed")
+    expect(result.exitCode).toBe(CliExitCode.TASK_FAILED)
+    expect(output.text).toContain("no provider/model route satisfies the request constraints")
+    expect(output.text).not.toContain("run rejected after canonical failure")
+  })
+
   test("ignores the prior terminal frame until a failed resume advances canonically", async () => {
     const output = new Capture()
     const productShell = shell(output)
