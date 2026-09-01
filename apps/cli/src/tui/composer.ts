@@ -37,6 +37,7 @@ export class ProductComposer {
   readonly #onCompletion: (completion?: CompletionState) => void
   readonly #onPersistence: (snapshot: DraftPersistenceSnapshot) => void
   readonly #running: () => boolean
+  readonly #editDraft: (initial: string) => Promise<string>
   #pending = ""
   #paste = ""
   #pasting = false
@@ -60,6 +61,7 @@ export class ProductComposer {
     onScroll: (direction: "up" | "down") => void
     onCompletion?: (completion?: CompletionState) => void
     bracketedPaste?: boolean
+    editDraft?: (initial: string) => Promise<string>
   }) {
     this.#input = input.stdin as RawInput
     this.#output = input.output
@@ -75,6 +77,7 @@ export class ProductComposer {
     this.#onScroll = input.onScroll
     this.#onCompletion = input.onCompletion ?? (() => undefined)
     this.#onPersistence = input.onPersistence ?? (() => undefined)
+    this.#editDraft = input.editDraft ?? editDraftExternally
     if (input.initialDraft) this.draft.set(input.initialDraft.text, input.initialDraft.cursor, false)
   }
 
@@ -294,8 +297,13 @@ export class ProductComposer {
       if (char === "\u0005") {
         this.#busy = true
         this.#terminalSession.restore()
+        const initial = this.draft.snapshot().text
         try {
-          this.draft.set(await editDraftExternally(this.draft.snapshot().text))
+          this.draft.set(await this.#editDraft(initial))
+          this.#onNotice(undefined)
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error)
+          this.#onNotice(`外部编辑器未完成：${detail} 草稿已保留。`)
         } finally {
           this.#terminalSession.enter()
           this.#busy = false

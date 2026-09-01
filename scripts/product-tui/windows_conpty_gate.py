@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -56,6 +57,8 @@ class CycleResult:
     bracketed_paste_disabled: bool
     alternate_screen_used: bool
     onboarding_completed: bool
+    editor_completed: bool
+    editor_failure_recovered: bool
 
 
 def _reader(process: object, capture: RollingCapture, completed: threading.Event) -> None:
@@ -92,6 +95,8 @@ def run_cycle(
     resize_count: int,
     timeout: float,
     onboarding: bool,
+    editor_smoke: bool,
+    editor_failure_smoke: bool,
 ) -> CycleResult:
     command = subprocess.list2cmdline([
         "node",
@@ -108,6 +113,14 @@ def run_cycle(
     environment = dict(os.environ)
     environment["ZYRA_CLI_STATE_DIR"] = temporary_state.name
     environment["ZYRA_STATE_DIR"] = temporary_state.name
+    if editor_smoke or editor_failure_smoke:
+        node = shutil.which("node")
+        fixture = ROOT / "scripts" / "product-tui" / "editor_fixture.cjs"
+        if not node or not fixture.is_file():
+            raise AssertionError("external editor smoke requires node and editor_fixture.cjs")
+        environment["VISUAL"] = subprocess.list2cmdline([node, str(fixture)])
+    if editor_failure_smoke:
+        environment["ZYRA_EDITOR_FIXTURE_FAIL"] = "1"
     if onboarding:
         environment.pop("ZYRA_SKIP_ONBOARDING", None)
     else:
@@ -147,6 +160,25 @@ def run_cycle(
             ):
                 raise AssertionError("first-use onboarding state is invalid or leaks the workspace")
             onboarding_completed = True
+        editor_completed = False
+        editor_failure_recovered = False
+        if editor_smoke:
+            for character in "ConPTY 编辑前":
+                process.write(character.encode("utf-8"))
+            process.write(b"\x05")
+            _wait_for(capture, "外部编辑器完成 ✅".encode("utf-8"), timeout)
+            process.write(b"\x03")
+            _wait_for(capture, "草稿已暂存".encode("utf-8"), timeout)
+            editor_completed = True
+        if editor_failure_smoke:
+            for character in "ConPTY 失败时保留":
+                process.write(character.encode("utf-8"))
+            process.write(b"\x05")
+            _wait_for(capture, "External editor exited with status 7".encode("utf-8"), timeout)
+            process.write("，仍可输入".encode("utf-8"))
+            process.write(b"\x03")
+            _wait_for(capture, "草稿已暂存".encode("utf-8"), timeout)
+            editor_failure_recovered = True
         for index in range(resize_count):
             rows = 18 + (index % 43)
             cols = 60 + (index % 141)
@@ -169,6 +201,8 @@ def run_cycle(
             bracketed_paste_disabled=b"\x1b[?2004l" in material,
             alternate_screen_used=b"\x1b[?1049" in material,
             onboarding_completed=onboarding_completed,
+            editor_completed=editor_completed,
+            editor_failure_recovered=editor_failure_recovered,
         )
         if result.exit_code != 0:
             visible = ANSI.sub(b"", material).decode("utf-8", "replace")[-4_000:]
@@ -209,6 +243,8 @@ def main() -> int:
     parser.add_argument("--maximum-startup-p95-ms", type=float, default=2_000.0)
     parser.add_argument("--maximum-exit-p95-ms", type=float, default=2_000.0)
     parser.add_argument("--onboarding", action="store_true")
+    parser.add_argument("--editor-smoke", action="store_true")
+    parser.add_argument("--editor-failure-smoke", action="store_true")
     arguments = parser.parse_args()
     if os.name != "nt":
         raise SystemExit("windows_conpty_gate.py requires Windows")
@@ -237,6 +273,8 @@ def main() -> int:
             arguments.resizes,
             arguments.timeout,
             arguments.onboarding,
+            arguments.editor_smoke,
+            arguments.editor_failure_smoke,
         )
         for index in range(arguments.cycles)
     ]

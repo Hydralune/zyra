@@ -146,8 +146,12 @@ export class TerminalPrompt {
         this.#busy = true
         this.#input.setRawMode?.(false)
         this.#output.write("\u001b[?2004l\r\n")
+        const initial = this.draft.snapshot().text
         try {
-          this.draft.set(await editDraftExternally(this.draft.snapshot().text))
+          this.draft.set(await editDraftExternally(initial))
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error)
+          this.#output.write(`${CLEAR_LINE}external editor did not complete: ${detail}; draft preserved\r\n`)
         } finally {
           this.#input.setRawMode?.(true)
           this.#output.write("\u001b[?2004h")
