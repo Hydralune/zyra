@@ -149,6 +149,24 @@ describe("terminal text and composer state", () => {
     expect(rendered).not.toContain("\u001b")
   })
 
+  test("holds incomplete inline Markdown while rendering fenced code incrementally", () => {
+    expect(renderMarkdown("Use [documentation](https://exa", 60, { streaming: true }).join("\n")).toBe("Use")
+    expect(renderMarkdown("Use [documentation](https://example.test)", 60, { streaming: false }).join("\n")).toContain("documentation <https://example.test>")
+    expect(renderMarkdown("Value is `part", 60, { streaming: true }).join("\n")).toBe("Value is")
+    const code = renderMarkdown("~~~ts\nconst value = 1", 60, { streaming: true }).join("\n")
+    expect(code).toContain("┌─ ts")
+    expect(code).toContain("│ const value = 1")
+  })
+
+  test("renders nested lists, task items, horizontal rules, and tables readably", () => {
+    const rendered = renderMarkdown("- parent\n  - child\n- [x] done\n---\n| A | B |\n|---|---|\n| 1 | 2 |", 60).join("\n")
+    expect(rendered).toContain("• parent")
+    expect(rendered).toContain("  • child")
+    expect(rendered).toContain("☑ done")
+    expect(rendered).toContain("A │ B")
+    expect(rendered).toContain("1 │ 2")
+  })
+
   test("edits whole graphemes and supports undo/redo", () => {
     const draft = new PromptDraft()
     draft.insert("A👨‍👩‍👧‍👦e\u0301")

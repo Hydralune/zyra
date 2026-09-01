@@ -49,7 +49,7 @@ function renderMessage(lines: string[], message: ProductViewState["messages"][nu
   const marker = message.role === "user" ? "› " : message.streaming ? "◌ " : "• "
   const bodyWidth = Math.max(12, width - displayWidth(marker))
   const rendered = message.role === "assistant"
-    ? renderMarkdown(message.text, bodyWidth)
+    ? renderMarkdown(message.text, bodyWidth, { streaming: message.streaming })
     : wrapDisplay(message.text, bodyWidth)
   for (const [index, line] of rendered.entries()) {
     lines.push(line ? `${index ? " ".repeat(displayWidth(marker)) : marker}${line}` : "")

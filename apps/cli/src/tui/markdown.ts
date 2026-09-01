@@ -17,22 +17,59 @@ function prefixed(value: string, prefix: string, width: number, continuation = "
   return wrapDisplay(inline(value), available).map((line, index) => `${index ? rest : prefix}${line}`)
 }
 
-export function renderMarkdown(value: string, width: number): string[] {
-  const source = sanitizeTerminalText(value)
+function stableStreamingPrefix(source: string): string {
+  let inFence = false
+  let fenceMarker = ""
+  for (const line of source.split("\n")) {
+    const marker = line.match(/^\s*(```|~~~)/u)?.[1]
+    if (!marker) continue
+    if (!inFence) {
+      inFence = true
+      fenceMarker = marker
+    } else if (marker === fenceMarker) {
+      inFence = false
+      fenceMarker = ""
+    }
+  }
+  // Open fenced blocks are safe to render incrementally as literal code.
+  if (inFence) return source
+  let cutoff = source.length
+  const ticks = [...source.matchAll(/(?<!\\)`/gu)]
+  if (ticks.length % 2 === 1) cutoff = Math.min(cutoff, ticks.at(-1)!.index ?? cutoff)
+  const linkStart = source.lastIndexOf("](")
+  if (linkStart >= 0 && source.indexOf(")", linkStart + 2) < 0) {
+    const labelStart = source.lastIndexOf("[", linkStart)
+    cutoff = Math.min(cutoff, labelStart >= 0 ? labelStart : linkStart)
+  } else {
+    const openLabel = source.lastIndexOf("[")
+    const closeLabel = source.lastIndexOf("]")
+    if (openLabel > closeLabel) cutoff = Math.min(cutoff, Math.max(0, openLabel - (source[openLabel - 1] === "!" ? 1 : 0)))
+  }
+  return cutoff < source.length ? source.slice(0, cutoff).trimEnd() : source
+}
+
+export function renderMarkdown(value: string, width: number, options: { streaming?: boolean } = {}): string[] {
+  const sanitized = sanitizeTerminalText(value)
+  const source = options.streaming ? stableStreamingPrefix(sanitized) : sanitized
   const output: string[] = []
   let fence = false
+  let fenceMarker = ""
   let language = ""
   for (const raw of source.split("\n")) {
-    const fenceMatch = raw.match(/^\s*```\s*([^\s`]*)/)
+    const fenceMatch = raw.match(/^\s*(```|~~~)\s*([^\s`]*)/u)
     if (fenceMatch) {
       if (!fence) {
         fence = true
-        language = fenceMatch[1] ?? ""
+        fenceMarker = fenceMatch[1]!
+        language = fenceMatch[2] ?? ""
         output.push(`  ┌─${language ? ` ${language} ` : ""}${"─".repeat(Math.max(0, width - 5 - displayWidth(language)))}`)
-      } else {
+      } else if (fenceMatch[1] === fenceMarker) {
         fence = false
+        fenceMarker = ""
         output.push(`  └${"─".repeat(Math.max(0, width - 3))}`)
         language = ""
+      } else {
+        output.push(...wrapDisplay(raw, Math.max(8, width - 4)).map((line) => `  │ ${line}`))
       }
       continue
     }
@@ -55,10 +92,16 @@ export function renderMarkdown(value: string, width: number): string[] {
       output.push(...prefixed(quote[1]!, "│ ", width, "│ "))
       continue
     }
-    const list = raw.match(/^\s*([-+*]|\d+[.)])\s+(.+)$/)
+    if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/u.test(raw)) {
+      output.push(`  ${"─".repeat(Math.max(1, width - 2))}`)
+      continue
+    }
+    const list = raw.match(/^(\s*)([-+*]|\d+[.)])\s+(.+)$/u)
     if (list) {
-      const marker = /^\d/u.test(list[1]!) ? `${list[1]} ` : "• "
-      output.push(...prefixed(list[2]!, `  ${marker}`, width))
+      const indent = " ".repeat(Math.min(8, list[1]!.replaceAll("\t", "  ").length))
+      const task = list[3]!.match(/^\[([ xX])\]\s+(.+)$/u)
+      const marker = task ? (task[1]!.toLowerCase() === "x" ? "☑ " : "☐ ") : /^\d/u.test(list[2]!) ? `${list[2]} ` : "• "
+      output.push(...prefixed(task?.[2] ?? list[3]!, `  ${indent}${marker}`, width))
       continue
     }
     const table = raw.trim().startsWith("|") && raw.trim().endsWith("|")
