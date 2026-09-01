@@ -114,7 +114,9 @@ def _wait_for_reported_status(
     since: int | None = None,
 ) -> str:
     pattern = re.compile(
-        rf"task {re.escape(task_id)} · (pending|running|paused|completed|failed|blocked|cancelled|killed|interrupted)"
+        rf"task {re.escape(task_id)} · "
+        r"(pending|queued|running|waiting|paused|recovering|needs_revision|replanned|"
+        r"completed|failed|blocked|cancelled|killed|interrupted)"
     )
     deadline = time.monotonic() + timeout
     while True:
@@ -427,7 +429,11 @@ def _attach_cycle(
         if (
             result.exit_code != 0
             or not result.task_identity_visible
-            or result.reported_status not in {"pending", "running", "paused", "completed", "failed", "blocked", "cancelled", "killed", "interrupted"}
+            or result.reported_status not in {
+                "pending", "queued", "running", "waiting", "paused", "recovering",
+                "needs_revision", "replanned", "completed", "failed", "blocked",
+                "cancelled", "killed", "interrupted",
+            }
             or (result.waited_for_terminal and result.canonical_status_at_detach not in TERMINAL_STATUSES)
             or (result.control_command is not None and result.control_receipt is None)
             or result.developer_event_flood_visible
