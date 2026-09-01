@@ -54,6 +54,9 @@ from zyra_productization.release.bundle import (
     DeterministicArchiveWriter,
     ReleaseManifest,
 )
+from zyra_productization.release.cleanroom import (
+    DEFAULT_CLEANROOM_COMMAND_TIMEOUT_SECONDS,
+)
 from zyra_productization.release.errors import InstallationFailure
 from zyra_productization.release.integrity import (
     ArchiveInspector,
@@ -68,6 +71,10 @@ from zyra_productization.release.policy import (
     ReleasePolicy,
 )
 from zyra_productization.release.transactions import default_migration_registry
+
+
+def test_cleanroom_dependency_commands_allow_a_slow_fresh_install() -> None:
+    assert DEFAULT_CLEANROOM_COMMAND_TIMEOUT_SECONDS == 1_800.0
 
 
 def write_project(root: Path) -> None:
@@ -955,6 +962,7 @@ def test_standard_gate_registry_isolates_pytest_state_outside_project(
         "-o",
         "faulthandler_exit_on_timeout=true",
     )
+    assert registry.get("clean-install").timeout_seconds == 3_600
     assert not basetemp.resolve().is_relative_to(tmp_path.resolve())
 
 

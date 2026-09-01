@@ -42,6 +42,7 @@ from .transactions import (
 _LIFECYCLE_PORT_MIN = 12_000
 _LIFECYCLE_PORT_MAX = 19_999
 _LIFECYCLE_PORT_SCAN_STEP = 37
+DEFAULT_CLEANROOM_COMMAND_TIMEOUT_SECONDS = 1_800.0
 
 
 def utc_now() -> str:
@@ -689,7 +690,7 @@ class CleanInstallRunner:
         output: Path,
         offline: bool = False,
         run_product_lifecycle: bool = True,
-        command_timeout: float = 600.0,
+        command_timeout: float = DEFAULT_CLEANROOM_COMMAND_TIMEOUT_SECONDS,
     ) -> dict[str, Any]:
         started_at = utc_now()
         started = time.monotonic()

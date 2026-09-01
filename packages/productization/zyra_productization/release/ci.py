@@ -802,7 +802,7 @@ def standard_gate_registry(
                 "submission-boundary",
                 "legacy-source-retirement",
             ),
-            timeout_seconds=1800,
+            timeout_seconds=3600,
             allow_parallel=False,
             artifacts=("clean-install.json",),
         ),
