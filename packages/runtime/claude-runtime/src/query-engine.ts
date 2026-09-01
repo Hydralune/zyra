@@ -3847,8 +3847,8 @@ export function isAlternativeVerificationInspection(
   // not an attempt to substitute a different green score for the failed one.
   const command = shellInvocationText(step.arguments).replaceAll("\\", "/");
   if (/(?:^|\s)(?:\S*\/)?afctl\.py\s+build(?=\s|[;&|]|$)/iu.test(command)) return false;
-  if (/\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:build|typecheck|lint)(?=\s|$)/iu.test(command)) return false;
-  if (/\bnpx\s+(?:tsc|eslint)\b/iu.test(command)) return false;
+  if (/\b(?:npm|pnpm|yarn|bun)(?:\.cmd|\.exe)?\s+(?:run\s+)?(?:build|typecheck|lint)(?=\s|$)/iu.test(command)) return false;
+  if (/\bnpx(?:\.cmd|\.exe)?\s+(?:tsc|eslint)\b/iu.test(command)) return false;
   if (/\bpython(?:3)?\s+-m\s+(?:py_compile|compileall)\b/iu.test(command)) return false;
   if (/\b(?:cargo\s+(?:check|build)|go\s+build)\b/iu.test(command)) return false;
   return true;
@@ -3882,7 +3882,7 @@ export function isClearlyEnvironmentRecoveryTool(
     // mutation detection. A successful build is nevertheless the operation
     // that makes a source repair observable to the original verifier, so it
     // must advance the recovery generation and permit that verifier to rerun.
-    || /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?build(?=\s|$)/iu.test(command)
+    || /\b(?:npm|pnpm|yarn|bun)(?:\.cmd|\.exe)?\s+(?:run\s+)?build(?=\s|$)/iu.test(command)
     || /\b(?:cargo|go)\s+build(?=\s|$)/iu.test(command);
 }
 
@@ -4191,7 +4191,7 @@ function semanticVerificationScope(value: string): string {
   }
 
   const packageScript = value.match(
-    /(?:^|\s)(npm|pnpm|yarn|bun)\s+(?:run\s+)?(test(?::[a-z0-9_-]+)?|check|lint|build|typecheck|verify|validate|smoke|e2e|integration)(?=\s|$)/iu,
+    /(?:^|\s)(npm|pnpm|yarn|bun)(?:\.cmd|\.exe)?\s+(?:run\s+)?(test(?::[a-z0-9_-]+)?|check|lint|build|typecheck|verify|validate|smoke|e2e|integration)(?=\s|$)/iu,
   );
   if (packageScript) {
     return `shell:${packageScript[1]}:${packageScript[2]}`;
@@ -4215,9 +4215,9 @@ function isClearlyVerificationDrivingShellCommand(value: string): boolean {
       ({ module }) => ["pytest", "unittest", "compileall", "py_compile"].includes(module),
     )) return true;
     if (/\b(?:pytest|py\.test)\b/i.test(segment)) return true;
-    if (/\b(?:npm|pnpm|yarn|bun)\s+(?:test|check|lint|build|typecheck)\b/i.test(segment)) return true;
-    if (/\b(?:npm|pnpm|yarn|bun)\s+run\s+(?:test|check|lint|build|typecheck|verify|validate|smoke|e2e|integration)\b/i.test(segment)) return true;
-    if (/\bnpx\s+(?:tsc|eslint|jest|vitest|playwright|mocha|ava)\b/i.test(segment)) return true;
+    if (/\b(?:npm|pnpm|yarn|bun)(?:\.cmd|\.exe)?\s+(?:test|check|lint|build|typecheck)\b/i.test(segment)) return true;
+    if (/\b(?:npm|pnpm|yarn|bun)(?:\.cmd|\.exe)?\s+run\s+(?:test|check|lint|build|typecheck|verify|validate|smoke|e2e|integration)\b/i.test(segment)) return true;
+    if (/\bnpx(?:\.cmd|\.exe)?\s+(?:tsc|eslint|jest|vitest|playwright|mocha|ava)\b/i.test(segment)) return true;
     if (/\btsc\b(?:\s|$)/i.test(segment)) return true;
     if (/\bcargo\s+(?:test|check|clippy|build)\b/i.test(segment)) return true;
     if (/\bgo\s+test\b/i.test(segment)) return true;

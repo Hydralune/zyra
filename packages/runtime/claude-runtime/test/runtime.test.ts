@@ -7429,6 +7429,9 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyVerificationDrivingTool(structuredShell(".runtime/venv/bin/python", ["-m", "pytest", "-q"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["-B", "-m", "unittest", "discover", "-s", "tests", "-v"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python3.11", ["-I", "-X", "dev", "-m", "pytest", "tests/api"])), true);
+  assert.equal(isClearlyVerificationDrivingTool(structuredShell("npm.cmd", ["test"])), true);
+  assert.equal(isClearlyVerificationDrivingTool(structuredShell("pnpm.cmd", ["run", "typecheck"])), true);
+  assert.equal(isClearlyVerificationDrivingTool(structuredShell("npx.cmd", ["vitest", "run"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["tools/afctl.py", "simulate"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["-c", "import json; print(json.load(open('submission/manifest.json')))"])), false);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["-c", "print('-m pytest')"])), false);
@@ -7467,6 +7470,14 @@ test("verification scopes remain stable across diagnostic wrappers", () => {
   assert.equal(scope("timeout 300 python tools/afctl.py build 2>&1 | tail -5"), "shell:afctl:build");
   assert.equal(scope("python tools/afctl.py simulate > /tmp/sim.log"), "shell:afctl:simulate");
   assert.equal(scope("npm run test -- --runInBand"), "shell:npm:test");
+  assert.equal(scope("npm.cmd test"), "shell:npm:test");
+  assert.equal(
+    verificationScopeForTool({
+      tool_name: "shell",
+      arguments: { executable: "npm.cmd", argv: ["test"] },
+    }),
+    "shell:npm:test",
+  );
   assert.notEqual(scope("python tools/afctl.py test public"), scope(integrationCommands[0]));
 });
 
