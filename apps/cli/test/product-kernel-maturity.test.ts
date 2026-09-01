@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { TaskMutationProjection, TaskProjection } from "@zyra/typed-api-client"
 import type { CliApi, IngressPage } from "../src/api.ts"
-import { agentContextLines, executeProductInteractive, productWorkflowGoal } from "../src/commands/product.ts"
+import { agentContextLines, executeProductInteractive, executeProductResume, productWorkflowGoal } from "../src/commands/product.ts"
 import { CliExitCode } from "../src/contracts.ts"
 import { PromptDraft } from "../src/input/draft.ts"
 import { ProductSessionState } from "../src/product/state/session-state.ts"
@@ -626,6 +626,67 @@ describe("product commands and continuous session", () => {
     expect(stdout.text).toContain("第二轮")
     expect(stdin.raw).toBe(false)
     expect(stdin.isPaused()).toBe(true)
+  })
+
+  test("registers a fresh terminal before a non-terminal resume reacquires execution", async () => {
+    const pending: TaskProjection = {
+      ...completedTask(1, "继续真实工作区任务", "session_resume"),
+      status: "pending",
+      terminal: false,
+      active: true,
+      metadata: {},
+    }
+    const completed: TaskProjection = {
+      ...pending,
+      status: "completed",
+      terminal: true,
+      active: false,
+      metadata: { final_answer: "恢复执行完成。" },
+    }
+    let terminalStarts = 0
+    let runCalls = 0
+    const api = {
+      async resolveTask() { return { task: pending } },
+      async ingressCapabilities() {
+        return { taskId: pending.taskId, generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress(): AsyncGenerator<IngressPage> {
+        yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask() {
+        runCalls += 1
+        return mutation(completed)
+      },
+      async *streamIngress() {
+        await Promise.resolve()
+        yield { kind: "heartbeat", taskId: pending.taskId, generation: 1, sequence: 0, cursor: "cursor_0" }
+      },
+      async task() { return completed },
+    } as unknown as CliApi
+    const stdout = new Capture()
+
+    const outcome = await executeProductResume({
+      command: {
+        kind: "resume",
+        identity: pending.taskId,
+        baseUrl: "http://127.0.0.1:8000",
+        autoStart: false,
+        startupTimeoutMs: 1_000,
+        timeoutMs: 10_000,
+      },
+      api,
+      stdin: new PassThrough(),
+      stdout,
+      signal: new AbortController().signal,
+      cwd: "G:\\agent-zoo\\zyra",
+      ensureTerminal: async () => { terminalStarts += 1 },
+      draftStore: null,
+    })
+
+    expect(terminalStarts).toBe(1)
+    expect(runCalls).toBe(1)
+    expect(outcome.status).toBe("completed")
+    expect(stdout.text).toContain("恢复执行完成。")
   })
 
   test("selects a canonical model and binds it to the next task creation", async () => {

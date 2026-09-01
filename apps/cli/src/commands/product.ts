@@ -1548,10 +1548,12 @@ async function runProductSession(input: {
     }
 
     if (!next) break
-    // Attaching to an existing canonical task is observation/control, not a
-    // request for a new local execution backend. Register the terminal node
-    // lazily only when this process is about to create a new goal.
-    if (!terminalReady && input.ensureTerminal && next.kind === "goal") {
+    // A non-terminal resume reacquires execution ownership through task.run,
+    // so it needs a fresh local terminal node after the previous CLI detached.
+    // Terminal history remains observation-only and does not pay this cost.
+    const resumesExecution = next.kind === "resume"
+      && (!terminalTask(next.task) || ["failed", "blocked"].includes(next.task.status))
+    if (!terminalReady && input.ensureTerminal && (next.kind === "goal" || resumesExecution)) {
       input.shell.notice("正在连接本地执行环境…")
       await input.ensureTerminal()
       terminalReady = true
