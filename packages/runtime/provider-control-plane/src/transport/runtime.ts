@@ -3,6 +3,7 @@ import type {
   ProviderDispatchRequest,
   ProviderDispatchResult,
   ProviderRouteLease,
+  ProviderStreamFrame,
   SecretResolver,
 } from "../contracts.ts";
 import {
@@ -37,6 +38,9 @@ export interface ProviderTransportOptions {
   readonly clock?: Clock;
   readonly ids?: IdFactory;
   readonly userAgent?: string;
+  readonly frameObserver?: (
+    frames: readonly ProviderStreamFrame[],
+  ) => void | Promise<void>;
 }
 
 export class ProviderTransportRuntime {
@@ -44,6 +48,7 @@ export class ProviderTransportRuntime {
   private readonly clock: Clock;
   private readonly ids: IdFactory;
   private readonly userAgent: string;
+  private readonly frameObserver?: ProviderTransportOptions["frameObserver"];
   private readonly store: ProviderControlPlaneStore;
   private readonly routes: ProviderRoutePlanner;
   private readonly credentials: CredentialManager;
@@ -69,6 +74,7 @@ export class ProviderTransportRuntime {
     this.clock = options.clock ?? new SystemClock();
     this.ids = options.ids ?? new RandomIdFactory();
     this.userAgent = options.userAgent ?? "Zyra-ProviderControlPlane/1";
+    this.frameObserver = options.frameObserver;
     this.fallback = new ModelFallbackPolicy();
     this.lifecycle = lifecycle;
     this.routeHealth = routeHealth;
@@ -281,6 +287,7 @@ export class ProviderTransportRuntime {
           decodedFrames,
           attemptNumber,
         );
+        await this.observeFrames(decodedFrames);
         frames.push(...decodedFrames);
       } else {
         for await (const event of readSse(response, {
@@ -298,6 +305,7 @@ export class ProviderTransportRuntime {
             decodedFrames,
             attemptNumber,
           );
+          await this.observeFrames(decodedFrames);
           frames.push(...decodedFrames);
         }
       }
@@ -424,6 +432,10 @@ export class ProviderTransportRuntime {
       }
       if (admissionPermit && this.routeHealth) this.routeHealth.release(admissionPermit);
     }
+  }
+
+  private async observeFrames(frames: readonly ProviderStreamFrame[]): Promise<void> {
+    if (frames.length > 0 && this.frameObserver) await this.frameObserver(frames);
   }
 }
 

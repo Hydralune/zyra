@@ -19,6 +19,9 @@
 7. task terminal state、final answer、permission custody、workspace delivery 和 verifier 仍分别以现有 canonical API/snapshot 为准，presentation 不覆盖这些所有权。
 8. `stdout` / `stderr` 正文继续由 runtime artifact owner 持有；presentation 只准入 artifact identity、stream、脱敏标题、media type 和有上限的字节数。CLI 通过既有 server-redacted range API 按需读取最多 64 KiB，不把原始输出复制进 transcript 或 UI event state。
 9. verification command 由 TypeScript progressive execution 的同一判定函数形成终态回执；后台 spawn 不计为通过，`shell_wait` 绑定原始 shell call。Python custody owner 只在安全投影时从既有私有 tool-call snapshot 补入脱敏命令，task outcome 最多保留 64 条；最终 verifier 通过但没有命令回执时继续明确显示 `not_recorded`。
+10. provider transport 解码后的 `text_delta` 在 provider dispatch 完成前进入显式 `zyra.provider-assistant-presentation/v1` 生命周期；兼容流缺少 `response_start` 时由产品边界合成且去重 started，thinking 和 tool argument 帧永不进入该生命周期。
+11. assistant delta 只投递给固定 `product-live-ingress` subscription，单块最多 1,024 UTF-8 bytes，不写 durable event store、不推进 SSE durable cursor。started/ended 是 durable boundary；短回答可在 ended 中保留最终 presentation，长回答由 canonical final answer 收敛。
+12. API 进程内 live hub、CLI live reducer 和 Web ingress observer 都有独立容量上限。daemon 重启可以丢弃尚未完成的瞬时 delta，但 snapshot、durable ended 和 final answer 必须确定性收敛，不能把瞬时队列冒充新的 canonical truth。
 
 ## 当前准入集合
 
@@ -33,4 +36,8 @@
 
 - 产品 TUI 不再按 `runtime.*` 名称猜测用户语义。
 - 新增 runtime 内部事件不会自动污染 transcript。
-- runtime-event-spine 已有正式 assistant presentation 准入，但当前物理 CodeWorker 主路径仍不把私有 provider token delta 接入可重放 API ingress；因此真实 provider 运行仍以 canonical final answer 收敛。verification command receipt 已形成正式链路，但所有 provider/tool 的细粒度 presentation 和 Phase G 真实负载复验仍未完成；不能因单项契约存在而宣称 Phase D 完成。
+- provider 解码帧已接入 typed runtime event；带 `runtime_event_bridge` 的 CodeWorker 路径会继续进入 live-only message bus、API SSE 和 CLI reducer。真实 provider 集成测试覆盖 tool-call round、tool observation、最终文本和 started/ended 持久边界；delta 的分块、脱敏与 live-only custody 由相邻 runtime/spine 集成测试覆盖。
+- 比赛主路径的 `provider-code-worker` 运行在独立 deployment-node 进程；其中途 runtime event 尚未通过节点 IPC 回传 API，因此该路径目前只能在 dispatch 完成后返回不含 delta 正文的公开事件。完成节点级流式转发前，不得声称比赛任务已经端到端实时输出。
+- Web event ingress 已验证并分发 `kind: live`，但默认 Web 产品 transcript 尚未消费该瞬时 observer；CLI/Web 的最终 canonical 事实仍一致，实时呈现对账保持未完成。
+- live delta 不可重放是有意的瞬时语义，不替代 durable cursor/snapshot。CLI 断线或 daemon 重启期间缺失的中间字符只允许由 durable ended/final answer 收敛，不能伪造 replay。
+- verification command receipt 已形成正式链路，但 Phase G 真实长程负载、Web 实时视图和发布级稳定性复验仍未完成；不能因该链路成立而宣称 Phase D 或整份任务完成。

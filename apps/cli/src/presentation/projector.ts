@@ -162,7 +162,14 @@ function sortedFrames(frames: readonly IngressFrame[], taskId: string): IngressF
   const seen = new Set<string>()
   return [...frames]
     .filter((frame) => frame.taskId === taskId)
-    .sort((left, right) => left.sequence - right.sequence || left.eventId.localeCompare(right.eventId))
+    .sort((left, right) => {
+      const leftLive = left.liveSequence
+      const rightLive = right.liveSequence
+      if (leftLive === undefined && rightLive !== undefined) return -1
+      if (leftLive !== undefined && rightLive === undefined) return 1
+      if (leftLive !== undefined && rightLive !== undefined) return leftLive - rightLive
+      return left.sequence - right.sequence || left.eventId.localeCompare(right.eventId)
+    })
     .filter((frame) => {
       if (seen.has(frame.eventId)) return false
       seen.add(frame.eventId)

@@ -4,6 +4,7 @@ import {
   type ConnectionSnapshot,
   type IngressBatch,
   type IngressDiagnostic,
+  type IngressLiveFrame,
   type IngressObserver,
   type IngressSubscriptionFilter,
   type JsonValue,
@@ -205,6 +206,34 @@ export class IngressSubscriptionRegistry {
       filteredEvents,
       failures: Object.freeze(failures),
     }
+  }
+
+  dispatchLive(frame: IngressLiveFrame): readonly EventIngressError[] {
+    if (this.#closed) return Object.freeze([])
+    const failures: EventIngressError[] = []
+    for (const record of [...this.#subscriptions.values()]) {
+      if (record.closed || typeof record.observer.live !== "function") continue
+      if (record.filter.eventTypes.length && !record.filter.eventTypes.includes(frame.eventType)) continue
+      try {
+        record.observer.live(frame)
+      } catch (error) {
+        record.failures += 1
+        const classified = subscriberError(error, {
+          taskId: this.#taskId,
+          generation: frame.generation,
+          sequence: frame.sequence,
+          eventId: frame.eventId,
+          details: { subscriptionId: record.id, callback: "live" },
+        })
+        failures.push(classified)
+        try {
+          this.#onSubscriberError?.(classified, record.id)
+        } catch {
+          // Live observer failure cannot interrupt other subscribers.
+        }
+      }
+    }
+    return Object.freeze(failures)
   }
 
   dispatchStatus(snapshot: ConnectionSnapshot): readonly EventIngressError[] {

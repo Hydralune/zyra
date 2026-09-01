@@ -322,6 +322,50 @@ describe("stateful product projection recovery", () => {
     expect(projection.snapshot()).toMatchObject({ revision: "1:1", frameCount: 1 })
   })
 
+  test("renders transient assistant deltas and converges on the durable end frame", () => {
+    const presentation = (phase: "started" | "delta" | "completed", text?: string) => ({
+      schema: "zyra.product-presentation/v1",
+      kind: "assistant",
+      phase,
+      identity: "message_live_1",
+      label: "Assistant",
+      streamId: "provider:dispatch-live-1",
+      ...(text ? { text } : {}),
+    })
+    const started = {
+      ...frame(1, "runtime.text.started", {}),
+      presentation: presentation("started"),
+    }
+    const live = {
+      ...frame(1, "runtime.text.delta", { presentation_text: "实时" }),
+      previousSequence: 1,
+      liveSequence: 7,
+      eventId: "live_delta_7",
+      presentation: presentation("delta", "实时"),
+    }
+    const ended = {
+      ...frame(2, "runtime.text.ended", { presentation_text: "实时" }),
+      presentation: presentation("completed", "实时"),
+    }
+    const projection = new ProductProjection({ task: runningTask, generation: 1 })
+
+    projection.apply(started)
+    expect(projection.applyLive(live)).toBe(true)
+    expect(projection.applyLive({ ...live })).toBe(false)
+    expect(projection.snapshot().events).toContainEqual(
+      expect.objectContaining({ type: "assistant.message.delta", text: "实时" }),
+    )
+
+    projection.apply(ended)
+    const assistant = projection.snapshot().events.filter((event) =>
+      event.type.startsWith("assistant.message")
+    )
+    expect(assistant).toEqual([
+      expect.objectContaining({ type: "assistant.message.started" }),
+      expect.objectContaining({ type: "assistant.message.completed", text: "实时" }),
+    ])
+  })
+
   test("retains a bounded raw-frame recovery window across 100,000 live events", () => {
     const projection = new ProductProjection({ task: runningTask, generation: 1 })
     for (let sequence = 1; sequence <= 100_000; sequence += 1) {

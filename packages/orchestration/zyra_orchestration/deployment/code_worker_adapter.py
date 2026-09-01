@@ -44,7 +44,7 @@ from ..goal_contracts import (
     independent_role_evidence_satisfied,
     validate_provenance_index,
 )
-from .errors import DispatchRejected
+from .errors import DispatchRejected, redact
 from .task_mutation_policy import (
     TaskMutationPolicy,
     TaskMutationPolicyGuard,
@@ -1257,6 +1257,14 @@ _DROPPED_PUBLIC_EVENT_PHASES = frozenset(
 )
 
 
+def _bounded_public_counter(value: Any) -> int:
+    try:
+        parsed = int(value or 0)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    return min(2**53 - 1, max(0, parsed))
+
+
 def _public_runtime_events(
     runtime_events: list[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -1265,8 +1273,9 @@ def _public_runtime_events(
     Provider prompt binding is verified from the private in-process events
     before this projection.  Public task/event storage retains lifecycle,
     request commitments, aggregate stream reports, tool custody and result
-    commitments, but never token deltas, model thinking, prompts, continuation
-    messages or raw tool output.
+    commitments and the explicitly versioned, bounded assistant presentation
+    stream, but never provider-native token frames, model thinking, prompts,
+    continuation messages or raw tool output.
     """
 
     projected: list[dict[str, Any]] = []
@@ -1282,7 +1291,37 @@ def _public_runtime_events(
             session = payload.get(session_key)
             if not isinstance(session, Mapping):
                 continue
-            public_session = _public_session_projection(session)
+            if (
+                session_key == "typescript_runtime"
+                and str(session.get("phase") or "")
+                in {
+                    "assistant_text_started",
+                    "assistant_text_delta",
+                    "assistant_text_ended",
+                }
+            ):
+                # The sibling query_session owns the versioned presentation
+                # payload.  typescript_runtime is only host-generated custody
+                # metadata and must not be mistaken for a second content
+                # envelope or cause the valid query_session event to be lost.
+                payload[session_key] = {
+                    key: session[key]
+                    for key in (
+                        "runtime_id",
+                        "protocol",
+                        "canonical_owner",
+                        "phase",
+                        "scope",
+                        "parent_session_id",
+                        "effective_session_id",
+                    )
+                    if key in session
+                }
+                continue
+            public_session = _public_session_projection(
+                session,
+                allow_live_assistant_delta=False,
+            )
             if public_session is None:
                 drop_event = True
                 break
@@ -1355,11 +1394,57 @@ def _provider_failure_summary(
 
 def _public_session_projection(
     session: Mapping[str, Any],
+    *,
+    allow_live_assistant_delta: bool = True,
 ) -> dict[str, Any] | None:
     public_session = dict(session)
     phase = str(public_session.get("phase") or "")
     if phase in _DROPPED_PUBLIC_EVENT_PHASES:
         return None
+    if phase in {
+        "assistant_text_started",
+        "assistant_text_delta",
+        "assistant_text_ended",
+    }:
+        if phase == "assistant_text_delta" and not allow_live_assistant_delta:
+            return None
+        if (
+            public_session.get("schema")
+            != "zyra.provider-assistant-presentation/v1"
+            or public_session.get("delta_kind") != "assistant_text"
+        ):
+            return None
+        content = str(public_session.get("content") or "")
+        stream_id = str(public_session.get("stream_id") or "")[:256]
+        assistant_message_id = str(
+            public_session.get("assistant_message_id") or ""
+        )[:256]
+        if not stream_id or not assistant_message_id:
+            return None
+        if phase == "assistant_text_delta" and not content:
+            return None
+        if phase != "assistant_text_delta" and content:
+            return None
+        if len(content.encode("utf-8")) > 1_024:
+            return None
+        presentation: dict[str, Any] = {
+            "schema": "zyra.provider-assistant-presentation/v1",
+            "phase": phase,
+            "delta_kind": "assistant_text",
+            "stream_id": stream_id,
+            "assistant_message_id": assistant_message_id,
+            "segment_index": _bounded_public_counter(
+                public_session.get("segment_index")
+            ),
+            "provider_sequence": _bounded_public_counter(
+                public_session.get("provider_sequence")
+            ),
+            "created_at": str(public_session.get("created_at") or "")[:64],
+            "content_persisted": False,
+        }
+        if phase == "assistant_text_delta" and content:
+            presentation["presentation_text"] = str(redact(content))
+        return presentation
     _commit_private_field(
         public_session,
         "user_content",

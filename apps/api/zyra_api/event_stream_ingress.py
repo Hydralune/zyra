@@ -16,6 +16,7 @@ import os
 import secrets
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 from http import HTTPStatus
@@ -52,6 +53,9 @@ MAX_CURSOR_BYTES = 4096
 MAX_QUERY_TEXT_BYTES = 8192
 MAX_FILTER_VALUES = 128
 _PROCESS_CURSOR_SECRET = secrets.token_bytes(32)
+_PRODUCT_LIVE_SUBSCRIPTION_ID = "product-live-ingress"
+_MAX_LIVE_EVENTS_PER_TASK = 4_096
+_MAX_LIVE_EVENT_IDENTITIES = 32_768
 
 
 class EventIngressError(RuntimeError):
@@ -677,6 +681,44 @@ class EventIngressApiFacade:
         self._sleep = sleep or time.sleep
         self._request_lock = threading.RLock()
         self._active_streams: dict[str, int] = {}
+        self._live_lock = threading.RLock()
+        self._live_ordinal = 0
+        self._live_by_task: dict[
+            str, deque[tuple[int, dict[str, JsonValue]]]
+        ] = {}
+        self._live_seen: set[str] = set()
+        self._live_seen_order: deque[str] = deque()
+        self._live_supported = all(
+            callable(getattr(self.bridge, name, None))
+            for name in ("register_subscription", "poll_live")
+        )
+        if self._live_supported:
+            self.bridge.register_subscription(
+                {
+                    "subscriptionId": _PRODUCT_LIVE_SUBSCRIPTION_ID,
+                    "recipient": {
+                        "kind": "ui_projector",
+                        "id": _PRODUCT_LIVE_SUBSCRIPTION_ID,
+                        "requiredCapabilities": [],
+                    },
+                    "eventTypes": ["runtime.text.delta"],
+                    "intents": ["observation"],
+                    "aggregatePrefixes": [],
+                    "taskIds": [],
+                    "capabilityRefs": ["ui.project"],
+                    "capacity": _MAX_LIVE_EVENTS_PER_TASK,
+                    "maxAttempts": 1,
+                    "ackTimeoutMs": 30_000,
+                    "backpressureMode": "coalesce_non_effective",
+                    "enabled": True,
+                    "priority": 0,
+                    "metadata": {
+                        "built_in": True,
+                        "live_only": True,
+                        "canonical_owner": False,
+                    },
+                }
+            )
 
     def capabilities(self, task_id: str, params: Mapping[str, Any]) -> IngressApiResult:
         request = IngressRequest.from_params(task_id, params, operation="capabilities")
@@ -978,6 +1020,8 @@ class EventIngressApiFacade:
         deadline = started + request.stream_ms / 1000
         heartbeat_at = started + request.heartbeat_ms / 1000
         cursor = current
+        self._pump_live()
+        live_ordinal = self._current_live_ordinal()
         try:
             yield self._sse_retry(max(250, min(request.wait_ms or DEFAULT_WAIT_MS, 5_000)))
             yield self._sse_named(
@@ -1039,6 +1083,26 @@ class EventIngressApiFacade:
                     filter_digest=digest,
                     allowed_kinds={CursorKind.DELTA},
                 )
+                self._pump_live()
+                for ordinal, live_event in self._live_after(
+                    request.task_id,
+                    live_ordinal,
+                ):
+                    live_ordinal = max(live_ordinal, ordinal)
+                    frame = self._live_frame(
+                        live_event,
+                        task_id=request.task_id,
+                        generation=cursor.generation,
+                        sequence=cursor.sequence,
+                        ordinal=ordinal,
+                    )
+                    if frame is None:
+                        continue
+                    yield self._sse_named(
+                        "live",
+                        frame,
+                        event_id=f"live-{cursor.generation}-{ordinal}",
+                    )
                 now = self._monotonic()
                 if now >= heartbeat_at:
                     yield self._sse_named(
@@ -1086,6 +1150,84 @@ class EventIngressApiFacade:
     def active_streams(self) -> Mapping[str, int]:
         with self._request_lock:
             return dict(self._active_streams)
+
+    def _pump_live(self) -> None:
+        if not self._live_supported:
+            return
+        records = self.bridge.poll_live(
+            _PRODUCT_LIVE_SUBSCRIPTION_ID,
+            limit=1_000,
+        )
+        with self._live_lock:
+            for record in records:
+                event_value = record.get("event")
+                if not isinstance(event_value, Mapping):
+                    continue
+                event = dict(event_value)
+                if event.get("eventType") != "runtime.text.delta":
+                    continue
+                identity = event.get("identity")
+                if not isinstance(identity, Mapping):
+                    continue
+                task_id = str(identity.get("taskId") or "").strip()
+                event_id = str(event.get("eventId") or "").strip()
+                if not task_id or not event_id or event_id in self._live_seen:
+                    continue
+                self._live_seen.add(event_id)
+                self._live_seen_order.append(event_id)
+                while len(self._live_seen_order) > _MAX_LIVE_EVENT_IDENTITIES:
+                    expired = self._live_seen_order.popleft()
+                    self._live_seen.discard(expired)
+                self._live_ordinal += 1
+                queue = self._live_by_task.setdefault(
+                    task_id,
+                    deque(maxlen=_MAX_LIVE_EVENTS_PER_TASK),
+                )
+                queue.append((self._live_ordinal, event))
+
+    def _current_live_ordinal(self) -> int:
+        with self._live_lock:
+            return self._live_ordinal
+
+    def _live_after(
+        self,
+        task_id: str,
+        ordinal: int,
+    ) -> tuple[tuple[int, dict[str, JsonValue]], ...]:
+        with self._live_lock:
+            return tuple(
+                (item_ordinal, dict(event))
+                for item_ordinal, event in self._live_by_task.get(task_id, ())
+                if item_ordinal > ordinal
+            )
+
+    def _live_frame(
+        self,
+        event: Mapping[str, Any],
+        *,
+        task_id: str,
+        generation: int,
+        sequence: int,
+        ordinal: int,
+    ) -> dict[str, JsonValue] | None:
+        canonical = dict(event)
+        presentation = project_product_presentation(canonical)
+        if presentation is None or presentation.get("kind") != "assistant":
+            return None
+        return {
+            "schema": FRAME_SCHEMA,
+            "kind": "live",
+            "source": "runtime-live-bus",
+            "generation": generation,
+            "taskId": task_id,
+            "sequence": sequence,
+            "liveSequence": ordinal,
+            "eventId": str(canonical.get("eventId") or "")[:256],
+            "eventType": "runtime.text.delta",
+            "observedAtMs": self._now_ms(),
+            "event": canonical,
+            "presentation": presentation,
+        }
 
     def _task_high_watermark(self, request: IngressRequest) -> int:
         page = self.bridge.query(

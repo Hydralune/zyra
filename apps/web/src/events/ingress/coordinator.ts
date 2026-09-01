@@ -662,7 +662,9 @@ export class EventIngressCoordinator {
   ): Promise<void> {
     this.#diagnostics.frame(frame.kind, {
       sequence: frame.sequence,
-      eventId: frame.kind === FrameKind.EVENT ? frame.eventId : undefined,
+      eventId: frame.kind === FrameKind.EVENT || frame.kind === FrameKind.LIVE
+        ? frame.eventId
+        : undefined,
       transport,
       generation: frame.generation,
     })
@@ -678,6 +680,13 @@ export class EventIngressCoordinator {
       ) {
         this.#cursor.updateCursor(frame.cursor, frame.sequence)
         this.#refreshDiagnostics()
+      }
+      return
+    }
+    if (frame.kind === FrameKind.LIVE) {
+      this.#watchdog.beat(frame.observedAtMs)
+      for (const error of this.#subscriptions.dispatchLive(frame)) {
+        this.#diagnostics.failure(error)
       }
       return
     }

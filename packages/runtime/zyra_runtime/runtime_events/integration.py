@@ -587,6 +587,26 @@ class RuntimeEventSpineBridge:
         )
         return require_mapping(result, "runtime event subscription")
 
+    def poll_live(
+        self,
+        subscription_id: str,
+        *,
+        limit: int = 100,
+    ) -> tuple[Mapping[str, JsonValue], ...]:
+        selected = subscription_id.strip()
+        if not selected:
+            raise RuntimeEventContractError("live subscription id must not be empty")
+        if not 1 <= limit <= 1_000:
+            raise RuntimeEventContractError("live poll limit must be between 1 and 1000")
+        result = self.port.call(
+            "poll_live",
+            {"subscription_id": selected, "limit": limit},
+        )
+        return tuple(
+            require_mapping(item, "runtime live message")
+            for item in require_sequence(result, "runtime live messages")
+        )
+
     def catch_up(
         self,
         subscription_id: str,

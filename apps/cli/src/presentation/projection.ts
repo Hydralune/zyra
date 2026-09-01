@@ -18,9 +18,18 @@ export interface ProductProjectionSnapshot {
 }
 
 const MAX_RETAINED_FRAMES = 20_000
+const MAX_RETAINED_LIVE_FRAMES = 4_096
 
 function terminal(task: TaskProjection): boolean {
   return task.terminal || ["completed", "failed", "blocked", "cancelled", "killed"].includes(task.status)
+}
+
+function assistantIdentity(frame: IngressFrame): string | undefined {
+  const value = frame.presentation
+  if (!value || value.schema !== "zyra.product-presentation/v1" || value.kind !== "assistant") return undefined
+  return typeof value.identity === "string" && value.identity.trim()
+    ? value.identity.trim().slice(0, 256)
+    : undefined
 }
 
 function validateTask(prior: TaskProjection, next: TaskProjection): void {
@@ -63,6 +72,8 @@ export class ProductProjection {
   #task: TaskProjection
   #generation: number
   #frames: IngressFrame[] = []
+  #liveFrames: IngressFrame[] = []
+  #liveEventIds = new Set<string>()
   #bySequence = new Map<number, string>()
   #frameCount = 0
   #lastSequence = 0
@@ -118,6 +129,28 @@ export class ProductProjection {
       if (evicted) this.#bySequence.delete(evicted.sequence)
     }
     if (frame.cursor) this.#cursor = frame.cursor
+    if (frame.eventType === "runtime.text.ended") {
+      const identity = assistantIdentity(frame)
+      if (identity) {
+        this.#liveFrames = this.#liveFrames.filter((item) => assistantIdentity(item) !== identity)
+        this.#liveEventIds = new Set(this.#liveFrames.map((item) => item.eventId))
+      }
+    }
+    return true
+  }
+
+  applyLive(frame: IngressFrame): boolean {
+    if (frame.taskId !== this.#task.taskId || frame.generation !== this.#generation) {
+      throw new CliTaskError("Live product event does not match the active task generation.", "contract_projection_binding_invalid")
+    }
+    if (frame.liveSequence === undefined || this.#liveEventIds.has(frame.eventId)) return false
+    this.#liveFrames.push(frame)
+    this.#liveEventIds.add(frame.eventId)
+    this.#frameCount += 1
+    while (this.#liveFrames.length > MAX_RETAINED_LIVE_FRAMES) {
+      const evicted = this.#liveFrames.shift()
+      if (evicted) this.#liveEventIds.delete(evicted.eventId)
+    }
     return true
   }
 
@@ -133,6 +166,8 @@ export class ProductProjection {
     this.#task = input.task
     this.#generation = input.generation
     this.#frames = frames
+    this.#liveFrames = []
+    this.#liveEventIds.clear()
     this.#bySequence = new Map(frames.map((frame) => [frame.sequence, frame.eventId]))
     this.#frameCount = frames.length
     this.#lastSequence = frames.at(-1)?.sequence ?? 0
@@ -203,11 +238,11 @@ export class ProductProjection {
       lastSequence: this.lastSequence,
       cursor: this.#cursor,
       frameCount: this.#frameCount,
-      retainedFrameCount: this.#frames.length,
+      retainedFrameCount: this.#frames.length + this.#liveFrames.length,
       connection: this.#connection,
       events: projectProductEvents({
         task: this.#task,
-        frames: this.#frames,
+        frames: [...this.#frames, ...this.#liveFrames],
         permissions: this.#permissions,
         transport: this.#transport,
       }),

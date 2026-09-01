@@ -584,6 +584,11 @@ export async function observeProductTask(input: {
             renderProjection(true)
             if (terminalTask(task)) { settled = true; break }
           }
+        } else if (message.kind === "live") {
+          if (projection.applyLive(message.frame)) {
+            recoveryAttempts = 0
+            renderProjection()
+          }
         } else if (message.kind === "heartbeat" || message.kind === "close") {
           if (message.sequence < projection.lastSequence) {
             throw new CliTaskError("Product SSE cursor regressed behind projected state.", "contract_cursor_regression")

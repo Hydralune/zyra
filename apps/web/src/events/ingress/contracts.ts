@@ -32,6 +32,7 @@ export type ConnectionPhaseValue = (typeof ConnectionPhase)[keyof typeof Connect
 
 export const FrameKind = {
   EVENT: "event",
+  LIVE: "live",
   READY: "ready",
   HEARTBEAT: "heartbeat",
   CLOSE: "close",
@@ -186,6 +187,20 @@ export interface IngressEventFrame {
   encodedBytes: number
 }
 
+export interface IngressLiveFrame {
+  schema: typeof EVENT_INGRESS_FRAME_SCHEMA
+  kind: typeof FrameKind.LIVE
+  source: string
+  generation: number
+  taskId: string
+  sequence: number
+  liveSequence: number
+  eventId: string
+  eventType: "runtime.text.delta"
+  observedAtMs: number
+  presentation: Readonly<JsonObject>
+}
+
 export interface IngressReadyFrame {
   schema: typeof EVENT_INGRESS_FRAME_SCHEMA
   kind: typeof FrameKind.READY
@@ -233,6 +248,7 @@ export interface IngressErrorFrame {
 
 export type IngressFrame =
   | IngressEventFrame
+  | IngressLiveFrame
   | IngressReadyFrame
   | IngressHeartbeatFrame
   | IngressCloseFrame
@@ -490,6 +506,7 @@ export interface IngressDiagnostic {
 
 export interface IngressObserver {
   batch(batch: IngressBatch): void
+  live?(frame: IngressLiveFrame): void
   status?(snapshot: ConnectionSnapshot): void
   diagnostic?(diagnostic: IngressDiagnostic): void
 }

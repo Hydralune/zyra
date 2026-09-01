@@ -36,6 +36,11 @@ export interface ProviderControlPlaneModelResolution {
 
 type EmitRuntimeEvent = (phase: string, payload?: JsonObject) => Promise<void>;
 
+interface ProviderAssistantPresentationState {
+  readonly startedStreamIds: Set<string>;
+  readonly endedStreamIds: Set<string>;
+}
+
 interface ProviderRouteRefProjection {
   readonly routeId: string;
   readonly routeChecksum: string;
@@ -59,6 +64,81 @@ const HIGH_VOLUME_CONTENT_FRAME_KINDS = new Set([
   "text_delta",
   "thinking_delta",
 ]);
+
+const PRODUCT_ASSISTANT_CHUNK_BYTES = 1_024;
+
+function boundedUtf8Chunks(value: string): string[] {
+  const chunks: string[] = [];
+  let current = "";
+  let bytes = 0;
+  for (const character of value) {
+    const characterBytes = Buffer.byteLength(character, "utf8");
+    if (current && bytes + characterBytes > PRODUCT_ASSISTANT_CHUNK_BYTES) {
+      chunks.push(current);
+      current = "";
+      bytes = 0;
+    }
+    current += character;
+    bytes += characterBytes;
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+export async function emitProviderAssistantPresentationFrames(
+  frames: readonly ProviderStreamFrame[],
+  emit: EmitRuntimeEvent,
+  state: ProviderAssistantPresentationState = {
+    startedStreamIds: new Set<string>(),
+    endedStreamIds: new Set<string>(),
+  },
+): Promise<void> {
+  for (const frame of frames) {
+    const streamId = `provider:${frame.dispatchId}`;
+    const messageId = `message:assistant:${streamId}`;
+    const base = {
+      schema: "zyra.provider-assistant-presentation/v1",
+      stream_id: streamId,
+      assistant_message_id: messageId,
+      delta_kind: "assistant_text",
+      provider_sequence: frame.sequence,
+      created_at: new Date(frame.createdAt).toISOString(),
+    } as const;
+    const start = async (): Promise<void> => {
+      if (state.startedStreamIds.has(streamId)) return;
+      state.startedStreamIds.add(streamId);
+      await emit("assistant_text_started", { ...base, segment_index: 0 });
+    };
+    if (frame.kind === "response_start") {
+      await start();
+      continue;
+    }
+    if (frame.kind === "text_delta" && frame.text) {
+      // OpenAI Chat compatible streams may begin with content and never emit
+      // an explicit response-start frame.  Product messages still require an
+      // unambiguous lifecycle, so synthesize that boundary exactly once.
+      await start();
+      const chunks = boundedUtf8Chunks(frame.text);
+      for (const [index, content] of chunks.entries()) {
+        await emit("assistant_text_delta", {
+          ...base,
+          segment_index: frame.sequence * 1_000 + index,
+          content,
+        });
+      }
+      continue;
+    }
+    if (frame.kind === "response_end") {
+      await start();
+      if (state.endedStreamIds.has(streamId)) continue;
+      state.endedStreamIds.add(streamId);
+      await emit("assistant_text_ended", {
+        ...base,
+        segment_index: frame.sequence * 1_000,
+      });
+    }
+  }
+}
 
 export function providerControlPlaneRequired(config: RuntimeConfig): boolean {
   return asBoolean(config.runtimeConstraints.provider_control_plane_required);
@@ -170,7 +250,20 @@ export async function resolveProviderControlPlaneTurns(
   }
   const routeRef = routeRefFromConstraints(constraints);
   const { ProviderControlPlane } = await import("../../provider-control-plane/src/control-plane.ts");
-  const controlPlane = new ProviderControlPlane({ databasePath });
+  const presentationState: ProviderAssistantPresentationState = {
+    startedStreamIds: new Set<string>(),
+    endedStreamIds: new Set<string>(),
+  };
+  const controlPlane = new ProviderControlPlane({
+    databasePath,
+    transport: {
+      frameObserver: (frames) => emitProviderAssistantPresentationFrames(
+        frames,
+        emit,
+        presentationState,
+      ),
+    },
+  });
   const dispatchId = [
     "provider_dispatch",
     safeId(input.workerRequestId),

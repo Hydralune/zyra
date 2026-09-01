@@ -40,9 +40,9 @@
 | CMD-09 | Codex 账户、Apps、Plugins、Pets | `slash_command.rs`; plugin/app/pets modules | Codex 专属账户和装饰能力 | 不适用或延期：Zyra 无对应产品边界 | P2/N/A | 未来产品决策 | 无 | 逐项产品评审 | 例外尚未批准 |
 | FILE-01 | 递归文件/目录引用 | `file_search.rs`; `mention_codec.rs`; connector mentions | `@` 搜索、选择、编码引用 | 部分：64 层/20k 上限、Unicode 与后台索引完成；超大仓性能与正式 mention codec 待补 | P0 | workspace root/canonical file catalog | `product/files/index.ts`; completion popup | 规模、Unicode、路径逃逸 | `d85a22d6` |
 | FILE-02 | 安全路径显示和边界 | `additional_dirs.rs`; `working_directory.rs`; core workspace roots tests | workspace/额外根受策略约束 | 已实现本地索引 symlink/junction 拒绝、secret-name 排除和 diff path policy；额外根未支持 | P0 | workspace roots | `product/files/index.ts`; `presentation/workspace-diff.ts` | symlink/path traversal | `d85a22d6` |
-| CHAT-01 | transcript 一级消息模型 | `thread_transcript.rs`; `chatwidget/transcript.rs`; `history_cell/` | 用户、助手、工具/计划单元有稳定身份 | 部分：有界 state 与稳定 identity 已实现；runtime spine 到 product presentation 的正式 assistant 契约完成，但物理 CodeWorker token delta 尚未进入 API live ingress | P0 | physical worker live ingress | `source-mapper.ts`; `product_presentation.py`; `presentation/projector.ts` | reducer、重放、正式 projection contract、真实 provider | `25344dc1`, `1f637896`；当前提交 |
+| CHAT-01 | transcript 一级消息模型 | `thread_transcript.rs`; `chatwidget/transcript.rs`; `history_cell/` | 用户、助手、工具/计划单元有稳定身份 | 部分：有界 state、稳定 identity 和 provider presentation 契约已实现；bridge 同进程链路可进入 live-only API SSE/CLI，thinking/tool arguments 排除；比赛 deployment-node 的中途 IPC 与默认 Web transcript 实时消费仍缺 | P0 | deployment-node runtime-event streaming；Web product observer | `provider-control-plane-runtime.ts`; `worker_ingress.py`; `event_stream_ingress.py`; CLI/Web ingress | node→API live E2E、live/durable 收敛、真实 provider、Web cross-view | `25344dc1`, `1f637896`；当前提交 |
 | CHAT-02 | Markdown 完整渲染 | `markdown.rs`; `markdown_render.rs`; `markdown_render_tests.rs` | 标题、列表、表格、引用、代码、链接 | 已实现可读标题/列表/任务项/表格/引用/代码/链接；复制和复杂 CommonMark 仍待 | P0 | 无 | `tui/markdown.ts` | golden 60/80/120/160 | `61aa506c` |
-| CHAT-03 | 流式 Markdown 与最终一致 | `markdown_stream.rs`; `streaming/controller.rs`; `code_fence.rs`; render tests | 未闭合块安全 holdback，最终 canonical render 一致 | 部分：inline/link holdback、fence 增量、版本化 text identity/delta 准入和 canonical final 去重完成；物理 live ingress 与 property chunk 测试待补 | P0 | physical worker live ingress | `tui/markdown.ts`; presentation v2 | chunk/property/replay、真实 provider | `61aa506c`；当前提交 |
+| CHAT-03 | 流式 Markdown 与最终一致 | `markdown_stream.rs`; `streaming/controller.rs`; `code_fence.rs`; render tests | 未闭合块安全 holdback，最终 canonical render 一致 | 部分：inline/link holdback、fence 增量、UTF-8 1,024-byte chunk、delta-first 生命周期和 CLI live→durable final 去重已覆盖；deployment-node 中途转发、随机分块 property、断线中段收敛和 Web 实时渲染仍待补 | P0 | node live forwarding + durable ended/final convergence | `tui/markdown.ts`; provider presentation；CLI live reducer | node→API E2E、chunk/property、断线、Web cross-view | `61aa506c`；当前提交 |
 | CHAT-04 | 超长内容有界与滚动 | `transcript_reflow.rs`; `pager_overlay.rs`; scroll state | 历史与 overlay 可滚动，reflow 有 cap | 部分：消息/实体/frame/viewport/overlay 有界，100k 通过；10k RSS 与 8h 尚待 | P0 | artifact references | bounded state + viewport | 10k items、100k events、RSS | `1f637896` |
 | PLAN-01 | 计划与步骤状态 | `history_cell/plans.rs`; `chatwidget/plan_implementation.rs`; plan tests | 计划版本、步骤状态和变更清晰 | 部分：canonical planNodes 状态、主视图聚合和 `/plan` pager 完成；计划版本/变更契约待补 | P0 | canonical plan/step facts | `projector.ts`; state; `/plan` | contract、replay、snapshot | `3e023ed8`, `1b78438f` |
 | TOOL-01 | 工具生命周期、耗时、结果 | `tool_lifecycle.rs`; `history_cell/exec.rs`; core tool lifecycle tests | started/update/completed/failed，摘要与耗时 | 已实现 versioned lifecycle、耗时、artifact refs、折叠主视图和 `/tools` browser；真实 provider 覆盖待扩 | P0 | stable tool call IDs/timestamps/artifact | presentation v2; state; `/tools` | reducer、snapshot、长 stdout | `3e023ed8`, `1b78438f`；当前提交 |
@@ -75,9 +75,9 @@
 
 ## 当前结论
 
-- 现有 Foundation 在 transport、projection、基础权限 custody、控制 mutation、JSONL 和 daemon supervision 上可复用。
-- 最大结构性缺口是：没有长期存活的 session controller，没有增量且有界的产品状态，没有命令/overlay 体系，没有 Markdown/diff/tool/agent 组件，也没有发布级 PTY 与性能 harness。
-- 后端并非从零：typed API 已包含 session list/detail、task command queue、permission control、diff review、terminal、workspace 和 artifact 相关端点。Phase C/D 应优先复用这些正式契约，而不是从屏幕文本猜状态。
+- Foundation 已演化出长期 session controller、有界增量产品状态、命令/overlay、Markdown、diff/tool/agent 浏览、权限范围、诊断和 PTY/性能 harness；这些能力已有组件与回归证据，但尚未满足整份任务的发布门。
+- 当前 P0 重点转向真实 daemon 重启与 crash 恢复、IME 实机、异步重绘输入压力、控制 mutation lost-ack/race、Web cross-view 对账、clean-room 发布闭包和 Phase G 三次长程负载。
+- typed API 已提供 session、task command、permission、diff、terminal、workspace、artifact 和版本化 event ingress。新增产品契约继续遵守 canonical owner，不从屏幕文本或 generic runtime summary 猜状态。
 - Codex 专属账户、插件、Apps、Pets 等项目暂列 P2/N/A；必须在 Phase H 逐项批准，不影响 P0 工作流先行。
 
 ## 真实 Codex PTY 状态

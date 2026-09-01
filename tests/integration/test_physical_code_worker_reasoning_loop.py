@@ -854,6 +854,11 @@ def test_physical_code_worker_runs_model_tool_observation_model_loop(
     }
     assert "model_stream_frame" not in public_phases
     assert "message_delta" not in public_phases
+    assert {
+        "assistant_text_started",
+        "assistant_text_ended",
+    }.issubset(public_phases), sorted(public_phases)
+    assert "assistant_text_delta" not in public_phases
     public_event_json = json.dumps(result["runtime_events"], ensure_ascii=False)
     assert '"user_content"' not in public_event_json
     assert '"messages"' not in public_event_json

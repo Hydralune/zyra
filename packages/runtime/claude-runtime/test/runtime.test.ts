@@ -23,6 +23,7 @@ import { projectToolOutputForRuntime } from "../src/tools/model-result-projectio
 import {
   assertProviderRouteRenewalLineage,
   bindProviderControlPlaneChildRoute,
+  emitProviderAssistantPresentationFrames,
   providerControlPlaneEvidenceFrames,
   providerControlPlaneToolSteps,
 } from "../src/provider-control-plane-runtime.ts";
@@ -856,6 +857,100 @@ test("provider evidence keeps structural frames without replaying content tokens
     "response_end",
   ]);
   assert.equal(evidence[0]?.jsonDelta, null);
+});
+
+test("provider assistant presentation emits only bounded text deltas", async () => {
+  type Frame = Parameters<typeof emitProviderAssistantPresentationFrames>[0][number];
+  const frame = (
+    kind: Frame["kind"],
+    sequence: number,
+    text: string | null = null,
+    jsonDelta: string | null = null,
+  ): Frame => ({
+    frameId: `frame-${sequence}`,
+    dispatchId: "dispatch-presentation",
+    routeId: "route-presentation",
+    sequence,
+    kind,
+    text,
+    toolCallId: kind === "tool_call_delta" ? "call-private" : null,
+    toolName: kind === "tool_call_delta" ? "shell" : null,
+    jsonDelta,
+    usage: {},
+    providerEvent: null,
+    createdAt: sequence,
+    metadata: {},
+  });
+  const text = `开始 ${"你🙂a".repeat(700)} 结束`;
+  const emitted: Array<{ phase: string; payload: JsonObject }> = [];
+
+  await emitProviderAssistantPresentationFrames([
+    frame("response_start", 1),
+    frame("thinking_delta", 2, "private reasoning"),
+    frame("tool_call_delta", 3, null, '{"secret":"private tool arguments"}'),
+    frame("text_delta", 4, text),
+    frame("response_end", 5),
+  ], async (phase, payload = {}) => {
+    emitted.push({ phase, payload });
+  });
+
+  assert.equal(emitted[0]?.phase, "assistant_text_started");
+  assert.equal(emitted.at(-1)?.phase, "assistant_text_ended");
+  const deltas = emitted.filter((event) => event.phase === "assistant_text_delta");
+  assert.ok(deltas.length > 1);
+  assert.equal(deltas.map((event) => String(event.payload.content ?? "")).join(""), text);
+  assert.ok(deltas.every((event) =>
+    Buffer.byteLength(String(event.payload.content ?? ""), "utf8") <= 1_024
+  ));
+  const serialized = JSON.stringify(emitted);
+  assert.doesNotMatch(serialized, /private reasoning/u);
+  assert.doesNotMatch(serialized, /private tool arguments/u);
+  assert.ok(emitted.every((event) =>
+    event.payload.assistant_message_id
+      === "message:assistant:provider:dispatch-presentation"
+  ));
+});
+
+test("provider assistant presentation synthesizes one start for delta-first streams", async () => {
+  type Frame = Parameters<typeof emitProviderAssistantPresentationFrames>[0][number];
+  const frame = (kind: Frame["kind"], sequence: number, text: string | null = null): Frame => ({
+    frameId: `delta-first-${sequence}`,
+    dispatchId: "dispatch-delta-first",
+    routeId: "route-delta-first",
+    sequence,
+    kind,
+    text,
+    toolCallId: null,
+    toolName: null,
+    jsonDelta: null,
+    usage: {},
+    providerEvent: null,
+    createdAt: sequence,
+    metadata: {},
+  });
+  const emitted: string[] = [];
+  const emit = async (phase: string): Promise<void> => {
+    emitted.push(phase);
+  };
+  const state = {
+    startedStreamIds: new Set<string>(),
+    endedStreamIds: new Set<string>(),
+  };
+
+  await emitProviderAssistantPresentationFrames([
+    frame("text_delta", 1, "first"),
+  ], emit, state);
+  await emitProviderAssistantPresentationFrames([
+    frame("text_delta", 2, "second"),
+    frame("response_end", 3),
+  ], emit, state);
+
+  assert.deepEqual(emitted, [
+    "assistant_text_started",
+    "assistant_text_delta",
+    "assistant_text_delta",
+    "assistant_text_ended",
+  ]);
 });
 
 test("provider evidence bounds fragmented tool arguments to one structural frame per call", () => {

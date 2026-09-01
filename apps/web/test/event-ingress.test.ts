@@ -15,11 +15,13 @@ import {
   SubscribeBeforeSnapshotBarrier,
   TransportKind,
   normalizeCapabilities,
+  normalizeAnyFrame,
   normalizeEventFrame,
   normalizeIngressCapacity,
   normalizePage,
   normalizeReconnectPolicy,
   type IngressEventFrame,
+  type IngressLiveFrame,
   type EventIngressDataSource,
   type IngressObserver,
 } from "../src/events/ingress/index.ts"
@@ -176,6 +178,50 @@ function snapshotRaw(
 }
 
 describe("event ingress envelope validation", () => {
+  test("admits only bounded versioned assistant live presentation", () => {
+    const raw = {
+      schema: "zyra.event-ingress-frame/v1",
+      kind: "live",
+      source: "runtime-live-bus",
+      generation: 1,
+      taskId: TASK,
+      sequence: 7,
+      liveSequence: 11,
+      eventId: "live-assistant-11",
+      eventType: "runtime.text.delta",
+      observedAtMs: 2_000,
+      presentation: {
+        schema: "zyra.product-presentation/v1",
+        kind: "assistant",
+        phase: "delta",
+        identity: "message-live-1",
+        label: "Assistant",
+        streamId: "provider:dispatch-live-1",
+        text: "实时回答",
+      },
+      event: { private: "dropped by the browser validator" },
+    }
+    const normalized = normalizeAnyFrame(raw, TASK, 1) as IngressLiveFrame
+    expect(normalized.kind).toBe("live")
+    expect(normalized.presentation.text).toBe("实时回答")
+    expect("event" in normalized).toBe(false)
+
+    const registry = new IngressSubscriptionRegistry(TASK)
+    const observed: IngressLiveFrame[] = []
+    registry.subscribe({ batch() {}, live: (frame) => observed.push(frame) })
+    expect(registry.dispatchLive(normalized)).toEqual([])
+    expect(observed).toEqual([normalized])
+
+    expect(() => normalizeAnyFrame({
+      ...raw,
+      presentation: { ...raw.presentation, kind: "reasoning" },
+    }, TASK, 1)).toThrow(EventIngressError)
+    expect(() => normalizeAnyFrame({
+      ...raw,
+      presentation: { ...raw.presentation, text: "你".repeat(400) },
+    }, TASK, 1)).toThrow(EventIngressError)
+  })
+
   test("normalizes full canonical identity and predecessor chain", () => {
     const normalized = frame(5, 2, {
       inline: {

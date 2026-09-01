@@ -108,7 +108,7 @@ export class IngressDiagnostics {
   }
 
   frame(
-    code: "event" | "heartbeat" | "ready" | "close" | "error",
+    code: "event" | "live" | "heartbeat" | "ready" | "close" | "error",
     details: {
       sequence?: number
       eventId?: string

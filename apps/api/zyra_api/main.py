@@ -354,6 +354,8 @@ from zyra_runtime.runtime_events import (
 _RUNTIME_EVENT_SPINE_LOCK = _runtime_event_threading.RLock()
 _RUNTIME_EVENT_SPINE = None
 _RUNTIME_EVENT_SPINE_KEY = None
+_EVENT_INGRESS_API = None
+_EVENT_INGRESS_API_KEY = None
 
 
 def get_runtime_event_spine_bridge():
@@ -383,17 +385,27 @@ def get_runtime_event_api() -> RuntimeEventApiFacade:
 def get_event_ingress_api() -> EventIngressApiFacade:
     """Return a read-only browser ingress facade over the canonical spine."""
 
-    return EventIngressApiFacade(get_runtime_event_spine_bridge())
+    global _EVENT_INGRESS_API, _EVENT_INGRESS_API_KEY
+    bridge = get_runtime_event_spine_bridge()
+    key = _RUNTIME_EVENT_SPINE_KEY
+    with _RUNTIME_EVENT_SPINE_LOCK:
+        if _EVENT_INGRESS_API is None or _EVENT_INGRESS_API_KEY != key:
+            _EVENT_INGRESS_API = EventIngressApiFacade(bridge)
+            _EVENT_INGRESS_API_KEY = key
+        return _EVENT_INGRESS_API
 
 
 def reset_runtime_event_spine_bridge() -> None:
     """Close and forget the API-owned event sidecar and its SQLite handle."""
 
     global _RUNTIME_EVENT_SPINE, _RUNTIME_EVENT_SPINE_KEY
+    global _EVENT_INGRESS_API, _EVENT_INGRESS_API_KEY
     with _RUNTIME_EVENT_SPINE_LOCK:
         bridge = _RUNTIME_EVENT_SPINE
         _RUNTIME_EVENT_SPINE = None
         _RUNTIME_EVENT_SPINE_KEY = None
+        _EVENT_INGRESS_API = None
+        _EVENT_INGRESS_API_KEY = None
         if bridge is not None:
             # Keep the API lock through registry eviction and close. Otherwise
             # a concurrent getter can reacquire the still-registered bridge

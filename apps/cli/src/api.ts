@@ -39,6 +39,7 @@ export interface IngressFrame {
   taskId: string
   sequence: number
   previousSequence: number
+  liveSequence?: number
   eventId: string
   eventType: string
   cursor?: string
@@ -109,6 +110,7 @@ export interface IngressCapabilities {
 export type IngressStreamMessage =
   | { kind: "ready"; taskId: string; generation: number; sequence: number }
   | { kind: "event"; taskId: string; generation: number; sequence: number; frame: IngressFrame }
+  | { kind: "live"; taskId: string; generation: number; sequence: number; frame: IngressFrame }
   | { kind: "heartbeat" | "close"; taskId: string; generation: number; sequence: number; cursor: string }
 
 export interface ScenarioRun {
@@ -321,6 +323,34 @@ export function parseIngressFrame(value: unknown, taskId: string, generation: nu
     cursor: typeof selected.cursor === "string" ? selected.cursor : undefined,
     presentation: selected.presentation === undefined ? undefined : record(selected.presentation, "product presentation"),
     event: record(selected.event, "canonical runtime event"),
+    raw: { ...selected },
+  }
+}
+
+function parseIngressLiveFrame(value: unknown, taskId: string, generation: number): IngressFrame {
+  const selected = record(value, "live event ingress frame")
+  schema(selected, FRAME_SCHEMA, "live event ingress frame")
+  if (selected.kind !== "live") {
+    throw new CliTaskError("Live ingress returned an unsupported frame kind.", "contract_frame_kind_unknown")
+  }
+  const frameTaskId = stringValue(selected.taskId, "live ingress task id")
+  const frameGeneration = integerValue(selected.generation, "live ingress generation")
+  if (frameTaskId !== taskId || frameGeneration !== generation) {
+    throw new CliTaskError("Live ingress frame binding changed.", "contract_stream_binding_invalid")
+  }
+  return {
+    schema: FRAME_SCHEMA,
+    kind: "event",
+    source: stringValue(selected.source, "live ingress source"),
+    generation: frameGeneration,
+    taskId: frameTaskId,
+    sequence: integerValue(selected.sequence, "live ingress durable sequence"),
+    previousSequence: integerValue(selected.sequence, "live ingress durable sequence"),
+    liveSequence: integerValue(selected.liveSequence, "live ingress sequence"),
+    eventId: stringValue(selected.eventId, "live ingress event id"),
+    eventType: stringValue(selected.eventType, "live ingress event type"),
+    presentation: record(selected.presentation, "live product presentation"),
+    event: record(selected.event, "live runtime event"),
     raw: { ...selected },
   }
 }
@@ -1019,6 +1049,8 @@ export class CliApi {
         }
         if (kind === "event") {
           yield { kind, taskId: selected, generation, sequence, frame: parseIngressFrame(value, selected, generation) }
+        } else if (kind === "live") {
+          yield { kind, taskId: selected, generation, sequence, frame: parseIngressLiveFrame(value, selected, generation) }
         } else if (kind === "ready") {
           yield { kind, taskId: selected, generation, sequence }
         } else if (kind === "heartbeat" || kind === "close") {

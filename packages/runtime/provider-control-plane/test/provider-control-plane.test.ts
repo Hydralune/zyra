@@ -95,7 +95,11 @@ async function captureServer(
 
 function makeControlPlane(
   t: TestContext,
-  options: { readonly clock?: { now(): number }; readonly routeLeaseMilliseconds?: number } = {},
+  options: {
+    readonly clock?: { now(): number };
+    readonly routeLeaseMilliseconds?: number;
+    readonly frameObserver?: (frames: readonly ProviderStreamFrame[]) => void | Promise<void>;
+  } = {},
 ): { controlPlane: ProviderControlPlane; secrets: InMemorySecretResolver } {
   const directory = mkdtempSync(join(tmpdir(), "zyra-provider-control-"));
   const secrets = new InMemorySecretResolver();
@@ -105,6 +109,9 @@ function makeControlPlane(
     ids: new SequenceIdFactory("test"),
     clock: options.clock,
     route: { leaseMilliseconds: options.routeLeaseMilliseconds ?? 60_000 },
+    ...(options.frameObserver
+      ? { transport: { frameObserver: options.frameObserver } }
+      : {}),
   });
   t.after(() => {
     controlPlane.close();
@@ -818,6 +825,46 @@ test("OpenAI-compatible dispatch captures real headers, body bytes, and SSE", as
   assert.equal("max_completion_tokens" in body, false);
   assert.ok(Buffer.byteLength(request.body) > 0);
   assert.equal(result.attempts[0]?.requestBytes, Buffer.byteLength(request.body));
+});
+
+test("transport observes decoded frames before dispatch completion", async (t) => {
+  const capture = await captureServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.write('data: {"choices":[{"delta":{"content":"live"},"finish_reason":null}]}\n\n');
+    response.end('data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+  });
+  t.after(() => capture.close());
+  let dispatchSettled = false;
+  const observations: Array<{ kind: string; beforeSettlement: boolean }> = [];
+  const { controlPlane, secrets } = makeControlPlane(t, {
+    frameObserver: (frames) => {
+      observations.push(...frames.map((frame) => ({
+        kind: frame.kind,
+        beforeSettlement: !dispatchSettled,
+      })));
+    },
+  });
+  installProvider(controlPlane, secrets, {
+    providerId: "observed-stream",
+    modelId: "observed-stream-model",
+    baseUrl: capture.baseUrl,
+    protocol: "openai_chat",
+  });
+  const route = controlPlane.acquireRoute(
+    routeRequest("observed-stream", "observed-stream-model"),
+  );
+  const dispatched = controlPlane.dispatch(dispatchRequest(route.routeId));
+  void dispatched.then(
+    () => { dispatchSettled = true; },
+    () => { dispatchSettled = true; },
+  );
+  const result = await dispatched;
+
+  assert.equal(result.text, "live");
+  assert.ok(observations.some((item) =>
+    item.kind === "text_delta" && item.beforeSettlement
+  ));
+  assert.ok(observations.every((item) => item.beforeSettlement));
 });
 
 test("active SSE progress may outlive the request-header timeout", async (t) => {

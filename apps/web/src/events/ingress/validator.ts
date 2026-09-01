@@ -1104,6 +1104,57 @@ export function normalizeAnyFrame(
     return normalizeEventFrame(body, expectedTaskId, expectedGeneration)
   }
   const base = baseControlFrame(body, expectedTaskId, expectedGeneration)
+  if (body.kind === FrameKind.LIVE) {
+    const eventType = requiredString(body.eventType, "frame.eventType", MAX_IDENTIFIER_BYTES)
+    if (eventType !== "runtime.text.delta") {
+      throw new EventIngressError(
+        IngressErrorCode.INVALID_FRAME,
+        "Live ingress admits only assistant text deltas.",
+        { context: { taskId: expectedTaskId, generation: expectedGeneration } },
+      )
+    }
+    const presentation = objectValue(body.presentation, "frame.presentation")
+    if (
+      presentation.schema !== "zyra.product-presentation/v1"
+      || presentation.kind !== "assistant"
+      || presentation.phase !== "delta"
+    ) {
+      throw new EventIngressError(
+        IngressErrorCode.INVALID_FRAME,
+        "Live assistant frame lacks the product presentation contract.",
+        { context: { taskId: expectedTaskId, generation: expectedGeneration } },
+      )
+    }
+    const text = requiredString(presentation.text, "frame.presentation.text", 2_048)
+    if (new TextEncoder().encode(text).byteLength > 1_024) {
+      throw new EventIngressError(
+        IngressErrorCode.INVALID_FRAME,
+        "Live assistant presentation exceeds the 1024-byte boundary.",
+        { context: { taskId: expectedTaskId, generation: expectedGeneration } },
+      )
+    }
+    return Object.freeze({
+      schema: EVENT_INGRESS_FRAME_SCHEMA,
+      kind: FrameKind.LIVE,
+      source: requiredString(body.source, "frame.source", 256),
+      generation: base.generation,
+      taskId: base.taskId,
+      sequence: base.sequence,
+      liveSequence: integer(body.liveSequence, "frame.liveSequence", 1),
+      eventId: identifier(body.eventId, "frame.eventId"),
+      eventType: "runtime.text.delta" as const,
+      observedAtMs: base.observedAtMs,
+      presentation: Object.freeze({
+        schema: "zyra.product-presentation/v1",
+        kind: "assistant",
+        phase: "delta",
+        identity: identifier(presentation.identity, "frame.presentation.identity"),
+        label: requiredString(presentation.label, "frame.presentation.label", 256),
+        streamId: identifier(presentation.streamId, "frame.presentation.streamId"),
+        text,
+      }),
+    })
+  }
   if (body.kind === FrameKind.READY) {
     const frame: IngressReadyFrame = {
       schema: EVENT_INGRESS_FRAME_SCHEMA,

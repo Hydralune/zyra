@@ -20,6 +20,12 @@ from .models import JsonValue, RuntimeEventContractError, coerce_json
 
 
 SOURCE_SCHEMA = "zyra.runtime-source-record/v1"
+PRODUCT_LIVE_SUBSCRIPTION_ID = "product-live-ingress"
+PRODUCT_LIVE_RECIPIENT = {
+    "kind": "ui_projector",
+    "id": PRODUCT_LIVE_SUBSCRIPTION_ID,
+    "requiredCapabilities": [],
+}
 
 
 def _utc_now() -> str:
@@ -126,6 +132,11 @@ _DIRECT_RULES: Mapping[str, _Rule] = {
     "turn_completed": _Rule("turn_completed", requires_cause=True),
     "stream_request_start": _Rule("text_started", effective=False),
     "message_delta": _Rule("text_delta", effective=False, live_only=True),
+    "assistant_text_started": _Rule("text_started", effective=False),
+    "assistant_text_delta": _Rule(
+        "text_delta", effective=False, live_only=True, requires_cause=True
+    ),
+    "assistant_text_ended": _Rule("text_ended", effective=False, requires_cause=True),
     "tool_call_started": _Rule("tool_called"),
     "tool_call_completed": _Rule("tool_succeeded", requires_cause=True),
     "context_compacted": _Rule("compact_completed", domain="compact", requires_cause=True),
@@ -154,6 +165,8 @@ class CodeWorkerRuntimeEventIngress:
         self._last_event_id: str | None = None
         self._turn_event_id: str | None = None
         self._stream_event_id: str | None = None
+        self._stream_event_ids: MutableMapping[str, str] = {}
+        self._assistant_streams: MutableMapping[str, dict[str, Any]] = {}
         self._tool_event_ids: MutableMapping[str, str] = {}
         self._compact_event_id: str | None = None
         self._control_event_ids: MutableMapping[str, str] = {}
@@ -217,6 +230,14 @@ class CodeWorkerRuntimeEventIngress:
                 return self._emit_control_pair(data, sequence)
             if phase in {"tool_failure_signal", "tool_result_budget_exceeded"}:
                 return self._emit_recovery_signal(data, sequence)
+            if phase in {
+                "assistant_text_started",
+                "assistant_text_delta",
+                "assistant_text_ended",
+            } and _text(data.get("delta_kind")) != "assistant_text":
+                raise RuntimeEventContractError(
+                    "assistant presentation frame lacks assistant_text custody"
+                )
             if phase == "tool_call_completed":
                 return (self._emit_tool_terminal(data, sequence),)
             rule = _DIRECT_RULES.get(phase)
@@ -413,6 +434,9 @@ class CodeWorkerRuntimeEventIngress:
             return None
         if rule.kind in {"turn_completed", "turn_failed"}:
             return self._turn_event_id or self._last_event_id
+        if rule.kind in {"text_delta", "text_ended"}:
+            stream_id = _text(payload.get("stream_id"))
+            return self._stream_event_ids.get(stream_id) or self._stream_event_id
         if rule.kind == "control_completed":
             control_id = _text(payload.get("command_id"))
             return self._control_event_ids.get(control_id) or self._last_event_id
@@ -442,14 +466,57 @@ class CodeWorkerRuntimeEventIngress:
                 "context_digest": _digest(payload),
             }
         if rule.kind.startswith("text_"):
-            content = payload.get("delta", payload.get("content", ""))
-            return {
-                "stream_id": _text(payload.get("stream_id"), self.identity.worker_request_id),
+            content = payload.get(
+                "presentation_text",
+                payload.get("delta", payload.get("content", "")),
+            )
+            if len(str(content).encode("utf-8")) > 1_024:
+                raise RuntimeEventContractError(
+                    "assistant presentation chunk exceeds 1024 bytes"
+                )
+            stream_id = _text(
+                payload.get("stream_id"), self.identity.worker_request_id
+            )
+            base: dict[str, JsonValue] = {
+                "stream_id": stream_id,
+                "assistant_message_id": _text(
+                    payload.get("assistant_message_id"),
+                    stream_id,
+                ),
                 "segment_index": _integer(payload.get("segment_index"), _integer(payload.get("sequence"))),
                 "delta_bytes": len(str(content).encode("utf-8")),
                 "content_digest": _digest(content),
                 "content": coerce_json(content),
+                **(
+                    {"presentation_text": coerce_json(content)}
+                    if rule.kind == "text_delta" and content
+                    else {}
+                ),
             }
+            if rule.kind == "text_ended":
+                state = self._assistant_streams.get(stream_id, {})
+                total_bytes = max(0, int(state.get("total_bytes") or 0))
+                chunk_count = max(0, int(state.get("chunk_count") or 0))
+                retained = str(state.get("retained") or "")
+                final_text = retained if total_bytes <= 1_024 else ""
+                base.update(
+                    {
+                        "delta_bytes": 0,
+                        "final_digest": str(state.get("final_digest") or _digest("")),
+                        "chunk_count": chunk_count,
+                        "total_bytes": total_bytes,
+                        "interrupted": False,
+                        **(
+                            {
+                                "final_text": final_text,
+                                "presentation_text": final_text,
+                            }
+                            if final_text
+                            else {}
+                        ),
+                    }
+                )
+            return base
         if rule.kind == "tool_called":
             tool_call_id = _text(payload.get("tool_call_id"))
             if not tool_call_id:
@@ -519,6 +586,11 @@ class CodeWorkerRuntimeEventIngress:
             },
             "delivery": {
                 "mode": "live_only" if rule.live_only else "targeted",
+                **(
+                    {"target": PRODUCT_LIVE_RECIPIENT}
+                    if phase == "assistant_text_delta"
+                    else {}
+                ),
                 "dependencyRecipients": [],
                 "topK": 4,
             },
@@ -548,12 +620,53 @@ class CodeWorkerRuntimeEventIngress:
         payload: Mapping[str, Any],
         receipt: WorkerIngressReceipt,
     ) -> None:
+        stream_id = _text(payload.get("stream_id"), self.identity.worker_request_id)
+        if phase == "assistant_text_started":
+            self._assistant_streams[stream_id] = {
+                "chunk_count": 0,
+                "total_bytes": 0,
+                "retained": "",
+                "hasher": hashlib.sha256(),
+                "final_digest": "",
+            }
+        elif phase == "assistant_text_delta":
+            content = str(
+                payload.get(
+                    "presentation_text",
+                    payload.get("delta", payload.get("content", "")),
+                )
+                or ""
+            )
+            state = self._assistant_streams.setdefault(
+                stream_id,
+                {
+                    "chunk_count": 0,
+                    "total_bytes": 0,
+                    "retained": "",
+                    "hasher": hashlib.sha256(),
+                    "final_digest": "",
+                },
+            )
+            encoded = content.encode("utf-8")
+            state["chunk_count"] = int(state.get("chunk_count") or 0) + 1
+            state["total_bytes"] = int(state.get("total_bytes") or 0) + len(encoded)
+            hasher = state.get("hasher")
+            if isinstance(hasher, type(hashlib.sha256())):
+                hasher.update(encoded)
+                state["final_digest"] = f"sha256:{hasher.hexdigest()}"
+            if int(state["total_bytes"]) <= 1_024:
+                state["retained"] = f"{state.get('retained') or ''}{content}"
+            else:
+                state["retained"] = ""
+        elif phase == "assistant_text_ended":
+            self._assistant_streams.pop(stream_id, None)
         if not receipt.event_id:
             return
         if phase in {"turn_start", "turn_started", "turn_resumed"}:
             self._turn_event_id = receipt.event_id
-        elif phase == "stream_request_start":
+        elif phase in {"stream_request_start", "assistant_text_started"}:
             self._stream_event_id = receipt.event_id
+            self._stream_event_ids[stream_id] = receipt.event_id
         elif phase == "tool_call_started":
             tool_call_id = _text(payload.get("tool_call_id"))
             if tool_call_id:

@@ -35,6 +35,7 @@ export interface LiveMessageRecord {
   liveId: string;
   subscriptionId: string;
   message: AgentMessageEnvelope;
+  event: RuntimeEventEnvelope;
   createdAt: string;
   expiresAt: string;
 }
@@ -197,6 +198,7 @@ export class RuntimeMessageBus {
           liveId: newId("live-delivery"),
           subscriptionId: spec.subscriptionId,
           message: messageFromEvent(pseudoEvent),
+          event: pseudoEvent,
           createdAt,
           expiresAt,
         };
