@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -179,7 +180,10 @@ def main() -> int:
             _wait_for(capture, ">_ Zyra", arguments.timeout)
             composer_ready_ms = round((time.monotonic() - started) * 1_000, 3)
             _type_command(process, "/model")
-            _wait_for(capture, "选择后续任务模型", arguments.timeout)
+            # The command-completion row also contains this title in its
+            # description.  Wait for the picker's bordered title so Enter is
+            # never sent to the composer overlay by mistake.
+            _wait_for(capture, "╭─ 选择后续任务模型", arguments.timeout)
             process.write(b"\r")  # type: ignore[attr-defined]
             try:
                 _wait_for(capture, "选择推理强度", 2.0)
@@ -239,6 +243,10 @@ def main() -> int:
                 handle.write("\n")
             print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
             return 0 if payload["all_passed"] else 1
+        except Exception:
+            print("--- product TUI visible tail ---", file=sys.stderr)
+            print(_visible(capture)[-4_000:], file=sys.stderr)
+            raise
         finally:
             if process.poll() is None:
                 process.terminate_tree(grace_seconds=0.5)
