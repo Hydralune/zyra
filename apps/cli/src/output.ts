@@ -13,6 +13,8 @@ const EMBEDDED_WINDOWS_ABSOLUTE_PATH = /(^|[\s("'=])([A-Za-z]:[\\/][^\s"'<>|]*)/
 const EMBEDDED_UNIX_ABSOLUTE_PATH = /(^|[\s("'=])(\/(?!\/)[^\s"'<>]*)/g
 const CAPABILITY_PATH = /([\\/]capability[\\/])[^\\/?#\s]+/gi
 const URL_USERINFO = /([a-z][a-z0-9+.-]*:\/\/)[^/@\s]+@/gi
+const AUTHORIZATION_VALUE = /\b(Bearer|Basic)\s+[^\s,;]+/gi
+const INLINE_SECRET_VALUE = /\b(api[_-]?key|token|password|secret|credential)\s*[:=]\s*["']?[^\s"',;&]+/gi
 const ANSI_ESCAPE = /\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001b\\))/g
 
 function scrubString(value: string): string {
@@ -20,6 +22,8 @@ function scrubString(value: string): string {
     .replace(ANSI_ESCAPE, "")
     .replace(CAPABILITY_PATH, "$1[redacted]")
     .replace(URL_USERINFO, "$1[redacted]@")
+    .replace(AUTHORIZATION_VALUE, "$1 [redacted]")
+    .replace(INLINE_SECRET_VALUE, "$1=[redacted]")
   if (WINDOWS_ABSOLUTE_PATH.test(withoutAnsi) || UNIX_ABSOLUTE_PATH.test(withoutAnsi)) {
     return "[redacted-path]"
   }

@@ -42,6 +42,9 @@ describe("FE-S01 CLI argument and output contract", () => {
     expect(parseCliArgs(["-V"]).kind).toBe("version")
     expect(parseCliArgs(["help"])).toMatchObject({ kind: "interactive", goal: "help" })
     expect(parseCliArgs(["version"])).toMatchObject({ kind: "interactive", goal: "version" })
+    expect(parseCliArgs(["doctor"])).toMatchObject({ kind: "doctor", autoStart: false })
+    expect(parseCliArgs(["doctor", "--autostart=true", "--bundle=doctor.json"]))
+      .toMatchObject({ kind: "doctor", autoStart: true, bundle: "doctor.json" })
   })
 
   test("uses @zyra/commands argument binding for run and scenario", () => {
@@ -152,6 +155,7 @@ describe("FE-S01 CLI argument and output contract", () => {
       detail: "failed at G:\\private\\workspace\\secret.txt and /home/user/private.txt",
       endpoint: "http://127.0.0.1:1234/capability/opaque-secret/v1/dispatch",
       credential_url: "https://alice:secret@example.invalid/path",
+      nested: "Authorization: Bearer top-secret token=also-secret",
     })).toBeTrue()
     const line = capture.text.trim()
     expect(line).not.toContain("\u001b")
@@ -160,6 +164,8 @@ describe("FE-S01 CLI argument and output contract", () => {
     expect(line).not.toContain("/home/user")
     expect(line).not.toContain("opaque-secret")
     expect(line).not.toContain("alice:secret")
+    expect(line).not.toContain("top-secret")
+    expect(line).not.toContain("also-secret")
     expect(JSON.parse(line)).toEqual({
       schema: "example/v1",
       message: "plain",
@@ -168,6 +174,7 @@ describe("FE-S01 CLI argument and output contract", () => {
       detail: "failed at [redacted-path] and [redacted-path]",
       endpoint: "http://127.0.0.1:1234/capability/[redacted]/v1/dispatch",
       credential_url: "[redacted]",
+      nested: "Authorization: Bearer [redacted] token=[redacted]",
     })
   })
 

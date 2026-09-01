@@ -186,6 +186,18 @@ const UI_SPECS: readonly CommandArgumentSpec[] = [
   },
 ]
 
+const DOCTOR_SPECS: readonly CommandArgumentSpec[] = [
+  ...COMMON_SPECS,
+  {
+    name: "bundle",
+    kind: "string",
+    required: false,
+    flag: "--bundle",
+    maximumBytes: 32 * 1024,
+    description: "Write a redacted JSON diagnostic bundle inside the current workspace.",
+  },
+]
+
 function tokens(values: readonly string[]): CommandToken[] {
   let offset = 0
   return values.map((value) => {
@@ -383,6 +395,17 @@ export function parseCliArgs(argv: readonly string[]): CliCommand {
       taskId: values.taskId as string | undefined,
     }
   }
+  if (command === "doctor") {
+    const values = bound(argv.slice(1), DOCTOR_SPECS)
+    return {
+      kind: "doctor",
+      ...common(values),
+      // Diagnostics are read-only by default.  Starting a daemon requires an
+      // explicit --autostart=true on this command.
+      autoStart: values.autoStart === true,
+      bundle: typeof values.bundle === "string" ? values.bundle.trim() : undefined,
+    }
+  }
   if (!command.startsWith("-")) {
     const values = bound(argv, INTERACTIVE_SPECS)
     const goal = typeof values.goal === "string" ? values.goal.trim() : ""
@@ -403,6 +426,7 @@ export const CLI_USAGE = `Zyra CLI command surface
   zyra ls                           list canonical tasks and sessions
   zyra scenario <action> [...]      scenario lifecycle over the daemon API
   zyra ui [--task <id>]             ensure daemon, start Web, open product route
+  zyra doctor [--bundle <file>]     read-only product diagnostics
   zyra daemon <start|stop|status>   local daemon supervision
 
 Product TTY mode renders an inline conversation and never exposes raw runtime

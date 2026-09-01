@@ -20,6 +20,7 @@ export type CliCommandName =
   | "scenario"
   | "ui"
   | "daemon"
+  | "doctor"
   | "help"
   | "version"
 
@@ -107,6 +108,11 @@ export interface UiCommand extends CommonOptions {
   taskId?: string
 }
 
+export interface DoctorCommand extends CommonOptions {
+  kind: "doctor"
+  bundle?: string
+}
+
 export interface HelpCommand {
   kind: "help"
 }
@@ -125,6 +131,7 @@ export type CliCommand =
   | ScenarioCommand
   | UiCommand
   | DaemonCommand
+  | DoctorCommand
   | HelpCommand
   | VersionCommand
 

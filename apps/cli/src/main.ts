@@ -27,6 +27,7 @@ import { executeProductInteractive, executeProductResume } from "./commands/prod
 import { executeList } from "./commands/list.ts"
 import { TerminalNodeLifecycle } from "./terminal/lifecycle.ts"
 import { launchUi } from "./ui.ts"
+import { executeDoctor } from "./product/diagnostics/doctor.ts"
 
 export interface TerminalCleanupWarning {
   schema: "zyra.cli-terminal-cleanup-warning.v1"
@@ -191,7 +192,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
     })
     if (command.kind === "help") {
       output.diagnostic(CLI_USAGE)
-      output.event({ schema: "zyra.cli-help.v1", command_count: 10 })
+      output.event({ schema: "zyra.cli-help.v1", command_count: 11 })
       output.result({ ok: true, exit_code: CliExitCode.SUCCESS, status: "help" })
       return CliExitCode.SUCCESS
     }
@@ -223,6 +224,29 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
         diagnostics: outcome.diagnostics,
       })
       return outcome.exitCode
+    }
+    if (command.kind === "doctor") {
+      const result = await executeDoctor({
+        command,
+        token,
+        stdinIsTty: (stdin as Readable & { isTTY?: boolean }).isTTY === true,
+        stdoutIsTty: (stdout as Writable & { isTTY?: boolean }).isTTY === true,
+      })
+      output.diagnostic(result.report.healthy
+        ? "Zyra doctor: ready"
+        : `Zyra doctor: ${result.report.status}; inspect the structured checks.`)
+      output.event({ ...result.report, bundle: result.bundle ? { written: true, bytes: result.bundle.bytes } : undefined })
+      output.result({
+        ok: true,
+        exit_code: CliExitCode.SUCCESS,
+        status: result.report.status,
+        result: {
+          schema: "zyra.cli-doctor-result/v1",
+          healthy: result.report.healthy,
+          bundle_written: result.bundle?.written === true,
+        },
+      })
+      return CliExitCode.SUCCESS
     }
 
     const daemon = await ensureDaemon({
