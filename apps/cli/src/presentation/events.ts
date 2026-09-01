@@ -1,8 +1,9 @@
-export const ZYRA_UI_EVENT_SCHEMA = "zyra.ui-event/v1" as const
+export const ZYRA_UI_EVENT_SCHEMA = "zyra.ui-event/v2" as const
 
 export type UiConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected"
 export type UiPermissionDecision = "allow" | "deny"
 export type UiFileChangeKind = "created" | "modified" | "deleted" | "renamed"
+export type UiSeverity = "info" | "warning" | "error"
 
 export interface UiPermissionRequest {
   requestId: string
@@ -44,19 +45,20 @@ export type ZyraUiEvent =
       text: string
       source: "stream" | "canonical_final_answer"
     })
-  | (UiEventBase & { type: "activity.started"; activityId: string; label: string })
-  | (UiEventBase & { type: "activity.updated"; activityId: string; label: string })
-  | (UiEventBase & { type: "activity.completed"; activityId: string; label: string; outcome?: string })
-  | (UiEventBase & { type: "tool.started"; toolCallId: string; name: string; summary: string })
-  | (UiEventBase & { type: "tool.updated"; toolCallId: string; summary: string })
-  | (UiEventBase & { type: "tool.completed"; toolCallId: string; summary: string })
-  | (UiEventBase & { type: "tool.failed"; toolCallId: string; message: string })
+  | (UiEventBase & { type: "activity.started"; activityId: string; label: string; category?: string; summary?: string; severity?: UiSeverity })
+  | (UiEventBase & { type: "activity.updated"; activityId: string; label: string; category?: string; summary?: string; severity?: UiSeverity })
+  | (UiEventBase & { type: "activity.completed"; activityId: string; label: string; outcome?: string; category?: string; summary?: string; severity?: UiSeverity })
+  | (UiEventBase & { type: "tool.started"; toolCallId: string; name: string; summary: string; durationMs?: number; artifactIds?: readonly string[] })
+  | (UiEventBase & { type: "tool.updated"; toolCallId: string; name?: string; summary: string; durationMs?: number; artifactIds?: readonly string[] })
+  | (UiEventBase & { type: "tool.completed"; toolCallId: string; name?: string; summary: string; durationMs?: number; artifactIds?: readonly string[] })
+  | (UiEventBase & { type: "tool.failed"; toolCallId: string; name?: string; message: string; durationMs?: number; artifactIds?: readonly string[] })
   | (UiEventBase & { type: "permission.requested"; request: UiPermissionRequest })
   | (UiEventBase & { type: "permission.resolved"; requestId: string; decision: string })
   | (UiEventBase & { type: "workspace.changed"; changes: readonly UiFileChange[] })
   | (UiEventBase & { type: "workspace.diff"; lines: readonly string[]; truncated: boolean; source: "local_workspace" })
   | (UiEventBase & { type: "verification.updated"; verification: UiVerificationSummary })
-  | (UiEventBase & { type: "subagent.updated"; agentId: string; label: string; status: string })
+  | (UiEventBase & { type: "subagent.updated"; agentId: string; label: string; status: string; summary?: string })
+  | (UiEventBase & { type: "task.issue"; issueId: string; severity: UiSeverity; message: string; code?: string; retryable?: boolean; recovery?: string })
   | (UiEventBase & { type: "task.completed"; taskId: string; finalAnswer: string })
   | (UiEventBase & { type: "task.failed"; taskId: string; message: string; recovery?: string })
   | (UiEventBase & { type: "task.cancelled"; taskId: string; message: string })

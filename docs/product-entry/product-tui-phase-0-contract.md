@@ -4,7 +4,7 @@
 
 ## 1. 冻结边界
 
-- 产品 TUI 只消费 `zyra.ui-event/v1`，不直接渲染 `runtime.*`。
+- Foundation 当时只消费 `zyra.ui-event/v1`；当前产品 reducer 已由 ADR-002 升级为 `zyra.ui-event/v2`，仍不直接渲染 `runtime.*`。
 - 当前 `SessionProjection`、`LineTranscriptRenderer` 和 `commands/interactive.ts` 保持原样，继续承担开发者事件观察职责。
 - REST、SSE、snapshot、cursor、control、permission custody、daemon 和 terminal node 继续作为共享基础设施。
 - canonical task state 始终属于后端；投影器不创建第二套任务真相。
@@ -24,7 +24,7 @@
 
 每个事件包含：
 
-- 固定 schema：`zyra.ui-event/v1`；
+- Foundation schema：`zyra.ui-event/v1`；当前 schema 与准入规则见 `docs/product-tui/adr-002-product-presentation-admission.md`；
 - 稳定 `eventId`，可以在 replay、重复帧和恢复后去重；
 - 产品语义 `type`；
 - 可获得时使用 canonical `occurredAt`，不使用本地当前时间伪造顺序。

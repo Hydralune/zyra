@@ -42,6 +42,7 @@ export interface IngressFrame {
   eventId: string
   eventType: string
   cursor?: string
+  presentation?: Readonly<Record<string, unknown>>
   event: Readonly<Record<string, unknown>>
   raw: Readonly<Record<string, unknown>>
 }
@@ -318,6 +319,7 @@ export function parseIngressFrame(value: unknown, taskId: string, generation: nu
     eventId: stringValue(selected.eventId, "event ingress event id"),
     eventType: stringValue(selected.eventType, "event ingress event type"),
     cursor: typeof selected.cursor === "string" ? selected.cursor : undefined,
+    presentation: selected.presentation === undefined ? undefined : record(selected.presentation, "product presentation"),
     event: record(selected.event, "canonical runtime event"),
     raw: { ...selected },
   }

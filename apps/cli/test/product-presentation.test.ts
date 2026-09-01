@@ -41,7 +41,7 @@ function frame(sequence: number, eventType: string, inline: Readonly<Record<stri
   }
 }
 
-describe("ZyraUiEvent/v1 product projection", () => {
+describe("ZyraUiEvent/v2 product projection", () => {
   test("rebuilds a physical completed task without leaking raw runtime events", () => {
     expect(fixture.capture).toMatchObject({ physical_run: true, sanitized: true, observed_frame_count: 144 })
     expect(fixture.capture.observed_event_type_counts["runtime.agent.message"]).toBe(57)
@@ -94,6 +94,56 @@ describe("ZyraUiEvent/v1 product projection", () => {
     expect(projected.filter((event) => event.type === "assistant.message.delta")).toMatchObject([{ text: "你好" }, { text: " world" }])
     expect(projected.find((event) => event.type === "assistant.message.completed")).toMatchObject({ text: "你好 world", source: "stream" })
     expect(JSON.stringify(projected)).not.toContain("redacted")
+  })
+
+  test("consumes only versioned backend product presentation for worker, tool, and issue state", () => {
+    const frames: IngressFrame[] = [
+      {
+        ...frame(201, "runtime.backend.dispatch.requested", { authorization: "must-not-leak" }),
+        presentation: {
+          schema: "zyra.product-presentation/v1",
+          kind: "worker",
+          phase: "dispatched",
+          identity: "provider-code-worker",
+          label: "provider-code-worker",
+          summary: "backend local-sandbox-gateway",
+          severity: "info",
+        },
+      },
+      {
+        ...frame(202, "runtime.tool.succeeded", { raw_stdout: "must-not-leak" }),
+        presentation: {
+          schema: "zyra.product-presentation/v1",
+          kind: "tool",
+          phase: "completed",
+          identity: "tool_call_1",
+          label: "tests",
+          summary: "12 tests passed",
+          durationMs: 1532,
+          artifactIds: ["artifact_test_report"],
+          severity: "info",
+        },
+      },
+      {
+        ...frame(203, "runtime.agent.message", { authorization: "must-not-leak" }),
+        presentation: {
+          schema: "zyra.product-presentation/v1",
+          kind: "issue",
+          phase: "failed",
+          identity: "issue_provider",
+          label: "Provider unavailable.",
+          code: "provider_unavailable",
+          retryable: true,
+          severity: "error",
+        },
+      },
+    ]
+    const projected = projectProductEvents({ task: { ...fixture.task, status: "running", terminal: false }, frames })
+    const state = reduceProductEvents(projected)
+    expect(state.agents).toEqual([{ agentId: "provider-code-worker", label: "provider-code-worker", status: "dispatched", summary: "backend local-sandbox-gateway" }])
+    expect(state.tools).toEqual([{ toolCallId: "tool_call_1", name: "tests", summary: "12 tests passed", status: "completed", durationMs: 1532, artifactIds: ["artifact_test_report"] }])
+    expect(state.issues).toEqual([{ issueId: "issue_provider", severity: "error", message: "Provider unavailable.", code: "provider_unavailable", retryable: true, recovery: undefined }])
+    expect(JSON.stringify(projected)).not.toContain("must-not-leak")
   })
 
   test("prefers canonical permission custody snapshots and keeps decisions fail-closed", () => {

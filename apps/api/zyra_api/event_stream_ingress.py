@@ -29,6 +29,8 @@ from zyra_runtime.runtime_events import (
     RuntimeEventSpineBridge,
 )
 
+from .product_presentation import project_product_presentation
+
 
 INGRESS_SCHEMA = "zyra.event-ingress/v1"
 CAPABILITIES_SCHEMA = "zyra.event-ingress-capabilities/v1"
@@ -590,7 +592,7 @@ def _event_frame(
             },
             resync_required=True,
         )
-    return {
+    frame: dict[str, JsonValue] = {
         "schema": FRAME_SCHEMA,
         "kind": "event",
         "source": source,
@@ -605,6 +607,10 @@ def _event_frame(
         "observedAtMs": observed_at_ms,
         "event": canonical,
     }
+    presentation = project_product_presentation(canonical)
+    if presentation is not None:
+        frame["presentation"] = presentation
+    return frame
 
 
 def _frames(

@@ -1,4 +1,4 @@
-import type { UiFileChange, UiPermissionRequest, UiVerificationSummary, ZyraUiEvent } from "../../presentation/events.ts"
+import type { UiFileChange, UiPermissionRequest, UiSeverity, UiVerificationSummary, ZyraUiEvent } from "../../presentation/events.ts"
 
 export interface ProductMessageState {
   messageId: string
@@ -12,6 +12,9 @@ export interface ProductActivityState {
   label: string
   status: "pending" | "running" | "completed"
   outcome?: string
+  category?: string
+  summary?: string
+  severity?: UiSeverity
 }
 
 export interface ProductToolState {
@@ -19,12 +22,24 @@ export interface ProductToolState {
   name: string
   summary: string
   status: "running" | "completed" | "failed"
+  durationMs?: number
+  artifactIds?: readonly string[]
 }
 
 export interface ProductAgentState {
   agentId: string
   label: string
   status: string
+  summary?: string
+}
+
+export interface ProductIssueState {
+  issueId: string
+  severity: UiSeverity
+  message: string
+  code?: string
+  retryable?: boolean
+  recovery?: string
 }
 
 export interface ProductViewState {
@@ -34,6 +49,7 @@ export interface ProductViewState {
   activities: readonly ProductActivityState[]
   tools: readonly ProductToolState[]
   agents: readonly ProductAgentState[]
+  issues: readonly ProductIssueState[]
   permissions: readonly UiPermissionRequest[]
   changes: readonly UiFileChange[]
   diff?: { lines: readonly string[]; truncated: boolean }
@@ -42,7 +58,7 @@ export interface ProductViewState {
   reconnectAttempt?: number
   taskStatus: "idle" | "running" | "completed" | "failed" | "cancelled"
   taskMessage?: string
-  evicted: Readonly<{ messages: number; activities: number; tools: number; agents: number; changes: number }>
+  evicted: Readonly<{ messages: number; activities: number; tools: number; agents: number; issues: number; changes: number }>
 }
 
 export interface ProductStateLimits {
@@ -50,6 +66,7 @@ export interface ProductStateLimits {
   activities: number
   tools: number
   agents: number
+  issues: number
   changes: number
   diffLines: number
 }
@@ -59,6 +76,7 @@ const DEFAULT_LIMITS: ProductStateLimits = Object.freeze({
   activities: 2_000,
   tools: 2_000,
   agents: 512,
+  issues: 512,
   changes: 5_000,
   diffLines: 4_000,
 })
@@ -86,6 +104,7 @@ export class ProductSessionState {
   readonly #activities = new Map<string, ProductActivityState>()
   readonly #tools = new Map<string, ProductToolState>()
   readonly #agents = new Map<string, ProductAgentState>()
+  readonly #issues = new Map<string, ProductIssueState>()
   readonly #permissions = new Map<string, UiPermissionRequest>()
   readonly #changes = new Map<string, UiFileChange>()
   #diff: ProductViewState["diff"]
@@ -98,7 +117,7 @@ export class ProductSessionState {
   #taskMessage: string | undefined
   #sourceLength = 0
   #sourceTail: string | undefined
-  #evicted = { messages: 0, activities: 0, tools: 0, agents: 0, changes: 0 }
+  #evicted = { messages: 0, activities: 0, tools: 0, agents: 0, issues: 0, changes: 0 }
 
   constructor(limits: Partial<ProductStateLimits> = {}) {
     this.#limits = Object.freeze({
@@ -106,6 +125,7 @@ export class ProductSessionState {
       activities: boundedLimit(limits.activities, DEFAULT_LIMITS.activities),
       tools: boundedLimit(limits.tools, DEFAULT_LIMITS.tools),
       agents: boundedLimit(limits.agents, DEFAULT_LIMITS.agents),
+      issues: boundedLimit(limits.issues, DEFAULT_LIMITS.issues),
       changes: boundedLimit(limits.changes, DEFAULT_LIMITS.changes),
       diffLines: boundedLimit(limits.diffLines, DEFAULT_LIMITS.diffLines),
     })
@@ -149,10 +169,13 @@ export class ProductSessionState {
           label: event.label,
           status: event.type === "activity.completed" ? "completed" : event.type === "activity.started" ? "running" : "pending",
           outcome: event.type === "activity.completed" ? event.outcome : undefined,
+          category: event.category,
+          summary: event.summary,
+          severity: event.severity,
         }, this.#limits.activities)
         break
       case "tool.started":
-        this.#evicted.tools += putBounded(this.#tools, event.toolCallId, { toolCallId: event.toolCallId, name: event.name, summary: event.summary, status: "running" }, this.#limits.tools)
+        this.#evicted.tools += putBounded(this.#tools, event.toolCallId, { toolCallId: event.toolCallId, name: event.name, summary: event.summary, status: "running", durationMs: event.durationMs, artifactIds: event.artifactIds }, this.#limits.tools)
         break
       case "tool.updated":
       case "tool.completed":
@@ -160,14 +183,30 @@ export class ProductSessionState {
         const prior = this.#tools.get(event.toolCallId)
         this.#evicted.tools += putBounded(this.#tools, event.toolCallId, {
           toolCallId: event.toolCallId,
-          name: prior?.name ?? "工具",
+          name: event.name ?? prior?.name ?? "工具",
           summary: event.type === "tool.failed" ? event.message : event.summary,
           status: event.type === "tool.failed" ? "failed" : event.type === "tool.completed" ? "completed" : "running",
+          durationMs: event.durationMs ?? prior?.durationMs,
+          artifactIds: event.artifactIds ?? prior?.artifactIds,
         }, this.#limits.tools)
         break
       }
       case "subagent.updated":
-        this.#evicted.agents += putBounded(this.#agents, event.agentId, { agentId: event.agentId, label: event.label, status: event.status }, this.#limits.agents)
+        {
+          const prior = this.#agents.get(event.agentId)
+          const label = event.label === "Execution worker" && prior ? prior.label : event.label
+          this.#evicted.agents += putBounded(this.#agents, event.agentId, { agentId: event.agentId, label, status: event.status, summary: event.summary }, this.#limits.agents)
+        }
+        break
+      case "task.issue":
+        this.#evicted.issues += putBounded(this.#issues, event.issueId, {
+          issueId: event.issueId,
+          severity: event.severity,
+          message: event.message,
+          code: event.code,
+          retryable: event.retryable,
+          recovery: event.recovery,
+        }, this.#limits.issues)
         break
       case "permission.requested":
         this.#permissions.set(event.request.requestId, event.request)
@@ -217,6 +256,7 @@ export class ProductSessionState {
       activities: Object.freeze([...this.#activities.values()].map((value) => Object.freeze({ ...value }))),
       tools: Object.freeze([...this.#tools.values()].map((value) => Object.freeze({ ...value }))),
       agents: Object.freeze([...this.#agents.values()].map((value) => Object.freeze({ ...value }))),
+      issues: Object.freeze([...this.#issues.values()].map((value) => Object.freeze({ ...value }))),
       permissions: Object.freeze([...this.#permissions.values()]),
       changes: Object.freeze([...this.#changes.values()]),
       diff: this.#diff,
@@ -234,6 +274,7 @@ export class ProductSessionState {
     this.#activities.clear()
     this.#tools.clear()
     this.#agents.clear()
+    this.#issues.clear()
     this.#permissions.clear()
     this.#changes.clear()
     this.#diff = undefined
@@ -246,6 +287,6 @@ export class ProductSessionState {
     this.#taskMessage = undefined
     this.#sourceLength = 0
     this.#sourceTail = undefined
-    this.#evicted = { messages: 0, activities: 0, tools: 0, agents: 0, changes: 0 }
+    this.#evicted = { messages: 0, activities: 0, tools: 0, agents: 0, issues: 0, changes: 0 }
   }
 }

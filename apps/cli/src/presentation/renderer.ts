@@ -73,7 +73,9 @@ function renderTools(lines: string[], state: ProductViewState, width: number): v
   lines.push("")
   for (const tool of visible) {
     const marker = tool.status === "failed" ? "! " : tool.status === "completed" ? "✓ " : "◌ "
-    lines.push(...prefixed(`${tool.name} · ${tool.summary}`, marker, width))
+    const duration = tool.durationMs === undefined ? "" : ` · ${tool.durationMs < 1_000 ? `${tool.durationMs}ms` : `${(tool.durationMs / 1_000).toFixed(1)}s`}`
+    const artifacts = tool.artifactIds?.length ? ` · ${tool.artifactIds.length} artifact` : ""
+    lines.push(...prefixed(`${tool.name} · ${tool.summary}${duration}${artifacts}`, marker, width))
   }
   if (state.tools.length > visible.length) lines.push(...prefixed(`${state.tools.length - visible.length} 个较早工具调用已折叠`, "… ", width))
 }
@@ -84,7 +86,17 @@ function renderAgents(lines: string[], state: ProductViewState, width: number): 
   const active = state.agents.filter((agent) => !["completed", "failed", "cancelled"].includes(agent.status))
   const failed = state.agents.filter((agent) => agent.status === "failed")
   lines.push(...prefixed(`协作代理 · ${active.length} 活跃 · ${failed.length} 失败 · ${state.agents.length} 总计`, "◎ ", width))
-  for (const agent of [...active, ...failed].slice(0, 5)) lines.push(...prefixed(`${agent.label} · ${agent.status}`, "  ", width))
+  for (const agent of [...active, ...failed].slice(0, 5)) lines.push(...prefixed(`${agent.label} · ${agent.status}${agent.summary ? ` · ${agent.summary}` : ""}`, "  ", width))
+}
+
+function renderIssues(lines: string[], state: ProductViewState, width: number): void {
+  for (const issue of state.issues.slice(-8)) {
+    lines.push("")
+    const marker = issue.severity === "error" ? "! " : issue.severity === "warning" ? "▲ " : "• "
+    lines.push(...prefixed(`${issue.message}${issue.code ? `（${issue.code}）` : ""}`, marker, width))
+    if (issue.recovery) lines.push(...prefixed(issue.recovery, "  ", width))
+    else if (issue.retryable) lines.push(...prefixed("该问题可重试；使用 /continue 或恢复 task。", "  ", width))
+  }
 }
 
 function renderPermissions(lines: string[], state: ProductViewState, width: number): void {
@@ -154,6 +166,7 @@ export function renderProductState(state: ProductViewState, options: ProductRend
   renderActivity(lines, state, width)
   renderTools(lines, state, width)
   renderAgents(lines, state, width)
+  renderIssues(lines, state, width)
   renderPermissions(lines, state, width)
   renderWorkspace(lines, state, width)
   renderVerification(lines, state, width)

@@ -46,6 +46,72 @@ function occurredAt(frame: IngressFrame): string | undefined {
   return text(frame.event.createdAt) ?? text(frame.event.committedAt)
 }
 
+function severity(value: unknown): "info" | "warning" | "error" {
+  return value === "warning" || value === "error" ? value : "info"
+}
+
+function safeInteger(value: unknown): number | undefined {
+  return Number.isSafeInteger(value) && Number(value) >= 0 ? Number(value) : undefined
+}
+
+function productPresentationEvents(frame: IngressFrame): ZyraUiEvent[] | undefined {
+  const presentation = object(frame.presentation)
+  if (presentation.schema !== "zyra.product-presentation/v1") return undefined
+  const kind = text(presentation.kind)
+  const phase = text(presentation.phase) ?? "updated"
+  const identity = text(presentation.identity)
+  const label = text(presentation.label)
+  if (!kind || !identity || !label) return []
+  const at = occurredAt(frame)
+  const summary = text(presentation.summary)
+  const base = { schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: at } as const
+  if (kind === "activity") {
+    const fields = {
+      ...base,
+      activityId: `activity:${identity}`,
+      label,
+      category: text(presentation.category),
+      summary,
+      severity: severity(presentation.severity),
+    }
+    if (["completed", "failed", "cancelled", "replaced"].includes(phase)) {
+      return [{ ...fields, type: "activity.completed", outcome: phase }]
+    }
+    if (["started", "running", "dispatched"].includes(phase)) return [{ ...fields, type: "activity.started" }]
+    return [{ ...fields, type: "activity.updated" }]
+  }
+  if (kind === "worker") {
+    return [{ ...base, type: "subagent.updated", agentId: identity, label, status: phase, summary }]
+  }
+  if (kind === "tool") {
+    const durationMs = safeInteger(presentation.durationMs)
+    const artifactIds = Object.freeze(stringList(presentation.artifactIds).slice(0, 32))
+    if (phase === "started") {
+      return [{ ...base, type: "tool.started", toolCallId: identity, name: label, summary: summary ?? `正在运行 ${label}`, durationMs, artifactIds }]
+    }
+    if (phase === "failed" || phase === "cancelled") {
+      return [{ ...base, type: "tool.failed", toolCallId: identity, name: label, message: summary ?? `${label}${phase === "failed" ? "执行失败" : "已取消"}`, durationMs, artifactIds }]
+    }
+    if (phase === "completed") {
+      return [{ ...base, type: "tool.completed", toolCallId: identity, name: label, summary: summary ?? `${label} 已完成`, durationMs, artifactIds }]
+    }
+    return [{ ...base, type: "tool.updated", toolCallId: identity, name: label, summary: summary ?? `${label} 正在运行`, durationMs, artifactIds }]
+  }
+  if (kind === "issue") {
+    return [{
+      ...base,
+      type: "task.issue",
+      issueId: identity,
+      severity: severity(presentation.severity),
+      message: label,
+      code: text(presentation.code),
+      retryable: presentation.retryable === true,
+      recovery: text(presentation.recovery),
+    }]
+  }
+  return []
+}
+
 function sortedFrames(frames: readonly IngressFrame[], taskId: string): IngressFrame[] {
   const seen = new Set<string>()
   return [...frames]
@@ -189,6 +255,7 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
       occurredAt: node.updatedAt ?? task.updatedAt,
       activityId: `activity:${node.nodeId}`,
       label,
+      category: "plan",
     } as const
     if (["completed", "succeeded", "cancelled", "failed"].includes(node.status)) {
       push({ ...base, type: "activity.completed", outcome: node.status })
@@ -206,6 +273,11 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
   const completedAssistantTexts: string[] = []
 
   for (const frame of sortedFrames(input.frames ?? [], task.taskId)) {
+    const presentationEvents = productPresentationEvents(frame)
+    if (presentationEvents !== undefined) {
+      for (const event of presentationEvents) push(event)
+      continue
+    }
     const inline = object(frame.event.inline)
     const at = occurredAt(frame)
     const streamId = text(inline.stream_id) ?? `stream:${task.taskId}`
