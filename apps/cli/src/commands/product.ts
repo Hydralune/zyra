@@ -24,6 +24,7 @@ import { openProductArtifact } from "../product/artifact/controller.ts"
 import { workspaceReferenceCandidates } from "../product/files/index.ts"
 import { openProductDiff } from "../product/diff/controller.ts"
 import { formatExecutionMode, formatModelStatus, formatRuntimeReadiness, type ProductExecutionMode } from "../product/diagnostics/status.ts"
+import { ProductOnboardingStore } from "../product/onboarding/state.ts"
 import { ProductDraftStore } from "../product/session/local-state.ts"
 import { copyLatestAssistantMessage, exportProductTranscript, rawTranscriptLines } from "../product/transcript/export.ts"
 import { ProductTuiShell } from "../tui/shell.ts"
@@ -885,6 +886,7 @@ export async function executeProductInteractive(input: {
   cwd?: string
   ensureTerminal?: () => Promise<void>
   draftStore?: ProductDraftStore | null
+  onboardingStore?: ProductOnboardingStore | null
 }): Promise<CommandOutcome> {
   const cwd = input.cwd ?? process.cwd()
   const tty = Boolean((input.stdin as Readable & { isTTY?: boolean }).isTTY)
@@ -901,6 +903,15 @@ export async function executeProductInteractive(input: {
   else input.signal.addEventListener("abort", abortInput, { once: true })
   beginWorkspaceIndex(shell, cwd)
   try {
+    const onboardingStore = input.onboardingStore === null
+      ? undefined
+      : input.onboardingStore
+        ?? (tty && !input.command.goal && input.stdin === process.stdin && process.env.ZYRA_SKIP_ONBOARDING !== "1"
+          ? new ProductOnboardingStore()
+          : undefined)
+    const initialExecutionConfig = onboardingStore
+      ? await runProductOnboarding({ api: input.api, shell, signal: input.signal, cwd, store: onboardingStore })
+      : undefined
     return await runProductSession({
       api: input.api,
       shell,
@@ -910,6 +921,7 @@ export async function executeProductInteractive(input: {
       baseUrl: input.command.baseUrl,
       startupTimeoutMs: input.command.startupTimeoutMs,
       ensureTerminal: input.ensureTerminal,
+      initialExecutionConfig,
       initial: input.command.goal ? { kind: "goal", goal: input.command.goal } : undefined,
     })
   } finally {
@@ -1075,6 +1087,81 @@ async function pickProductExecutionMode(shell: ProductTuiShell): Promise<Product
   return selected?.id === "standard" || selected?.id === "sealed_autonomous" ? selected.id : undefined
 }
 
+async function runProductOnboarding(input: {
+  api: CliApi
+  shell: ProductTuiShell
+  signal: AbortSignal
+  cwd: string
+  store: ProductOnboardingStore
+}): Promise<ProductModelSelection | undefined> {
+  const stored = await input.store.load()
+  if (stored.status === "complete") return undefined
+  if (stored.status === "invalid") {
+    input.shell.notice(`首次使用状态未被信任 · ${stored.reason}\n运行 zyra doctor 检查环境；修复或备份状态后可重新进入引导。`)
+    return undefined
+  }
+
+  const [readinessResult, modelsResult] = await Promise.allSettled([
+    input.api.readiness(input.signal),
+    input.api.providerModels(input.signal),
+  ])
+  const models = modelsResult.status === "fulfilled" ? modelsResult.value : []
+  const providers = [...new Set(models.map((model) => model.providerId))]
+  const runtime = readinessResult.status === "fulfilled"
+    ? formatRuntimeReadiness(readinessResult.value)
+    : "daemon · 已连接；runtime readiness 查询失败"
+  input.shell.notice([
+    "欢迎使用 Zyra 产品 CLI",
+    `workspace · ${input.cwd}`,
+    runtime,
+    `provider catalog · ${providers.length} providers · ${models.length} available models`,
+    "permission · task 创建后由 canonical session custody 管理；不可用时 fail closed",
+  ].join("\n"))
+
+  const choices = [
+    ...(models.length ? [{
+      id: "automatic",
+      label: "使用 canonical 自动路由",
+      detail: "进入 composer；可随时用 /model 为本次会话后续 task 选择模型",
+      keywords: ["automatic", "route", "自动", "路由"],
+    }, {
+      id: "model",
+      label: "为本次会话选择模型",
+      detail: "从当前可用的 canonical model catalog 选择模型和推理强度",
+      keywords: ["model", "provider", "模型"],
+    }] : []),
+    {
+      id: "diagnostics",
+      label: models.length ? "暂不开始，查看诊断" : "未发现可用模型，查看诊断",
+      detail: "进入 composer 后运行 /doctor；不会把引导标记为完成",
+      keywords: ["doctor", "diagnostic", "诊断", "配置"],
+    },
+  ]
+  const selected = await input.shell.pick("首次使用设置", choices, models.length
+    ? "Zyra 不在终端中收集 provider secret；凭据由现有安全配置提供"
+    : "当前不能安全提交模型任务；先根据 /doctor 恢复 provider 配置")
+  if (!selected || selected.id === "diagnostics") {
+    input.shell.notice("首次使用引导尚未完成。输入 /doctor 查看恢复动作，/help 查看命令。")
+    return undefined
+  }
+  const execution = selected.id === "model"
+    ? await pickProductModel(input)
+    : undefined
+  if (selected.id === "model" && !execution) {
+    input.shell.notice("未选择模型；首次使用引导将在下次启动时继续。")
+    return undefined
+  }
+  try {
+    await input.store.complete(execution ? "explicit-model" : "automatic")
+  } catch (error) {
+    input.shell.notice(`首次使用选择已应用于本次会话，但完成状态未保存 · ${controlError(error)}`)
+  }
+  input.shell.notice(execution
+    ? `首次使用设置完成。\n${formatModelStatus(undefined, execution)}`
+    : "首次使用设置完成 · canonical 自动路由。输入 /model 可选择模型，/permissions status 可查看当前任务权限策略。")
+  return execution
+}
+
 async function runProductSession(input: {
   api: CliApi
   shell: ProductTuiShell
@@ -1084,6 +1171,7 @@ async function runProductSession(input: {
   baseUrl: string
   startupTimeoutMs: number
   initial?: ProductSessionInput
+  initialExecutionConfig?: ProductModelSelection
   ensureTerminal?: () => Promise<void>
 }): Promise<CommandOutcome> {
   let next = input.initial
@@ -1092,7 +1180,7 @@ async function runProductSession(input: {
     : newProductSessionId()
   let currentTaskId = next?.kind === "resume" ? next.task.taskId : undefined
   let currentTask = next?.kind === "resume" ? next.task : undefined
-  let executionConfig: ProductModelSelection | undefined = executionConfigFromTask(currentTask)
+  let executionConfig: ProductModelSelection | undefined = executionConfigFromTask(currentTask) ?? input.initialExecutionConfig
   let executionMode: ProductExecutionMode = "standard"
   let lastOutcome: CommandOutcome | undefined
   let terminalReady = false

@@ -18,6 +18,7 @@ export async function pickProductItem(input: {
   title: string
   items: readonly ProductPickerItem[]
   footer?: string
+  bracketedPaste?: boolean
   onChange: (overlay?: ProductOverlay) => void
 }): Promise<ProductPickerItem | undefined> {
   const stdin = input.stdin as RawInput
@@ -40,7 +41,7 @@ export async function pickProductItem(input: {
 
   stdin.setRawMode?.(true)
   stdin.resume()
-  input.output.write("\u001b[?2004h")
+  if (input.bracketedPaste !== false) input.output.write("\u001b[?2004h")
   update()
   try {
     return await new Promise<ProductPickerItem | undefined>((resolve, reject) => {

@@ -21,6 +21,7 @@ export class ProductTuiShell {
   readonly #renderer: LiveProductRenderer
   readonly #composer: ProductComposer
   readonly #draftStore?: ProductDraftStore
+  readonly #bracketedPaste: boolean
   readonly #state = new ProductSessionState()
   #archivedEvents: readonly ZyraUiEvent[] = Object.freeze([])
   #taskEvents: readonly ZyraUiEvent[] = Object.freeze([])
@@ -45,6 +46,8 @@ export class ProductTuiShell {
     this.#output = input.output
     this.#candidates = input.candidates ?? []
     this.#draftStore = input.draftStore
+    this.#bracketedPaste = input.bracketedPaste
+      ?? (input.stdin !== process.stdin || process.platform !== "win32")
     if (input.draftStore?.restored.text) {
       const restored = input.draftStore.restored
       this.#draft = Object.freeze({ text: restored.text, cursor: restored.cursor, display: restored.text, pasteRefs: Object.freeze([]) })
@@ -68,7 +71,7 @@ export class ProductTuiShell {
       candidateProvider: () => this.#availableCandidates(),
       running: () => this.#running,
       initialDraft: input.draftStore?.restored,
-      bracketedPaste: input.bracketedPaste,
+      bracketedPaste: this.#bracketedPaste,
       onChange: (snapshot) => {
         this.#draft = snapshot
         this.#scrollOffset = 0
@@ -156,6 +159,7 @@ export class ProductTuiShell {
       title,
       items,
       footer,
+      bracketedPaste: this.#bracketedPaste,
       onChange: (overlay) => {
         this.#overlay = overlay
         this.#renderer.renderNow()

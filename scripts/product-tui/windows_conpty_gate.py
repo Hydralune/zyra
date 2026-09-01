@@ -7,6 +7,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 import threading
 import time
 from dataclasses import asdict, dataclass
@@ -54,6 +55,7 @@ class CycleResult:
     bracketed_paste_enabled: bool
     bracketed_paste_disabled: bool
     alternate_screen_used: bool
+    onboarding_completed: bool
 
 
 def _reader(process: object, capture: RollingCapture, completed: threading.Event) -> None:
@@ -76,7 +78,21 @@ def _wait_for(capture: RollingCapture, marker: bytes, timeout: float) -> None:
         time.sleep(0.01)
 
 
-def run_cycle(cycle: int, base_url: str, resize_count: int, timeout: float) -> CycleResult:
+def _type_command(process: object, value: str) -> None:
+    for character in value:
+        process.write(character.encode("utf-8"))  # type: ignore[attr-defined]
+        time.sleep(0.02)
+    time.sleep(0.15)
+    process.write(b"\r")  # type: ignore[attr-defined]
+
+
+def run_cycle(
+    cycle: int,
+    base_url: str,
+    resize_count: int,
+    timeout: float,
+    onboarding: bool,
+) -> CycleResult:
     command = subprocess.list2cmdline([
         "node",
         "apps\\cli\\dist\\zyra.js",
@@ -85,16 +101,25 @@ def run_cycle(cycle: int, base_url: str, resize_count: int, timeout: float) -> C
         "--startup-timeout",
         "10000ms",
     ])
-    process = spawn_pty(
-        PtySpawnOptions(
-            command=command,
-            cwd=ROOT,
-            shell=os.environ.get("COMSPEC", "cmd.exe"),
-            rows=32,
-            cols=100,
-            environment=dict(os.environ),
-        )
+    temporary_state = tempfile.TemporaryDirectory(
+        prefix="zyra-conpty-onboarding-",
+        dir=ROOT / ".tmp",
     )
+    environment = dict(os.environ)
+    environment["ZYRA_CLI_STATE_DIR"] = temporary_state.name
+    environment["ZYRA_STATE_DIR"] = temporary_state.name
+    if onboarding:
+        environment.pop("ZYRA_SKIP_ONBOARDING", None)
+    else:
+        environment["ZYRA_SKIP_ONBOARDING"] = "1"
+    process = spawn_pty(PtySpawnOptions(
+        command=command,
+        cwd=ROOT,
+        shell=os.environ.get("COMSPEC", "cmd.exe"),
+        rows=32,
+        cols=100,
+        environment=environment,
+    ))
     capture = RollingCapture()
     completed = threading.Event()
     reader = threading.Thread(
@@ -108,12 +133,26 @@ def run_cycle(cycle: int, base_url: str, resize_count: int, timeout: float) -> C
     try:
         _wait_for(capture, b">_ Zyra", timeout)
         startup_ms = (time.monotonic() - started) * 1_000
+        onboarding_completed = False
+        if onboarding:
+            _wait_for(capture, "首次使用设置".encode(), timeout)
+            process.write(b"\r")
+            _wait_for(capture, "首次使用设置完成".encode(), timeout)
+            state_path = Path(temporary_state.name) / "product-onboarding.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            if (
+                state.get("schema") != "zyra.product-onboarding/v1"
+                or state.get("choice") != "automatic"
+                or str(ROOT).lower() in state_path.read_text(encoding="utf-8").lower()
+            ):
+                raise AssertionError("first-use onboarding state is invalid or leaks the workspace")
+            onboarding_completed = True
         for index in range(resize_count):
             rows = 18 + (index % 43)
             cols = 60 + (index % 141)
             process.resize(rows, cols)
         exit_started = time.monotonic()
-        process.write(b"/exit\r")
+        _type_command(process, "/exit")
         exit_code = process.wait(timeout=timeout)
         exit_ms = (time.monotonic() - exit_started) * 1_000
         completed.wait(timeout=2)
@@ -129,11 +168,21 @@ def run_cycle(cycle: int, base_url: str, resize_count: int, timeout: float) -> C
             bracketed_paste_enabled=b"\x1b[?2004h" in material,
             bracketed_paste_disabled=b"\x1b[?2004l" in material,
             alternate_screen_used=b"\x1b[?1049" in material,
+            onboarding_completed=onboarding_completed,
         )
         if result.exit_code != 0:
-            raise AssertionError(f"product TUI exited with {result.exit_code}")
-        if not result.bracketed_paste_enabled or not result.bracketed_paste_disabled:
-            raise AssertionError("product TUI did not balance bracketed-paste lifecycle controls")
+            visible = ANSI.sub(b"", material).decode("utf-8", "replace")[-4_000:]
+            raise AssertionError(
+                f"product TUI exited with {result.exit_code}. Tail:\n{visible}"
+            )
+        if result.bracketed_paste_enabled or not result.bracketed_paste_disabled:
+            enabled_offset = material.find(b"\x1b[?2004h")
+            excerpt = material[max(0, enabled_offset - 80):enabled_offset + 100]
+            raise AssertionError(
+                "Windows product TUI must keep persistent bracketed-paste mode disabled; "
+                f"enabled={result.bracketed_paste_enabled}, disabled={result.bracketed_paste_disabled}, "
+                f"excerpt={excerpt!r}"
+            )
         if result.alternate_screen_used:
             raise AssertionError("product TUI unexpectedly entered alternate screen")
         return result
@@ -142,6 +191,7 @@ def run_cycle(cycle: int, base_url: str, resize_count: int, timeout: float) -> C
             process.terminate_tree(grace_seconds=0.5)
         process.close()
         reader.join(timeout=2)
+        temporary_state.cleanup()
 
 
 def percentile(values: list[float], fraction: float) -> float:
@@ -158,6 +208,7 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, default=15.0)
     parser.add_argument("--maximum-startup-p95-ms", type=float, default=2_000.0)
     parser.add_argument("--maximum-exit-p95-ms", type=float, default=2_000.0)
+    parser.add_argument("--onboarding", action="store_true")
     arguments = parser.parse_args()
     if os.name != "nt":
         raise SystemExit("windows_conpty_gate.py requires Windows")
@@ -180,7 +231,13 @@ def main() -> int:
         raise SystemExit("built CLI is missing; run bun run build:cli first")
 
     results = [
-        run_cycle(index + 1, arguments.base_url, arguments.resizes, arguments.timeout)
+        run_cycle(
+            index + 1,
+            arguments.base_url,
+            arguments.resizes,
+            arguments.timeout,
+            arguments.onboarding,
+        )
         for index in range(arguments.cycles)
     ]
     startup_p95 = round(percentile([item.startup_ms for item in results], 0.95), 3)

@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { PassThrough, Writable } from "node:stream"
+import { mkdtemp } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import type { TaskMutationProjection, TaskProjection } from "@zyra/typed-api-client"
 import type { CliApi, IngressPage } from "../src/api.ts"
 import { executeProductInteractive } from "../src/commands/product.ts"
@@ -10,6 +13,7 @@ import { parseProductModels } from "../src/product/config/model.ts"
 import { parseProductCommand, productCommandHelp } from "../src/product/commands/registry.ts"
 import { parseProductDiffManifest, parseProductDiffPage } from "../src/product/diff/contracts.ts"
 import { productPatchArtifacts } from "../src/product/diff/controller.ts"
+import { ProductOnboardingStore } from "../src/product/onboarding/state.ts"
 import { ZYRA_UI_EVENT_SCHEMA, type ZyraUiEvent } from "../src/presentation/events.ts"
 import { renderMarkdown } from "../src/tui/markdown.ts"
 import { renderProductState } from "../src/presentation/renderer.ts"
@@ -341,6 +345,59 @@ describe("canonical provider model catalog", () => {
 })
 
 describe("product commands and continuous session", () => {
+  test("guides a clean first launch through canonical readiness and model discovery", async () => {
+    const stateDirectory = await mkdtemp(join(tmpdir(), "zyra-first-launch-"))
+    const onboardingStore = new ProductOnboardingStore(stateDirectory)
+    const api = {
+      async readiness() {
+        return {
+          ready: true,
+          status: "ready",
+          apiVersion: "1.0",
+          owners: { tasks: true, permissions: true, providers: true },
+          blockers: [],
+        }
+      },
+      async providerModels() {
+        return [{
+          providerId: "deepseek",
+          modelId: "deepseek-v4-flash",
+          displayName: "DeepSeek V4 Flash",
+          family: "deepseek",
+          contextWindow: 131_072,
+          maximumOutputTokens: 16_384,
+          reasoning: true,
+          supportedReasoningEfforts: ["low", "high", "max"],
+          defaultReasoningEffort: "high",
+          thinkingEnabled: true,
+        }]
+      },
+    } as unknown as CliApi
+    const stdin = new TtyInput()
+    const stdout = new Capture()
+    const executing = executeProductInteractive({
+      command: { kind: "interactive", baseUrl: "http://127.0.0.1:8000", autoStart: false, startupTimeoutMs: 1_000, timeoutMs: 10_000 },
+      api,
+      stdin,
+      stdout,
+      signal: new AbortController().signal,
+      cwd: "G:\\agent-zoo\\zyra",
+      draftStore: null,
+      onboardingStore,
+    })
+    await waitUntil(() => stdin.raw && stdout.text.includes("首次使用设置"))
+    stdin.write("\r")
+    await waitUntil(() => stdout.text.includes("首次使用设置完成"))
+    stdin.write("/exit\r")
+    expect(await executing).toMatchObject({ status: "exited", exitCode: CliExitCode.SUCCESS })
+    expect(stdout.text).toContain("3/3 ready")
+    expect(stdout.text).toContain("1 providers · 1 available models")
+    expect(await onboardingStore.load()).toMatchObject({
+      status: "complete",
+      state: { choice: "automatic" },
+    })
+  })
+
   test("cancels an idle interactive session and restores terminal state on abort", async () => {
     const controller = new AbortController()
     const stdin = new TtyInput()

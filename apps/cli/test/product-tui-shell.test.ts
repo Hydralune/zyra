@@ -65,7 +65,7 @@ describe("product TUI shell", () => {
   test("renders inline without alternate screen and redraws on resize", () => {
     const stdin = new TtyInput()
     const output = new TtyOutput()
-    const shell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    const shell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra", bracketedPaste: false })
     shell.start()
     shell.update(events())
     output.columns = 120
@@ -82,7 +82,7 @@ describe("product TUI shell", () => {
   test("submits multiline input and restores raw/bracketed-paste mode", async () => {
     const stdin = new TtyInput()
     const output = new TtyOutput()
-    const shell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    const shell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra", bracketedPaste: true })
     shell.start()
     const reading = shell.read(false)
     stdin.write("第一行\n第二行\r")
@@ -209,7 +209,7 @@ describe("product TUI shell", () => {
   test("selects a recent session from a keyboard-driven picker", async () => {
     const stdin = new TtyInput()
     const output = new TtyOutput()
-    const shell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    const shell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra", bracketedPaste: false })
     shell.start()
     const picking = shell.pick("恢复会话", [
       { id: "session_1", label: "第一项", detail: "completed" },
@@ -218,6 +218,8 @@ describe("product TUI shell", () => {
     stdin.write("\u001b[B\r")
     await expect(picking).resolves.toMatchObject({ id: "session_2" })
     expect(output.text).toContain("恢复会话")
+    expect(output.text).not.toContain("\u001b[?2004h")
+    expect(output.text).toContain("\u001b[?2004l")
     expect(stdin.raw).toBe(false)
     expect(stdin.isPaused()).toBe(true)
     shell.close()

@@ -74,6 +74,18 @@ Set-Location G:\agent-zoo\zyra
 node .\apps\cli\dist\zyra.js
 ```
 
+第一次无参数启动会在同一个 TUI 中显示当前 workspace、daemon/runtime readiness、
+可用 provider/model 数量和权限边界。选择 canonical 自动路由即可进入 composer；也可为
+本次会话选择模型与推理强度。Zyra 不会在这个界面中收集或保存 provider 密钥。
+
+如果引导显示没有可用模型，先进入 composer 后执行：
+
+```text
+/doctor
+```
+
+根据恢复动作检查第 4 节的 provider 配置。损坏或未知版本的首次使用状态不会被静默覆盖。
+
 在 TUI 中输入任务；也可以直接提交：
 
 ```powershell

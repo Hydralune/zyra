@@ -73,6 +73,6 @@ export function formatExecutionMode(task?: TaskProjection, configured: ProductEx
     `execution · ${competition}`,
     `sealed · ${sealed ? "yes" : "no"}`,
     "权限决定 · canonical custody + request binding，缺失时 fail closed",
-    "切换 · 当前后端没有 session-scoped permission/sandbox mode mutation 契约",
+    "权限策略 · 使用 /permissions mode 独立查看或修改当前 canonical permission session",
   ].join("\n")
 }
