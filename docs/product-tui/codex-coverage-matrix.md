@@ -61,7 +61,7 @@
 | SESS-04 | 历史 replay 与损坏降级 | `chatwidget/replay.rs`; app replay tests; session resume | 顺序回放、草稿/队列恢复、错误明确 | 部分：projection replay、单条损坏历史隔离、丢失 Diff 明示；本地草稿 crash 恢复和迁移仍缺 | P0 | versioned snapshot/history | typed client + product session UI | old schema、corrupt fixture | `51c78b2f` |
 | CTRL-01 | queue/redirect/interrupt/cancel/continue | `input_queue.rs`; `interrupts.rs`; turn submission tests | 运行中 steer/queue，冲突可解释 | 部分：底层命令存在，发现性弱 | P0 | revisioned control API 已有 | `control/commands.ts`; session controller | mutation/revision/E2E | — |
 | CTRL-02 | mutation idempotency/conflict | core turn input tests; app mismatch/race tests | 重试不重复，实际 turn/revision 可恢复 | 部分 | P0 | idempotency/revision | `control/commands.ts`; typed client | lost-ack、409、race | — |
-| NET-01 | SSE 重连、duplicate/gap | app server session/replay; streaming controller | 重连不重复，gap 重建 | 已有基础 | P0 | ingress cursor/generation/snapshot | `presentation/projection.ts`; `commands/product.ts` | fault injection 100 cycles | — |
+| NET-01 | SSE 重连、duplicate/gap | app server session/replay; streaming controller | 重连不重复，gap 重建 | 已实现：cursor/generation gap 走 snapshot；连续失败预算在收到已验证 canonical 帧后重置；100 次异常断线恢复不重复最终内容 | P0 | ingress cursor/generation/snapshot | `presentation/projection.ts`; `commands/product.ts` | 100 次异常断线故障注入、gap replacement、duplicate contract | 当前提交；真实 daemon restart 另见 NET-02 |
 | NET-02 | daemon restart/generation change | startup/replay/session state tests | snapshot 重建并继续控制 | 部分：重建 projection，未证实持续 composer | P0 | generation + durable task state | product observer/session controller | real restart E2E | — |
 | NET-03 | worker/tool 局部失败与整体状态 | `tool_lifecycle.rs`; turn lifecycle; history replay failures | 局部失败不等同 turn failure | 部分：映射规则脆弱 | P0 | severity/cause contract | presentation v2 projector | fixtures、真实 fault | — |
 | WEB-01 | 打开当前 task Web 路由 | Codex `/app` 是类似跨界入口；Zyra 独有 Web 协同 | 当前上下文跳转且不泄密 | 已实现基本路径 | P0 | stable public route | `ui.ts`; `/ui` | URL/redaction/E2E | Foundation commits；待一致性复验 |
@@ -71,7 +71,7 @@
 | REL-01 | 可重复 build/install | Codex npm launcher、platform package、version/update modules | 干净环境安装并诊断版本 | 部分：本仓构建产物可用，无发行闭包 | P0 | version/compat endpoint | package scripts、待建 release scripts | clean-room Windows | — |
 | REL-02 | 升级、state/schema migration | `updates.rs`; `version.rs`; session replay compatibility | 版本变化不静默破坏历史 | 缺失 | P1 | versioned state/protocol | migrations + diagnostics | old state matrix | — |
 | REL-03 | 脱敏诊断包 | `debug_config.rs`; startup errors; feedback/log collection | 输出可分享且不泄密 | 部分：JSONL scrubber，不是诊断闭环 | P0 | health/config summaries | 待建 `diagnostics/` | secret corpus、clean-room | — |
-| PERF-01 | 10k transcript/100k events/8h soak | Codex bounded history/reflow/streaming tests（产品行为基线） | 长时仍可输入、滚动、恢复 | 部分：100k presentation 与 raw-frame window 有界、30FPS 合并、100 exits/1k resize 达标；10k RSS、100 disconnect、8h soak 未完成 | P0 | artifact/cursor | bounded state + ConPTY/perf harness | 文档第 15 节全部指标 | `1f637896`, `f1623d89` |
+| PERF-01 | 10k transcript/100k events/8h soak | Codex bounded history/reflow/streaming tests（产品行为基线） | 长时仍可输入、滚动、恢复 | 部分：10k transcript/100k events/RSS/延迟门已通过；100 次异常断线、100 exits、1k resize 已通过；8h component soak 仍在运行，尚未计为通过 | P0 | artifact/cursor | bounded state + ConPTY/perf harness | 文档第 15 节全部指标 | `1f637896`, `f1623d89`, `2ff5c482`；当前提交 |
 
 ## 当前结论
 

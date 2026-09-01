@@ -491,6 +491,11 @@ export async function observeProductTask(input: {
         if (message.kind === "event") {
           projection.apply(message.frame)
           if (message.frame.cursor) cursor = message.frame.cursor
+          // A verified canonical frame proves that the replacement stream is
+          // alive.  From this point, a later disconnect starts a new bounded
+          // retry streak instead of accumulating failures across hours of
+          // otherwise healthy reconnect windows.
+          recoveryAttempts = 0
           renderProjection()
           if (message.frame.eventType.startsWith("runtime.permission.")) {
             await refreshPermissions().catch((error) => {
@@ -509,6 +514,7 @@ export async function observeProductTask(input: {
           }
           cursor = message.cursor
           projection.cursor(cursor)
+          recoveryAttempts = 0
           if (message.kind === "close") closed = true
           await refreshPermissions().catch((error) => {
             input.shell.notice(`权限状态刷新失败并保持关闭 · ${controlError(error)}`)

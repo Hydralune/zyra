@@ -56,6 +56,7 @@ function frame(sequence: number, eventType: string): IngressFrame {
     previousSequence: sequence - 1,
     eventId: `event_${sequence}`,
     eventType,
+    cursor: `cursor_${sequence}`,
     event: {
       schema: "zyra.runtime-event/v1",
       eventType,
@@ -76,6 +77,69 @@ function shell(output: Capture): ProductTuiShell {
 }
 
 describe("product task observer", () => {
+  test("recovers 100 abrupt stream disconnects after verified progress without duplicates", async () => {
+    const output = new Capture()
+    const productShell = shell(output)
+    const running = task("running")
+    const completed = task("completed", { final_answer: "100 次断线后完成。" })
+    let streamCalls = 0
+    let capabilityCalls = 0
+    const api = {
+      async ingressCapabilities() {
+        capabilityCalls += 1
+        return {
+          taskId: running.taskId,
+          generation: 1,
+          subscriptionCursor: "cursor_0",
+          subscriptionSequence: 0,
+          sseAvailable: true,
+          raw: {},
+        }
+      },
+      async *snapshotIngress() {
+        yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask() { return await new Promise<never>(() => undefined) },
+      async *streamIngress() {
+        streamCalls += 1
+        if (streamCalls <= 100) {
+          yield {
+            kind: "event",
+            taskId: running.taskId,
+            generation: 1,
+            sequence: streamCalls,
+            frame: frame(streamCalls, "runtime.node.updated"),
+          }
+          throw new Error(`injected disconnect ${streamCalls}`)
+        }
+        yield {
+          kind: "close",
+          taskId: running.taskId,
+          generation: 1,
+          sequence: 100,
+          cursor: "cursor_100",
+        }
+      },
+      async task() { return completed },
+    } as unknown as CliApi
+
+    productShell.start()
+    const result = await observeProductTask({
+      api,
+      task: running,
+      shell: productShell,
+      signal: new AbortController().signal,
+      resume: true,
+    })
+    productShell.finish()
+
+    expect(result.status).toBe("completed")
+    expect(streamCalls).toBe(101)
+    expect(capabilityCalls).toBe(101)
+    expect(output.text).toContain("100 次断线后完成。")
+    expect(output.text.match(/100 次断线后完成。/g)).toHaveLength(1)
+  }, 20_000)
+
   test("renders only product semantics and the canonical final answer", async () => {
     const output = new Capture()
     const productShell = shell(output)
