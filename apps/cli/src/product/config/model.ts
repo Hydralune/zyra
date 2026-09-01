@@ -6,6 +6,8 @@ export interface ProductModelOption {
   contextWindow: number
   maximumOutputTokens: number
   reasoning: boolean
+  defaultReasoningEffort?: string
+  thinkingEnabled: boolean
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {
@@ -27,6 +29,11 @@ export function parseProductModels(value: unknown): readonly ProductModelOption[
   return Object.freeze(result.map((item, index) => {
     const model = record(item, `provider model ${index}`)
     const capabilities = record(model.capabilities ?? {}, "model capabilities")
+    const requestDefaults = record(model.requestDefaults ?? model.request_defaults ?? {}, "model request defaults")
+    const thinking = record(requestDefaults.thinking ?? {}, "model thinking defaults")
+    const defaultReasoningEffort = typeof requestDefaults.reasoning_effort === "string" && requestDefaults.reasoning_effort.trim()
+      ? requestDefaults.reasoning_effort.trim()
+      : undefined
     return Object.freeze({
       providerId: identity(model.providerId ?? model.provider_id, "provider id"),
       modelId: identity(model.modelId ?? model.model_id, "model id"),
@@ -35,6 +42,8 @@ export function parseProductModels(value: unknown): readonly ProductModelOption[
       contextWindow: Number.isSafeInteger(model.contextWindow) ? Number(model.contextWindow) : 0,
       maximumOutputTokens: Number.isSafeInteger(model.maximumOutputTokens) ? Number(model.maximumOutputTokens) : 0,
       reasoning: capabilities.reasoning === true,
+      ...(defaultReasoningEffort ? { defaultReasoningEffort } : {}),
+      thinkingEnabled: thinking.type === "enabled",
     })
   }))
 }

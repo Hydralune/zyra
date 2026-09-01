@@ -19,11 +19,26 @@ export function formatRuntimeReadiness(readiness: RuntimeReadiness): string {
   return lines.join("\n")
 }
 
-export function formatModelStatus(task?: TaskProjection, configured?: { providerId: string; modelId: string }): string {
+export function formatModelStatus(task?: TaskProjection, configured?: {
+  providerId: string
+  modelId: string
+  defaultReasoningEffort?: string
+  thinkingEnabled?: boolean
+}): string {
   if (!task) {
-    return configured
-      ? `provider · ${configured.providerId}\nmodel · ${configured.modelId}\n作用域 · 后续新 task；运行中 task 不会被静默改写`
-      : "model · 默认自动路由\n使用 /model 从 canonical available model catalog 中选择后续 task 的模型。"
+    if (!configured) return "model · 默认自动路由\n使用 /model 从 canonical available model catalog 中选择后续 task 的模型。"
+    const reasoning = configured.defaultReasoningEffort
+      ? `reasoning · provider 默认 ${configured.defaultReasoningEffort}`
+      : configured.thinkingEnabled
+        ? "reasoning · provider 默认启用 thinking"
+        : "reasoning · 使用 provider canonical 默认值"
+    return [
+      `provider · ${configured.providerId}`,
+      `model · ${configured.modelId}`,
+      reasoning,
+      "推理强度 · 只读；catalog 尚未公布 supportedReasoningEfforts，CLI 不提供未经验证的覆盖",
+      "作用域 · 后续新 task；运行中 task 不会被静默改写",
+    ].join("\n")
   }
   const route = object(task.metadata.provider_route_ref ?? task.metadata.provider_route)
   const provider = firstText(route.provider_id, route.providerId, task.metadata.provider, task.metadata.model_provider)
@@ -36,8 +51,15 @@ export function formatModelStatus(task?: TaskProjection, configured?: { provider
   ].join("\n")
 }
 
-export function formatExecutionMode(task?: TaskProjection): string {
-  if (!task) return "mode · standard\n权限/沙箱模式将在 task 创建后以 canonical metadata 为准。"
+export type ProductExecutionMode = "standard" | "sealed_autonomous"
+
+export function formatExecutionMode(task?: TaskProjection, configured: ProductExecutionMode = "standard"): string {
+  if (!task) return [
+    `execution · ${configured}`,
+    `sealed · ${configured === "sealed_autonomous" ? "yes" : "no"}`,
+    "作用域 · 后续新 task；创建后写入 canonical task metadata",
+    "权限/沙箱 · 由任务 binding 与 canonical custody 决定，CLI 不伪造 session 全局开关",
+  ].join("\n")
   const competition = firstText(task.metadata.competition_mode) ?? "standard"
   const sealed = task.metadata.sealed === true || competition === "sealed_autonomous"
   return [

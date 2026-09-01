@@ -19,7 +19,7 @@ const LOCAL_COMMANDS: readonly ProductCommandDefinition[] = Object.freeze([
   { name: "pwd", aliases: ["cwd"], description: "显示当前工作目录", availability: "always" },
   { name: "doctor", description: "检查 daemon 与 runtime readiness", availability: "always" },
   { name: "model", description: "选择后续任务模型；status 查看当前状态", usage: "/model [status]", availability: "always" },
-  { name: "mode", description: "显示执行、权限与沙箱模式", availability: "always" },
+  { name: "mode", description: "选择后续任务执行模式；运行中只读", usage: "/mode [status]", availability: "always" },
   { name: "diff", description: "查看当前任务文件变更", availability: "always" },
   { name: "agents", aliases: ["subagents"], description: "查看协作代理摘要", availability: "always" },
   { name: "permissions", description: "查看当前权限请求", availability: "always" },

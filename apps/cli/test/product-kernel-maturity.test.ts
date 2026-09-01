@@ -211,9 +211,16 @@ describe("canonical provider model catalog", () => {
         contextWindow: 131_072,
         maximumOutputTokens: 16_384,
         capabilities: { reasoning: true },
+        requestDefaults: { reasoning_effort: "high", thinking: { type: "enabled" } },
       }],
     })
-    expect(models[0]).toMatchObject({ providerId: "deepseek", modelId: "deepseek-v4-flash", reasoning: true })
+    expect(models[0]).toMatchObject({
+      providerId: "deepseek",
+      modelId: "deepseek-v4-flash",
+      reasoning: true,
+      defaultReasoningEffort: "high",
+      thinkingEnabled: true,
+    })
     expect(() => parseProductModels({ schema: "zyra.provider-backend-api/v1", state_owner: "python", result: [] })).toThrow("canonical owner")
   })
 })
@@ -284,6 +291,8 @@ describe("product commands and continuous session", () => {
           contextWindow: 131_072,
           maximumOutputTokens: 16_384,
           reasoning: true,
+          defaultReasoningEffort: "high",
+          thinkingEnabled: true,
         }]
       },
       async createPendingTask(goal: string, _sealed: boolean, sessionId?: string, execution?: { providerId: string; modelId: string }) {
@@ -323,5 +332,52 @@ describe("product commands and continuous session", () => {
       goal: "使用选择的模型执行",
       execution: { providerId: "deepseek", modelId: "deepseek-v4-flash" },
     })
+    expect(stdout.text).toContain("provider 默认 high")
+    expect(stdout.text).toContain("catalog 尚未公布 supportedReasoningEfforts")
+  })
+
+  test("selects sealed autonomous mode and binds it to the next task creation", async () => {
+    const calls: Array<{ goal: string; sealed: boolean }> = []
+    let latest: TaskProjection | undefined
+    const api = {
+      async createPendingTask(goal: string, sealed: boolean, sessionId?: string) {
+        calls.push({ goal, sealed })
+        latest = completedTask(1, goal, sessionId ?? "missing")
+        latest.metadata = {
+          ...latest.metadata,
+          sealed,
+          competition_mode: sealed ? "sealed_autonomous" : "standard",
+        }
+        return mutation(latest)
+      },
+      async ingressCapabilities(taskId: string) {
+        return { taskId, generation: 1, subscriptionCursor: "cursor", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress(): AsyncGenerator<IngressPage> {
+        yield { cursor: "cursor", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async task() { return latest! },
+      async sessions() { return { sessions: [], total: 0, stateOwner: "task_store_projection" as const } },
+    } as unknown as CliApi
+    const stdin = new TtyInput()
+    const stdout = new Capture()
+    const executing = executeProductInteractive({
+      command: { kind: "interactive", baseUrl: "http://127.0.0.1:8000", autoStart: false, startupTimeoutMs: 1_000, timeoutMs: 10_000 },
+      api,
+      stdin,
+      stdout,
+      signal: new AbortController().signal,
+      cwd: "G:\\agent-zoo\\zyra",
+    })
+    await waitUntil(() => stdin.raw)
+    stdin.write("/mode\r")
+    await waitUntil(() => stdout.text.includes("选择后续任务执行模式"))
+    stdin.write("\u001b[B\r")
+    await waitUntil(() => stdout.text.includes("execution · sealed_autonomous"))
+    stdin.write("执行封闭任务\r")
+    await waitUntil(() => calls.length === 1 && stdin.raw)
+    stdin.write("/exit\r")
+    await executing
+    expect(calls).toEqual([{ goal: "执行封闭任务", sealed: true }])
   })
 })

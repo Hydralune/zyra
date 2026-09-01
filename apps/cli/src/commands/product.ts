@@ -15,7 +15,7 @@ import { buildBoundedWorkspaceDiff } from "../presentation/workspace-diff.ts"
 import { parseProductCommand, productCommandCandidates, productCommandHelp } from "../product/commands/registry.ts"
 import { workspaceReferenceCandidates } from "../product/files/index.ts"
 import { openProductDiff } from "../product/diff/controller.ts"
-import { formatExecutionMode, formatModelStatus, formatRuntimeReadiness } from "../product/diagnostics/status.ts"
+import { formatExecutionMode, formatModelStatus, formatRuntimeReadiness, type ProductExecutionMode } from "../product/diagnostics/status.ts"
 import { ProductTuiShell } from "../tui/shell.ts"
 import { mutationTransportDetached, type CommandOutcome } from "../runner.ts"
 import { launchUi } from "../ui.ts"
@@ -640,22 +640,50 @@ function executionConfigFromTask(task?: TaskProjection): ProductExecutionConfig 
     : undefined
 }
 
+type ProductModelSelection = ProductExecutionConfig & {
+  defaultReasoningEffort?: string
+  thinkingEnabled?: boolean
+}
+
 async function pickProductModel(input: {
   api: CliApi
   shell: ProductTuiShell
   signal: AbortSignal
-}): Promise<ProductExecutionConfig | undefined> {
+}): Promise<ProductModelSelection | undefined> {
   const models = await input.api.providerModels(input.signal)
   if (!models.length) throw new CliTaskError("canonical provider catalog 中没有当前可用模型。", "provider_model_unavailable")
   const selected = await input.shell.pick("选择后续任务模型", models.map((model, index) => ({
     id: String(index),
     label: model.displayName,
-    detail: `${model.providerId}/${model.modelId} · context ${model.contextWindow || "?"}${model.reasoning ? " · reasoning" : ""}`,
+    detail: `${model.providerId}/${model.modelId} · context ${model.contextWindow || "?"}${model.defaultReasoningEffort ? ` · reasoning ${model.defaultReasoningEffort}` : model.thinkingEnabled ? " · thinking enabled" : model.reasoning ? " · reasoning" : ""}`,
     keywords: [model.providerId, model.modelId, model.family],
   })), "选择会写入新 task 的 canonical execution_config；不会改变运行中 task")
   if (!selected) return undefined
   const model = models[Number(selected.id)]
-  return model ? { providerId: model.providerId, modelId: model.modelId } : undefined
+  return model ? {
+    providerId: model.providerId,
+    modelId: model.modelId,
+    ...(model.defaultReasoningEffort ? { defaultReasoningEffort: model.defaultReasoningEffort } : {}),
+    ...(model.thinkingEnabled ? { thinkingEnabled: true } : {}),
+  } : undefined
+}
+
+async function pickProductExecutionMode(shell: ProductTuiShell): Promise<ProductExecutionMode | undefined> {
+  const selected = await shell.pick("选择后续任务执行模式", [
+    {
+      id: "standard",
+      label: "Standard",
+      detail: "常规任务；权限与工具边界仍由 canonical task binding 决定",
+      keywords: ["standard", "常规"],
+    },
+    {
+      id: "sealed_autonomous",
+      label: "Sealed autonomous",
+      detail: "正式封闭自治任务；创建时写入 sealed 与 competition_mode",
+      keywords: ["sealed", "autonomous", "competition", "封闭", "自治"],
+    },
+  ], "选择只影响后续新 task；不会改写已创建或运行中的 task")
+  return selected?.id === "standard" || selected?.id === "sealed_autonomous" ? selected.id : undefined
 }
 
 async function runProductSession(input: {
@@ -674,7 +702,8 @@ async function runProductSession(input: {
     : newProductSessionId()
   let currentTaskId = next?.kind === "resume" ? next.task.taskId : undefined
   let currentTask = next?.kind === "resume" ? next.task : undefined
-  let executionConfig = executionConfigFromTask(currentTask)
+  let executionConfig: ProductModelSelection | undefined = executionConfigFromTask(currentTask)
+  let executionMode: ProductExecutionMode = "standard"
   let lastOutcome: CommandOutcome | undefined
 
   while (!input.signal.aborted) {
@@ -739,7 +768,12 @@ async function runProductSession(input: {
             input.shell.notice(formatModelStatus(undefined, executionConfig))
             continue
           case "mode":
-            input.shell.notice(formatExecutionMode(currentTask))
+            if (command.args === "status") {
+              input.shell.notice(formatExecutionMode(undefined, executionMode))
+              continue
+            }
+            executionMode = await pickProductExecutionMode(input.shell) ?? executionMode
+            input.shell.notice(formatExecutionMode(undefined, executionMode))
             continue
           case "agents": {
             const agents = input.shell.view.agents
@@ -781,7 +815,12 @@ async function runProductSession(input: {
     input.shell.beginTask()
     const task = next.kind === "resume"
       ? next.task
-      : (await input.api.createPendingTask(next.goal, false, sessionId, executionConfig)).task
+      : (await input.api.createPendingTask(
+          next.goal,
+          executionMode === "sealed_autonomous",
+          sessionId,
+          executionConfig ? { providerId: executionConfig.providerId, modelId: executionConfig.modelId } : undefined,
+        )).task
     currentTaskId = task.taskId
     currentTask = task
     if (task.sessionId) sessionId = task.sessionId
