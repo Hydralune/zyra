@@ -23,7 +23,11 @@ def test_product_execution_config_is_catalog_bound() -> None:
         main.ProviderBackendApi,
         "handle_get",
         return_value=_catalog(
-            {"providerId": "deepseek", "modelId": "deepseek-v4-flash"}
+            {
+                "providerId": "deepseek",
+                "modelId": "deepseek-v4-flash",
+                "supportedReasoningEfforts": ["low", "high", "max"],
+            }
         ),
     ):
         selected = main._task_product_execution_config(
@@ -31,6 +35,7 @@ def test_product_execution_config_is_catalog_bound() -> None:
                 "execution_config": {
                     "provider_id": "deepseek",
                     "model_id": "deepseek-v4-flash",
+                    "reasoning_effort": "max",
                 }
             }
         )
@@ -38,8 +43,19 @@ def test_product_execution_config_is_catalog_bound() -> None:
             "schema": "zyra.product-execution-config/v1",
             "provider_id": "deepseek",
             "model_id": "deepseek-v4-flash",
+            "reasoning_effort": "max",
             "source": "product_cli",
         }
+        with pytest.raises(ValueError, match="reasoning_effort is not supported"):
+            main._task_product_execution_config(
+                {
+                    "execution_config": {
+                        "provider_id": "deepseek",
+                        "model_id": "deepseek-v4-flash",
+                        "reasoning_effort": "xhigh",
+                    }
+                }
+            )
         with pytest.raises(ValueError, match="not currently available"):
             main._task_product_execution_config(
                 {
@@ -57,10 +73,12 @@ def test_physical_dispatch_prefers_task_bound_model_without_ui_only_state() -> N
             "product_execution_config": {
                 "provider_id": "zai",
                 "model_id": "glm-5",
+                "reasoning_effort": "max",
             }
         }
     )
     assert main._task_preferred_provider(state) == ("zai", "glm-5")
+    assert main._task_provider_extra_body(state) == {"reasoning_effort": "max"}
     with patch.object(
         main,
         "_preferred_configured_provider",

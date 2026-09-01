@@ -7495,6 +7495,12 @@ def _production_physical_dispatch_port(
             payload,
             live_model_bound=True,
         )
+        provider_constraints = route_ref.runtime_constraints(
+            database_path=provider_db
+        )
+        provider_extra_body = _task_provider_extra_body(state)
+        if provider_extra_body:
+            provider_constraints["provider_extra_body"] = provider_extra_body
         payload["code_worker_context"] = {
             "project_root": str(PROJECT_ROOT),
             "artifact_root": str(artifact_root_path()),
@@ -7512,9 +7518,7 @@ def _production_physical_dispatch_port(
                 "reservation_ttl_seconds": workspace.reservation_ttl_seconds,
                 "max_receipts": workspace.max_receipts,
             },
-            "provider_constraints": route_ref.runtime_constraints(
-                database_path=provider_db
-            ),
+            "provider_constraints": provider_constraints,
             "model_id": route_ref.model_id,
             "max_turns": reasoning_max_turns,
             "query_context_budget_chars": (
@@ -7848,6 +7852,7 @@ def _task_product_execution_config(payload: Mapping[str, Any]) -> dict[str, str]
         raise TypeError("execution_config must be an object")
     provider_id = str(raw.get("provider_id") or "").strip()
     model_id = str(raw.get("model_id") or "").strip()
+    reasoning_effort = str(raw.get("reasoning_effort") or "").strip()
     if not _PRODUCT_EXECUTION_IDENTITY.fullmatch(provider_id):
         raise ValueError("execution_config.provider_id is invalid")
     if not _PRODUCT_EXECUTION_IDENTITY.fullmatch(model_id):
@@ -7868,19 +7873,31 @@ def _task_product_execution_config(payload: Mapping[str, Any]) -> dict[str, str]
         if isinstance(models, Sequence) and not isinstance(models, (str, bytes))
         else []
     )
-    if not any(
-        isinstance(item, Mapping)
+    selected = next((
+        item
+        for item in available
+        if isinstance(item, Mapping)
         and str(item.get("providerId") or "") == provider_id
         and str(item.get("modelId") or "") == model_id
-        for item in available
-    ):
+    ), None)
+    if selected is None:
         raise ValueError(
             "the selected provider/model is not currently available"
+        )
+    supported_efforts = {
+        str(item)
+        for item in selected.get("supportedReasoningEfforts") or ()
+        if isinstance(item, str) and item
+    }
+    if reasoning_effort and reasoning_effort not in supported_efforts:
+        raise ValueError(
+            "execution_config.reasoning_effort is not supported by the selected model"
         )
     return {
         "schema": "zyra.product-execution-config/v1",
         "provider_id": provider_id,
         "model_id": model_id,
+        **({"reasoning_effort": reasoning_effort} if reasoning_effort else {}),
         "source": "product_cli",
     }
 
@@ -7894,6 +7911,14 @@ def _task_preferred_provider(state: Any) -> tuple[str, str] | None:
     if provider_id and model_id:
         return provider_id, model_id
     return _preferred_configured_provider()
+
+
+def _task_provider_extra_body(state: Any) -> dict[str, str]:
+    product_execution = dict(
+        state.metadata.get("product_execution_config") or {}
+    )
+    effort = str(product_execution.get("reasoning_effort") or "")
+    return {"reasoning_effort": effort} if effort else {}
 
 
 def _sync_configured_provider_environment(orchestrator: Any) -> None:

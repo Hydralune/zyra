@@ -200,6 +200,10 @@ export function normalizeModel(input: ModelDefinition): ModelDefinition {
   assertPositiveInteger(input.maximumOutputTokens, "maximumOutputTokens");
   if (input.maximumOutputTokens > input.contextWindow) throw new TypeError("maximumOutputTokens exceeds contextWindow");
   if (!["active", "deprecated", "disabled"].includes(input.status)) throw new TypeError("unsupported model status");
+  const supportedReasoningEfforts = [...new Set(input.supportedReasoningEfforts ?? [])];
+  if (supportedReasoningEfforts.some((value) => !/^[a-z][a-z0-9_-]{0,31}$/u.test(value))) {
+    throw new TypeError("supported reasoning effort is invalid");
+  }
   for (const price of input.pricing) {
     if (price.inputPerMillion < 0 || price.outputPerMillion < 0 || (price.cachedInputPerMillion ?? 0) < 0) {
       throw new TypeError("model pricing must be non-negative");
@@ -216,6 +220,7 @@ export function normalizeModel(input: ModelDefinition): ModelDefinition {
       output: uniqueSorted(input.capabilities.output) as ModelDefinition["capabilities"]["output"],
     },
     tags: uniqueSorted(input.tags),
+    supportedReasoningEfforts,
   };
 }
 

@@ -911,14 +911,16 @@ function executionConfigFromTask(task?: TaskProjection): ProductExecutionConfig 
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined
   const providerId = (raw as Record<string, unknown>).provider_id
   const modelId = (raw as Record<string, unknown>).model_id
+  const reasoningEffort = (raw as Record<string, unknown>).reasoning_effort
   return typeof providerId === "string" && typeof modelId === "string" && providerId && modelId
-    ? { providerId, modelId }
+    ? { providerId, modelId, ...(typeof reasoningEffort === "string" && reasoningEffort ? { reasoningEffort } : {}) }
     : undefined
 }
 
 type ProductModelSelection = ProductExecutionConfig & {
   defaultReasoningEffort?: string
   thinkingEnabled?: boolean
+  supportedReasoningEfforts?: readonly string[]
 }
 
 async function pickProductModel(input: {
@@ -931,17 +933,38 @@ async function pickProductModel(input: {
   const selected = await input.shell.pick("选择后续任务模型", models.map((model, index) => ({
     id: String(index),
     label: model.displayName,
-    detail: `${model.providerId}/${model.modelId} · context ${model.contextWindow || "?"}${model.defaultReasoningEffort ? ` · reasoning ${model.defaultReasoningEffort}` : model.thinkingEnabled ? " · thinking enabled" : model.reasoning ? " · reasoning" : ""}`,
+    detail: `${model.providerId}/${model.modelId} · context ${model.contextWindow || "?"}${model.defaultReasoningEffort ? ` · reasoning ${model.defaultReasoningEffort}` : model.thinkingEnabled ? " · thinking enabled" : model.reasoning ? " · reasoning" : ""}${model.supportedReasoningEfforts.length ? ` · 可选 ${model.supportedReasoningEfforts.join("/")}` : ""}`,
     keywords: [model.providerId, model.modelId, model.family],
   })), "选择会写入新 task 的 canonical execution_config；不会改变运行中 task")
   if (!selected) return undefined
   const model = models[Number(selected.id)]
-  return model ? {
+  if (!model) return undefined
+  let reasoningEffort: string | undefined
+  if (model.supportedReasoningEfforts.length) {
+    const effort = await input.shell.pick("选择推理强度", [
+      {
+        id: "provider-default",
+        label: `Provider default${model.defaultReasoningEffort ? ` (${model.defaultReasoningEffort})` : ""}`,
+        detail: "不覆盖 canonical model profile 的默认值",
+        keywords: ["default", "默认"],
+      },
+      ...model.supportedReasoningEfforts.map((value) => ({
+        id: value,
+        label: value,
+        detail: value === model.defaultReasoningEffort ? "当前 provider 默认值" : "写入后续 task 的 execution_config",
+        keywords: [value, "reasoning", "推理"],
+      })),
+    ], "强度集合来自 canonical model catalog；Esc 保留 provider 默认值")
+    if (effort && effort.id !== "provider-default") reasoningEffort = effort.id
+  }
+  return {
     providerId: model.providerId,
     modelId: model.modelId,
+    ...(reasoningEffort ? { reasoningEffort } : {}),
     ...(model.defaultReasoningEffort ? { defaultReasoningEffort: model.defaultReasoningEffort } : {}),
     ...(model.thinkingEnabled ? { thinkingEnabled: true } : {}),
-  } : undefined
+    supportedReasoningEfforts: model.supportedReasoningEfforts,
+  }
 }
 
 async function pickProductExecutionMode(shell: ProductTuiShell): Promise<ProductExecutionMode | undefined> {
@@ -1158,7 +1181,11 @@ async function runProductSession(input: {
           next.goal,
           executionMode === "sealed_autonomous",
           sessionId,
-          executionConfig ? { providerId: executionConfig.providerId, modelId: executionConfig.modelId } : undefined,
+          executionConfig ? {
+            providerId: executionConfig.providerId,
+            modelId: executionConfig.modelId,
+            ...(executionConfig.reasoningEffort ? { reasoningEffort: executionConfig.reasoningEffort } : {}),
+          } : undefined,
         )).task
     currentTaskId = task.taskId
     currentTask = task

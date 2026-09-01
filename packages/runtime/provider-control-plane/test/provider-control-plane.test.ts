@@ -146,6 +146,7 @@ test("DeepSeek V4 Flash profile binds an environment reference without persistin
   assert.equal(profile.provider.requestDefaults.thinking, undefined);
   assert.deepEqual(profile.model.requestDefaults.thinking, { type: "enabled" });
   assert.equal(profile.model.requestDefaults.reasoning_effort, "high");
+  assert.deepEqual(profile.model.supportedReasoningEfforts, ["low", "high", "max"]);
   assert.equal(installed.credential.credentialId, DEEPSEEK_CREDENTIAL_ID);
   assert.equal(installed.credential.secretRef, `env://${DEEPSEEK_API_KEY_ENV}`);
   assert.notEqual(installed.credential.fingerprint, secret);
@@ -272,6 +273,7 @@ test("Zhipu AI GLM-5.2 profile enables reasoning and persists only an environmen
   assert.equal(profile.model.endpointPath, "/chat/completions");
   assert.deepEqual(profile.model.requestDefaults.thinking, { type: "enabled" });
   assert.equal(profile.model.requestDefaults.reasoning_effort, "max");
+  assert.deepEqual(profile.model.supportedReasoningEfforts, ["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
   assert.equal(installed.credential.credentialId, ZHIPU_CREDENTIAL_ID);
   assert.equal(installed.credential.secretRef, `env://${ZAI_API_KEY_ENV}`);
   assert.notEqual(installed.credential.fingerprint, secret);
@@ -807,7 +809,10 @@ test("OpenAI-compatible dispatch captures real headers, body bytes, and SSE", as
     endpointPath: "/v1/chat/completions",
   });
   const route = controlPlane.acquireRoute(routeRequest("openai-loopback", "chat-model"));
-  const result = await controlPlane.dispatch(dispatchRequest(route.routeId));
+  const result = await controlPlane.dispatch({
+    ...dispatchRequest(route.routeId),
+    extraBody: { reasoning_effort: "max" },
+  });
 
   assert.equal(result.text, "hello world");
   assert.equal(result.frames.filter((frame) => frame.kind === "response_start").length, 1);
@@ -822,6 +827,7 @@ test("OpenAI-compatible dispatch captures real headers, body bytes, and SSE", as
   assert.equal(body.model, "chat-model");
   assert.equal(body.stream, true);
   assert.equal(body.max_tokens, 256);
+  assert.equal(body.reasoning_effort, "max");
   assert.equal("max_completion_tokens" in body, false);
   assert.ok(Buffer.byteLength(request.body) > 0);
   assert.equal(result.attempts[0]?.requestBytes, Buffer.byteLength(request.body));

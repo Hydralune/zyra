@@ -89,6 +89,7 @@ export function glm52Profile(): Glm52Profile {
       thinking: { type: "enabled" },
       reasoning_effort: "max",
     },
+    supportedReasoningEfforts: ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
     tags: ["coding", "long-context", "always-thinking", "tool-capable", "structured-output"],
     metadata: {
       model_version: "GLM-5.2",
@@ -101,6 +102,8 @@ export function glm52Profile(): Glm52Profile {
       normalized_cached_input_usd_per_million: 2,
       normalized_output_usd_per_million: 28,
       normalized_pricing_source: "zyra://pricing/conservative-cny-as-usd-upper-bound",
+      reasoning_effort_verified_at: "2026-09-01",
+      reasoning_effort_reference: "https://docs.bigmodel.cn/api-reference/模型-api/对话补全异步",
       input_modality: "text",
       output_modality: "text",
       model_reference: "https://docs.bigmodel.cn/cn/guide/models/text/glm-5.2",

@@ -88,6 +88,7 @@ export function kimiK27CodeProfile(): KimiK27CodeProfile {
     requestDefaults: {
       thinking: { type: "enabled" },
     },
+    supportedReasoningEfforts: [],
     tags: ["coding", "always-thinking", "tool-capable", "pay-as-you-go"],
     metadata: {
       model_version: "Kimi K2.7 Code",

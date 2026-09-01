@@ -6,6 +6,7 @@ export interface ProductModelOption {
   contextWindow: number
   maximumOutputTokens: number
   reasoning: boolean
+  supportedReasoningEfforts: readonly string[]
   defaultReasoningEffort?: string
   thinkingEnabled: boolean
 }
@@ -34,6 +35,9 @@ export function parseProductModels(value: unknown): readonly ProductModelOption[
     const defaultReasoningEffort = typeof requestDefaults.reasoning_effort === "string" && requestDefaults.reasoning_effort.trim()
       ? requestDefaults.reasoning_effort.trim()
       : undefined
+    const rawEfforts = model.supportedReasoningEfforts ?? model.supported_reasoning_efforts ?? []
+    if (!Array.isArray(rawEfforts)) throw new TypeError("supported reasoning efforts are invalid")
+    const supportedReasoningEfforts = [...new Set(rawEfforts.map((effort) => identity(effort, "reasoning effort")))]
     return Object.freeze({
       providerId: identity(model.providerId ?? model.provider_id, "provider id"),
       modelId: identity(model.modelId ?? model.model_id, "model id"),
@@ -42,6 +46,7 @@ export function parseProductModels(value: unknown): readonly ProductModelOption[
       contextWindow: Number.isSafeInteger(model.contextWindow) ? Number(model.contextWindow) : 0,
       maximumOutputTokens: Number.isSafeInteger(model.maximumOutputTokens) ? Number(model.maximumOutputTokens) : 0,
       reasoning: capabilities.reasoning === true,
+      supportedReasoningEfforts: Object.freeze(supportedReasoningEfforts),
       ...(defaultReasoningEffort ? { defaultReasoningEffort } : {}),
       thinkingEnabled: thinking.type === "enabled",
     })

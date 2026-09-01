@@ -451,7 +451,7 @@ describe("product commands and continuous session", () => {
   })
 
   test("selects a canonical model and binds it to the next task creation", async () => {
-    const calls: Array<{ goal: string; execution?: { providerId: string; modelId: string } }> = []
+    const calls: Array<{ goal: string; execution?: { providerId: string; modelId: string; reasoningEffort?: string } }> = []
     let latest: TaskProjection | undefined
     let modelRequests = 0
     const api = {
@@ -465,11 +465,12 @@ describe("product commands and continuous session", () => {
           contextWindow: 131_072,
           maximumOutputTokens: 16_384,
           reasoning: true,
+          supportedReasoningEfforts: ["low", "high", "max"],
           defaultReasoningEffort: "high",
           thinkingEnabled: true,
         }]
       },
-      async createPendingTask(goal: string, _sealed: boolean, sessionId?: string, execution?: { providerId: string; modelId: string }) {
+      async createPendingTask(goal: string, _sealed: boolean, sessionId?: string, execution?: { providerId: string; modelId: string; reasoningEffort?: string }) {
         calls.push({ goal, execution })
         latest = completedTask(1, goal, sessionId ?? "missing")
         return mutation(latest)
@@ -497,6 +498,8 @@ describe("product commands and continuous session", () => {
     stdin.write("/model\r")
     await waitUntil(() => modelRequests === 1 && stdout.text.includes("选择后续任务模型"))
     stdin.write("\r")
+    await waitUntil(() => stdout.text.includes("选择推理强度"))
+    stdin.write("\u001b[B\u001b[B\u001b[B\r")
     await waitUntil(() => stdout.text.includes("后续新 task"))
     stdin.write("使用选择的模型执行\r")
     await waitUntil(() => calls.length === 1 && stdin.raw)
@@ -504,10 +507,10 @@ describe("product commands and continuous session", () => {
     await executing
     expect(calls[0]).toEqual({
       goal: "使用选择的模型执行",
-      execution: { providerId: "deepseek", modelId: "deepseek-v4-flash" },
+      execution: { providerId: "deepseek", modelId: "deepseek-v4-flash", reasoningEffort: "max" },
     })
-    expect(stdout.text).toContain("provider 默认 high")
-    expect(stdout.text).toContain("catalog 尚未公布 supportedReasoningEfforts")
+    expect(stdout.text).toContain("reasoning · 已选择 max")
+    expect(stdout.text).toContain("可选 low/high/max")
   })
 
   test("selects sealed autonomous mode and binds it to the next task creation", async () => {

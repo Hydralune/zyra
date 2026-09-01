@@ -85,10 +85,13 @@ export function deepSeekV4FlashProfile(): DeepSeekV4FlashProfile {
       thinking: { type: "enabled" },
       reasoning_effort: "high",
     },
+    supportedReasoningEfforts: ["low", "high", "max"],
     tags: ["agent-test", "thinking-default", "tool-capable"],
     metadata: {
       model_version: "DeepSeek-V4-Flash",
       pricing_checked_at: "2026-07-31",
+      reasoning_effort_verified_at: "2026-09-01",
+      reasoning_effort_reference: "https://api-docs.deepseek.com/api/create-chat-completion/",
     },
   };
   return { integration, provider, model };

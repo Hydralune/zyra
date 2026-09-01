@@ -51,6 +51,7 @@ export interface IngressFrame {
 export interface ProductExecutionConfig {
   providerId: string
   modelId: string
+  reasoningEffort?: string
 }
 
 function taskCreateBody(goal: string, sealed: boolean, sessionId?: string, execution?: ProductExecutionConfig) {
@@ -59,6 +60,7 @@ function taskCreateBody(goal: string, sealed: boolean, sessionId?: string, execu
     execution_config: {
       provider_id: execution.providerId,
       model_id: execution.modelId,
+      ...(execution.reasoningEffort ? { reasoning_effort: execution.reasoningEffort } : {}),
     },
   } : {}
   return sealed

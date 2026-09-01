@@ -64,6 +64,7 @@ export interface ModelDefinition {
   readonly endpointPath: string | null;
   readonly protocol: TransportProtocol | null;
   readonly requestDefaults: JsonRecord;
+  readonly supportedReasoningEfforts?: readonly string[];
   readonly tags: readonly string[];
   readonly metadata: JsonRecord;
 }
