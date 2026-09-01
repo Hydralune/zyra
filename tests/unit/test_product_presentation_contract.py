@@ -87,3 +87,69 @@ def test_execution_error_whitelists_message_and_never_copies_secret_fields() -> 
     assert projected["code"] == "provider_unavailable"
     assert projected["retryable"] is True
     assert "secret-value" not in str(projected)
+
+
+def test_tool_output_projection_admits_only_bounded_stdout_stderr_descriptors() -> None:
+    projected = project_product_presentation(
+        {
+            "eventId": "event_tool_done",
+            "eventType": "runtime.tool.succeeded",
+            "identity": {"taskId": "task_1", "toolCallId": "tool_call_1"},
+            "inline": {
+                "tool_name": "tests",
+                "presentation_summary": "12 tests passed",
+                "authorization": "Bearer must-not-leak",
+            },
+            "artifactRefs": [
+                {
+                    "artifactId": "artifact_stdout",
+                    "title": "Test stdout",
+                    "mediaType": "text/plain",
+                    "sizeBytes": 10 * 1024 * 1024,
+                    "digest": "secret-digest",
+                    "metadata": {
+                        "source_path": "source_payload.stdout",
+                        "authorization": "Bearer must-not-leak",
+                    },
+                },
+                {
+                    "artifactId": "artifact_stderr",
+                    "title": "Test stderr",
+                    "mediaType": "text/plain",
+                    "sizeBytes": 42,
+                    "metadata": {"source_path": "source_payload.stderr"},
+                },
+                {
+                    "artifactId": "artifact_result",
+                    "title": "Generic result",
+                    "mediaType": "application/json",
+                    "metadata": {"source_path": "source_payload.result"},
+                },
+            ],
+        }
+    )
+    assert projected is not None
+    assert projected["outputArtifacts"] == [
+        {
+            "artifactId": "artifact_stdout",
+            "stream": "stdout",
+            "title": "Test stdout",
+            "mediaType": "text/plain",
+            "sizeBytes": 10 * 1024 * 1024,
+        },
+        {
+            "artifactId": "artifact_stderr",
+            "stream": "stderr",
+            "title": "Test stderr",
+            "mediaType": "text/plain",
+            "sizeBytes": 42,
+        },
+    ]
+    assert projected["artifactIds"] == [
+        "artifact_stdout",
+        "artifact_stderr",
+        "artifact_result",
+    ]
+    assert "source_path" not in str(projected)
+    assert "secret-digest" not in str(projected)
+    assert "must-not-leak" not in str(projected)

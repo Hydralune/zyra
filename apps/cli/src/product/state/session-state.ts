@@ -1,4 +1,4 @@
-import type { UiFileChange, UiPermissionRequest, UiSeverity, UiVerificationSummary, ZyraUiEvent } from "../../presentation/events.ts"
+import type { UiFileChange, UiPermissionRequest, UiSeverity, UiToolOutputRef, UiVerificationSummary, ZyraUiEvent } from "../../presentation/events.ts"
 
 export interface ProductMessageState {
   messageId: string
@@ -25,6 +25,7 @@ export interface ProductToolState {
   status: "running" | "completed" | "failed"
   durationMs?: number
   artifactIds?: readonly string[]
+  outputRefs?: readonly UiToolOutputRef[]
 }
 
 export interface ProductAgentState {
@@ -190,7 +191,7 @@ export class ProductSessionState {
         }, this.#limits.activities)
         break
       case "tool.started":
-        this.#evicted.tools += putBounded(this.#tools, event.toolCallId, { toolCallId: event.toolCallId, name: event.name, summary: event.summary, status: "running", durationMs: event.durationMs, artifactIds: event.artifactIds }, this.#limits.tools)
+        this.#evicted.tools += putBounded(this.#tools, event.toolCallId, { toolCallId: event.toolCallId, name: event.name, summary: event.summary, status: "running", durationMs: event.durationMs, artifactIds: event.artifactIds, outputRefs: event.outputRefs }, this.#limits.tools)
         break
       case "tool.updated":
       case "tool.completed":
@@ -203,6 +204,7 @@ export class ProductSessionState {
           status: event.type === "tool.failed" ? "failed" : event.type === "tool.completed" ? "completed" : "running",
           durationMs: event.durationMs ?? prior?.durationMs,
           artifactIds: event.artifactIds ?? prior?.artifactIds,
+          outputRefs: event.outputRefs ?? prior?.outputRefs,
         }, this.#limits.tools)
         break
       }

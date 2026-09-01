@@ -100,7 +100,8 @@ function renderTools(lines: string[], state: ProductViewState, width: number): v
     const marker = tool.status === "failed" ? "! " : tool.status === "completed" ? "✓ " : "◌ "
     const duration = tool.durationMs === undefined ? "" : ` · ${tool.durationMs < 1_000 ? `${tool.durationMs}ms` : `${(tool.durationMs / 1_000).toFixed(1)}s`}`
     const artifacts = tool.artifactIds?.length ? ` · ${tool.artifactIds.length} artifact` : ""
-    lines.push(...prefixed(`${tool.name} · ${tool.summary}${duration}${artifacts}`, marker, width))
+    const output = tool.outputRefs?.length ? ` · ${tool.outputRefs.map((item) => item.stream).join("+")} 可查看` : ""
+    lines.push(...prefixed(`${tool.name} · ${tool.summary}${duration}${output}${artifacts}`, marker, width))
   }
   if (state.tools.length > visible.length) lines.push(...prefixed(`${state.tools.length - visible.length} 个较早工具调用已折叠`, "… ", width))
 }

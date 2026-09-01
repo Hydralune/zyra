@@ -121,6 +121,13 @@ describe("ZyraUiEvent/v2 product projection", () => {
           summary: "12 tests passed",
           durationMs: 1532,
           artifactIds: ["artifact_test_report"],
+          outputArtifacts: [{
+            artifactId: "artifact_test_stdout",
+            stream: "stdout",
+            title: "Test stdout",
+            mediaType: "text/plain",
+            sizeBytes: 10 * 1024 * 1024,
+          }],
           severity: "info",
         },
       },
@@ -141,7 +148,21 @@ describe("ZyraUiEvent/v2 product projection", () => {
     const projected = projectProductEvents({ task: { ...fixture.task, status: "running", terminal: false }, frames })
     const state = reduceProductEvents(projected)
     expect(state.agents).toEqual([{ agentId: "provider-code-worker", label: "provider-code-worker", status: "dispatched", summary: "backend local-sandbox-gateway" }])
-    expect(state.tools).toEqual([{ toolCallId: "tool_call_1", name: "tests", summary: "12 tests passed", status: "completed", durationMs: 1532, artifactIds: ["artifact_test_report"] }])
+    expect(state.tools).toEqual([{
+      toolCallId: "tool_call_1",
+      name: "tests",
+      summary: "12 tests passed",
+      status: "completed",
+      durationMs: 1532,
+      artifactIds: ["artifact_test_report"],
+      outputRefs: [{
+        artifactId: "artifact_test_stdout",
+        stream: "stdout",
+        title: "Test stdout",
+        mediaType: "text/plain",
+        sizeBytes: 10 * 1024 * 1024,
+      }],
+    }])
     expect(state.issues).toEqual([{ issueId: "issue_provider", severity: "error", message: "Provider unavailable.", code: "provider_unavailable", retryable: true, recovery: undefined }])
     expect(JSON.stringify(projected)).not.toContain("must-not-leak")
   })
@@ -160,6 +181,13 @@ describe("ZyraUiEvent/v2 product projection", () => {
           label: huge,
           summary: huge,
           artifactIds: [huge],
+          outputArtifacts: Array.from({ length: 32 }, (_, index) => ({
+            artifactId: `artifact_output_${index}${huge}`,
+            stream: index % 2 ? "stderr" : "stdout",
+            title: huge,
+            mediaType: huge,
+            sizeBytes: Number.MAX_SAFE_INTEGER,
+          })),
         },
       }],
     })
@@ -168,7 +196,12 @@ describe("ZyraUiEvent/v2 product projection", () => {
     expect(tool.name).toHaveLength(256)
     expect(tool.summary).toHaveLength(2_000)
     expect(tool.artifactIds?.[0]).toHaveLength(256)
-    expect(JSON.stringify(projected).length).toBeLessThan(5_000)
+    expect(tool.outputRefs).toHaveLength(16)
+    expect(tool.outputRefs?.[0]).toMatchObject({ stream: "stdout", sizeBytes: undefined })
+    expect(tool.outputRefs?.[0]?.artifactId).toHaveLength(256)
+    expect(tool.outputRefs?.[0]?.title).toHaveLength(256)
+    expect(tool.outputRefs?.[0]?.mediaType).toHaveLength(128)
+    expect(JSON.stringify(projected).length).toBeLessThan(20_000)
   })
 
   test("prefers canonical permission custody snapshots and keeps decisions fail-closed", () => {

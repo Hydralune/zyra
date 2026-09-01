@@ -138,7 +138,15 @@ describe("product state kernel", () => {
       { schema: ZYRA_UI_EVENT_SCHEMA, eventId: "start", type: "assistant.message.started", messageId: "answer" },
       { schema: ZYRA_UI_EVENT_SCHEMA, eventId: "delta-1", type: "assistant.message.delta", messageId: "answer", text: "你" },
       { schema: ZYRA_UI_EVENT_SCHEMA, eventId: "delta-2", type: "assistant.message.delta", messageId: "answer", text: "好" },
-      { schema: ZYRA_UI_EVENT_SCHEMA, eventId: "tool", type: "tool.started", toolCallId: "tool", name: "test", summary: "running" },
+      {
+        schema: ZYRA_UI_EVENT_SCHEMA,
+        eventId: "tool",
+        type: "tool.started",
+        toolCallId: "tool",
+        name: "test",
+        summary: "running",
+        outputRefs: [{ artifactId: "artifact_stdout", stream: "stdout", title: "stdout", mediaType: "text/plain", sizeBytes: 10 * 1024 * 1024 }],
+      },
       { schema: ZYRA_UI_EVENT_SCHEMA, eventId: "agent", type: "subagent.updated", agentId: "agent", label: "测试代理", status: "running" },
       { schema: ZYRA_UI_EVENT_SCHEMA, eventId: "permission", type: "permission.requested", request: { requestId: "permission", action: "write", decisions: ["allow", "deny"] } },
       { schema: ZYRA_UI_EVENT_SCHEMA, eventId: "done", type: "task.completed", taskId: "task", finalAnswer: "你好" },
@@ -147,10 +155,11 @@ describe("product state kernel", () => {
     expect(state.snapshot()).toMatchObject({
       taskStatus: "completed",
       messages: [{ text: "你好", streaming: true }],
-      tools: [{ status: "running" }],
+      tools: [{ status: "running", outputRefs: [{ artifactId: "artifact_stdout", stream: "stdout", sizeBytes: 10 * 1024 * 1024 }] }],
       agents: [{ status: "running" }],
       permissions: [{ requestId: "permission" }],
     })
+    expect(renderProductState(state.snapshot(), { width: 100, height: 40, workspace: "G:\\agent-zoo\\zyra" })).toContain("stdout 可查看")
   })
 })
 

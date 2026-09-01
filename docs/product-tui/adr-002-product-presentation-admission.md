@@ -17,13 +17,14 @@
 5. CLI 只消费版本匹配的 presentation；未知 kind 被忽略，而不是降级为 raw summary。
 6. 产品 reducer 使用 `zyra.ui-event/v2`。v2 增加 activity category/severity、tool duration/artifact、worker summary 和 task issue；旧 task 仍从 canonical task + runtime frames 重新投影，不依赖持久化的 v1 UI state。
 7. task terminal state、final answer、permission custody、workspace delivery 和 verifier 仍分别以现有 canonical API/snapshot 为准，presentation 不覆盖这些所有权。
+8. `stdout` / `stderr` 正文继续由 runtime artifact owner 持有；presentation 只准入 artifact identity、stream、脱敏标题、media type 和有上限的字节数。CLI 通过既有 server-redacted range API 按需读取最多 64 KiB，不把原始输出复制进 transcript 或 UI event state。
 
 ## 当前准入集合
 
 - `zyra.task-execution-started/v1` → execution activity；
 - `zyra.task-execution-error/v1` → redacted user issue；
 - `runtime.backend.dispatch.requested` 和明确 worker-attempt 状态 → 聚合 worker；
-- 具有稳定 `tool_call_id` 的 `runtime.tool.*` → tool lifecycle；
+- 具有稳定 `tool_call_id` 的 `runtime.tool.*` → tool lifecycle；其中 source path 明确标注为 stdout/stderr 的 canonical artifact refs → 有界 output descriptors；
 - 其他事件保持 developer-only，后续必须通过契约、测试和本 ADR 的扩展才能准入。
 
 ## 后果

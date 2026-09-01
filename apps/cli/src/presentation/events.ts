@@ -5,6 +5,14 @@ export type UiPermissionDecision = "allow" | "deny"
 export type UiFileChangeKind = "created" | "modified" | "deleted" | "renamed"
 export type UiSeverity = "info" | "warning" | "error"
 
+export interface UiToolOutputRef {
+  artifactId: string
+  stream: "stdout" | "stderr"
+  title: string
+  mediaType: string
+  sizeBytes?: number
+}
+
 export interface UiPermissionRequest {
   requestId: string
   action: string
@@ -59,10 +67,10 @@ export type ZyraUiEvent =
   | (UiEventBase & { type: "activity.started"; activityId: string; label: string; category?: string; summary?: string; severity?: UiSeverity })
   | (UiEventBase & { type: "activity.updated"; activityId: string; label: string; category?: string; summary?: string; severity?: UiSeverity })
   | (UiEventBase & { type: "activity.completed"; activityId: string; label: string; outcome?: string; category?: string; summary?: string; severity?: UiSeverity })
-  | (UiEventBase & { type: "tool.started"; toolCallId: string; name: string; summary: string; durationMs?: number; artifactIds?: readonly string[] })
-  | (UiEventBase & { type: "tool.updated"; toolCallId: string; name?: string; summary: string; durationMs?: number; artifactIds?: readonly string[] })
-  | (UiEventBase & { type: "tool.completed"; toolCallId: string; name?: string; summary: string; durationMs?: number; artifactIds?: readonly string[] })
-  | (UiEventBase & { type: "tool.failed"; toolCallId: string; name?: string; message: string; durationMs?: number; artifactIds?: readonly string[] })
+  | (UiEventBase & { type: "tool.started"; toolCallId: string; name: string; summary: string; durationMs?: number; artifactIds?: readonly string[]; outputRefs?: readonly UiToolOutputRef[] })
+  | (UiEventBase & { type: "tool.updated"; toolCallId: string; name?: string; summary: string; durationMs?: number; artifactIds?: readonly string[]; outputRefs?: readonly UiToolOutputRef[] })
+  | (UiEventBase & { type: "tool.completed"; toolCallId: string; name?: string; summary: string; durationMs?: number; artifactIds?: readonly string[]; outputRefs?: readonly UiToolOutputRef[] })
+  | (UiEventBase & { type: "tool.failed"; toolCallId: string; name?: string; message: string; durationMs?: number; artifactIds?: readonly string[]; outputRefs?: readonly UiToolOutputRef[] })
   | (UiEventBase & { type: "permission.requested"; request: UiPermissionRequest })
   | (UiEventBase & { type: "permission.resolved"; requestId: string; decision: string })
   | (UiEventBase & { type: "workspace.changed"; changes: readonly UiFileChange[] })

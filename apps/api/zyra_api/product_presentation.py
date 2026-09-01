@@ -13,6 +13,7 @@ _ASSIGNMENT = re.compile(
     r"\s*[:=]\s*[^\s,;]+"
 )
 _WINDOWS_PATH = re.compile(r"(?i)(?:[A-Z]:\\|\\\\)[^\r\n\t<>|\"]+")
+_OUTPUT_STREAM = re.compile(r"(?:^|[._/])(stdout|stderr)(?:$|[._/])", re.IGNORECASE)
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
@@ -44,6 +45,33 @@ def _base(*, kind: str, phase: str, identity: str, label: str) -> dict[str, Any]
         "label": label,
         "severity": "info",
     }
+
+
+def _tool_output_artifacts(values: Any) -> list[dict[str, Any]]:
+    if not isinstance(values, list):
+        return []
+    output: list[dict[str, Any]] = []
+    for value in values:
+        item = _mapping(value)
+        artifact_id = _identity(item.get("artifactId"))
+        metadata = _mapping(item.get("metadata"))
+        source_path = str(metadata.get("source_path") or "")[:2_048]
+        match = _OUTPUT_STREAM.search(source_path)
+        if not artifact_id or match is None:
+            continue
+        size_bytes = item.get("sizeBytes")
+        descriptor: dict[str, Any] = {
+            "artifactId": artifact_id,
+            "stream": match.group(1).lower(),
+            "title": _text(item.get("title"), 256) or f"Tool {match.group(1).lower()}",
+            "mediaType": _text(item.get("mediaType"), 128) or "application/octet-stream",
+        }
+        if isinstance(size_bytes, int) and 0 <= size_bytes <= 1_000_000_000_000:
+            descriptor["sizeBytes"] = size_bytes
+        output.append(descriptor)
+        if len(output) >= 16:
+            break
+    return output
 
 
 def project_product_presentation(canonical: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -109,6 +137,7 @@ def project_product_presentation(canonical: Mapping[str, Any]) -> dict[str, Any]
             )
             if artifact_id
         ][:32]
+        result["outputArtifacts"] = _tool_output_artifacts(artifact_refs)
         return result
 
     if event_type != "runtime.agent.message":

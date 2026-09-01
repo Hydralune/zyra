@@ -83,14 +83,61 @@ function planLines(view: ProductTuiShell["view"]): string[] {
   })
 }
 
-function toolLines(view: ProductTuiShell["view"]): string[] {
-  if (!view.tools.length) return ["当前没有 canonical 工具调用。"]
-  return view.tools.map((tool, index) => {
-    const marker = tool.status === "completed" ? "✓" : tool.status === "failed" ? "!" : "◌"
-    const duration = tool.durationMs === undefined ? "耗时未知" : `${tool.durationMs}ms`
-    const artifacts = tool.artifactIds?.length ? ` · artifacts: ${tool.artifactIds.join(", ")}` : ""
-    return `${marker} ${index + 1}. ${tool.name} · ${tool.status} · ${duration} · ${tool.summary}${artifacts}`
-  })
+function byteLabel(value: number | undefined): string {
+  if (value === undefined) return "大小未知"
+  if (value < 1_024) return `${value} B`
+  if (value < 1_024 * 1_024) return `${(value / 1_024).toFixed(1)} KiB`
+  return `${(value / (1_024 * 1_024)).toFixed(1)} MiB`
+}
+
+async function openToolBrowser(input: {
+  shell: ProductTuiShell
+  openArtifact: (artifactId: string) => Promise<void>
+}): Promise<void> {
+  const tools = input.shell.view.tools
+  if (!tools.length) {
+    await input.shell.page("工具调用", ["当前没有 canonical 工具调用。"])
+    return
+  }
+  const selected = await input.shell.pick("工具调用", tools.map((tool) => ({
+    id: tool.toolCallId,
+    label: `${tool.status === "failed" ? "!" : tool.status === "completed" ? "✓" : "◌"} ${tool.name}`,
+    detail: `${tool.summary}${tool.outputRefs?.length ? ` · ${tool.outputRefs.length} 个输出` : ""}`,
+    keywords: [tool.name, tool.status, tool.summary, ...(tool.outputRefs ?? []).map((item) => item.stream)],
+  })), "选择工具查看安全摘要、输出或 artifact")
+  const tool = selected ? tools.find((item) => item.toolCallId === selected.id) : undefined
+  if (!tool) return
+  const details = [
+    `${tool.name} · ${tool.status}`,
+    tool.summary,
+    `tool call: ${tool.toolCallId}`,
+    `duration: ${tool.durationMs === undefined ? "未记录" : `${tool.durationMs}ms`}`,
+    ...(tool.outputRefs ?? []).map((item) => `${item.stream} · ${byteLabel(item.sizeBytes)} · ${item.mediaType} · ${item.artifactId}`),
+    ...(tool.artifactIds?.length ? [`artifacts: ${tool.artifactIds.join(", ")}`] : []),
+  ]
+  if (!tool.outputRefs?.length) {
+    await input.shell.page(tool.name, details)
+    return
+  }
+  const output = await input.shell.pick("工具输出", [
+    { id: "__details", label: "查看工具详情", detail: "状态、耗时与 artifact 引用" },
+    ...tool.outputRefs.map((item) => ({
+      id: item.artifactId,
+      label: item.stream,
+      detail: `${byteLabel(item.sizeBytes)} · ${item.mediaType} · canonical artifact 安全预览`,
+      keywords: [item.stream, item.title, item.mediaType, item.artifactId],
+    })),
+  ], "stdout/stderr 不进入 transcript；选择后读取服务器脱敏的 64 KiB 范围")
+  if (!output) return
+  if (output.id === "__details") {
+    await input.shell.page(tool.name, details)
+  } else {
+    try {
+      await input.openArtifact(output.id)
+    } catch (error) {
+      input.shell.notice(`工具输出不可用 · ${controlError(error)}`)
+    }
+  }
 }
 
 function verificationLines(view: ProductTuiShell["view"]): string[] {
@@ -293,7 +340,7 @@ async function runProductControlLoop(input: {
         continue
       }
       if (line === "/tools") {
-        await input.shell.page("工具调用", toolLines(input.shell.view))
+        await openToolBrowser({ shell: input.shell, openArtifact: input.openArtifact })
         continue
       }
       if (line === "/artifact" || line.startsWith("/artifact ")) {
@@ -974,7 +1021,13 @@ async function runProductSession(input: {
             await input.shell.page("验证与收据", verificationLines(input.shell.view))
             continue
           case "tools":
-            await input.shell.page("工具调用", toolLines(input.shell.view))
+            await openToolBrowser({
+              shell: input.shell,
+              openArtifact: async (artifactId) => {
+                if (!currentTaskId) throw new CliTaskError("当前尚未绑定 task。", "task_not_bound")
+                await openProductArtifact({ api: input.api, shell: input.shell, taskId: currentTaskId, artifactId, signal: input.signal })
+              },
+            })
             continue
           case "artifact": {
             if (!currentTaskId) {

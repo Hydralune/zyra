@@ -5,6 +5,7 @@ import {
   type UiFileChange,
   type UiPermissionRequest,
   type UiPermissionSnapshot,
+  type UiToolOutputRef,
   type UiTransportSnapshot,
   type UiVerificationCheck,
   type ZyraUiEvent,
@@ -37,6 +38,27 @@ function stringList(value: unknown): string[] {
     : []
 }
 
+function toolOutputRefs(value: unknown): readonly UiToolOutputRef[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const output: UiToolOutputRef[] = []
+  const seen = new Set<string>()
+  for (const item of value.slice(0, 16)) {
+    const selected = object(item)
+    const artifactId = text(selected.artifactId, 256)
+    const stream = selected.stream === "stdout" || selected.stream === "stderr" ? selected.stream : undefined
+    if (!artifactId || !stream || seen.has(artifactId)) continue
+    seen.add(artifactId)
+    output.push(Object.freeze({
+      artifactId,
+      stream,
+      title: text(selected.title, 256) ?? `Tool ${stream}`,
+      mediaType: text(selected.mediaType, 128) ?? "application/octet-stream",
+      sizeBytes: artifactSize(selected.sizeBytes),
+    }))
+  }
+  return Object.freeze(output)
+}
+
 function displayPath(value: string): string {
   const normalized = value.replaceAll("\\", "/").replace(/^[A-Za-z]:\//, "").replace(/^\/+/, "")
   const parts = normalized.split("/").filter((part) => part && part !== "." && part !== "..")
@@ -53,6 +75,11 @@ function severity(value: unknown): "info" | "warning" | "error" {
 
 function safeInteger(value: unknown): number | undefined {
   return Number.isSafeInteger(value) && Number(value) >= 0 ? Number(value) : undefined
+}
+
+function artifactSize(value: unknown): number | undefined {
+  const selected = safeInteger(value)
+  return selected !== undefined && selected <= 1_000_000_000_000 ? selected : undefined
 }
 
 function productPresentationEvents(frame: IngressFrame): ZyraUiEvent[] | undefined {
@@ -87,16 +114,17 @@ function productPresentationEvents(frame: IngressFrame): ZyraUiEvent[] | undefin
   if (kind === "tool") {
     const durationMs = safeInteger(presentation.durationMs)
     const artifactIds = Object.freeze(stringList(presentation.artifactIds).slice(0, 32))
+    const outputRefs = toolOutputRefs(presentation.outputArtifacts)
     if (phase === "started") {
-      return [{ ...base, type: "tool.started", toolCallId: identity, name: label, summary: summary ?? `正在运行 ${label}`, durationMs, artifactIds }]
+      return [{ ...base, type: "tool.started", toolCallId: identity, name: label, summary: summary ?? `正在运行 ${label}`, durationMs, artifactIds, outputRefs }]
     }
     if (phase === "failed" || phase === "cancelled") {
-      return [{ ...base, type: "tool.failed", toolCallId: identity, name: label, message: summary ?? `${label}${phase === "failed" ? "执行失败" : "已取消"}`, durationMs, artifactIds }]
+      return [{ ...base, type: "tool.failed", toolCallId: identity, name: label, message: summary ?? `${label}${phase === "failed" ? "执行失败" : "已取消"}`, durationMs, artifactIds, outputRefs }]
     }
     if (phase === "completed") {
-      return [{ ...base, type: "tool.completed", toolCallId: identity, name: label, summary: summary ?? `${label} 已完成`, durationMs, artifactIds }]
+      return [{ ...base, type: "tool.completed", toolCallId: identity, name: label, summary: summary ?? `${label} 已完成`, durationMs, artifactIds, outputRefs }]
     }
-    return [{ ...base, type: "tool.updated", toolCallId: identity, name: label, summary: summary ?? `${label} 正在运行`, durationMs, artifactIds }]
+    return [{ ...base, type: "tool.updated", toolCallId: identity, name: label, summary: summary ?? `${label} 正在运行`, durationMs, artifactIds, outputRefs }]
   }
   if (kind === "issue") {
     return [{
