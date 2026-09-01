@@ -729,6 +729,7 @@ export class CliApi {
     requestId: string
     responseId: string
     effect: "allow" | "deny"
+    decisionScope: "once" | "session" | "workspace"
     consoleResponse: Readonly<Record<string, unknown>>
     feedback?: string
     signal?: AbortSignal
@@ -741,6 +742,7 @@ export class CliApi {
       run_id: binding.runId,
       session_id: binding.sessionId,
       effect: input.effect,
+      decision_scope: input.decisionScope,
       response_id: responseId,
       idempotency_key: normalizeIdempotencyKey(responseId),
       console_response: JSON.parse(JSON.stringify(input.consoleResponse)) as Record<string, unknown>,

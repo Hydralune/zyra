@@ -188,6 +188,71 @@ describe("FE-S03 permission proof and projection", () => {
     expect(projection.snapshot().pendingPermissions).toBe(0)
   })
 
+  test("advertises only backend scopes and binds a workspace decision into the submitted proof", async () => {
+    const request = {
+      response_challenge: {
+        version: "zyra.permission-response/v2",
+        nonce: "scope-nonce",
+        canonical_owner: "typescript.PermissionCoordinator",
+      },
+      envelope_id: "scope-env",
+      request_id: "scope-request",
+      run_id: "run_control",
+      task_id: "task_control",
+      session_id: "session_control",
+      session_revision: 4,
+      worker_request_id: "scope-worker",
+      tool_call_id: "scope-tool-call",
+      request_fingerprint: "c".repeat(64),
+      arguments_digest: "d".repeat(64),
+      policy_revision: 5,
+      mode_revision: 6,
+      expires_at: "2099-01-01T00:00:00.000Z",
+      status: "delivered",
+      tool_name: "open_url",
+      operation: "execute",
+      supported_decision_scopes: ["once", "session", "workspace"],
+    }
+    let submitted: Record<string, unknown> | undefined
+    const api = {
+      async openPermissionSession() {
+        return {
+          taskId: "task_control",
+          runId: "run_control",
+          sessionId: "session_control",
+          custodyToken: "custody-token",
+          created: true,
+          verified: true,
+        }
+      },
+      async permissionRequests() {
+        return { requests: { items: [request] } }
+      },
+      async resolvePermission(input: Record<string, unknown>) {
+        submitted = input
+        return {
+          decision_scope: "workspace",
+          scope_rule: { installed: true, persistent: true },
+        }
+      },
+    } as unknown as CliApi
+    const session = new CliPermissionSession({ api, task: task() })
+    expect(await session.open()).toBe(true)
+    const pending = await session.pending()
+    expect(pending[0]?.supportedDecisionScopes).toEqual(["once", "session", "workspace"])
+    await session.resolve({
+      requestId: "scope-request",
+      effect: "allow",
+      decisionScope: "workspace",
+    })
+    expect(submitted).toMatchObject({ effect: "allow", decisionScope: "workspace" })
+    expect(submitted?.consoleResponse).toMatchObject({
+      request_id: "scope-request",
+      effect: "allow",
+      decision_scope: "workspace",
+    })
+  })
+
   test("rejects expired requests and fails closed when permission custody is disabled", async () => {
     expect(() => createPermissionProof({
       response_challenge: { version: "zyra.permission-response/v1", nonce: "nonce", canonical_owner: "typescript.PermissionCoordinator" },

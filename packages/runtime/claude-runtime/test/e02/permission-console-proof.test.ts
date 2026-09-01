@@ -94,6 +94,7 @@ function consoleProof(
   envelope: JsonObject,
   responseId: string,
   effect: "allow" | "deny",
+  decisionScope: "once" | "session" | "workspace" = "once",
 ): JsonObject {
   const challenge = object(envelope.response_challenge as JsonValue);
   const material: JsonObject = {
@@ -104,6 +105,7 @@ function consoleProof(
     request_id: String(envelope.request_id),
     response_id: responseId,
     effect,
+    decision_scope: decisionScope,
     run_id: String(envelope.run_id),
     task_id: String(envelope.task_id),
     session_id: String(envelope.session_id),
@@ -148,6 +150,7 @@ test("console proof resumes exactly one physical approval and issues one permit"
     );
     assert.ok(response.permit_id);
     assert.equal(response.final_arguments_digest, envelope.arguments_digest);
+    assert.deepEqual(envelope.supported_decision_scopes, ["once", "session", "workspace"]);
 
     const external = {
       run_id: envelope.run_id,
@@ -175,6 +178,150 @@ test("console proof resumes exactly one physical approval and issues one permit"
       "claim-replay",
     )));
     assert.equal(replay.claimed, false);
+  } finally {
+    await port.runtime.close();
+    await rm(port.root, { recursive: true, force: true });
+  }
+});
+
+test("session-scoped approval is exact and cannot cross session or wildcard arguments", async () => {
+  const port = await openRuntime("session-scope");
+  try {
+    const envelope = await approval(port.runtime, "literal-*");
+    const responseId = "console-response-session";
+    const proof = consoleProof(envelope, responseId, "allow", "session");
+    const response = object(await port.runtime.dispatch(request(
+      "permission.respond",
+      {
+        request_id: envelope.request_id,
+        response_id: responseId,
+        effect: "allow",
+        decision_scope: "session",
+        responder: "zyra-cli",
+        metadata: { console_response: proof },
+      },
+      "respond-session",
+    )));
+    assert.equal(response.decision_scope, "session");
+    assert.equal(object(response.scope_rule as JsonValue).installed, true);
+
+    const repeated = object(await port.runtime.dispatch(request(
+      "permission.enforce",
+      {
+        run_id: "console-run",
+        task_id: "console-task",
+        session_id: "console-session",
+        session_revision: 12,
+        worker_request_id: "console-worker-repeat",
+        tool_call_id: "console-call-repeat",
+        tool_name: "open_url",
+        namespace: "browser",
+        server_id: "",
+        operation: "execute",
+        arguments: { url: "https://example.test/literal-*" },
+      },
+      "repeat-session",
+    )));
+    assert.equal(repeated.allowed, true);
+    assert.equal(repeated.pending_approval, false);
+
+    const wildcardExpansion = object(await port.runtime.dispatch(request(
+      "permission.enforce",
+      {
+        run_id: "console-run",
+        task_id: "console-task",
+        session_id: "console-session",
+        session_revision: 12,
+        worker_request_id: "console-worker-wildcard",
+        tool_call_id: "console-call-wildcard",
+        tool_name: "open_url",
+        namespace: "browser",
+        server_id: "",
+        operation: "execute",
+        arguments: { url: "https://example.test/literal-attacker" },
+        await_approval_delivery: true,
+      },
+      "wildcard-session",
+    )));
+    assert.equal(wildcardExpansion.allowed, false);
+    assert.equal(wildcardExpansion.pending_approval, true);
+
+    const otherSession = object(await port.runtime.dispatch(request(
+      "permission.enforce",
+      {
+        run_id: "console-run",
+        task_id: "console-task",
+        session_id: "console-session-other",
+        session_revision: 1,
+        worker_request_id: "console-worker-other-session",
+        tool_call_id: "console-call-other-session",
+        tool_name: "open_url",
+        namespace: "browser",
+        server_id: "",
+        operation: "execute",
+        arguments: { url: "https://example.test/literal-*" },
+        await_approval_delivery: true,
+      },
+      "other-session",
+    )));
+    assert.equal(otherSession.allowed, false);
+    assert.equal(otherSession.pending_approval, true);
+  } finally {
+    await port.runtime.close();
+    await rm(port.root, { recursive: true, force: true });
+  }
+});
+
+test("workspace-scoped approval persists across runtime restart", async () => {
+  const port = await openRuntime("workspace-scope");
+  try {
+    const envelope = await approval(port.runtime, "workspace");
+    const responseId = "console-response-workspace";
+    const proof = consoleProof(envelope, responseId, "allow", "workspace");
+    const response = object(await port.runtime.dispatch(request(
+      "permission.respond",
+      {
+        request_id: envelope.request_id,
+        response_id: responseId,
+        effect: "allow",
+        decision_scope: "workspace",
+        responder: "zyra-cli",
+        metadata: { console_response: proof },
+      },
+      "respond-workspace",
+    )));
+    assert.equal(response.decision_scope, "workspace");
+    assert.equal(object(response.scope_rule as JsonValue).persistent, true);
+    await port.runtime.close();
+    port.runtime = await E02ApiPortRuntime.open({
+      type: "initialize",
+      request_id: "initialize-workspace-scope-restored",
+      workspace_root: join(port.root, "workspace"),
+      state_path: join(port.root, "state", "e02.json"),
+      artifact_root: join(port.root, "artifacts"),
+      permission_mode: "default",
+      sealed_autonomous: false,
+      runtime_constraints: { projectRoot: resolve("."), test_label: "workspace-scope-restored" },
+    });
+    const repeated = object(await port.runtime.dispatch(request(
+      "permission.enforce",
+      {
+        run_id: "console-run-restored",
+        task_id: "console-task-restored",
+        session_id: "console-session-restored",
+        session_revision: 1,
+        worker_request_id: "console-worker-restored",
+        tool_call_id: "console-call-restored",
+        tool_name: "open_url",
+        namespace: "browser",
+        server_id: "",
+        operation: "execute",
+        arguments: { url: "https://example.test/workspace" },
+      },
+      "repeat-workspace-restored",
+    )));
+    assert.equal(repeated.allowed, true);
+    assert.equal(repeated.pending_approval, false);
   } finally {
     await port.runtime.close();
     await rm(port.root, { recursive: true, force: true });

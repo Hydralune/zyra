@@ -6,8 +6,13 @@ import {
   digest,
 } from "../e02/canonical.ts";
 
-export const PERMISSION_RESPONSE_VERSION = "zyra.permission-response/v1";
+export const PERMISSION_RESPONSE_VERSION = "zyra.permission-response/v2";
+export const LEGACY_PERMISSION_RESPONSE_VERSION = "zyra.permission-response/v1";
 export const PERMISSION_RESPONSE_OWNER = "typescript.PermissionCoordinator";
+export type PermissionDecisionScope = "once" | "session" | "workspace";
+type PermissionResponseVersion =
+  | typeof PERMISSION_RESPONSE_VERSION
+  | typeof LEGACY_PERMISSION_RESPONSE_VERSION;
 
 export interface PermissionResponseEnvelopeBinding {
   envelopeId: string;
@@ -26,7 +31,7 @@ export interface PermissionResponseEnvelopeBinding {
 }
 
 export interface PermissionResponseChallenge extends JsonObject {
-  version: typeof PERMISSION_RESPONSE_VERSION;
+  version: PermissionResponseVersion;
   nonce: string;
   canonicalOwner: typeof PERMISSION_RESPONSE_OWNER;
   envelopeId: string;
@@ -52,6 +57,7 @@ export interface PermissionResponseProofInput extends JsonObject {
   requestId: string;
   responseId: string;
   effect: "allow" | "deny";
+  decisionScope: PermissionDecisionScope;
   runId: string;
   taskId: string;
   sessionId: string;
@@ -77,6 +83,7 @@ export interface PermissionResponseProofResult extends JsonObject {
 
 export function permissionResponseChallenge(
   envelope: PermissionResponseEnvelopeBinding,
+  version: PermissionResponseVersion = PERMISSION_RESPONSE_VERSION,
 ): PermissionResponseChallenge {
   const requestFingerprint = text(
     envelope.metadata.request_fingerprint,
@@ -99,7 +106,7 @@ export function permissionResponseChallenge(
     expiresAt: timestamp(envelope.expiresAt, "expires_at"),
   };
   return canonicalize({
-    version: PERMISSION_RESPONSE_VERSION,
+    version,
     nonce: deterministicId("permission-response-nonce", base, 48),
     ...base,
   }) as PermissionResponseChallenge;
@@ -110,7 +117,7 @@ export function permissionResponseMaterial(
   response: Pick<
     PermissionResponseProofInput,
     "responseId" | "effect"
-  >,
+  > & { decisionScope?: PermissionDecisionScope },
 ): JsonObject {
   const responseId = required(response.responseId, "response_id");
   const effect = response.effect;
@@ -118,6 +125,19 @@ export function permissionResponseMaterial(
     throw responseProofError(
       "permission_response_effect_invalid",
       "permission response effect must be allow or deny",
+    );
+  }
+  const decisionScope = response.decisionScope ?? "once";
+  if (!isPermissionDecisionScope(decisionScope)) {
+    throw responseProofError(
+      "permission_response_scope_invalid",
+      "permission response decision scope is invalid",
+    );
+  }
+  if (effect === "deny" && decisionScope !== "once") {
+    throw responseProofError(
+      "permission_response_scope_invalid",
+      "deny responses support only the once decision scope",
     );
   }
   return canonicalize({
@@ -128,6 +148,9 @@ export function permissionResponseMaterial(
     request_id: challenge.requestId,
     response_id: responseId,
     effect,
+    ...(challenge.version === PERMISSION_RESPONSE_VERSION
+      ? { decision_scope: decisionScope }
+      : {}),
     run_id: challenge.runId,
     task_id: challenge.taskId,
     session_id: challenge.sessionId,
@@ -144,7 +167,9 @@ export function permissionResponseMaterial(
 
 export function permissionResponseProof(
   challenge: PermissionResponseChallenge,
-  response: Pick<PermissionResponseProofInput, "responseId" | "effect">,
+  response: Pick<PermissionResponseProofInput, "responseId" | "effect"> & {
+    decisionScope?: PermissionDecisionScope;
+  },
 ): string {
   return digest(permissionResponseMaterial(challenge, response));
 }
@@ -160,8 +185,19 @@ export function parsePermissionResponseProof(
       "permission response proof effect must be allow or deny",
     );
   }
+  const version = text(record.version, "version");
+  const decisionScopeValue = record.decision_scope ?? record.decisionScope;
+  const decisionScope = decisionScopeValue === undefined && version === LEGACY_PERMISSION_RESPONSE_VERSION
+    ? "once"
+    : text(decisionScopeValue, "decision_scope");
+  if (!isPermissionDecisionScope(decisionScope)) {
+    throw responseProofError(
+      "permission_response_scope_invalid",
+      "permission response proof decision scope is invalid",
+    );
+  }
   return canonicalize({
-    version: text(record.version, "version"),
+    version,
     nonce: text(record.nonce, "nonce"),
     canonicalOwner: text(
       record.canonical_owner ?? record.canonicalOwner,
@@ -171,6 +207,7 @@ export function parsePermissionResponseProof(
     requestId: text(record.request_id ?? record.requestId, "request_id"),
     responseId: text(record.response_id ?? record.responseId, "response_id"),
     effect,
+    decisionScope,
     runId: text(record.run_id ?? record.runId, "run_id"),
     taskId: text(record.task_id ?? record.taskId, "task_id"),
     sessionId: text(record.session_id ?? record.sessionId, "session_id"),
@@ -211,21 +248,37 @@ export function verifyPermissionResponseProof(
     requestId: string;
     responseId: string;
     effect: "allow" | "deny";
+    decisionScope?: PermissionDecisionScope;
     now?: Date;
   },
 ): PermissionResponseProofResult {
-  const challenge = permissionResponseChallenge(envelope);
-  const challengeDigest = digest(challenge);
+  const defaultChallenge = permissionResponseChallenge(envelope);
+  const defaultChallengeDigest = digest(defaultChallenge);
   let provided: PermissionResponseProofInput;
   try {
     provided = parsePermissionResponseProof(value);
   } catch (error) {
     return rejected(
-      challengeDigest,
+      defaultChallengeDigest,
       "permission_response_proof_invalid",
       error instanceof Error ? error.message : String(error),
     );
   }
+  const version = provided.version === LEGACY_PERMISSION_RESPONSE_VERSION
+    ? LEGACY_PERMISSION_RESPONSE_VERSION
+    : provided.version === PERMISSION_RESPONSE_VERSION
+      ? PERMISSION_RESPONSE_VERSION
+      : null;
+  if (!version) {
+    return rejected(
+      defaultChallengeDigest,
+      "permission_response_version_mismatch",
+      "permission response version is stale or unsupported",
+    );
+  }
+  const challenge = permissionResponseChallenge(envelope, version);
+  const challengeDigest = digest(challenge);
+  const expectedDecisionScope = expected.decisionScope ?? "once";
   const echoFailures: Array<[boolean, string, string]> = [
     [
       provided.version !== challenge.version,
@@ -262,6 +315,13 @@ export function verifyPermissionResponseProof(
       provided.effect !== expected.effect,
       "permission_response_effect_mismatch",
       "permission response effect changed after proof creation",
+    ],
+    [
+      provided.decisionScope !== expectedDecisionScope
+        || (provided.version === LEGACY_PERMISSION_RESPONSE_VERSION && expectedDecisionScope !== "once")
+        || (provided.effect === "deny" && provided.decisionScope !== "once"),
+      "permission_response_scope_mismatch",
+      "permission response decision scope changed after proof creation",
     ],
     [
       provided.runId !== challenge.runId,
@@ -335,6 +395,7 @@ export function verifyPermissionResponseProof(
   const material = permissionResponseMaterial(challenge, {
     responseId: provided.responseId,
     effect: provided.effect,
+    decisionScope: provided.decisionScope,
   });
   const expectedProof = digest(material);
   if (!constantTimeDigestEquals(expectedProof, provided.proof)) {
@@ -353,6 +414,10 @@ export function verifyPermissionResponseProof(
     failureMessage: null,
     material,
   };
+}
+
+function isPermissionDecisionScope(value: unknown): value is PermissionDecisionScope {
+  return value === "once" || value === "session" || value === "workspace";
 }
 
 export function publicPermissionResponseChallenge(

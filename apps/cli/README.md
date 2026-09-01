@@ -48,7 +48,8 @@ non-TTY stdout 的每一行都是独立合法 JSON object；诊断、help 和 wa
 - `Ctrl+J` 插入换行，Enter 提交；运行中 Enter 立即重定向，Tab 排队，Esc 中断当前步骤。
 - `Ctrl+R` 恢复草稿/搜索历史，`Ctrl+E` 使用 `VISUAL`/`EDITOR`，PageUp/PageDown 滚动有界 transcript。
 - `/queue`、`/cancel`、`/continue`、`/redirect <说明>`、`/interrupt <说明>`、`/cancel-command <id>`、`/retry <id>` 全部调用 canonical command API。
-- `/approve <request-id>`、`/deny <request-id>` 绑定完整 permission challenge/revision/deadline/proof；只有一个待处理请求时也可输入 `A` 或 `D` 后回车。
+- `/permissions` 打开 canonical pending-request picker；TUI 只展示后端对该请求正式声明的“允许本次 / 本会话允许 / 此工作区始终允许 / 拒绝”。决定绑定 request、revision、deadline、effect 和 scope 的 v2 proof。
+- 会话/工作区允许不是宽泛工具白名单：只复用相同 workspace、tool、operation 和完全相同 canonical arguments；会话范围还绑定同一 session。工作区规则由 TypeScript permission owner 持久化并在回执中确认。
 - `/ui` 打开当前 canonical task 的 Web 路由；完整 topology、artifact、audit、evidence 和大型 diff 由 Web 展示。
 - SSE 断线从最后确认 cursor 有界重连；gap、generation 或 cursor 失效时读取 canonical snapshot，不从 transcript 猜测状态。
 - `/exit` 只退出当前 listener。daemon 和 task 继续运行；再次执行 `resume` 恢复同一 task-backed session。

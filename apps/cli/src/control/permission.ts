@@ -7,8 +7,10 @@ import {
 } from "../api.ts"
 import { CliTaskError } from "../contracts.ts"
 
-const PERMISSION_RESPONSE_VERSION = "zyra.permission-response/v1"
+const PERMISSION_RESPONSE_VERSION = "zyra.permission-response/v2"
+const LEGACY_PERMISSION_RESPONSE_VERSION = "zyra.permission-response/v1"
 const PERMISSION_OWNER = "typescript.PermissionCoordinator"
+export type PermissionDecisionScope = "once" | "session" | "workspace"
 
 export interface PermissionRequestView {
   requestId: string
@@ -20,6 +22,7 @@ export interface PermissionRequestView {
   operation: string
   expiresAt: string
   selectable: boolean
+  supportedDecisionScopes: readonly PermissionDecisionScope[]
   raw: Readonly<Record<string, unknown>>
 }
 
@@ -63,6 +66,14 @@ function permissionItems(value: Readonly<Record<string, unknown>>): Record<strin
   return items.map((item) => object(item, "permission request"))
 }
 
+function decisionScopes(value: unknown): readonly PermissionDecisionScope[] {
+  if (!Array.isArray(value)) return Object.freeze(["once"])
+  const scopes = value.filter((item): item is PermissionDecisionScope => (
+    item === "once" || item === "session" || item === "workspace"
+  ))
+  return Object.freeze(scopes.includes("once") ? [...new Set(scopes)] : ["once"])
+}
+
 export function projectPermissionRequests(
   value: Readonly<Record<string, unknown>>,
   now = new Date(),
@@ -84,6 +95,7 @@ export function projectPermissionRequests(
       operation: typeof item.operation === "string" ? item.operation.trim() : "",
       expiresAt,
       selectable: !terminal && status === "delivered" && Date.parse(expiresAt) > now.getTime(),
+      supportedDecisionScopes: decisionScopes(item.supported_decision_scopes),
       raw: Object.freeze({ ...item }),
     })
   }))
@@ -91,16 +103,31 @@ export function projectPermissionRequests(
 
 export function createPermissionProof(
   request: Readonly<Record<string, unknown>>,
-  input: { responseId: string; effect: "allow" | "deny"; now?: Date },
+  input: {
+    responseId: string
+    effect: "allow" | "deny"
+    decisionScope?: PermissionDecisionScope
+    now?: Date
+  },
 ): Readonly<Record<string, unknown>> {
   const challenge = object(request.response_challenge, "permission response challenge")
   const version = text(challenge.version, "permission response version")
   const owner = text(challenge.canonical_owner, "permission canonical owner")
-  if (version !== PERMISSION_RESPONSE_VERSION || owner !== PERMISSION_OWNER) {
+  if (![PERMISSION_RESPONSE_VERSION, LEGACY_PERMISSION_RESPONSE_VERSION].includes(version) || owner !== PERMISSION_OWNER) {
     throw new CliTaskError(
       "Permission response challenge names an unsupported version or owner.",
       "permission_response_challenge_invalid",
     )
+  }
+  const decisionScope = input.decisionScope ?? "once"
+  if (version === LEGACY_PERMISSION_RESPONSE_VERSION && decisionScope !== "once") {
+    throw new CliTaskError(
+      "Legacy permission challenges support only the once decision scope.",
+      "permission_response_scope_unsupported",
+    )
+  }
+  if (input.effect === "deny" && decisionScope !== "once") {
+    throw new CliTaskError("Deny decisions support only the once scope.", "permission_response_scope_invalid")
   }
   const expiresAt = text(request.expires_at, "permission request expiry")
   if (Date.parse(expiresAt) <= (input.now ?? new Date()).getTime()) {
@@ -114,6 +141,7 @@ export function createPermissionProof(
     request_id: text(request.request_id, "permission request id"),
     response_id: text(input.responseId, "permission response id"),
     effect: input.effect,
+    ...(version === PERMISSION_RESPONSE_VERSION ? { decision_scope: decisionScope } : {}),
     run_id: text(request.run_id, "permission run id"),
     task_id: text(request.task_id, "permission task id"),
     session_id: text(request.session_id, "permission session id"),
@@ -202,6 +230,7 @@ export class CliPermissionSession {
   async resolve(input: {
     requestId: string
     effect: "allow" | "deny"
+    decisionScope?: PermissionDecisionScope
     feedback?: string
     signal?: AbortSignal
   }): Promise<Readonly<Record<string, unknown>>> {
@@ -219,13 +248,25 @@ export class CliPermissionSession {
       })
     }
     const responseId = `permission_response_${crypto.randomUUID().replaceAll("-", "")}`
-    const proof = createPermissionProof(request, { responseId, effect: input.effect })
+    const decisionScope = input.decisionScope ?? "once"
+    if (!decisionScopes(request.supported_decision_scopes).includes(decisionScope)) {
+      throw new CliTaskError(
+        `Permission request does not support the ${decisionScope} decision scope.`,
+        "permission_response_scope_unsupported",
+      )
+    }
+    const proof = createPermissionProof(request, {
+      responseId,
+      effect: input.effect,
+      decisionScope,
+    })
     return this.#api.resolvePermission({
       binding: this.#binding,
       custodyToken: claim.custodyToken,
       requestId: input.requestId,
       responseId,
       effect: input.effect,
+      decisionScope,
       consoleResponse: proof,
       feedback: input.feedback,
       signal: input.signal,

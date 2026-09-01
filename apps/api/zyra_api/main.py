@@ -9910,6 +9910,9 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                                     "channel": str(authority.channel),
                                     "custody_verified": True,
                                     "console_response": dict(console_response or {}),
+                                    "decision_scope": str(
+                                        payload.get("decision_scope") or "once"
+                                    )[:32],
                                     "display_responder": str(
                                         payload.get("display_responder") or ""
                                     )[:256],

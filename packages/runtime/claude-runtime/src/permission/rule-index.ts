@@ -31,6 +31,39 @@ export interface PermissionRuleResolution extends JsonObject {
   policyDigest: string;
 }
 
+export type PersistentPermissionDecisionScope = "session" | "workspace";
+export const EXACT_PERMISSION_DECISION_SCHEMA = "zyra.permission-decision-binding/v1";
+
+export function permissionDecisionBindingDigest(
+  decisionScope: PersistentPermissionDecisionScope,
+  context: Pick<
+    PermissionRequestContext,
+    | "sessionId"
+    | "toolName"
+    | "namespace"
+    | "serverId"
+    | "commandName"
+    | "resourceUri"
+    | "operation"
+    | "workspaceRoot"
+    | "arguments"
+  >,
+): string {
+  return digest({
+    schema: EXACT_PERMISSION_DECISION_SCHEMA,
+    decision_scope: decisionScope,
+    ...(decisionScope === "session" ? { session_id: context.sessionId } : {}),
+    workspace_root: context.workspaceRoot,
+    tool_name: context.toolName,
+    namespace: context.namespace,
+    server_id: context.serverId,
+    command_name: context.commandName,
+    resource_uri: context.resourceUri,
+    operation: context.operation,
+    arguments: context.arguments,
+  });
+}
+
 const SOURCE_PRECEDENCE: Record<PermissionRuleSource, number> = {
   managed: 900,
   policy: 800,
@@ -196,6 +229,22 @@ function evaluateRule(rule: PermissionRuleRecord, identity: PermissionIdentityRe
   match(scope.workspacePattern, context.workspaceRoot, "workspace", mismatchReasons, true);
   match(scope.sessionPattern, context.sessionId, "session", mismatchReasons);
   match(scope.argumentPattern, JSON.stringify(context.arguments), "arguments", mismatchReasons, true);
+  const exactDecisionSchema = rule.metadata.operator_decision_schema;
+  if (exactDecisionSchema === EXACT_PERMISSION_DECISION_SCHEMA) {
+    const decisionScope = rule.metadata.operator_decision_scope;
+    const expectedDigest = rule.metadata.operator_decision_binding_digest;
+    if (
+      (decisionScope !== "session" && decisionScope !== "workspace")
+      || typeof expectedDigest !== "string"
+      || !/^[0-9a-f]{64}$/.test(expectedDigest)
+      || !constantTimeDigestEquals(
+        expectedDigest,
+        permissionDecisionBindingDigest(decisionScope, context),
+      )
+    ) {
+      mismatchReasons.push("operator_decision_binding_mismatch");
+    }
+  }
   const specificity = scopeSpecificity(scope);
   const precedence = rule.priority * 1_000_000
     + SOURCE_PRECEDENCE[rule.source] * 1_000

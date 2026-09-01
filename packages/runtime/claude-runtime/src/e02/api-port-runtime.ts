@@ -31,12 +31,19 @@ import { digest } from "./canonical.ts";
 import type {
   PermissionApprovalResponse,
   PermissionMode,
+  PermissionRuleRecord,
 } from "./contracts.ts";
 import {
   publicPermissionResponseChallenge,
   verifyPermissionResponseProof,
+  type PermissionDecisionScope,
   type PermissionResponseEnvelopeBinding,
 } from "../permission/response-proof.ts";
+import {
+  EXACT_PERMISSION_DECISION_SCHEMA,
+  permissionDecisionBindingDigest,
+  type PersistentPermissionDecisionScope,
+} from "../permission/rule-index.ts";
 
 export const E02_API_PROTOCOL_VERSION = "zyra.e02-api-port/v1";
 
@@ -571,6 +578,21 @@ export class E02ApiPortRuntime {
       throw apiError("permission_request_not_found", `Permission request ${continuationRequestId} was not found`);
     }
     const metadata = asObject(payload.metadata);
+    const decisionScope = permissionDecisionScope(payload.decision_scope ?? metadata.decision_scope);
+    const supportedDecisionScopes = supportedPermissionDecisionScopes(envelope);
+    if (!supportedDecisionScopes.includes(decisionScope)) {
+      throw apiError(
+        "permission_response_scope_unsupported",
+        `Permission decision scope ${decisionScope} is not supported for this request`,
+        { decision_scope: decisionScope, supported_decision_scopes: supportedDecisionScopes },
+      );
+    }
+    if (effect === "deny" && decisionScope !== "once") {
+      throw apiError(
+        "permission_response_scope_invalid",
+        "Deny responses support only the once decision scope",
+      );
+    }
     const consoleResponse = asObject(metadata.console_response);
     let proofResult: ReturnType<typeof verifyPermissionResponseProof> | null = null;
     if (Object.keys(consoleResponse).length > 0) {
@@ -581,6 +603,7 @@ export class E02ApiPortRuntime {
           requestId: continuationRequestId,
           responseId: asString(payload.response_id).trim(),
           effect,
+          decisionScope,
         },
       );
       if (!proofResult.verified) {
@@ -596,6 +619,9 @@ export class E02ApiPortRuntime {
         );
       }
     }
+    const rulePlan = effect === "allow" && decisionScope !== "once"
+      ? persistentPermissionRulePlan(this.coordinator.permission.evaluator, envelope, decisionScope)
+      : null;
     const response: PermissionApprovalResponse = {
       responseId: asString(payload.response_id).trim() || `api-response-${randomUUID()}`,
       requestId: envelope.requestId,
@@ -615,13 +641,29 @@ export class E02ApiPortRuntime {
         response_proof_verified: proofResult?.verified === true,
         response_proof_digest: proofResult?.responseDigest ?? null,
         response_challenge_digest: proofResult?.challengeDigest ?? null,
+        decision_scope: decisionScope,
       },
     };
     const result = this.coordinator.resumePermission(response);
+    const scopeCommit = rulePlan?.install
+      ? this.coordinator.permission.replaceRules(
+        rulePlan.rules,
+        rulePlan.expectedRevision,
+        {
+          actor: response.responder,
+          reason: `exact ${decisionScope} permission approved through console`,
+          decision_scope: decisionScope,
+          request_id: continuationRequestId,
+          response_id: response.responseId,
+          canonical_owner: "typescript.PermissionCoordinator",
+        },
+      )
+      : null;
     return {
       schema: "zyra.e02-permission-decision-receipt/v1",
       accepted: result.enforcement.allowed || result.enforcement.blocked,
       effect,
+      decision_scope: decisionScope,
       request_id: continuationRequestId,
       response_id: response.responseId,
       decision: safePermissionDecision(result.enforcement.decision as unknown as JsonObject),
@@ -632,6 +674,20 @@ export class E02ApiPortRuntime {
       response_proof_verified: proofResult?.verified === true,
       response_proof_digest: proofResult?.responseDigest ?? null,
       response_challenge_digest: proofResult?.challengeDigest ?? null,
+      scope_rule: rulePlan ? {
+        rule_id: rulePlan.rule.ruleId,
+        installed: rulePlan.install,
+        source: rulePlan.rule.source,
+        exact_binding: true,
+        semantics: "same-tool-operation-and-canonical-arguments",
+        persistent: decisionScope === "workspace",
+      } : null,
+      scope_policy_commit: scopeCommit ? {
+        commit_id: scopeCommit.commitId,
+        revision_before: scopeCommit.revisionBefore,
+        revision_after: scopeCommit.revisionAfter,
+        policy_digest: scopeCommit.policyDigest,
+      } : null,
       canonical_owner: "typescript.PermissionCoordinator",
       python_decision_fallback: false,
     };
@@ -1138,12 +1194,117 @@ function safePermissionEnvelope(value: unknown): JsonObject {
     updated_at: asString(envelope.updatedAt),
     request_fingerprint: asString(metadata.request_fingerprint),
     response_challenge: challenge,
+    supported_decision_scopes: supportedPermissionDecisionScopes(envelope),
+    decision_scope_semantics: "same-tool-operation-and-canonical-arguments",
     response_id: asString(metadata.response_id) || null,
     response_effect: asString(metadata.response_effect) || null,
     response_accepted: metadata.response_accepted === true,
     responder: asString(metadata.responder) || null,
     final_arguments_projected: false,
     canonical_owner: "typescript.PermissionCoordinator",
+  };
+}
+
+function permissionDecisionScope(value: unknown): PermissionDecisionScope {
+  const scope = asString(value).trim().toLowerCase() || "once";
+  if (scope === "once" || scope === "session" || scope === "workspace") return scope;
+  throw apiError(
+    "permission_response_scope_invalid",
+    "Permission decision scope must be once, session, or workspace",
+  );
+}
+
+function supportedPermissionDecisionScopes(
+  envelope: JsonObject | { requestBinding: JsonObject; finalArguments: JsonObject },
+): PermissionDecisionScope[] {
+  const value = asObject(envelope);
+  const binding = asObject(value.requestBinding);
+  const scopes: PermissionDecisionScope[] = ["once"];
+  const exactIdentityAvailable = Boolean(
+    asString(binding.tool_name).trim()
+    && asString(binding.workspace_root).trim()
+    && asString(binding.session_id).trim(),
+  );
+  if (exactIdentityAvailable && value.finalArguments && typeof value.finalArguments === "object") {
+    scopes.push("session", "workspace");
+  }
+  return scopes;
+}
+
+function persistentPermissionRulePlan(
+  evaluator: E02CapabilityCoordinator["permission"]["evaluator"],
+  envelopeValue: unknown,
+  decisionScope: PersistentPermissionDecisionScope,
+): {
+  rule: PermissionRuleRecord;
+  rules: PermissionRuleRecord[];
+  expectedRevision: number;
+  install: boolean;
+} {
+  const envelope = asObject(envelopeValue);
+  const binding = asObject(envelope.requestBinding);
+  const finalArguments = asObject(envelope.finalArguments);
+  const context = {
+    sessionId: asString(binding.session_id),
+    toolName: asString(binding.tool_name),
+    namespace: asString(binding.namespace),
+    serverId: asString(binding.server_id),
+    commandName: asString(binding.command_name),
+    resourceUri: asString(binding.resource_uri),
+    operation: asString(binding.operation),
+    workspaceRoot: asString(binding.workspace_root),
+    arguments: finalArguments,
+  };
+  const bindingDigest = permissionDecisionBindingDigest(decisionScope, context);
+  const ruleId = `operator-${decisionScope}-${bindingDigest.slice(0, 40)}`;
+  const rule = evaluator.parser.parse({
+    rule_id: ruleId,
+    effect: "allow",
+    source: decisionScope,
+    kind: decisionScope,
+    scope: {
+      kind: decisionScope,
+      tool_pattern: context.toolName || "*",
+      namespace_pattern: context.namespace || "*",
+      server_pattern: context.serverId || "*",
+      command_pattern: context.commandName || "*",
+      resource_pattern: context.resourceUri || "*",
+      operation_pattern: context.operation || "*",
+      workspace_pattern: "*",
+      session_pattern: "*",
+      argument_pattern: "*",
+    },
+    reason: `operator approved exact ${decisionScope} capability`,
+    metadata: {
+      operator_decision_schema: EXACT_PERMISSION_DECISION_SCHEMA,
+      operator_decision_scope: decisionScope,
+      operator_decision_binding_digest: bindingDigest,
+      canonical_owner: "typescript.PermissionCoordinator",
+    },
+  });
+  const expectedRevision = evaluator.rules.revision;
+  const existingRules = evaluator.rules.list();
+  const existing = existingRules.find((candidate) => candidate.ruleId === ruleId);
+  if (existing) {
+    if (
+      existing.effect !== "allow"
+      || existing.source !== decisionScope
+      || existing.metadata.operator_decision_schema !== EXACT_PERMISSION_DECISION_SCHEMA
+      || existing.metadata.operator_decision_scope !== decisionScope
+      || existing.metadata.operator_decision_binding_digest !== bindingDigest
+    ) {
+      throw apiError(
+        "permission_scope_rule_conflict",
+        `Existing permission scope rule ${ruleId} conflicts with the exact decision binding`,
+      );
+    }
+    return { rule: existing, rules: existingRules, expectedRevision, install: false };
+  }
+  return {
+    rule,
+    rules: [...existingRules, rule],
+    expectedRevision,
+    install: true,
   };
 }
 

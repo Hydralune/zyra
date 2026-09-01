@@ -46,6 +46,7 @@ function proofInput(
     request_id: challenge.requestId,
     response_id: responseId,
     effect,
+    decision_scope: "once",
     run_id: challenge.runId,
     task_id: challenge.taskId,
     session_id: challenge.sessionId,
@@ -57,7 +58,7 @@ function proofInput(
     policy_revision: challenge.policyRevision,
     mode_revision: challenge.modeRevision,
     expires_at: challenge.expiresAt,
-    proof: permissionResponseProof(challenge, { responseId, effect }),
+    proof: permissionResponseProof(challenge, { responseId, effect, decisionScope: "once" }),
   };
 }
 
@@ -76,6 +77,70 @@ test("permission response challenge proves the exact active envelope", () => {
   assert.match(result.challengeDigest, /^[0-9a-f]{64}$/);
   assert.equal(result.material.arguments_digest, binding.argumentsDigest);
   assert.equal(result.material.session_revision, binding.sessionRevision);
+});
+
+test("v2 proof binds persistent decision scope and legacy v1 remains once-only", () => {
+  const binding = envelope();
+  const challenge = permissionResponseChallenge(binding);
+  const responseId = "permission-response-session";
+  const sessionProof = {
+    ...proofInput(binding),
+    response_id: responseId,
+    decision_scope: "session",
+    proof: permissionResponseProof(challenge, {
+      responseId,
+      effect: "allow",
+      decisionScope: "session",
+    }),
+  };
+  const verified = verifyPermissionResponseProof(binding, sessionProof, {
+    requestId: binding.requestId,
+    responseId,
+    effect: "allow",
+    decisionScope: "session",
+    now: NOW,
+  });
+  assert.equal(verified.verified, true);
+  const widened = verifyPermissionResponseProof(binding, sessionProof, {
+    requestId: binding.requestId,
+    responseId,
+    effect: "allow",
+    decisionScope: "workspace",
+    now: NOW,
+  });
+  assert.equal(widened.verified, false);
+  assert.equal(widened.failureCode, "permission_response_scope_mismatch");
+
+  const legacyChallenge = permissionResponseChallenge(binding, "zyra.permission-response/v1");
+  const legacyResponseId = "permission-response-legacy";
+  const legacyMaterial = {
+    ...proofInput(binding),
+    version: legacyChallenge.version,
+    nonce: legacyChallenge.nonce,
+    response_id: legacyResponseId,
+  } as Record<string, unknown>;
+  delete legacyMaterial.decision_scope;
+  legacyMaterial.proof = permissionResponseProof(legacyChallenge, {
+    responseId: legacyResponseId,
+    effect: "allow",
+  });
+  const legacyOnce = verifyPermissionResponseProof(binding, legacyMaterial, {
+    requestId: binding.requestId,
+    responseId: legacyResponseId,
+    effect: "allow",
+    decisionScope: "once",
+    now: NOW,
+  });
+  assert.equal(legacyOnce.verified, true);
+  const legacyPersistent = verifyPermissionResponseProof(binding, legacyMaterial, {
+    requestId: binding.requestId,
+    responseId: legacyResponseId,
+    effect: "allow",
+    decisionScope: "workspace",
+    now: NOW,
+  });
+  assert.equal(legacyPersistent.verified, false);
+  assert.equal(legacyPersistent.failureCode, "permission_response_scope_mismatch");
 });
 
 test("public challenge is deterministic and omits response material", () => {

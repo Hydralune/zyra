@@ -64,6 +64,7 @@ def _console_proof(
     *,
     response_id: str,
     effect: str,
+    decision_scope: str = "once",
 ) -> dict[str, Any]:
     challenge = request["response_challenge"]
     material = {
@@ -74,6 +75,11 @@ def _console_proof(
         "request_id": request["request_id"],
         "response_id": response_id,
         "effect": effect,
+        **(
+            {"decision_scope": decision_scope}
+            if challenge["version"] == "zyra.permission-response/v2"
+            else {}
+        ),
         "run_id": request["run_id"],
         "task_id": request["task_id"],
         "session_id": request["session_id"],
@@ -184,6 +190,7 @@ class PermissionConsoleApiTests(unittest.TestCase):
                     approval,
                     response_id=response_id,
                     effect="allow",
+                    decision_scope="session",
                 )
                 resolved_status, resolved, resolved_headers = _request(
                     base_url,
@@ -197,6 +204,7 @@ class PermissionConsoleApiTests(unittest.TestCase):
                         "run_id": state.run_id,
                         "task_id": state.task_id,
                         "effect": "allow",
+                        "decision_scope": "session",
                         "response_id": response_id,
                         "idempotency_key": response_id,
                         "console_response": proof,
@@ -208,6 +216,8 @@ class PermissionConsoleApiTests(unittest.TestCase):
                 receipt = resolved["receipt"]
                 self.assertTrue(receipt["accepted"])
                 self.assertTrue(receipt["response_proof_verified"])
+                self.assertEqual(receipt["decision_scope"], "session")
+                self.assertTrue(receipt["scope_rule"]["installed"])
                 self.assertEqual(receipt["response_proof_digest"], proof["proof"])
                 self.assertEqual(
                     receipt["response_challenge_digest"],

@@ -8,7 +8,11 @@ import {
   formatCommandReceipt,
   parseControlIntent,
 } from "../control/commands.ts"
-import { CliPermissionSession, type PermissionRequestView } from "../control/permission.ts"
+import {
+  CliPermissionSession,
+  type PermissionDecisionScope,
+  type PermissionRequestView,
+} from "../control/permission.ts"
 import type { UiPermissionSnapshot } from "../presentation/events.ts"
 import { ProductProjection } from "../presentation/projection.ts"
 import { buildBoundedWorkspaceDiff } from "../presentation/workspace-diff.ts"
@@ -145,10 +149,21 @@ async function resolvePermissionFromPicker(input: {
     request = selected ? selectable.find((item) => item.requestId === selected.id) : undefined
   }
   if (!request) return "未处理权限请求。"
-  const decision = await input.shell.pick("权限决定", [
-    { id: "allow", label: "允许本次", detail: "仅提交后端正式支持的本次决定" },
-    { id: "deny", label: "拒绝", detail: "保持 fail closed" },
-  ], [
+  const decisions = [
+    { id: "allow:once", label: "允许本次", detail: "仅批准当前这一个物理调用" },
+    ...(request.supportedDecisionScopes.includes("session") ? [{
+      id: "allow:session",
+      label: "本会话允许",
+      detail: "仅匹配本会话内相同工具、操作和完全相同参数",
+    }] : []),
+    ...(request.supportedDecisionScopes.includes("workspace") ? [{
+      id: "allow:workspace",
+      label: "此工作区始终允许",
+      detail: "持久保存；仅匹配此工作区内相同工具、操作和完全相同参数",
+    }] : []),
+    { id: "deny:once", label: "拒绝", detail: "拒绝当前调用并保持 fail closed" },
+  ]
+  const decision = await input.shell.pick("权限决定", decisions, [
     request.prompt ?? request.operation ?? request.toolName ?? "受保护操作",
     permissionField(request, "target") ? `目标：${permissionField(request, "target")}` : undefined,
     request.reason ? `原因：${request.reason}` : undefined,
@@ -157,10 +172,24 @@ async function resolvePermissionFromPicker(input: {
     `request：${request.requestId}`,
   ].filter(Boolean).join(" · "))
   if (!decision) return `未处理权限请求 · ${request.requestId}`
-  const effect = decision.id === "allow" ? "allow" : "deny"
-  await input.permissions.resolve({ requestId: request.requestId, effect, signal: input.signal })
+  const [rawEffect, rawScope] = decision.id.split(":")
+  const effect = rawEffect === "allow" ? "allow" : "deny"
+  const decisionScope = (rawScope ?? "once") as PermissionDecisionScope
+  const receipt = await input.permissions.resolve({
+    requestId: request.requestId,
+    effect,
+    decisionScope,
+    signal: input.signal,
+  })
   await input.refreshPermissions()
-  return `权限已${effect === "allow" ? "允许" : "拒绝"} · ${request.requestId}`
+  const scopeRule = receipt.scope_rule && typeof receipt.scope_rule === "object"
+    ? receipt.scope_rule as Record<string, unknown>
+    : undefined
+  const scopeLabel = decisionScope === "workspace" ? "工作区持久范围" : decisionScope === "session" ? "本会话范围" : "仅本次"
+  const installed = scopeRule && typeof scopeRule.installed === "boolean"
+    ? ` · 规则${scopeRule.installed ? "已安装" : "已存在"}`
+    : ""
+  return `权限已${effect === "allow" ? "允许" : "拒绝"} · ${scopeLabel}${installed} · ${request.requestId}`
 }
 
 async function runProductControlLoop(input: {
