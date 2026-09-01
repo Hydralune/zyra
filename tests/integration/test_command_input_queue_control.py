@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from tests.integration.test_api_control_commands import (
     _get,
+    _get_with_status,
     _post,
     _post_with_status,
 )
@@ -85,6 +86,22 @@ class CommandInputQueueControlIntegrationTests(unittest.TestCase):
                 queue_id = first["command_result"]["result"]["followup_queue_id"]
                 self.assertTrue(queue_id)
 
+                pending_status, pending_receipt = _get_with_status(
+                    base_url,
+                    f"/tasks/{task_id}/commands/request_queue_01",
+                )
+                self.assertEqual(pending_status, 202)
+                self.assertFalse(pending_receipt["terminal"])
+                self.assertFalse(pending_receipt["mutation_replayed"])
+                self.assertEqual(
+                    pending_receipt["canonical_owner"],
+                    "ControlRequestStore",
+                )
+                self.assertEqual(
+                    pending_receipt["command_result"]["status"],
+                    "queued",
+                )
+
                 restored = _get(
                     base_url,
                     (
@@ -126,6 +143,36 @@ class CommandInputQueueControlIntegrationTests(unittest.TestCase):
                 self.assertEqual(
                     replay["command_result"]["command_id"],
                     "cmd_queue_01",
+                )
+                settled_status, settled_receipt = _get_with_status(
+                    base_url,
+                    f"/tasks/{task_id}/commands/request_queue_01",
+                )
+                self.assertEqual(settled_status, 200)
+                self.assertTrue(settled_receipt["terminal"])
+                self.assertTrue(settled_receipt["receipt_replayed"])
+                self.assertFalse(settled_receipt["mutation_replayed"])
+                self.assertEqual(
+                    settled_receipt["command_result"]["status"],
+                    "cancelled",
+                )
+
+                foreign_task = _post(
+                    base_url,
+                    "/tasks",
+                    {"goal": "Foreign task.", "auto_run": False},
+                )["task"]
+                foreign_status, foreign_receipt = _get_with_status(
+                    base_url,
+                    (
+                        f"/tasks/{foreign_task['task_id']}"
+                        "/commands/request_queue_01"
+                    ),
+                )
+                self.assertEqual(foreign_status, 404)
+                self.assertEqual(
+                    foreign_receipt["error"],
+                    "control_request_not_found",
                 )
 
                 after_cancel = _get(

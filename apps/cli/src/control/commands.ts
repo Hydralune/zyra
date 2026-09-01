@@ -131,6 +131,21 @@ function actualRevision(value: Record<string, unknown> | undefined): number | un
   return Number.isSafeInteger(details.actual) ? Number(details.actual) : undefined
 }
 
+function ambiguousMutation(error: unknown): error is ZyraApiError {
+  return error instanceof ZyraApiError
+    && ["disconnect", "timeout"].includes(error.category)
+}
+
+function commandResultStatus(value: unknown): string {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return ""
+  const raw = value as Record<string, unknown>
+  const result = raw.command_result && typeof raw.command_result === "object"
+    && !Array.isArray(raw.command_result)
+    ? raw.command_result as Record<string, unknown>
+    : raw
+  return typeof result.status === "string" ? result.status.trim().toLowerCase() : ""
+}
+
 export class CliControlSession {
   readonly #api: CliApi
   readonly #registry = createCommandRegistry()
@@ -157,9 +172,48 @@ export class CliControlSession {
   }
 
   async cancelTask(reason: string): Promise<TaskProjection> {
-    const mutation = await this.#api.cancelTask(this.#task, reason)
-    this.#task = mutation.task
-    return this.#task
+    try {
+      const mutation = await this.#api.cancelTask(this.#task, reason)
+      this.#task = mutation.task
+      return this.#task
+    } catch (error) {
+      if (!ambiguousMutation(error)) throw error
+      try {
+        const latest = await this.#api.task(this.#task.taskId)
+        this.#task = latest
+        if (["cancelled", "canceled"].includes(latest.status)) return latest
+        throw new CliTaskError(
+          latest.terminal
+            ? "The task reached another canonical terminal state before cancellation could be confirmed."
+            : "Task cancellation delivery is ambiguous and the canonical task is not cancelled.",
+          latest.terminal
+            ? "task_cancel_not_applied"
+            : "task_cancel_outcome_unknown",
+          {
+            task_id: latest.taskId,
+            canonical_status: latest.status,
+            automatic_retry: false,
+            mutation_replayed: false,
+          },
+        )
+      } catch (reconciliationError) {
+        if (reconciliationError instanceof CliTaskError) {
+          throw reconciliationError
+        }
+        throw new CliTaskError(
+          "Task cancellation delivery is ambiguous and canonical state could not be queried. Inspect /status before another action.",
+          "task_cancel_outcome_unknown",
+          {
+            task_id: this.#task.taskId,
+            automatic_retry: false,
+            mutation_replayed: false,
+            receipt_query_error: reconciliationError instanceof Error
+              ? reconciliationError.message.slice(0, 500)
+              : String(reconciliationError).slice(0, 500),
+          },
+        )
+      }
+    }
   }
 
   async continueTask(signal?: AbortSignal): Promise<TaskProjection> {
@@ -173,18 +227,107 @@ export class CliControlSession {
         status: latest.status,
       })
     }
-    const mutation = await this.#api.runTask(latest, signal)
-    this.#task = mutation.task
-    return this.#task
+    try {
+      const mutation = await this.#api.runTask(latest, signal)
+      this.#task = mutation.task
+      return this.#task
+    } catch (error) {
+      if (!ambiguousMutation(error)) throw error
+      try {
+        const reconciled = await this.#api.task(latest.taskId)
+        this.#task = reconciled
+        if (!["pending", "paused", "interrupted"].includes(reconciled.status)) {
+          return reconciled
+        }
+        throw new CliTaskError(
+          "Task continuation delivery is ambiguous and canonical state has not advanced. Inspect /status before explicitly continuing again.",
+          "task_continue_outcome_unknown",
+          {
+            task_id: reconciled.taskId,
+            canonical_status: reconciled.status,
+            automatic_retry: false,
+            mutation_replayed: false,
+          },
+        )
+      } catch (reconciliationError) {
+        if (reconciliationError instanceof CliTaskError) {
+          throw reconciliationError
+        }
+        throw new CliTaskError(
+          "Task continuation delivery is ambiguous and canonical state could not be queried. Inspect /status before another action.",
+          "task_continue_outcome_unknown",
+          {
+            task_id: latest.taskId,
+            automatic_retry: false,
+            mutation_replayed: false,
+            receipt_query_error: reconciliationError instanceof Error
+              ? reconciliationError.message.slice(0, 500)
+              : String(reconciliationError).slice(0, 500),
+          },
+        )
+      }
+    }
   }
 
   async cancelCommand(requestId: string, signal?: AbortSignal): Promise<Readonly<Record<string, unknown>>> {
-    return this.#api.cancelControlCommand({
-      taskId: this.#task.taskId,
-      requestId,
-      reason: "Cancelled from the interactive Zyra CLI.",
-      signal,
-    })
+    try {
+      const result = await this.#api.cancelControlCommand({
+        taskId: this.#task.taskId,
+        requestId,
+        reason: "Cancelled from the interactive Zyra CLI.",
+        signal,
+      })
+      const status = commandResultStatus(result)
+      if (["cancelled", "canceled"].includes(status)) return result
+      throw new CliTaskError(
+        "The command reached another canonical state and was not cancelled.",
+        "command_cancel_not_applied",
+        { request_id: requestId, canonical_status: status || "unknown" },
+      )
+    } catch (error) {
+      if (!ambiguousMutation(error)) throw error
+      try {
+        const snapshot = await this.queue(signal, true)
+        const item = snapshot.items.find((candidate) => (
+          candidate.requestId === requestId || candidate.queueId === requestId
+        ))
+        if (item?.phase === "cancelled") {
+          return Object.freeze({
+            request_id: item.requestId ?? requestId,
+            command_id: item.commandId,
+            status: item.phase,
+            reconciled: true,
+            mutation_replayed: false,
+          })
+        }
+        throw new CliTaskError(
+          "Command cancellation delivery is ambiguous and the canonical queue does not confirm cancellation.",
+          "command_cancel_outcome_unknown",
+          {
+            request_id: requestId,
+            canonical_status: item?.phase ?? "absent",
+            automatic_retry: false,
+            mutation_replayed: false,
+          },
+        )
+      } catch (reconciliationError) {
+        if (reconciliationError instanceof CliTaskError) {
+          throw reconciliationError
+        }
+        throw new CliTaskError(
+          "Command cancellation delivery is ambiguous and the canonical queue could not be queried.",
+          "command_cancel_outcome_unknown",
+          {
+            request_id: requestId,
+            automatic_retry: false,
+            mutation_replayed: false,
+            receipt_query_error: reconciliationError instanceof Error
+              ? reconciliationError.message.slice(0, 500)
+              : String(reconciliationError).slice(0, 500),
+          },
+        )
+      }
+    }
   }
 
   async retry(requestId: string, signal?: AbortSignal): Promise<CommandReceipt> {
@@ -285,6 +428,32 @@ export class CliControlSession {
       return receipt
     } catch (error) {
       if (error instanceof CliTaskError) throw error
+      if (ambiguousMutation(error)) {
+        try {
+          const raw = await this.#api.controlCommandReceipt(request)
+          const receipt = admitCommandReceipt(raw, request)
+          if (receipt.revisionAfter !== undefined) {
+            this.#revision = receipt.revisionAfter
+          }
+          return receipt
+        } catch (reconciliationError) {
+          throw new CliTaskError(
+            "Control command delivery became ambiguous and its durable receipt could not be reconciled. Inspect /queue or /status before explicitly resubmitting.",
+            "command_outcome_unknown",
+            {
+              request_id: request.requestId,
+              command_id: request.commandId,
+              idempotency_key: request.idempotencyKey,
+              automatic_retry: false,
+              mutation_replayed: false,
+              transport_category: error.category,
+              receipt_query_error: reconciliationError instanceof Error
+                ? reconciliationError.message.slice(0, 500)
+                : String(reconciliationError).slice(0, 500),
+            },
+          )
+        }
+      }
       if (error instanceof ZyraApiError && error.status === 409) {
         const body = conflictBody(error)
         const actual = actualRevision(body)

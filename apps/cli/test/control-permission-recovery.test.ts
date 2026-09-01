@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import { Writable } from "node:stream"
 import type { TaskProjection } from "@zyra/typed-api-client"
-import { HttpResponseError } from "@zyra/typed-api-client"
+import {
+  HttpResponseError,
+  TransportDisconnectedError,
+} from "@zyra/typed-api-client"
 import type { CommandTransportRequest } from "@zyra/commands"
 import { CliApi, type IngressFrame } from "../src/api.ts"
 import { observeTask } from "../src/commands/interactive.ts"
@@ -127,6 +130,146 @@ describe("FE-S03 command routing and revision safety", () => {
       details: { expected: 8, actual: 8, automatic_retry: false },
     })
     expect(submitted.filter((item) => item.text.includes("overwrite stale state"))).toHaveLength(1)
+  })
+
+  test("reconciles an ambiguous mutation through its durable receipt without replaying it", async () => {
+    const submitted: CommandTransportRequest[] = []
+    const reconciled: CommandTransportRequest[] = []
+    const api = {
+      async submitControlCommand(request: CommandTransportRequest) {
+        submitted.push(request)
+        throw new TransportDisconnectedError(
+          "connection closed after command dispatch",
+        )
+      },
+      async controlCommandReceipt(request: CommandTransportRequest) {
+        reconciled.push(request)
+        return receipt(request, 7, true)
+      },
+    } as unknown as CliApi
+    const controls = new CliControlSession({ api, task: task(), revision: 7 })
+
+    const accepted = await controls.submit(
+      "/change preserve the committed result",
+      { mode: "enqueue" },
+    )
+
+    expect(submitted).toHaveLength(1)
+    expect(reconciled).toHaveLength(1)
+    expect(reconciled[0]?.requestId).toBe(submitted[0]?.requestId)
+    expect(reconciled[0]?.idempotencyKey).toBe(submitted[0]?.idempotencyKey)
+    expect(accepted).toMatchObject({
+      phase: "applied",
+      replayed: true,
+      revisionBefore: 7,
+      revisionAfter: 8,
+    })
+    expect(controls.revision).toBe(8)
+  })
+
+  test("reports an actionable unknown outcome when the receipt cannot be queried", async () => {
+    let mutationCount = 0
+    const api = {
+      async submitControlCommand() {
+        mutationCount += 1
+        throw new TransportDisconnectedError("connection closed")
+      },
+      async controlCommandReceipt() {
+        throw new Error("receipt endpoint is unavailable")
+      },
+    } as unknown as CliApi
+    const controls = new CliControlSession({ api, task: task(), revision: 7 })
+
+    await expect(controls.submit("/change do not duplicate me", {
+      mode: "enqueue",
+    })).rejects.toMatchObject({
+      code: "command_outcome_unknown",
+      details: {
+        automatic_retry: false,
+        mutation_replayed: false,
+        transport_category: "disconnect",
+      },
+    })
+    expect(mutationCount).toBe(1)
+  })
+
+  test("reconciles task cancel, task continue, and command cancel from canonical reads", async () => {
+    let taskReads = 0
+    const api = {
+      async cancelTask() {
+        throw new TransportDisconnectedError("cancel response lost")
+      },
+      async runTask() {
+        throw new TransportDisconnectedError("continue response lost")
+      },
+      async task() {
+        taskReads += 1
+        if (taskReads === 1) {
+          return task({
+            status: "cancelled",
+            terminal: true,
+            active: false,
+          })
+        }
+        if (taskReads === 2) {
+          return task({ status: "paused", active: false })
+        }
+        return task({ status: "running", active: true })
+      },
+      async cancelControlCommand() {
+        throw new TransportDisconnectedError("command cancel response lost")
+      },
+      async commandQueue() {
+        return {
+          schema: "zyra.command-queue/v1",
+          taskId: "task_control",
+          sessionId: "session_control",
+          sequence: 4,
+          revision: 2,
+          restored: true,
+          items: [{
+            queueId: "queue_cancelled",
+            requestId: "request_cancelled",
+            commandId: "command_cancelled",
+            sessionId: "session_control",
+            phase: "cancelled",
+            priority: "next",
+            sequence: 4,
+            position: 0,
+            createdAt: "2026-08-04T00:00:00.000Z",
+            updatedAt: "2026-08-04T00:00:01.000Z",
+            cancellable: false,
+            retryable: true,
+            terminal: true,
+            source: "backend-queue",
+          }],
+          pending: [],
+          running: [],
+          settled: [],
+        }
+      },
+    } as unknown as CliApi
+
+    const cancelControls = new CliControlSession({ api, task: task() })
+    expect(await cancelControls.cancelTask("cancel safely")).toMatchObject({
+      status: "cancelled",
+      terminal: true,
+    })
+
+    const continueControls = new CliControlSession({
+      api,
+      task: task({ status: "paused", active: false }),
+    })
+    expect(await continueControls.continueTask()).toMatchObject({
+      status: "running",
+      active: true,
+    })
+
+    expect(await continueControls.cancelCommand("request_cancelled")).toMatchObject({
+      status: "cancelled",
+      reconciled: true,
+      mutation_replayed: false,
+    })
   })
 
   test("renders only the canonical queue order supplied by the server projection", () => {

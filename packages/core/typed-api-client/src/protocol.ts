@@ -615,6 +615,18 @@ export const CORE_ENDPOINTS = {
     pathParameters: ["task_id"],
     queryParameters: [],
   }),
+  taskControlCommandReceipt: normalizeEndpoint({
+    operation: OPERATION_NAMES.taskControlCommandReceipt,
+    contract: CONTRACT_NAMES.taskControlCommand,
+    method: "GET",
+    pathTemplate: "/tasks/{task_id}/commands/{request_id}",
+    kind: "query",
+    receipt: "none",
+    auth: "optional",
+    expectedStatuses: [200, 202],
+    pathParameters: ["request_id", "task_id"],
+    queryParameters: [],
+  }),
   taskLoopxState: normalizeEndpoint({
     operation: OPERATION_NAMES.taskLoopxState,
     contract: CONTRACT_NAMES.taskLoopxState,

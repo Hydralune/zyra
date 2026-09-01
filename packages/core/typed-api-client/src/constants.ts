@@ -196,6 +196,7 @@ export const OPERATION_NAMES = {
   taskCancel: "task.cancel",
   taskResume: "task.resume",
   taskControlCommand: "task.control-command",
+  taskControlCommandReceipt: "task.control-command.receipt",
   taskLoopxState: "task.loopx.state",
   taskLoopxCommand: "task.loopx.command",
   taskCommandQueue: "task.command-queue",

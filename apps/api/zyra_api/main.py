@@ -10788,6 +10788,96 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if (
+            len(parts) == 4
+            and parts[0] == "tasks"
+            and parts[2] == "commands"
+        ):
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "task_not_found"},
+                )
+                return
+            request_id = parts[3]
+            dispatcher = get_control_dispatcher()
+            try:
+                record = dispatcher.request_store.get(request_id)
+            except KeyError:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {
+                        "error": "control_request_not_found",
+                        "task_id": state.task_id,
+                        "request_id": request_id,
+                        "fallback": False,
+                    },
+                    headers={"Cache-Control": "no-store, max-age=0"},
+                )
+                return
+            request = record.request
+            if request.task_id != state.task_id or request.run_id != state.run_id:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {
+                        "error": "control_request_not_found",
+                        "task_id": state.task_id,
+                        "request_id": request_id,
+                        "fallback": False,
+                    },
+                    headers={"Cache-Control": "no-store, max-age=0"},
+                )
+                return
+            descriptor = get_control_command_registry().get(
+                request.canonical_name
+            )
+            command_result = (
+                record.response.to_dict()
+                if record.response is not None
+                else {
+                    "request_id": request.request_id,
+                    "command_id": request.command_id,
+                    "name": request.canonical_name,
+                    "status": record.status.value,
+                    "registry_generation": request.registry_generation,
+                    "result": {
+                        "display_text": (
+                            f"{request.canonical_name} {record.status.value}"
+                        ),
+                        "followup_queue_id": record.queue_id,
+                        "data": {},
+                    },
+                    "metadata": {
+                        "durable": True,
+                        "executed": False,
+                        "replayed": True,
+                    },
+                }
+            )
+            terminal = bool(record.status.terminal)
+            self._send_json(
+                HTTPStatus.OK if terminal else HTTPStatus.ACCEPTED,
+                {
+                    "schema": "zyra.control-command-receipt-query/v1",
+                    "task": to_jsonable(state),
+                    "control_request": request.to_dict(),
+                    "command": descriptor.to_dict() if descriptor else {},
+                    "command_result": command_result,
+                    "receipt_replayed": terminal,
+                    "terminal": terminal,
+                    "canonical_owner": "ControlRequestStore",
+                    "mutation_replayed": False,
+                },
+                headers={
+                    "Cache-Control": "no-store, max-age=0",
+                    "X-Zyra-Receipt-Replayed": (
+                        "true" if terminal else "false"
+                    ),
+                },
+            )
+            return
+
         if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "command-queue":
             state = store.load_task(parts[1])
             if state is None:

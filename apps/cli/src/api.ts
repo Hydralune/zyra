@@ -583,6 +583,42 @@ export class CliApi {
     })
   }
 
+  async controlCommandReceipt(
+    request: CommandTransportRequest,
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const response = await this.client.endpoint<ControlCommandProjection>(
+      OPERATION_NAMES.taskControlCommandReceipt,
+      {
+        path: {
+          task_id: request.taskId,
+          request_id: request.requestId,
+        },
+        binding: {
+          taskId: request.taskId,
+          runId: request.runId,
+          sessionId: request.sessionId,
+          requestId: request.requestId,
+          controlCommandId: request.commandId,
+        },
+        signal: request.signal,
+        timeoutMs: Math.min(request.timeoutMs ?? this.timeoutMs, 30_000),
+        coordinationKey: `cli.control-command-receipt:${request.taskId}:${request.requestId}`,
+        deduplicate: true,
+      },
+    )
+    return Object.freeze({
+      ...response.data.raw,
+      task: response.data.task,
+      control_request: response.data.controlRequest,
+      command: response.data.command,
+      command_result: response.data.commandResult,
+      event: response.data.event,
+      intervention_counted: response.data.interventionCounted,
+      receipt_replayed: response.raw.headers.get("X-Zyra-Receipt-Replayed") === "true"
+        || response.data.raw.receipt_replayed === true,
+    })
+  }
+
   async commandQueue(input: {
     taskId: string
     sessionId?: string
