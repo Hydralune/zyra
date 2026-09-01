@@ -1660,6 +1660,7 @@ async function runProductSession(input: {
           custodyToken: process.env.ZYRA_PERMISSION_CUSTODY_TOKEN,
         })
       : undefined
+    const resumedTask = next.kind === "resume"
     lastOutcome = await observeProductTask({
       api: input.api,
       task,
@@ -1694,8 +1695,10 @@ async function runProductSession(input: {
           )
         }
       } catch (error) {
-        if (currentTask.status === "completed") throw error
-        input.shell.notice(`任务已${currentTask.status}；部分工作区交付未能落盘 · ${controlError(error)}`)
+        if (currentTask.status === "completed" && !resumedTask) throw error
+        input.shell.notice(currentTask.status === "completed"
+          ? `历史任务已完成，但 canonical 工作区交付无法重新落盘；当前本地文件未由本次恢复验证 · ${controlError(error)}`
+          : `任务已${currentTask.status}；部分工作区交付未能落盘 · ${controlError(error)}`)
       }
     }
     trace("final diff start")

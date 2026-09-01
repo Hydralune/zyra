@@ -77,6 +77,11 @@ class AttachResult:
     bracketed_paste_enabled: bool
     bracketed_paste_disabled: bool
     alternate_screen_used: bool
+    expected_markers: tuple[str, ...]
+    expected_markers_visible: bool
+    inspection_command: str | None
+    inspection_markers: tuple[str, ...]
+    inspection_markers_visible: bool
 
 
 def _utc_now() -> str:
@@ -349,6 +354,9 @@ def _attach_cycle(
     control_command: str | None,
     wait_terminal: bool,
     task_timeout: float,
+    expected_markers: tuple[str, ...],
+    inspection_command: str | None,
+    inspection_markers: tuple[str, ...],
 ) -> AttachResult:
     baseline = _canonical_task(base_url, task_id)
     baseline_status = str(baseline.get("status") or "unknown")
@@ -390,7 +398,33 @@ def _attach_cycle(
             _wait_for(capture, _terminal_input_marker(baseline_status), timeout)
         else:
             _wait_for(capture, "Tab 排队 · Esc 中断", timeout)
+        for marker in expected_markers:
+            _wait_for(capture, marker, timeout)
         startup_ms = (time.monotonic() - started) * 1_000
+        if inspection_command is not None:
+            # A terminal task projection is visible before post-run workspace
+            # materialization and final diff complete. Wait for the session
+            # loop's explicit idle handoff so the read-only slash command is
+            # never written while composer input is still detached.
+            _wait_for(capture, "本轮已收敛。继续输入可在同一会话发起下一轮", timeout)
+            _type_command(process, inspection_command)
+            if inspection_markers:
+                _wait_for(capture, inspection_markers[0], timeout)
+                # Verification/tool views are paged. Move to the final page so
+                # command receipts remain physically observable even when many
+                # final-verifier checks precede them.
+                process.write(b"\x1b[F")  # type: ignore[attr-defined]
+                time.sleep(0.25)
+            for marker in inspection_markers:
+                _wait_for(capture, marker, timeout)
+            inspection_position = capture.position()
+            process.write(b"\x1b")  # type: ignore[attr-defined]
+            _wait_for_since(
+                capture,
+                _terminal_input_marker(baseline_status),
+                inspection_position,
+                timeout,
+            )
         control_receipt = None
         if control_command is not None:
             command_name = _receipt_command_name(control_command)
@@ -456,6 +490,11 @@ def _attach_cycle(
             bracketed_paste_enabled=b"\x1b[?2004h" in material,
             bracketed_paste_disabled=b"\x1b[?2004l" in material,
             alternate_screen_used=b"\x1b[?1049" in material,
+            expected_markers=expected_markers,
+            expected_markers_visible=all(marker in visible for marker in expected_markers),
+            inspection_command=inspection_command,
+            inspection_markers=inspection_markers,
+            inspection_markers_visible=all(marker in visible for marker in inspection_markers),
         )
         if (
             result.exit_code != 0
@@ -471,6 +510,8 @@ def _attach_cycle(
             or result.bracketed_paste_enabled
             or not result.bracketed_paste_disabled
             or result.alternate_screen_used
+            or not result.expected_markers_visible
+            or not result.inspection_markers_visible
         ):
             raise AssertionError(f"product TUI attach gate failed: {asdict(result)}\n{visible[-2_000:]}")
         return result
@@ -514,6 +555,23 @@ def main() -> int:
         help="submit one receipt-producing slash mutation during the selected attach cycle",
     )
     parser.add_argument("--control-cycle", type=int, choices=(1, 2), default=1)
+    parser.add_argument(
+        "--expect-marker",
+        action="append",
+        default=[],
+        help="require this bounded, non-secret product marker in every attach cycle (repeatable)",
+    )
+    parser.add_argument(
+        "--inspection-command",
+        choices=("/verification", "/diff", "/tools", "/agents", "/plan"),
+        help="open one read-only product view in every attach cycle",
+    )
+    parser.add_argument(
+        "--inspection-marker",
+        action="append",
+        default=[],
+        help="require this bounded, non-secret marker from the read-only product view (repeatable)",
+    )
     arguments = parser.parse_args()
     if os.name != "nt":
         raise SystemExit("phase_g_conpty_observer.py requires Windows")
@@ -544,6 +602,28 @@ def main() -> int:
             _receipt_command_name(control_command)
         except ValueError as error:
             raise SystemExit(str(error)) from error
+    expected_markers = tuple(arguments.expect_marker)
+    if len(expected_markers) > 16:
+        raise SystemExit("--expect-marker may be repeated at most 16 times")
+    if any(
+        not marker
+        or len(marker) > 256
+        or any(character in marker for character in "\r\n\x00\x1b")
+        for marker in expected_markers
+    ):
+        raise SystemExit("--expect-marker values must be 1-256 characters without terminal controls")
+    inspection_markers = tuple(arguments.inspection_marker)
+    if bool(arguments.inspection_command) != bool(inspection_markers):
+        raise SystemExit("--inspection-command and at least one --inspection-marker must be provided together")
+    if len(inspection_markers) > 16:
+        raise SystemExit("--inspection-marker may be repeated at most 16 times")
+    if any(
+        not marker
+        or len(marker) > 256
+        or any(character in marker for character in "\r\n\x00\x1b")
+        for marker in inspection_markers
+    ):
+        raise SystemExit("--inspection-marker values must be 1-256 characters without terminal controls")
     report.parent.mkdir(parents=True, exist_ok=True)
     before = _canonical_task(arguments.base_url, arguments.task_id)
     with tempfile.TemporaryDirectory(prefix="zyra-phase-g-state-", dir=ROOT / ".tmp") as state:
@@ -559,6 +639,9 @@ def main() -> int:
                 control_command if index == arguments.control_cycle else None,
                 arguments.wait_terminal_cycle == index,
                 arguments.task_timeout,
+                expected_markers,
+                arguments.inspection_command,
+                inspection_markers,
             )
             for index in (1, 2)
         ]

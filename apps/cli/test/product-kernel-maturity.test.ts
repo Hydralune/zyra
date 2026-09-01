@@ -641,6 +641,113 @@ describe("product commands and continuous session", () => {
     expect(stdout.text).toContain("工作区交付已落盘 · 1 个写入 · 0 个删除")
   })
 
+  test("keeps a completed historical task inspectable when its workspace payload expired", async () => {
+    const historical: TaskProjection = {
+      ...completedTask(1, "检查历史交付", "session_historical"),
+      metadata: {
+        final_answer: "历史任务已经完成。",
+        workspace_ref: { workspace_id: "ws_historical" },
+        delivery: {
+          schema: "zyra.task-workspace-delivery/v1",
+          workspace_id: "ws_historical",
+          changed_paths: ["RESULT.md"],
+          created_paths: ["RESULT.md"],
+          modified_paths: [],
+          deleted_paths: [],
+        },
+      },
+    }
+    const api = {
+      async resolveTask() { return { task: historical } },
+      async ingressCapabilities() {
+        return { taskId: historical.taskId, generation: 1, subscriptionCursor: "cursor", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress(): AsyncGenerator<IngressPage> {
+        yield { cursor: "cursor", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async task() { return historical },
+    } as unknown as CliApi
+    const transfer: ProductWorkspaceTransfer = {
+      async stage(_api, _task, root) {
+        return { workspaceId: "ws_historical", root, fileCount: 0, bytes: 0, paths: [] }
+      },
+      async materialize() {
+        throw new Error("workspace content unavailable after restart")
+      },
+    }
+    const stdin = new TtyInput()
+    const stdout = new Capture()
+    const executing = executeProductResume({
+      command: {
+        kind: "resume",
+        identity: historical.taskId,
+        baseUrl: "http://127.0.0.1:8000",
+        autoStart: false,
+        startupTimeoutMs: 1_000,
+        timeoutMs: 10_000,
+      },
+      api,
+      stdin,
+      stdout,
+      signal: new AbortController().signal,
+      cwd: "G:\\agent-zoo\\zyra",
+      draftStore: null,
+      workspaceTransfer: transfer,
+    })
+
+    await waitUntil(() => stdin.raw && stdout.text.includes("canonical 工作区交付无法重新落盘"))
+    stdin.write("/exit\r")
+    const outcome = await executing
+
+    expect(outcome.status).toBe("exited")
+    expect(stdout.text).toContain("当前本地文件未由本次恢复验证")
+    expect(stdout.text).toContain("历史任务已经完成")
+  })
+
+  test("still fails closed when a fresh completed task cannot materialize its delivery", async () => {
+    let latest: TaskProjection | undefined
+    const api = {
+      async createPendingTask(goal: string, _sealed: boolean, sessionId?: string) {
+        latest = completedTask(1, goal, sessionId ?? "missing")
+        return mutation(latest)
+      },
+      async ingressCapabilities(taskId: string) {
+        return { taskId, generation: 1, subscriptionCursor: "cursor", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress(): AsyncGenerator<IngressPage> {
+        yield { cursor: "cursor", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async task() { return latest! },
+    } as unknown as CliApi
+    const transfer: ProductWorkspaceTransfer = {
+      async stage(_api, _task, root) {
+        return { workspaceId: "ws_fresh", root, fileCount: 0, bytes: 0, paths: [] }
+      },
+      async materialize() {
+        throw new Error("fresh delivery unavailable")
+      },
+    }
+
+    await expect(executeProductInteractive({
+      command: {
+        kind: "interactive",
+        goal: "创建新交付",
+        baseUrl: "http://127.0.0.1:8000",
+        autoStart: false,
+        startupTimeoutMs: 1_000,
+        timeoutMs: 10_000,
+      },
+      api,
+      stdin: new PassThrough(),
+      stdout: new Capture(),
+      signal: new AbortController().signal,
+      cwd: "G:\\agent-zoo\\zyra",
+      draftStore: null,
+      onboardingStore: null,
+      workspaceTransfer: transfer,
+    })).rejects.toThrow("fresh delivery unavailable")
+  })
+
   test("keeps the session list usable when historical entries are isolated", async () => {
     const api = {
       async sessions() {
