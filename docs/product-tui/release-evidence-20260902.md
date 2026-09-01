@@ -1,38 +1,99 @@
-# 产品 CLI / TUI 当前发布回归证据（2026-09-02）
+# 产品 CLI / TUI Windows 发布证据（2026-09-02）
 
 ## 判定
 
-当前源码的自动化、构建、Windows ConPTY、性能和真实 daemon restart 回归已通过；完整比赛级前端发布仍被真实 provider Phase G 覆盖和人工 Windows IME 验收阻塞。2026-09-01 的可重复归档与 clean-install 证据继续有效，但它绑定旧提交 `3e66b97709f3d8e1f00a6c87c52de6405412d9ab`，不能替代当前源码的最终发布归档。
+提交 `fedd24e0e7f9d54730cc950a92c0433155b4171c` 的 Windows 发布候选已完成全量 CLI/Web 回归、可重复归档和真实隔离 clean-install。build/install、state migration、产品生命周期、卸载和端口释放发布门均关闭。
 
-## 当前回归
+这不等价于整份产品任务完成：Windows Terminal 人工 IME 候选窗仍未签字，因此 COMP-02、Phase F 和 Phase H 保持未完成。Linux/macOS 与官方 Codex 认证后参考序列也继续明确标为未运行。
+
+## 当前源码回归
 
 | 门 | 结果 |
 |---|---|
-| CLI test | 183 pass，0 fail，889 expect，17.44 s |
+| CLI test | 187 pass，0 fail，902 expect，17.55 s |
 | Web test | 320 pass，0 fail，1916 expect，45.92 s |
-| CLI typecheck | pass |
-| Web typecheck | pass |
+| 全仓 typecheck | pass；runtime、memory、typed client、commands、CLI、Web 全部通过 |
+| code-worker build | Bun/Node 各 275 modules，主产物约 5.73 MB |
 | CLI build | pass，101 modules，约 0.94 MB |
 | Web build | pass，385 modules，主 JS 约 5.56 MB |
-| Python 产品/集成集 | 31 pass；真实 daemon restart 单项复验 1 pass / 38.76 s |
-| Windows ConPTY package gate | pass；1000 resize，startup 414.939 ms，exit 274.499 ms，无 alternate screen，paste disable 已恢复 |
-| 性能回归 | pass；100k event replay 87.721 ms，input P95 0.007 ms，repaint P95 11.575 ms，stable/max RSS 159.715 MiB |
-| 8 小时 soak | 已绑定 `2aed010b` 通过；详见 `phase-f-hardening-evidence-20260901.md`，未用短跑替代重跑 |
+| Phase G provider task | `task_141d76cf35ad` / `run_9aee0f813e80`，canonical `completed` |
+| Phase G 产品标记门 | 两次恢复附着、500 resize；changed files、diff、`node --test / exit 0`、真实 `/exit` 全部通过 |
+| 8 小时 soak | 已绑定 `2aed010b` 通过；详见 `phase-f-hardening-evidence-20260901.md`，未用短跑冒充重跑 |
 
-`product-tui:conpty` 的 Windows package script 已改用跨 Bun 可解析的 `.venv/Scripts/python.exe` 路径。真实 daemon restart 门禁也已按 Windows paste-burst 产品契约模拟逐键输入，验证停机重连、新 PID、新 daemon generation、同一 task 恢复、控制提交和终端清理。
+CLI 全量回归已包含 daemon downtime/generation recovery、100 次 stream disconnect、100k event、10k transcript、权限 custody/race、path escape、ANSI/OSC、JSONL/退出码和历史 workspace payload 降级。Web 全量回归覆盖 canonical projection、CLI/Web 对账、permission、diff、artifact、topology、terminal 和 long-horizon workbench。
 
-## 已知失败和未运行项
+## 可重复归档
 
-- `product-tui:smoke` 到达真实 API 和任务执行后失败：physical provider route 不满足请求约束，任务没有 final answer。该结果不是通过项。
-- Phase G 三次真实负载均在副作用前收到相同的 `route_policy_rejected`；详见 `phase-g-long-run-evidence-20260902.md`。
-- Windows Terminal 人工 IME 候选窗尚未执行；自动化 Unicode/组合字符/emoji 门不等价于实机 IME。
-- 官方 Codex standalone `0.142.0` 当前 `codex login status` 为 `Not logged in`；登录页/终端生命周期已探测，认证后的 `/status`/`/exit` 参考序列未执行。
-- Linux/macOS 没有实机结果。
-- 当前源码尚未重新生成并 clean-install 一个绑定最新提交的最终归档。
+- release id：`product-tui-candidate-20260902-final`
+- archive：`.tmp/product-tui-release-20260902-final/product-tui-candidate-20260902-final.zip`
+- SHA-256：`ab3cb09b44eb0432fef1cff660d23e8ee4a83d320344a2798d56c7f57ff2f05e`
+- size：47,214,053 bytes
+- file count：4,874
+- source commit：`fedd24e0e7f9d54730cc950a92c0433155b4171c`
+- pipeline digest：`73759bc6117e53ca3a9359d1448e72d28c9f2b520eb60288ea232ff08b6da0f3`
+- 两次独立 build 的归档字节完全一致，size delta 为 0
+- Python wheel：`zyra-0.1.0-py3-none-any.whl`，2,243 entries，SHA-256 `c9d18bbd2072a45ed1837ff089aa5d916133e58cd14cf5b6d9b7ddd4ab197c6a`
+- LoopX pinned embedded source、SBOM、checksums、runtime inventory、NOTICE 和 product entry verification 全部通过
 
-## 发布关闭顺序
+构建命令：
 
-1. 配置可路由的真实 provider，补齐 Phase G 文件、diff、verification/permission 状态。
-2. 在 Windows Terminal 执行 `scripts/product-tui/windows_ime_manual_gate.ps1` 并人工签字。
-3. 对最终提交重新执行可重复 release pipeline 和隔离 clean-install，记录 archive hash 与 receipt digest。
-4. 可选但属于 Codex 实机参考闭环：人工登录官方 Codex 后补录 `/status`/`exit` 序列。
+```powershell
+.\.venv\Scripts\python.exe .\scripts\run_release_pipeline.py `
+  --release-id product-tui-candidate-20260902-final `
+  --expected-commit fedd24e0e7f9d54730cc950a92c0433155b4171c `
+  --benchmark-commit 09e99cdc5ed9cf3a935ccc327f7261110e6c7d1b `
+  --output-root .tmp\product-tui-release-20260902-final `
+  --format zip `
+  --skip-ci
+```
+
+`--skip-ci` 只跳过 release pipeline 内部重复 CI；本节开头列出的全量 CLI/Web test、全仓 typecheck 和三类 build 已在同一干净提交上独立通过。机器可读报告位于 `.tmp/product-tui-release-20260902-final/pipeline-report.json`。
+
+## 隔离安装与生命周期
+
+精确归档在自动创建的系统临时目录与全新 Python venv 中执行：
+
+```powershell
+.\.venv\Scripts\python.exe -m zyra_productization.release.cli `
+  --project-root G:\agent-zoo\zyra `
+  clean-install .tmp\product-tui-release-20260902-final\product-tui-candidate-20260902-final.zip `
+  --expected-commit fedd24e0e7f9d54730cc950a92c0433155b4171c `
+  --output .tmp\product-tui-clean-install-20260902-final.json
+```
+
+最终 receipt：
+
+- schema：`zyra.clean-install-receipt/v1`
+- ready：`true`
+- duration：452,346.924 ms
+- workspace isolated：`true`
+- parent source repositories present：`false`
+- product lifecycle exercised：`true`
+- dependency install：113 个带 hash 约束的 Python 包；Bun 1.2.15 使用 frozen lockfile
+- install transaction：`committed`
+- schema migration：v0 → v1，可逆
+- lifecycle：submission boundary、doctor、start、semantic health、restart、post-restart health、stop、post-stop status 全部符合预期
+- uninstall transaction：`uninstalled`
+- 声明的 5 个生命周期端口在结束后全部释放；未声明端口/进程计数为 0
+- editable/link install、外部 build context、用户 site 和隐式用户 cache/state 依赖均为 0
+- receipt digest：`bdcc24be847c7c6c97d61f439bd22f60766b7204cd55232adde9ead6b52065e9`
+
+机器可读 receipt 位于 `.tmp/product-tui-clean-install-20260902-final.json`。它包含临时机路径和逐命令输出，不复制进源码；发布判定使用 source commit、archive SHA-256 和 receipt digest 三重绑定。
+
+## 已知限制和未运行项
+
+- Windows Terminal 人工 IME 候选窗尚未执行；自动 Unicode、组合字符、emoji、paste burst 和 ConPTY 门不能替代实机输入法候选选择。
+- 官方 Codex standalone `0.142.0` 当前 `codex login status` 为 `Not logged in`；登录页/终端生命周期已探测，认证后的 `/status`/`exit` 参考序列未执行。该项是参考证据限制，不阻塞 Zyra 运行。
+- Linux/macOS 没有实机结果；当前发布证据只判定 Windows amd64。
+- 本候选没有代码签名、系统 installer 或 npm publish；交付物是经 digest 验证的 Windows zip 与文档化生命周期命令。
+
+## 最后人工关闭步骤
+
+在真实 Windows Terminal 中运行：
+
+```powershell
+Set-Location G:\agent-zoo\zyra
+.\scripts\product-tui\windows_ime_manual_gate.ps1
+```
+
+按脚本要求完成中文候选窗非首选词、组合态、emoji 和 exact echo 签字。该签字完成前，不得把 Phase F/H 或整份 `PRODUCT_TUI_TASK.zh-CN.md` 标记为完成。

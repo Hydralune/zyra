@@ -1,6 +1,6 @@
 # Codex → Zyra 产品 CLI / TUI 覆盖矩阵
 
-状态：Phase B～G 已收口；Phase H 仅受人工 Windows IME 与最终归档阻塞
+状态：Phase B～G 与最终归档已收口；Phase F/H 仅受人工 Windows IME 阻塞
 参考源码：`G:\agent-zoo\codex`
 目标仓库：`G:\agent-zoo\zyra`
 审计日期：2026-09-01
@@ -71,16 +71,16 @@
 | WEB-02 | CLI/Web canonical 事实一致 | Codex app-server/TUI 同源 thread facts | 状态、回答、approval、diff 同源 | 已实现：Web 消费同源 product live frame，durable batch 合并触发 canonical task/permission refresh；terminal 覆盖 transient；CLI/Web 自动对账 status、final answer、verification、diff manifest 与 permission receipt | P0 | canonical task/permission/diff APIs + product ingress | Web `TaskLiveSync`、ingress presentation；CLI/Web typed clients | real API/SSE/CodeWorker cross-view；真实 permission custody/decision/restart | 当前提交；ADR-006 |
 | AUTO-01 | `run` 纯 JSONL/退出码 | Codex exec/noninteractive CLI；Zyra 既有公开契约 | 人类与机器输出分离 | 已实现 | P0 | task lifecycle | `runner.ts`; `output.ts` | JSONL、ANSI、退出码 | CLI full regression 187/187，20260902 |
 | AUTO-02 | developer raw events | Codex debug/rollout；Zyra 产品独有兼容要求 | 完整内部事实仍可观察 | 已实现 | P0 | raw event spine | `commands/interactive.ts`; `events` | 契约回归 | Foundation commits |
-| REL-01 | 可重复 build/install | Codex npm launcher、platform package、version/update modules | 干净环境安装并诊断版本 | 已实现：Windows zip 双构建字节一致；精确 source commit/archive hash；隔离 venv 与 frozen lock 安装；Node/Bun CLI、Web、daemon 生命周期和卸载闭环通过 | P0 | version/compat endpoint | release pipeline、cleanroom、product entry verifier | clean-room Windows | `c29b4b98`, `3e66b977`；release evidence 20260901 |
-| REL-02 | 升级、state/schema migration | `updates.rs`; `version.rs`; session replay compatibility | 版本变化不静默破坏历史 | 已实现：transactional install/migrate/rollback/uninstall；clean-room 实际 v0→v1；本地草稿 v0→v1，未知/损坏 schema fail-safe 且不覆盖 | P1 | versioned state/protocol | release migration registry；`product/session/local-state.ts` | release migration/rollback、old/corrupt draft state | `c236ade2`, `3e66b977`；release evidence 20260901 |
-| REL-03 | 脱敏诊断包 | `debug_config.rs`; startup errors; feedback/log collection | 输出可分享且不泄密 | 已实现：`zyra doctor --bundle` 生成 workspace 内不可覆盖 JSON，统一脱敏 path/credential/auth/capability，不采集 raw runtime payload；built CLI 与 clean-room 均复验 | P0 | health/config summaries | `product/diagnostics/doctor.ts`; `output.ts` | secret corpus、边界/覆盖、built CLI、clean-room | `37fea555`, `3e66b977`；release evidence 20260901 |
+| REL-01 | 可重复 build/install | Codex npm launcher、platform package、version/update modules | 干净环境安装并诊断版本 | 已实现：最终候选 Windows zip 双构建字节一致；精确 source commit/archive hash；隔离 venv 与 frozen lock 安装；Node/Bun CLI、Web、daemon restart 生命周期和卸载闭环通过 | P0 | version/compat endpoint | release pipeline、cleanroom、product entry verifier | clean-room Windows | `fedd24e0`；release evidence 20260902 |
+| REL-02 | 升级、state/schema migration | `updates.rs`; `version.rs`; session replay compatibility | 版本变化不静默破坏历史 | 已实现：transactional install/migrate/rollback/uninstall；最终 clean-room 实际 v0→v1 且可逆；本地草稿 v0→v1，未知/损坏 schema fail-safe 且不覆盖 | P1 | versioned state/protocol | release migration registry；`product/session/local-state.ts` | release migration/rollback、old/corrupt draft state | `c236ade2`, `fedd24e0`；release evidence 20260902 |
+| REL-03 | 脱敏诊断包 | `debug_config.rs`; startup errors; feedback/log collection | 输出可分享且不泄密 | 已实现：`zyra doctor --bundle` 生成 workspace 内不可覆盖 JSON，统一脱敏 path/credential/auth/capability，不采集 raw runtime payload；built CLI 与最终 clean-room 均复验 | P0 | health/config summaries | `product/diagnostics/doctor.ts`; `output.ts` | secret corpus、边界/覆盖、built CLI、clean-room | `37fea555`, `fedd24e0`；release evidence 20260902 |
 | PERF-01 | 10k transcript/100k events/8h soak | Codex bounded history/reflow/streaming tests（产品行为基线） | 长时仍可输入、滚动、恢复 | 已实现：10k transcript/100k events、RSS/输入/重绘门、100 次异常断线、100 exits、1k resize 和连续 8 小时 component soak 全部通过 | P0 | artifact/cursor | bounded state + ConPTY/perf harness | 文档第 15 节全部指标 | `1f637896`, `f1623d89`, `2ff5c482`；Phase F hardening evidence 20260901 |
 
 ## 当前结论
 
 - Foundation 已演化出长期 session controller、有界增量产品状态、命令/overlay、Markdown、diff/tool/agent 浏览、权限范围、诊断和 PTY/性能 harness；组件、故障注入、8 小时性能门，以及 Phase G 真实失败/控制/恢复与 provider 成功文件工作流均已有证据。
 - Phase G 已关闭：真实 provider 产生 4 个 changed path、可见 diff、canonical 验证命令/退出码和 permission policy；daemon 重启后两次产品附着直接观察这些内容，并与稳定 canonical `completed` 对账。
-- 当前唯一 P0 人工阻塞项是 Windows Terminal IME 候选窗。Phase H 还需把 release pipeline 和 clean-install 重新绑定最终提交。CLI crash、异步重绘、daemon restart/generation replacement、Web cross-view 对账、局部 failure impact、真实长程控制回执和 provider 成功路径已关闭。
+- 当前唯一 P0 人工阻塞项是 Windows Terminal IME 候选窗。最终 release pipeline 已以 `fedd24e0` 生成字节一致归档，隔离 clean-install 的安装、迁移、restart、停止、卸载和端口释放全部通过。CLI crash、异步重绘、daemon restart/generation replacement、Web cross-view 对账、局部 failure impact、真实长程控制回执和 provider 成功路径均已关闭。
 - typed API 已提供 session、task command、permission、diff、terminal、workspace、artifact 和版本化 event ingress。新增产品契约继续遵守 canonical owner，不从屏幕文本或 generic runtime summary 猜状态。
 - Codex 专属账户、插件、Apps、Pets 已在 ADR-019 逐项完成产品边界决定，不用一句批量排除代替审计。
 
