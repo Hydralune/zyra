@@ -63,6 +63,7 @@ class AttachResult:
     pid: int
     startup_ms: float
     detach_ms: float
+    exit_input: str
     exit_code: int
     resize_count: int
     output_bytes: int
@@ -113,56 +114,29 @@ def _wait_for_reported_status(
     *,
     since: int | None = None,
 ) -> str:
-    pattern = re.compile(
+    task_pattern = re.compile(
         rf"task {re.escape(task_id)} · "
         r"(pending|queued|running|waiting|paused|recovering|needs_revision|replanned|"
         r"completed|failed|blocked|cancelled|killed|interrupted)"
     )
+    footer_patterns = {
+        "completed": re.compile(rf"任务已完成 · 可继续输入新任务.*{re.escape(task_id)}"),
+        "failed": re.compile(rf"任务失败 · /resume 或输入新任务.*{re.escape(task_id)}"),
+        "blocked": re.compile(rf"任务已阻塞 · /resume 或输入新任务.*{re.escape(task_id)}"),
+        "killed": re.compile(rf"任务已终止 · 输入新任务.*{re.escape(task_id)}"),
+        "running": re.compile(rf"Tab 排队 · Esc 中断.*{re.escape(task_id)}"),
+    }
     deadline = time.monotonic() + timeout
     while True:
         visible = _visible(capture) if since is None else _visible_since(capture, since)
-        matches = list(pattern.finditer(visible))
-        if matches:
-            return matches[-1].group(1)
+        candidates = [(match.start(), match.group(1)) for match in task_pattern.finditer(visible)]
+        for status, pattern in footer_patterns.items():
+            candidates.extend((match.start(), status) for match in pattern.finditer(visible))
+        if candidates:
+            return max(candidates, key=lambda item: item[0])[1]
         if time.monotonic() >= deadline:
             raise TimeoutError(f"missing fresh canonical status notice:\n{visible[-2_000:]}")
         time.sleep(0.02)
-
-
-def _request_status_until(
-    process: object,
-    capture: RollingCapture,
-    task_id: str,
-    expected_status: str,
-    timeout: float,
-) -> None:
-    deadline = time.monotonic() + timeout
-    while True:
-        if process.poll() is not None:  # type: ignore[attr-defined]
-            raise RuntimeError("product TUI exited before canonical status reconciliation")
-        if time.monotonic() >= deadline:
-            marker = f"task {task_id} · {expected_status}"
-            raise TimeoutError(f"missing latest TUI marker {marker!r}:\n{_visible(capture)[-2_000:]}")
-        position = capture.position()
-        _type_command(process, "/status")
-        # A status notice is painted just before the next composer read.  Give
-        # that synchronous hand-off time to bind input, then require both the
-        # status and ready footer from bytes emitted after this request.  A
-        # matching line retained from startup must never authorize /exit.
-        remaining = max(0.1, deadline - time.monotonic())
-        if _wait_for_reported_status(
-            capture,
-            task_id,
-            min(2.0, remaining),
-            since=position,
-        ) == expected_status:
-            _wait_for_since(
-                capture,
-                _terminal_input_marker(expected_status),
-                position,
-                max(0.1, deadline - time.monotonic()),
-            )
-            return
 
 
 def _wait_for_since(capture: RollingCapture, marker: str, position: int, timeout: float) -> None:
@@ -222,18 +196,18 @@ def _type_command(process: object, command: str) -> None:
         process.write(character.encode("utf-8"))  # type: ignore[attr-defined]
         time.sleep(0.02)
     time.sleep(0.15)
-    process.write(b"\r")  # type: ignore[attr-defined]
-    # Windows ConPTY may coalesce the character writes into one paste-like
-    # burst.  The product correctly turns that burst's first Enter into a
-    # newline; confirm once more after its 120 ms safety window.  If the first
-    # Enter already submitted, this is only an empty Enter in the next active
-    # composer.
-    time.sleep(0.2)
-    if process.poll() is None:  # type: ignore[attr-defined]
+    # ConPTY may still coalesce deliberately paced writes.  The first Enter
+    # can therefore be consumed by paste safety, while another can accept a
+    # completion.  Three Enters beyond the 120 ms paste window cover both
+    # branches; once submitted, later empty Enters are harmless.
+    for _attempt in range(3):
+        if process.poll() is not None:  # type: ignore[attr-defined]
+            return
         try:
             process.write(b"\r")  # type: ignore[attr-defined]
         except OSError:
-            pass
+            return
+        time.sleep(0.25)
 
 
 def _canonical_task(base_url: str, task_id: str) -> dict[str, Any]:
@@ -415,23 +389,17 @@ def _attach_cycle(
             command_name = _receipt_command_name(control_command)
             _type_command(process, control_command)
             control_receipt = _wait_for_control_receipt(capture, command_name, timeout)
-        status_position = capture.position()
-        _type_command(process, "/status")
-        reported_status = _wait_for_reported_status(
-            capture,
-            task_id,
-            timeout,
-            since=status_position,
-        )
+        reported_status = _wait_for_reported_status(capture, task_id, timeout)
         for index in range(resize_count):
             process.resize(18 + (index % 43), 60 + (index % 141))
             if index % 25 == 0:
                 time.sleep(0.005)
+        canonical_position = capture.position()
         canonical = _wait_for_canonical_terminal(process, base_url, task_id, baseline, task_timeout) \
             if wait_terminal else _wait_for_canonical_advance(process, base_url, task_id, baseline, timeout)
         canonical_status = str(canonical.get("status") or "unknown")
         if canonical_status in TERMINAL_STATUSES:
-            _request_status_until(process, capture, task_id, canonical_status, timeout)
+            _wait_for_since(capture, _terminal_input_marker(canonical_status), canonical_position, timeout)
         detach_started = time.monotonic()
         _type_command(process, "/exit")
         exit_code = process.wait(timeout=timeout)
@@ -444,6 +412,7 @@ def _attach_cycle(
             pid=process.pid,
             startup_ms=round(startup_ms, 3),
             detach_ms=round(detach_ms, 3),
+            exit_input="slash_exit",
             exit_code=exit_code,
             resize_count=resize_count,
             output_bytes=capture.total_bytes,
