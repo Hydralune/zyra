@@ -4,6 +4,11 @@ import type {
   TaskProjection,
 } from "../../../packages/core/typed-api-client/src/index.ts"
 import type { TaskApi } from "../src/api/task-api.ts"
+import type {
+  IngressBatch,
+  IngressLiveFrame,
+  JsonObject,
+} from "../src/events/ingress/index.ts"
 import { WorkbenchController } from "../src/shell/workbench-controller.ts"
 import {
   TaskLiveSync,
@@ -90,6 +95,75 @@ function settle(): Promise<void> {
   return new Promise((resolve) => globalThis.setTimeout(resolve, 0))
 }
 
+function assistantPresentation(
+  phase: "started" | "completed",
+  text?: string,
+): Readonly<JsonObject> {
+  return Object.freeze({
+    schema: "zyra.product-presentation/v1",
+    kind: "assistant",
+    phase,
+    identity: "answer_live_001",
+    label: "Assistant",
+    streamId: "stream_live_001",
+    ...(text === undefined ? {} : { text }),
+  })
+}
+
+function ingressBatch(
+  generation: number,
+  phase: "started" | "completed",
+  text?: string,
+): IngressBatch {
+  return {
+    taskId: "task_live_001",
+    generation,
+    events: [],
+    presentations: [{
+      eventId: `event_${phase}_${generation}`,
+      eventType: phase === "started" ? "runtime.text.started" : "runtime.text.ended",
+      sequence: phase === "started" ? 1 : 2,
+      presentation: assistantPresentation(phase, text),
+    }],
+    receipts: [],
+    fromSequence: 0,
+    sequence: phase === "started" ? 1 : 2,
+    highWatermark: 2,
+    receivedAt: 1_000,
+    transport: "sse",
+    snapshot: false,
+    caughtUp: true,
+  }
+}
+
+function liveFrame(
+  liveSequence: number,
+  text: string,
+  generation = 1,
+): IngressLiveFrame {
+  return {
+    schema: "zyra.event-ingress-frame/v1",
+    kind: "live",
+    source: "runtime-live-bus",
+    generation,
+    taskId: "task_live_001",
+    sequence: 1,
+    liveSequence,
+    eventId: `live_${generation}_${liveSequence}`,
+    eventType: "runtime.text.delta",
+    observedAtMs: 1_000 + liveSequence,
+    presentation: Object.freeze({
+      schema: "zyra.product-presentation/v1",
+      kind: "assistant",
+      phase: "delta",
+      identity: "answer_live_001",
+      label: "Assistant",
+      streamId: "stream_live_001",
+      text,
+    }),
+  }
+}
+
 function harness(options: { values?: TaskProjection[] } = {}) {
   const state = { current: options.values?.[0] ?? task(), failure: undefined as Error | undefined, reads: 0 }
   const api = {
@@ -114,6 +188,67 @@ function harness(options: { values?: TaskProjection[] } = {}) {
 }
 
 describe("task live sync", () => {
+  test("renders exact live product text then converges to canonical final task", async () => {
+    const value = harness()
+    await value.workbench.loadTask("task_live_001")
+    value.sync.bind("task_live_001")
+
+    value.sync.observeBatch(ingressBatch(1, "started"))
+    value.sync.observeLive(liveFrame(1, "你好"))
+    value.sync.observeLive(liveFrame(2, " world\n"))
+    value.sync.observeLive(liveFrame(2, "duplicate"))
+    expect(value.sync.getSnapshot().assistant).toMatchObject({
+      text: "你好 world\n",
+      partial: false,
+      settling: false,
+      firstLiveSequence: 1,
+      lastLiveSequence: 2,
+    })
+
+    await value.environment.advance(75)
+    expect(value.state.reads).toBe(2)
+
+    value.state.current = task(
+      "task_live_001",
+      "completed",
+      "2026-08-04T01:05:00.000Z",
+    )
+    value.state.current.metadata = { final_answer: "你好 world\n" }
+    value.sync.observeBatch(ingressBatch(1, "completed", "你好 world\n"))
+    expect(value.sync.getSnapshot().assistant?.settling).toBe(true)
+    await value.environment.advance(75)
+    expect(value.workbench.getSnapshot().detail.task?.metadata.final_answer)
+      .toBe("你好 world\n")
+    expect(value.sync.getSnapshot().assistant).toBeUndefined()
+    expect(value.sync.getSnapshot().live).toBe(false)
+    value.sync.close()
+    value.workbench.close()
+  })
+
+  test("marks a delta-first stream partial and resets it across ingress generations", async () => {
+    const value = harness()
+    await value.workbench.loadTask("task_live_001")
+    value.sync.bind("task_live_001")
+    value.sync.observeLive(liveFrame(7, "中途接入"))
+    expect(value.sync.getSnapshot().assistant).toMatchObject({
+      text: "中途接入",
+      partial: true,
+      generation: 1,
+    })
+
+    value.sync.observeLive(liveFrame(1, "新 generation", 2))
+    expect(value.sync.getSnapshot().assistant).toMatchObject({
+      text: "新 generation",
+      partial: true,
+      generation: 2,
+      firstLiveSequence: 1,
+    })
+    value.sync.observeLive(liveFrame(99, "stale", 1))
+    expect(value.sync.getSnapshot().assistant?.text).toBe("新 generation")
+    value.sync.close()
+    value.workbench.close()
+  })
+
   test("polls a running task and stops as soon as the backend reports terminal", async () => {
     const value = harness()
     await value.workbench.loadTask("task_live_001")

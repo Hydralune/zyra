@@ -264,6 +264,16 @@ export class CanonicalProjectionStore {
           void this.enqueue(batch, {
             source: "ingress",
             connection: record.connection,
+          }).then(() => {
+            try {
+              options.batch?.(batch)
+            } catch (error) {
+              this.#recordFailure(
+                "INGRESS_BATCH_OBSERVER_FAILED",
+                error,
+                normalizedTaskId,
+              )
+            }
           }).catch((error) => {
             this.#recordFailure(
               "INGRESS_APPLY_FAILED",
@@ -271,6 +281,17 @@ export class CanonicalProjectionStore {
               normalizedTaskId,
             )
           })
+        },
+        live: (frame) => {
+          try {
+            options.live?.(frame)
+          } catch (error) {
+            this.#recordFailure(
+              "INGRESS_LIVE_OBSERVER_FAILED",
+              error,
+              normalizedTaskId,
+            )
+          }
         },
         status: (snapshot) => {
           record.connection = snapshot

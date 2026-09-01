@@ -143,7 +143,7 @@ describe("product frontstage", () => {
     expect(app).toContain("<ProductTaskDetail")
     expect(detail).toContain("<TaskDetail runtime={runtime} state={state} />")
     expect(detail).toContain('className="advanced-drawer"')
-    expect(detail).toContain('className="product-answer"')
+    expect(detail).toContain('className="product-answer product-answer-markdown"')
     expect(detail).toContain('className="product-disclosure product-run-summary"')
     expect(detail).toContain('className="product-jump-latest"')
     expect(detail).toContain("没有生成有效回答")

@@ -108,6 +108,7 @@ function frameRaw(
     generation?: number
     source?: string
     cursor?: string
+    presentation?: Record<string, unknown>
   } = {},
 ) {
   const event = eventRaw(sequence, options)
@@ -125,6 +126,7 @@ function frameRaw(
     observedAtMs: 1_000 + sequence,
     cursor: options.cursor ?? `cursor.${sequence}`,
     event,
+    ...(options.presentation ? { presentation: options.presentation } : {}),
   }
 }
 
@@ -235,6 +237,40 @@ describe("event ingress envelope validation", () => {
     expect(normalized.event.identity.checkpointId).toBe("checkpoint_1")
     expect(normalized.event.contentDigest).toBe(DIGEST)
     expect(Object.isFrozen(normalized.event)).toBe(true)
+  })
+
+  test("preserves only validated durable product presentation and exact whitespace", () => {
+    const presentation = {
+      schema: "zyra.product-presentation/v1",
+      kind: "assistant",
+      phase: "completed",
+      identity: "message-durable-1",
+      label: "Assistant",
+      streamId: "stream-durable-1",
+      text: "  第一行\n第二行  ",
+      privateReasoning: "must be dropped",
+    }
+    const normalized = frame(2, 1, {
+      eventType: "runtime.text.ended",
+      presentation,
+    })
+    expect(normalized.presentation?.text).toBe("  第一行\n第二行  ")
+    expect(normalized.presentation?.privateReasoning).toBeUndefined()
+
+    const live = normalizeAnyFrame({
+      schema: "zyra.event-ingress-frame/v1",
+      kind: "live",
+      source: "runtime-live-bus",
+      generation: 1,
+      taskId: TASK,
+      sequence: 2,
+      liveSequence: 4,
+      eventId: "live-whitespace-4",
+      eventType: "runtime.text.delta",
+      observedAtMs: 2_000,
+      presentation: { ...presentation, phase: "delta", text: " \n" },
+    }, TASK, 1) as IngressLiveFrame
+    expect(live.presentation.text).toBe(" \n")
   })
 
   test("fails closed on schema mismatch, cross-task frame, and digest mutation", () => {
@@ -533,7 +569,19 @@ describe("subscribe-before-snapshot and gap recovery", () => {
         return snapshotRaw(
           [
             frameRaw(20, 0, { generation: options.generation }),
-            frameRaw(21, 20, { generation: options.generation }),
+            frameRaw(21, 20, {
+              generation: options.generation,
+              eventType: "runtime.text.ended",
+              presentation: {
+                schema: "zyra.product-presentation/v1",
+                kind: "assistant",
+                phase: "completed",
+                identity: "answer_snapshot_1",
+                label: "Assistant",
+                streamId: "stream_snapshot_1",
+                text: "snapshot answer",
+              },
+            }),
             frameRaw(22, 21, { generation: options.generation }),
           ],
           {
@@ -581,7 +629,10 @@ describe("subscribe-before-snapshot and gap recovery", () => {
         resyncAttempts: 0,
       },
     })
-    const delivered = new Promise<readonly number[]>((resolve, reject) => {
+    const delivered = new Promise<{
+      sequences: readonly number[]
+      presentationText?: unknown
+    }>((resolve, reject) => {
       const timeout = setTimeout(
         () => reject(new Error("multi-frame snapshot was not delivered")),
         1_000,
@@ -590,13 +641,19 @@ describe("subscribe-before-snapshot and gap recovery", () => {
         batch(batch) {
           if (!batch.snapshot || batch.events.length !== 3) return
           clearTimeout(timeout)
-          resolve(batch.events.map((event) => event.globalSequence))
+          resolve({
+            sequences: batch.events.map((event) => event.globalSequence),
+            presentationText: batch.presentations?.[0]?.presentation.text,
+          })
         },
       })
     })
     void coordinator.start()
     try {
-      expect(await delivered).toEqual([20, 21, 22])
+      expect(await delivered).toEqual({
+        sequences: [20, 21, 22],
+        presentationText: "snapshot answer",
+      })
       expect(coordinator.snapshot().resyncAttempt).toBe(0)
       expect(coordinator.audit().ok).toBe(true)
     } finally {

@@ -284,7 +284,29 @@ export function createWorkbenchRuntime(
     if (!taskId) return
     void projections.ready.then(() => {
       if (generation !== projectionRouteGeneration || closed) return
-      projectionBinding = projections.bind(api.events, taskId)
+      projectionBinding = projections.bind(api.events, taskId, {
+        live: (frame) => liveSync.observeLive(frame),
+        batch: (batch) => {
+          if (generation !== projectionRouteGeneration || closed) return
+          liveSync.observeBatch(batch)
+          if (batch.events.some((event) =>
+            event.intent === "permission"
+            || event.eventType.toLowerCase().includes("permission")
+          )) {
+            void permissionConsole.refresh("manual").catch((error) => {
+              notifications.push({
+                id: `permission-event-refresh-${generation}`,
+                title: "Permission refresh failed",
+                message: error instanceof Error ? error.message : String(error),
+                tone: "error",
+                durationMs: 10_000,
+                taskId,
+              })
+            })
+          }
+        },
+        status: (snapshot) => liveSync.observeConnection(snapshot),
+      })
       projections.pinTask(taskId)
       projectionTaskId = taskId
     })

@@ -6,6 +6,7 @@ import type {
 } from "../../../../../packages/core/typed-api-client/src/index.ts"
 import type { WorkbenchRuntime } from "../../app/runtime.ts"
 import type { TaskDetailState } from "../../shell/workbench-controller.ts"
+import type { ProductAssistantStreamSnapshot } from "../../shell/task-live-sync.ts"
 import { taskActionSet } from "../../shell/task-action-policy.ts"
 import { formatDuration, taskMetrics } from "../../shell/task-metrics.ts"
 import { FocusTrap } from "../../shell/focus-trap.ts"
@@ -16,6 +17,7 @@ import {
 } from "../../app/hooks.ts"
 import { EmptyState, ErrorState, LoadingState } from "../status/request-state.tsx"
 import { TaskDetail } from "./task-detail.tsx"
+import { SafeMarkdown } from "../content/safe-markdown.tsx"
 
 const COMPLETED_NODE_STATES = new Set(["completed", "succeeded", "verified"])
 const RUNNING_NODE_STATES = new Set(["running", "active", "dispatched"])
@@ -495,11 +497,13 @@ function ConversationTurn({
   runtime,
   task,
   latest,
+  liveAssistant,
   onInspect,
 }: {
   runtime: WorkbenchRuntime
   task: TaskProjection
   latest: boolean
+  liveAssistant?: ProductAssistantStreamSnapshot
   onInspect: (taskId: string) => void
 }) {
   const progress = productTaskProgress(task)
@@ -528,7 +532,23 @@ function ConversationTurn({
             </time>
           </div>
           {summary ? (
-            <p className="product-answer">{summary}</p>
+            <SafeMarkdown text={summary} className="product-answer product-answer-markdown" />
+          ) : liveAssistant?.text ? (
+            <div className="product-live-answer" aria-label="Zyra 实时回答">
+              <SafeMarkdown
+                text={liveAssistant.text}
+                className="product-answer product-answer-markdown"
+                streaming={!liveAssistant.settling}
+                truncated={liveAssistant.truncated || liveAssistant.partial}
+              />
+              <small>
+                {liveAssistant.settling
+                  ? "正在与 canonical 最终回答对账…"
+                  : liveAssistant.partial
+                    ? "已从当前可用的实时片段继续显示"
+                    : "实时生成中"}
+              </small>
+            </div>
           ) : task.active ? (
             <p className="product-working-copy">
               <span className="product-working-spinner" aria-hidden="true" />
@@ -893,6 +913,7 @@ function ProductDetailContent({
               runtime={runtime}
               task={turn}
               latest={index === timeline.length - 1}
+              liveAssistant={turn.taskId === live.taskId ? live.assistant : undefined}
               onInspect={inspectTurn}
             />
           ))}

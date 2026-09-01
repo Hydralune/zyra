@@ -879,6 +879,7 @@ export class EventIngressCoordinator {
       const drained = this.#buffer.drain(this.#cursor.committedSequence)
       if (!drained.frames.length) break
       const delivered: IngressEvent[] = []
+      const presentations: NonNullable<IngressBatch["presentations"]>[number][] = []
       const receipts = []
       const fromSequence = this.#cursor.committedSequence
       let bytes = 0
@@ -888,7 +889,17 @@ export class EventIngressCoordinator {
         receipts.push(this.#identities.commit(frame))
         const assembly = this.#assembly.process(frame)
         receipts.push(...assembly.receipts)
-        delivered.push(...assembly.deliver.map((item) => item.event))
+        for (const item of assembly.deliver) {
+          delivered.push(item.event)
+          if (item.presentation) {
+            presentations.push(Object.freeze({
+              eventId: item.eventId,
+              eventType: item.eventType,
+              sequence: item.sequence,
+              presentation: item.presentation,
+            }))
+          }
+        }
         bytes += frame.encodedBytes
         if (committed.advanced) this.#gaps.resolveThrough(frame.sequence)
       }
@@ -901,6 +912,7 @@ export class EventIngressCoordinator {
           taskId: this.#taskId,
           generation: this.#cursor.generation,
           events: Object.freeze(delivered),
+          presentations: Object.freeze(presentations),
           receipts: Object.freeze(receipts),
           cursor: this.#cursor.cursor,
           fromSequence,

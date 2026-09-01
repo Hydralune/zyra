@@ -7876,6 +7876,110 @@ kbd {
   overflow-wrap: anywhere;
 }
 
+.product-answer-markdown {
+  display: grid;
+  gap: 10px;
+}
+
+.product-answer-markdown > :first-child {
+  margin-top: 0;
+}
+
+.product-answer-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.product-answer-markdown p,
+.product-answer-markdown blockquote,
+.product-answer-markdown pre,
+.product-answer-markdown ul,
+.product-answer-markdown ol,
+.product-answer-markdown h1,
+.product-answer-markdown h2,
+.product-answer-markdown h3,
+.product-answer-markdown h4,
+.product-answer-markdown h5,
+.product-answer-markdown h6 {
+  margin: 0;
+}
+
+.product-answer-markdown pre {
+  position: relative;
+  max-width: 100%;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid #dfe5e1;
+  border-radius: 10px;
+  background: #f6f8f7;
+  white-space: pre;
+}
+
+.product-answer-markdown blockquote {
+  padding-left: 12px;
+  border-left: 3px solid #c8d3cd;
+  color: #59665f;
+}
+
+.product-markdown-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.product-markdown-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.product-markdown-table-wrap th,
+.product-markdown-table-wrap td {
+  padding: 6px 8px;
+  border: 1px solid #dfe5e1;
+}
+
+.product-live-answer {
+  display: grid;
+  gap: 7px;
+}
+
+.product-live-answer > small,
+.product-markdown-notice,
+.product-markdown-holdback {
+  color: #748078;
+  font-size: 11px;
+}
+
+.product-markdown-notice {
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: #f3f6f4;
+}
+
+.product-markdown-notice.tone-danger {
+  color: #8e3e3e;
+  background: #fff1f1;
+}
+
+.product-link-refused {
+  text-decoration: line-through;
+  text-decoration-color: #b66;
+}
+
+.product-stream-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  border-radius: 2px;
+  background: #547c67;
+  animation: product-stream-blink 1s steps(2, end) infinite;
+}
+
+@keyframes product-stream-blink {
+  50% { opacity: 0.2; }
+}
+
 .product-working-copy {
   display: flex;
   align-items: center;
@@ -8738,6 +8842,7 @@ kbd {
   .product-progress > span,
   .product-disclosure-chevron,
   .product-working-spinner,
+  .product-stream-cursor,
   .product-sync-bar[data-busy]::after,
   .product-plan-list li[data-status="running"] .product-step-icon,
   .product-plan-list li[data-status="active"] .product-step-icon,

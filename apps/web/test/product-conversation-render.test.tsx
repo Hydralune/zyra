@@ -64,6 +64,7 @@ function fakeRuntime(options: {
   activeSubmission?: { value: string; phase: string; taskId?: string }
   queued?: readonly Record<string, unknown>[]
   live?: boolean
+  assistant?: Record<string, unknown>
 } = {}): WorkbenchRuntime {
   return {
     api: {
@@ -90,6 +91,8 @@ function fakeRuntime(options: {
       paused: false,
       syncing: false,
       consecutiveFailures: 0,
+      taskId: "task_render_001",
+      assistant: options.assistant,
       revision: 1,
     }),
     overlays: { open: () => {} },
@@ -178,6 +181,35 @@ describe("product conversation rendering", () => {
     expect(markup).toContain("再补充一个校验步骤")
     expect(markup).toContain("正在提交给运行时")
     expect(markup).toContain("product-turn-pending")
+  })
+
+  test("renders live product presentation as safe Markdown without exposing raw HTML", () => {
+    const assistant = {
+      messageId: "answer_render_001",
+      streamId: "stream_render_001",
+      text: "## 实时结果\n\n- **第一项**\n- [文档](https://example.com)\n\n<script>secret</script>",
+      generation: 1,
+      firstLiveSequence: 1,
+      lastLiveSequence: 4,
+      partial: false,
+      truncated: false,
+      settling: false,
+      startedAt: 1,
+      updatedAt: 2,
+    }
+    const markup = renderToStaticMarkup(
+      <ProductTaskDetail
+        runtime={fakeRuntime({ assistant })}
+        state={detailState()}
+        tasks={[task()]}
+      />,
+    )
+    expect(markup).toContain("实时结果")
+    expect(markup).toContain("<strong>第一项</strong>")
+    expect(markup).toContain('href="https://example.com/"')
+    expect(markup).not.toContain("<script>")
+    expect(markup).toContain("Raw HTML was refused")
+    expect(markup).toContain("实时生成中")
   })
 
   test("renders empty, missing, and failed states without a task projection", () => {

@@ -817,6 +817,9 @@ export function normalizeEventFrame(
     throw staleGenerationError(expectedGeneration, generation, { taskId })
   }
   const event = normalizeIngressEvent(frame.event, taskId)
+  const presentation = frame.presentation === undefined
+    ? undefined
+    : normalizeProductPresentation(frame.presentation, "frame.presentation")
   const sequence = integer(frame.sequence, "frame.sequence", 1)
   if (event.globalSequence !== sequence) {
     throw new EventIngressError(
@@ -892,6 +895,7 @@ export function normalizeEventFrame(
     observedAtMs: integer(frame.observedAtMs, "frame.observedAtMs", 0),
     cursor: optionalString(frame.cursor, "frame.cursor", 4096),
     event,
+    presentation,
     encodedBytes: encodedJsonBytes(frame),
   }
   if (normalized.previousSequence >= normalized.sequence) {
@@ -910,6 +914,102 @@ export function normalizeEventFrame(
     )
   }
   return Object.freeze(normalized)
+}
+
+const PRODUCT_PRESENTATION_SCHEMA = "zyra.product-presentation/v1"
+const PRODUCT_PRESENTATION_KINDS = new Set([
+  "assistant",
+  "activity",
+  "worker",
+  "tool",
+  "issue",
+])
+const PRODUCT_PRESENTATION_SEVERITIES = new Set(["info", "warning", "error"])
+
+/**
+ * Admits only the bounded public product protocol.  Unknown runtime fields are
+ * intentionally dropped so adding a backend diagnostic can never make it
+ * renderable by accident.
+ */
+function normalizeProductPresentation(
+  value: unknown,
+  label: string,
+): Readonly<JsonObject> {
+  const body = objectValue(value, label)
+  if (body.schema !== PRODUCT_PRESENTATION_SCHEMA) {
+    throw schemaError(body.schema, PRODUCT_PRESENTATION_SCHEMA)
+  }
+  const kind = requiredString(body.kind, `${label}.kind`, 64)
+  if (!PRODUCT_PRESENTATION_KINDS.has(kind)) {
+    throw new EventIngressError(
+      IngressErrorCode.INVALID_FRAME,
+      `${label}.kind is not admitted by the product protocol.`,
+    )
+  }
+  const phase = requiredString(body.phase, `${label}.phase`, 64)
+  const identityValue = identifier(body.identity, `${label}.identity`)
+  const presentation: JsonObject = {
+    schema: PRODUCT_PRESENTATION_SCHEMA,
+    kind,
+    phase,
+    identity: identityValue,
+    label: requiredString(body.label, `${label}.label`, 256),
+  }
+  const severity = optionalString(body.severity, `${label}.severity`, 32)
+  if (severity !== undefined) {
+    if (!PRODUCT_PRESENTATION_SEVERITIES.has(severity)) {
+      throw new EventIngressError(
+        IngressErrorCode.INVALID_FRAME,
+        `${label}.severity is not admitted by the product protocol.`,
+      )
+    }
+    presentation.severity = severity
+  }
+  for (const [field, maximum] of [
+    ["streamId", 1024],
+    ["summary", 2_048],
+    ["category", 128],
+    ["code", 256],
+    ["recovery", 2_048],
+    ["startedAt", 128],
+  ] as const) {
+    const selected = optionalString(body[field], `${label}.${field}`, maximum)
+    if (selected !== undefined) presentation[field] = selected
+  }
+  if (body.text !== undefined && body.text !== null) {
+    const selected = requiredString(body.text, `${label}.text`, 4_096, true)
+    if (!selected.length || /\u0000|\u001b/.test(selected)) {
+      throw new EventIngressError(
+        IngressErrorCode.INVALID_FRAME,
+        `${label}.text is empty or contains terminal control data.`,
+      )
+    }
+    presentation.text = selected
+  }
+  if (body.durationMs !== undefined && body.durationMs !== null) {
+    presentation.durationMs = integer(
+      body.durationMs,
+      `${label}.durationMs`,
+      0,
+      86_400_000,
+    )
+  }
+  if (body.retryable !== undefined && body.retryable !== null) {
+    presentation.retryable = booleanValue(body.retryable, `${label}.retryable`)
+  }
+  if (body.artifactIds !== undefined && body.artifactIds !== null) {
+    const values = arrayValue(body.artifactIds, `${label}.artifactIds`)
+    if (values.length > 32) {
+      throw new EventIngressError(
+        IngressErrorCode.INVALID_FRAME,
+        `${label}.artifactIds exceeds 32 entries.`,
+      )
+    }
+    presentation.artifactIds = values.map((item, index) =>
+      identifier(item, `${label}.artifactIds[${index}]`)
+    )
+  }
+  return Object.freeze(presentation)
 }
 
 export function normalizePage(
@@ -1113,7 +1213,10 @@ export function normalizeAnyFrame(
         { context: { taskId: expectedTaskId, generation: expectedGeneration } },
       )
     }
-    const presentation = objectValue(body.presentation, "frame.presentation")
+    const presentation = normalizeProductPresentation(
+      body.presentation,
+      "frame.presentation",
+    )
     if (
       presentation.schema !== "zyra.product-presentation/v1"
       || presentation.kind !== "assistant"
@@ -1125,7 +1228,18 @@ export function normalizeAnyFrame(
         { context: { taskId: expectedTaskId, generation: expectedGeneration } },
       )
     }
-    const text = requiredString(presentation.text, "frame.presentation.text", 2_048)
+    const text = requiredString(
+      presentation.text,
+      "frame.presentation.text",
+      2_048,
+      true,
+    )
+    if (!text.length) {
+      throw new EventIngressError(
+        IngressErrorCode.INVALID_FRAME,
+        "Live assistant presentation text must not be empty.",
+      )
+    }
     if (new TextEncoder().encode(text).byteLength > 1_024) {
       throw new EventIngressError(
         IngressErrorCode.INVALID_FRAME,

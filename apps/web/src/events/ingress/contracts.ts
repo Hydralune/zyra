@@ -184,6 +184,12 @@ export interface IngressEventFrame {
   observedAtMs: number
   cursor?: string
   event: IngressEvent
+  /**
+   * Strict user-facing projection admitted by the API.  It is deliberately
+   * separate from the canonical runtime envelope: consumers may render this
+   * value, but must never infer task state from it.
+   */
+  presentation?: Readonly<JsonObject>
   encodedBytes: number
 }
 
@@ -406,6 +412,8 @@ export interface IngressBatch {
   taskId: string
   generation: number
   events: readonly IngressEvent[]
+  /** Product projections carried by the exact durable frames in `events`. */
+  presentations?: readonly IngressBatchPresentation[]
   receipts: readonly DeliveryReceipt[]
   cursor?: string
   fromSequence: number
@@ -415,6 +423,13 @@ export interface IngressBatch {
   transport: TransportKindValue
   snapshot: boolean
   caughtUp: boolean
+}
+
+export interface IngressBatchPresentation {
+  eventId: string
+  eventType: string
+  sequence: number
+  presentation: Readonly<JsonObject>
 }
 
 export interface GapRange {

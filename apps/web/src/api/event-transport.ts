@@ -8,6 +8,7 @@ import {
   type EventIngressCoordinatorOptions,
   type IngressBatch,
   type IngressDiagnostic,
+  type IngressLiveFrame,
   type IngressObserver,
   type IngressSubscriptionFilter,
   type JsonValue,
@@ -36,6 +37,9 @@ export interface EventSubscriptionOptions {
   reconnect?: EventIngressCoordinatorOptions["reconnect"]
   status?: (snapshot: ConnectionSnapshot) => void
   diagnostic?: (diagnostic: IngressDiagnostic) => void
+  /** Observer hooks for owners that share this connection with the store. */
+  live?: (frame: IngressLiveFrame) => void
+  batch?: (batch: IngressBatch) => void
 }
 
 interface CoordinatorRecord {
@@ -91,6 +95,7 @@ export class TaskEventTransport {
       typeof listener === "function"
         ? {
             batch: listener,
+            live: options.live,
             status: options.status,
             diagnostic: options.diagnostic,
           }
