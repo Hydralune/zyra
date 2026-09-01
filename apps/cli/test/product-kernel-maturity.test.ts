@@ -3,6 +3,7 @@ import { PassThrough, Writable } from "node:stream"
 import type { TaskMutationProjection, TaskProjection } from "@zyra/typed-api-client"
 import type { CliApi, IngressPage } from "../src/api.ts"
 import { executeProductInteractive } from "../src/commands/product.ts"
+import { CliExitCode } from "../src/contracts.ts"
 import { PromptDraft } from "../src/input/draft.ts"
 import { ProductSessionState } from "../src/product/state/session-state.ts"
 import { parseProductModels } from "../src/product/config/model.ts"
@@ -340,6 +341,31 @@ describe("canonical provider model catalog", () => {
 })
 
 describe("product commands and continuous session", () => {
+  test("cancels an idle interactive session and restores terminal state on abort", async () => {
+    const controller = new AbortController()
+    const stdin = new TtyInput()
+    const stdout = new Capture()
+    const executing = executeProductInteractive({
+      command: { kind: "interactive", baseUrl: "http://127.0.0.1:8000", autoStart: false, startupTimeoutMs: 1_000, timeoutMs: 10_000 },
+      api: {} as CliApi,
+      stdin,
+      stdout,
+      signal: controller.signal,
+      cwd: "G:\\agent-zoo\\zyra",
+      draftStore: null,
+    })
+
+    await waitUntil(() => stdin.raw)
+    stdin.write("尚未提交的草稿")
+    controller.abort(new Error("test interrupt"))
+    const outcome = await executing
+
+    expect(outcome).toMatchObject({ status: "cancelled", exitCode: CliExitCode.CANCELLED })
+    expect(stdin.raw).toBe(false)
+    expect(stdin.isPaused()).toBe(true)
+    expect(stdout.text).toContain("\u001b[0m\u001b[?25h\u001b[?2004l")
+  })
+
   test("discovers commands with explicit availability", () => {
     expect(parseProductCommand("/resume session_1")).toMatchObject({ definition: { name: "resume", availability: "idle" }, args: "session_1" })
     expect(parseProductCommand("/subagents")).toMatchObject({ definition: { name: "agents" } })

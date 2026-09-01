@@ -3,6 +3,7 @@ import { PassThrough, Writable } from "node:stream"
 import { ZYRA_UI_EVENT_SCHEMA, type ZyraUiEvent } from "../src/presentation/events.ts"
 import { LiveProductRenderer } from "../src/tui/live-renderer.ts"
 import { ProductTuiShell } from "../src/tui/shell.ts"
+import { emergencyTerminalCleanup, TerminalSessionGuard } from "../src/tui/terminal-session.ts"
 
 class TtyInput extends PassThrough {
   isTTY = true
@@ -47,6 +48,20 @@ function events(): ZyraUiEvent[] {
 }
 
 describe("product TUI shell", () => {
+  test("emergency cleanup restores every active terminal session idempotently", () => {
+    const stdin = new TtyInput()
+    const output = new TtyOutput()
+    const session = new TerminalSessionGuard(stdin, output)
+    session.enter()
+    expect(stdin.raw).toBe(true)
+    emergencyTerminalCleanup()
+    emergencyTerminalCleanup()
+    expect(session.active).toBe(false)
+    expect(stdin.raw).toBe(false)
+    expect(stdin.isPaused()).toBe(true)
+    expect(output.text.match(/\u001b\[0m\u001b\[\?25h\u001b\[\?2004l/gu)).toHaveLength(2)
+  })
+
   test("renders inline without alternate screen and redraws on resize", () => {
     const stdin = new TtyInput()
     const output = new TtyOutput()

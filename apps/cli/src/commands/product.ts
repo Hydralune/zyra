@@ -806,6 +806,9 @@ export async function executeProductInteractive(input: {
     : input.draftStore ?? (input.stdin === process.stdin ? ProductDraftStore.open({ workspace: cwd }) : undefined)
   const shell = new ProductTuiShell({ stdin: input.stdin, output: input.stdout, workspace: cwd, candidates: productCommandCandidates(), draftStore })
   shell.start()
+  const abortInput = () => shell.detachInput()
+  if (input.signal.aborted) abortInput()
+  else input.signal.addEventListener("abort", abortInput, { once: true })
   beginWorkspaceIndex(shell, cwd)
   try {
     return await runProductSession({
@@ -820,6 +823,7 @@ export async function executeProductInteractive(input: {
       initial: input.command.goal ? { kind: "goal", goal: input.command.goal } : undefined,
     })
   } finally {
+    input.signal.removeEventListener("abort", abortInput)
     await shell.flushLocalState().catch(() => undefined)
     shell.close()
   }
@@ -843,6 +847,9 @@ export async function executeProductResume(input: {
     : input.draftStore ?? (input.stdin === process.stdin ? ProductDraftStore.open({ workspace: cwd }) : undefined)
   const shell = new ProductTuiShell({ stdin: input.stdin, output: input.stdout, workspace: cwd, candidates: productCommandCandidates(), draftStore })
   shell.start()
+  const abortInput = () => shell.detachInput()
+  if (input.signal.aborted) abortInput()
+  else input.signal.addEventListener("abort", abortInput, { once: true })
   beginWorkspaceIndex(shell, cwd)
   try {
     return await runProductSession({
@@ -857,6 +864,7 @@ export async function executeProductResume(input: {
       initial: { kind: "resume", task: resolved.task },
     })
   } finally {
+    input.signal.removeEventListener("abort", abortInput)
     await shell.flushLocalState().catch(() => undefined)
     shell.close()
   }
@@ -1180,9 +1188,11 @@ async function runProductSession(input: {
     input.shell.notice("本轮已收敛。继续输入可在同一会话发起下一轮；/new 开始新会话，/exit 退出。")
   }
   input.shell.finish()
+  const detached = lastOutcome?.status === "detached"
+  const interrupted = input.signal.aborted && !detached
   return {
-    exitCode: CliExitCode.SUCCESS,
-    status: lastOutcome?.status === "detached" ? "detached" : "exited",
+    exitCode: interrupted ? CliExitCode.CANCELLED : CliExitCode.SUCCESS,
+    status: detached ? "detached" : interrupted ? "cancelled" : "exited",
     taskId: lastOutcome?.taskId,
     runId: lastOutcome?.runId,
     result: { schema: "zyra.cli-product-session-result.v1", last_status: lastOutcome?.status, session_id: sessionId },

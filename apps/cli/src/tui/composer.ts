@@ -3,6 +3,7 @@ import { StringDecoder } from "node:string_decoder"
 import { editDraftExternally } from "../input/editor.ts"
 import { MAX_PROMPT_BYTES, PromptDraft, PromptHistory, PromptInputLimitError, type DraftPersistenceSnapshot, type DraftSnapshot } from "../input/draft.ts"
 import { acceptCompletion, completionState, type CompletionState } from "./overlay/completion.ts"
+import { TerminalSessionGuard } from "./terminal-session.ts"
 
 const PASTE_START = "\u001b[200~"
 const PASTE_END = "\u001b[201~"
@@ -25,6 +26,7 @@ export class ProductComposer {
   readonly history = new PromptHistory()
   readonly #input: RawInput
   readonly #output: Writable
+  readonly #terminalSession: TerminalSessionGuard
   readonly #candidates: () => readonly string[]
   readonly #decoder = new StringDecoder("utf8")
   readonly #onChange: (snapshot: DraftSnapshot) => void
@@ -57,6 +59,7 @@ export class ProductComposer {
   }) {
     this.#input = input.stdin as RawInput
     this.#output = input.output
+    this.#terminalSession = new TerminalSessionGuard(input.stdin, input.output)
     const candidates = [...new Set(input.candidates ?? [])].sort()
     this.#candidates = input.candidateProvider ?? (() => candidates)
     this.#running = input.running
@@ -72,9 +75,7 @@ export class ProductComposer {
 
   async read(): Promise<ProductComposerResult> {
     if (this.#settle) throw new TypeError("ProductComposer already has an active read.")
-    this.#input.setRawMode?.(true)
-    this.#input.resume()
-    this.#output.write("\u001b[?2004h")
+    this.#terminalSession.enter()
     this.#changed()
     return new Promise<ProductComposerResult>((resolve, reject) => {
       const data = (chunk: Buffer | string) => {
@@ -101,9 +102,7 @@ export class ProductComposer {
       this.#dispose = () => {
         this.#input.off("data", data)
         this.#input.off("end", end)
-        this.#input.setRawMode?.(false)
-        this.#input.pause()
-        this.#output.write("\u001b[?2004l")
+        this.#terminalSession.restore()
       }
     })
   }
@@ -265,13 +264,11 @@ export class ProductComposer {
       }
       if (char === "\u0005") {
         this.#busy = true
-        this.#input.setRawMode?.(false)
-        this.#output.write("\u001b[?2004l")
+        this.#terminalSession.restore()
         try {
           this.draft.set(await editDraftExternally(this.draft.snapshot().text))
         } finally {
-          this.#input.setRawMode?.(true)
-          this.#output.write("\u001b[?2004h")
+          this.#terminalSession.enter()
           this.#busy = false
           this.#changed()
         }

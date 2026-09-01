@@ -14,6 +14,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 BUN = ROOT / "node_modules" / ".bin" / ("bun.exe" if os.name == "nt" else "bun")
 FIXTURE = ROOT / "apps" / "cli" / "test" / "fixtures" / "product-async-redraw-process.ts"
+CRASH_FIXTURE = ROOT / "apps" / "cli" / "test" / "fixtures" / "product-terminal-crash-process.ts"
 ANSI = re.compile(rb"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))", re.DOTALL)
 
 
@@ -92,6 +93,46 @@ def test_real_conpty_preserves_unicode_input_during_async_redraw_and_resize() ->
         assert "�" not in result["result"]["text"]
         assert b"\x1b[?2004h" in material
         assert b"\x1b[?2004l" in material
+        assert b"\x1b[?1049" not in material
+    finally:
+        if process.poll() is None:
+            process.terminate_tree(grace_seconds=0.5)
+        process.close()
+        reader.join(timeout=2)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows ConPTY evidence requires Windows")
+def test_real_conpty_restores_terminal_state_after_uncaught_crash() -> None:
+    from zyra_workers.terminal import PtySpawnOptions, spawn_pty
+
+    command = subprocess.list2cmdline([str(BUN), str(CRASH_FIXTURE)])
+    process = spawn_pty(
+        PtySpawnOptions(
+            command=command,
+            cwd=ROOT,
+            shell=os.environ.get("COMSPEC", "cmd.exe"),
+            rows=24,
+            cols=80,
+            environment=dict(os.environ),
+        )
+    )
+    capture = Capture()
+    reader = threading.Thread(target=_reader, args=(process, capture), daemon=True)
+    reader.start()
+    try:
+        _wait_for(capture, b"ZYRA_TERMINAL_CRASH_READY")
+        exit_code = process.wait(timeout=30)
+        reader.join(timeout=5)
+        material = capture.value()
+        visible = ANSI.sub(b"", material).decode("utf-8", "replace")
+
+        assert exit_code != 0
+        assert "controlled terminal crash" in visible
+        ready = material.index(b"ZYRA_TERMINAL_CRASH_READY")
+        paste_on = material.index(b"\x1b[?2004h")
+        assert material.index(b"\x1b[?2004l") < paste_on < ready
+        assert material.index(b"\x1b[?2004l", ready) > ready
+        assert material.index(b"\x1b[?25h", ready) > ready
         assert b"\x1b[?1049" not in material
     finally:
         if process.poll() is None:
