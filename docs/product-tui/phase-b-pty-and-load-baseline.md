@@ -1,7 +1,7 @@
 # Phase B 真实 PTY 与长程负载基线
 
 日期：2026-09-01
-状态：Zyra 基线已采集；Codex 实机基线阻塞
+状态：Zyra 基线已采集并完成后续硬化；Codex 登录前实机基线已采集，会话基线等待人工认证
 
 ## 1. Zyra 真实 PTY 基线
 
@@ -21,7 +21,7 @@ node .\apps\cli\dist\zyra.js
 - 进程没有在合理时间内退出，后续 `Ctrl+C`、EOF 和文本输入也没有使进程收敛；
 - 只读确认本次进程命令行后，精确终止 PID `90448`，未影响其他 Node 进程。
 
-判定：`TERM-04` 和 `SESS-03` 当前不通过。Phase C 必须将“恢复终端模式”和“进程真正退出”作为同一个 lifecycle 测试的两个断言。
+这段结果是 Phase B 初始缺陷样本，不是当前产品状态。后续 `TERM-04` 已通过进程内正常/异常退出和 Windows `TerminateProcess` 各 100 次验证；`SESS-03` 已通过退出不取消、同 task 两次真实 ConPTY attach/resume 和 canonical identity 对账。详见 `phase-f-hardening-evidence-20260901.md` 和 Phase G 报告。
 
 ## 2. Codex 真实入口探测
 
@@ -32,7 +32,15 @@ node G:\agent-zoo\codex\codex-cli\bin\codex.js --version
 node G:\agent-zoo\codex\codex-cli\bin\codex.js --help
 ```
 
-两条命令都在 launcher 阶段失败：本地 checkout 缺少可选平台包 `@openai/codex-win32-x64`。因此没有伪造 Codex PTY 记录。后续使用隔离 target 构建本地源码，或在平台包可用后补采集。
+仓库 launcher 仍因 checkout 内缺少 `@openai/codex-win32-x64` 而失败。后续定位到本机官方 standalone：
+
+```text
+C:\Users\libin\.codex\packages\standalone\releases\0.142.0-x86_64-pc-windows-msvc\bin\codex.exe
+```
+
+`codex.exe --version` 返回 `codex-cli 0.142.0`。`scripts/product-tui/codex_reference_conpty_probe.py` 已用真实 Windows ConPTY 采集 100×32 inline 启动与退出：登录页可见，bracketed-paste 启用/关闭成对出现，cursor 恢复，无 alternate screen，进程正常退出，且不持久化 raw transcript。机器报告为 `.tmp/codex-reference-conpty-0.142.0-auth-required.json`。
+
+`codex login status` 当前返回 `Not logged in`，因此 `/status`/`/exit` 的认证后会话序列仍不能记为通过。登录属于官方 Codex 的人工身份操作；在完成该操作并重跑同一探针前，审计继续以本地源码、测试、snapshot 和上述登录前实机记录为证据，不伪称完整会话基线已经采集。
 
 ## 3. 历史真实长程 CLI 轨迹统计
 
