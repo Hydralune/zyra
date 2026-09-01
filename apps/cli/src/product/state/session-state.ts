@@ -1,4 +1,4 @@
-import type { UiFailureImpact, UiFileChange, UiPermissionRequest, UiSeverity, UiToolOutputRef, UiVerificationSummary, ZyraUiEvent } from "../../presentation/events.ts"
+import type { UiFailureImpact, UiFileChange, UiPermissionRequest, UiPlanSnapshot, UiSeverity, UiToolOutputRef, UiVerificationSummary, ZyraUiEvent } from "../../presentation/events.ts"
 
 export interface ProductMessageState {
   messageId: string
@@ -66,6 +66,7 @@ export interface ProductViewState {
   changes: readonly UiFileChange[]
   diff?: { lines: readonly string[]; truncated: boolean }
   verification?: UiVerificationSummary
+  plan?: UiPlanSnapshot
   connection: "connected" | "reconnecting" | "disconnected"
   reconnectAttempt?: number
   taskStatus: "idle" | "running" | "completed" | "failed" | "cancelled"
@@ -131,6 +132,7 @@ export class ProductSessionState {
   readonly #changes = new Map<string, UiFileChange>()
   #diff: ProductViewState["diff"]
   #verification: UiVerificationSummary | undefined
+  #plan: UiPlanSnapshot | undefined
   #sessionId: string | undefined
   #taskId: string | undefined
   #connection: ProductViewState["connection"] = "connected"
@@ -269,6 +271,9 @@ export class ProductSessionState {
       case "verification.updated":
         this.#verification = event.verification
         break
+      case "plan.updated":
+        this.#plan = event.plan
+        break
       case "task.completed":
         this.#taskId = event.taskId
         this.#taskStatus = "completed"
@@ -307,6 +312,7 @@ export class ProductSessionState {
       changes: Object.freeze([...this.#changes.values()]),
       diff: this.#diff,
       verification: this.#verification,
+      plan: this.#plan,
       connection: this.#connection,
       reconnectAttempt: this.#reconnectAttempt,
       taskStatus: this.#taskStatus,
@@ -325,6 +331,7 @@ export class ProductSessionState {
     this.#changes.clear()
     this.#diff = undefined
     this.#verification = undefined
+    this.#plan = undefined
     this.#sessionId = undefined
     this.#taskId = undefined
     this.#connection = "connected"

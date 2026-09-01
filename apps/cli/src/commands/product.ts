@@ -113,6 +113,26 @@ function controlError(error: unknown): string {
 }
 
 function planLines(view: ProductTuiShell["view"]): string[] {
+  if (view.plan) {
+    const lines = [
+      `plan v${view.plan.revision} · ${view.plan.revisionSource === "canonical_graph" ? "canonical graph" : "compatibility projection"}${view.plan.graphId ? ` · ${view.plan.graphId}` : ""}`,
+    ]
+    if (view.plan.changes.length) {
+      lines.push("", "计划变更")
+      for (const change of view.plan.changes) {
+        const affected = change.affectedStepIds.length ? ` · ${change.affectedStepIds.length} steps` : ""
+        lines.push(`↻ ${change.kind} · ${change.summary}${affected}`)
+      }
+    }
+    lines.push("", "步骤")
+    for (const [index, step] of view.plan.steps.entries()) {
+      const marker = step.status === "completed" ? "✓" : step.status === "running" ? "◌" : step.status === "failed" ? "!" : step.status === "superseded" ? "↻" : "○"
+      const details = [step.status, step.assignedAgentId ? `agent ${step.assignedAgentId}` : undefined, step.dependsOn.length ? `depends ${step.dependsOn.join(", ")}` : undefined].filter(Boolean).join(" · ")
+      lines.push(`${marker} ${index + 1}. ${step.label} · ${details}`)
+      if (step.description && step.description !== step.label) lines.push(`   ${step.description}`)
+    }
+    return lines
+  }
   if (!view.activities.length) return ["当前没有 canonical 计划步骤。"]
   return view.activities.map((activity, index) => {
     const marker = activity.status === "completed" ? "✓" : activity.status === "running" ? "◌" : "○"

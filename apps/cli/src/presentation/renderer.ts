@@ -82,15 +82,24 @@ function renderMessageWindow(
 }
 
 function renderActivity(lines: string[], state: ProductViewState, width: number): void {
-  const active = state.activities.filter((item) => item.status === "running")
-  const pending = state.activities.filter((item) => item.status === "pending")
-  const completed = state.activities.filter((item) => item.status === "completed")
-  if (!active.length && !pending.length && !completed.length) return
+  const planActivities = state.plan ? [] : state.activities
+  const otherActivities = state.plan ? state.activities.filter((item) => item.category !== "plan") : []
+  const planSteps = state.plan?.steps ?? planActivities
+  const active = planSteps.filter((item) => item.status === "running")
+  const pending = planSteps.filter((item) => item.status === "pending")
+  const completed = planSteps.filter((item) => item.status === "completed")
+  const exceptionalSteps = state.plan?.steps.filter((item) => ["failed", "cancelled", "superseded"].includes(item.status)) ?? []
+  if (!active.length && !pending.length && !completed.length && !exceptionalSteps.length) return
   lines.push("")
-  lines.push(...prefixed(`计划 · ${completed.length} 完成 · ${active.length} 进行中 · ${pending.length} 待执行`, "  ", width))
+  const revision = state.plan ? ` v${state.plan.revision}${state.plan.revisionSource === "compatibility" ? " (compat)" : ""}` : ""
+  lines.push(...prefixed(`计划${revision} · ${completed.length} 完成 · ${active.length} 进行中 · ${pending.length} 待执行`, "  ", width))
   for (const item of active.slice(0, 3)) lines.push(...prefixed(`${item.label}（Esc 中断）`, "◌ ", width))
   if (!active.length && completed.length) lines.push(...prefixed(`已完成 ${completed.length} 个步骤`, "✓ ", width))
-  const exceptional = completed.filter((item) =>
+  for (const item of exceptionalSteps.slice(-3)) lines.push(...prefixed(`${item.label} · ${item.status}`, item.status === "failed" ? "! " : "↻ ", width))
+  for (const change of state.plan?.changes.slice(-2) ?? []) {
+    lines.push(...prefixed(`${change.kind === "requirement_change" ? "需求变更" : "恢复计划"} · ${change.summary}`, "↻ ", width))
+  }
+  const exceptional = otherActivities.filter((item) => item.status === "completed").filter((item) =>
     item.category === "recovery" || item.severity === "warning" || item.severity === "error"
   )
   for (const item of exceptional.slice(-3)) {

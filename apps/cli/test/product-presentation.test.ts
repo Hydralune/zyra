@@ -52,6 +52,7 @@ describe("ZyraUiEvent/v2 product projection", () => {
     expect(projected.map((event) => event.type)).toEqual([
       "session.started",
       "user.message",
+      "plan.updated",
       "activity.completed",
       "activity.completed",
       "activity.completed",
@@ -77,6 +78,45 @@ describe("ZyraUiEvent/v2 product projection", () => {
       frames: [...fixture.frames].reverse().flatMap((item) => [item, { ...item }]),
     })
     expect(replayed).toEqual(once)
+  })
+
+  test("projects canonical plan revision, ordered steps, and bounded change history", () => {
+    const root = fixture.task.planNodes.find((node) => node.nodeId === fixture.task.rootNodeId)!
+    const [first, second, ...rest] = fixture.task.planNodes.filter((node) => node.nodeId !== fixture.task.rootNodeId)
+    const task: TaskProjection = {
+      ...fixture.task,
+      updatedAt: "2026-09-01T12:00:00.000Z",
+      planNodes: [root!, { ...first!, status: "superseded" }, { ...second!, status: "running", assignedWorkerId: "worker-review" }, ...rest],
+      metadata: {
+        ...fixture.task.metadata,
+        stage_order: [second!.nodeId, first!.nodeId, ...rest.map((node) => node.nodeId)],
+        dynamic_graph_ref: { graph_id: "graph:task-plan", revision: 7 },
+        requirement_changes: [{
+          event_id: "event_requirement_1",
+          text: "先修复权限冲突，再继续验证",
+          affected_node_ids: [first!.nodeId],
+          replan_node_id: second!.nodeId,
+          created_at: "2026-09-01T11:59:00.000Z",
+        }],
+      },
+    }
+    const event = projectProductEvents({ task }).find((item) => item.type === "plan.updated")
+    expect(event).toMatchObject({
+      type: "plan.updated",
+      plan: {
+        schema: "zyra.ui-plan/v1",
+        revision: 7,
+        revisionSource: "canonical_graph",
+        graphId: "graph:task-plan",
+        changes: [{ kind: "requirement_change", summary: "先修复权限冲突，再继续验证" }],
+      },
+    })
+    if (event?.type !== "plan.updated") throw new Error("plan event missing")
+    expect(event.plan.steps[0]).toMatchObject({ stepId: second!.nodeId, status: "running", assignedAgentId: "worker-review" })
+    expect(event.plan.steps[1]).toMatchObject({ stepId: first!.nodeId, status: "superseded" })
+    const state = reduceProductEvents(projectProductEvents({ task }))
+    expect(state.plan?.revision).toBe(7)
+    expect(renderProductSnapshot(projectProductEvents({ task }), { width: 120, workspace: "G:\agent-zoo\zyra" })).toContain("计划 v7")
   })
 
   test("projects explicit assistant text but never invents text from byte counts or digests", () => {

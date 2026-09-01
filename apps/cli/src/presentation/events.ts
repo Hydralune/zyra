@@ -48,6 +48,34 @@ export interface UiVerificationCheck {
   exitCode?: number
 }
 
+export type UiPlanStepStatus = "pending" | "running" | "completed" | "failed" | "cancelled" | "superseded"
+
+export interface UiPlanStep {
+  stepId: string
+  label: string
+  description?: string
+  status: UiPlanStepStatus
+  dependsOn: readonly string[]
+  assignedAgentId?: string
+}
+
+export interface UiPlanChange {
+  changeId: string
+  kind: "requirement_change" | "failure_recovery"
+  summary: string
+  affectedStepIds: readonly string[]
+  createdAt?: string
+}
+
+export interface UiPlanSnapshot {
+  schema: "zyra.ui-plan/v1"
+  revision: number
+  revisionSource: "canonical_graph" | "compatibility"
+  graphId?: string
+  steps: readonly UiPlanStep[]
+  changes: readonly UiPlanChange[]
+}
+
 interface UiEventBase {
   schema: typeof ZYRA_UI_EVENT_SCHEMA
   eventId: string
@@ -77,6 +105,7 @@ export type ZyraUiEvent =
   | (UiEventBase & { type: "workspace.changed"; changes: readonly UiFileChange[] })
   | (UiEventBase & { type: "workspace.diff"; lines: readonly string[]; truncated: boolean; source: "local_workspace" })
   | (UiEventBase & { type: "verification.updated"; verification: UiVerificationSummary })
+  | (UiEventBase & { type: "plan.updated"; plan: UiPlanSnapshot })
   | (UiEventBase & { type: "subagent.updated"; agentId: string; label: string; status: string; summary?: string; impact?: UiFailureImpact; code?: string; retryable?: boolean; recovery?: string })
   | (UiEventBase & { type: "task.issue"; issueId: string; severity: UiSeverity; message: string; code?: string; retryable?: boolean; recovery?: string; impact?: UiFailureImpact })
   | (UiEventBase & { type: "task.completed"; taskId: string; finalAnswer: string })

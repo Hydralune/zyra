@@ -3,6 +3,9 @@ import type { IngressFrame } from "../api.ts"
 import {
   ZYRA_UI_EVENT_SCHEMA,
   type UiFileChange,
+  type UiPlanChange,
+  type UiPlanSnapshot,
+  type UiPlanStepStatus,
   type UiPermissionRequest,
   type UiPermissionSnapshot,
   type UiToolOutputRef,
@@ -30,6 +33,10 @@ function text(value: unknown, maximum = 2_000): string | undefined {
 
 function content(value: unknown, maximum = 1_000_000): string | undefined {
   return typeof value === "string" && value.trim() ? value.slice(0, maximum) : undefined
+}
+
+function productText(value: unknown, maximum: number): string | undefined {
+  return text(value, maximum)?.replaceAll("runtime.", "runtime")
 }
 
 function stringList(value: unknown): string[] {
@@ -84,6 +91,74 @@ function safeInteger(value: unknown): number | undefined {
 function artifactSize(value: unknown): number | undefined {
   const selected = safeInteger(value)
   return selected !== undefined && selected <= 1_000_000_000_000 ? selected : undefined
+}
+
+function planStepStatus(value: string): UiPlanStepStatus {
+  if (["running", "active", "executing", "in_progress"].includes(value)) return "running"
+  if (["completed", "succeeded", "success"].includes(value)) return "completed"
+  if (["failed", "error"].includes(value)) return "failed"
+  if (["cancelled", "canceled", "killed"].includes(value)) return "cancelled"
+  if (["superseded", "replaced"].includes(value)) return "superseded"
+  return "pending"
+}
+
+function planChanges(task: TaskProjection): readonly UiPlanChange[] {
+  const changes: UiPlanChange[] = []
+  const append = (value: unknown, kind: UiPlanChange["kind"], index: number) => {
+    const item = object(value)
+    const eventId = text(item.event_id ?? item.eventId, 256)
+    const changeNodeId = text(item.replan_node_id ?? item.recovery_node_id, 256)
+    const changeId = eventId ?? changeNodeId ?? `${kind}:${index}`
+    const affected = stringList(item.affected_node_ids)
+    for (const candidate of [item.target_node_id, item.replan_node_id, item.recovery_node_id]) {
+      const nodeId = text(candidate, 256)
+      if (nodeId && !affected.includes(nodeId)) affected.push(nodeId)
+    }
+    changes.push(Object.freeze({
+      changeId,
+      kind,
+      summary: text(item.text, 2_000) ?? (kind === "requirement_change" ? "需求变化触发计划修订" : "局部失败触发恢复计划"),
+      affectedStepIds: Object.freeze(affected.slice(0, 64)),
+      createdAt: text(item.created_at ?? item.createdAt, 128),
+    }))
+  }
+  const requirements = task.metadata.requirement_changes
+  if (Array.isArray(requirements)) requirements.slice(-256).forEach((item, index) => append(item, "requirement_change", index))
+  const failures = task.metadata.failure_injections
+  if (Array.isArray(failures)) failures.slice(-256).forEach((item, index) => append(item, "failure_recovery", index))
+  changes.sort((left, right) => (left.createdAt ?? "").localeCompare(right.createdAt ?? "") || left.changeId.localeCompare(right.changeId))
+  return Object.freeze(changes.slice(-512))
+}
+
+function planSnapshot(task: TaskProjection): UiPlanSnapshot {
+  const graph = object(task.metadata.dynamic_graph_ref)
+  const canonicalRevision = safeInteger(graph.revision)
+  const stageOrder = stringList(task.metadata.stage_order)
+  const order = new Map(stageOrder.map((nodeId, index) => [nodeId, index]))
+  const steps = task.planNodes
+    .filter((node) => node.nodeId !== task.rootNodeId)
+    .sort((left, right) => {
+      const leftOrder = order.get(left.nodeId) ?? Number.MAX_SAFE_INTEGER
+      const rightOrder = order.get(right.nodeId) ?? Number.MAX_SAFE_INTEGER
+      return leftOrder - rightOrder || left.nodeId.localeCompare(right.nodeId)
+    })
+    .slice(0, 2_000)
+    .map((node) => Object.freeze({
+      stepId: node.nodeId,
+      label: productText(node.title, 256) ?? productText(node.description, 256) ?? "执行任务",
+      description: productText(node.description, 2_000),
+      status: planStepStatus(node.status),
+      dependsOn: Object.freeze(node.dependsOn.slice(0, 64)),
+      assignedAgentId: text(node.assignedWorkerId, 256),
+    }))
+  return Object.freeze({
+    schema: "zyra.ui-plan/v1",
+    revision: canonicalRevision && canonicalRevision > 0 ? canonicalRevision : 1,
+    revisionSource: canonicalRevision && canonicalRevision > 0 ? "canonical_graph" : "compatibility",
+    graphId: text(graph.graph_id ?? graph.graphId, 256),
+    steps: Object.freeze(steps),
+    changes: planChanges(task),
+  })
 }
 
 function productPresentationEvents(frame: IngressFrame): ZyraUiEvent[] | undefined {
@@ -375,6 +450,16 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
       type: "user.message",
       messageId: `message:user:${task.taskId}:goal`,
       text: task.userGoal,
+    })
+  }
+
+  if (task.planNodes.some((node) => node.nodeId !== task.rootNodeId)) {
+    push({
+      schema: ZYRA_UI_EVENT_SCHEMA,
+      eventId: `ui:plan:${task.taskId}:${task.updatedAt}`,
+      occurredAt: task.updatedAt,
+      type: "plan.updated",
+      plan: planSnapshot(task),
     })
   }
 
