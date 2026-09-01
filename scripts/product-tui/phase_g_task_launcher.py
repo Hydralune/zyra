@@ -178,6 +178,7 @@ def main() -> int:
         started = time.monotonic()
         try:
             _wait_for(capture, ">_ Zyra", arguments.timeout)
+            _wait_for(capture, "/help 查看命令", arguments.timeout)
             composer_ready_ms = round((time.monotonic() - started) * 1_000, 3)
             _type_command(process, "/model")
             # The command-completion row also contains this title in its
