@@ -62,7 +62,8 @@ export function renderMarkdown(value: string, width: number, options: { streamin
         fence = true
         fenceMarker = fenceMatch[1]!
         language = fenceMatch[2] ?? ""
-        output.push(`  ┌─${language ? ` ${language} ` : ""}${"─".repeat(Math.max(0, width - 5 - displayWidth(language)))}`)
+        const label = language ? ` ${language} ` : ""
+        output.push(`  ┌─${label}${"─".repeat(Math.max(0, width - 4 - displayWidth(label)))}`)
       } else if (fenceMatch[1] === fenceMarker) {
         fence = false
         fenceMarker = ""

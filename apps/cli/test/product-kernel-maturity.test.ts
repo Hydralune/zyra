@@ -255,6 +255,33 @@ describe("terminal text and composer state", () => {
     expect(rendered).toContain("1 │ 2")
   })
 
+  test("keeps the required Markdown structures bounded at every product width", () => {
+    const source = [
+      "# Release 标题 ✅",
+      "> quoted **decision**",
+      "1. ordered item with `inline code`",
+      "- [ ] pending item",
+      "| Key | Value |",
+      "|---|---|",
+      "| docs | [link](https://example.test/a/very/long/path) |",
+      "```ts",
+      "\tconst family = '👨‍👩‍👧‍👦'",
+      "```",
+    ].join("\n")
+    for (const width of [60, 80, 120, 160]) {
+      const lines = renderMarkdown(source, width)
+      const rendered = lines.join("\n")
+      expect(lines.filter((line) => displayWidth(line) > width)).toEqual([])
+      expect(rendered).toContain("◆ Release 标题 ✅")
+      expect(rendered).toContain("│ quoted decision")
+      expect(rendered).toContain("1. ordered item with ‹inline code›")
+      expect(rendered).toContain("☐ pending item")
+      expect(rendered).toContain("Key │ Value")
+      expect(rendered).toContain("docs │ link <https://example.test/a/very/long/path>")
+      expect(rendered).toContain("│     const family = '👨‍👩‍👧‍👦'")
+    }
+  })
+
   test("edits whole graphemes and supports undo/redo", () => {
     const draft = new PromptDraft()
     draft.insert("A👨‍👩‍👧‍👦e\u0301")
