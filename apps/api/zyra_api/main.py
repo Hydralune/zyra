@@ -6000,10 +6000,12 @@ def _graph_owner_activation() -> Mapping[str, Any]:
 
 def _provider_owner_activation() -> Mapping[str, Any]:
     database = runtime_configuration().path("state.provider")
-    health = get_provider_control_client(
+    client = get_provider_control_client(
         project_root=PROJECT_ROOT,
         database_path=database,
-    ).health()
+    )
+    profiles = client.install_configured_profiles()
+    health = client.health()
     ready = (
         health.get("schema") == "zyra.provider-control-plane.health/v1"
         and health.get("stateOwner") == "typescript.ProviderControlPlaneStore"
@@ -6015,7 +6017,7 @@ def _provider_owner_activation() -> Mapping[str, Any]:
         store="typescript.ProviderControlPlaneStore",
         state_root=str(database.resolve()),
         revision=health.get("revision"),
-        details=health,
+        details={**health, "configured_profiles": profiles},
     )
 
 
@@ -7429,7 +7431,7 @@ def _production_physical_dispatch_port(
         and not operator_ref.startswith("worker:local-memory-curator@")
     )
     if is_model_code_worker:
-        preferred = _preferred_configured_provider()
+        preferred = _task_preferred_provider(state)
         if preferred is None:
             raise RuntimeError(
                 "no configured live provider credential is available; expected "
@@ -7772,6 +7774,67 @@ def _preferred_configured_provider() -> tuple[str, str] | None:
         if key in configured:
             return provider_id, model_id
     return None
+
+
+_PRODUCT_EXECUTION_IDENTITY = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$"
+)
+
+
+def _task_product_execution_config(payload: Mapping[str, Any]) -> dict[str, str]:
+    raw = payload.get("execution_config")
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise TypeError("execution_config must be an object")
+    provider_id = str(raw.get("provider_id") or "").strip()
+    model_id = str(raw.get("model_id") or "").strip()
+    if not _PRODUCT_EXECUTION_IDENTITY.fullmatch(provider_id):
+        raise ValueError("execution_config.provider_id is invalid")
+    if not _PRODUCT_EXECUTION_IDENTITY.fullmatch(model_id):
+        raise ValueError("execution_config.model_id is invalid")
+    response = ProviderBackendApi(
+        project_root=PROJECT_ROOT,
+        artifact_root=artifact_root_path(),
+        provider_database=runtime_configuration().path("state.provider"),
+    ).handle_get(
+        ("providers", "models"),
+        {"provider_id": provider_id, "available_only": True},
+    )
+    if response is None or int(response.status) >= 400:
+        raise RuntimeError("the provider model catalog is unavailable")
+    models = response.body.get("result")
+    available = (
+        list(models)
+        if isinstance(models, Sequence) and not isinstance(models, (str, bytes))
+        else []
+    )
+    if not any(
+        isinstance(item, Mapping)
+        and str(item.get("providerId") or "") == provider_id
+        and str(item.get("modelId") or "") == model_id
+        for item in available
+    ):
+        raise ValueError(
+            "the selected provider/model is not currently available"
+        )
+    return {
+        "schema": "zyra.product-execution-config/v1",
+        "provider_id": provider_id,
+        "model_id": model_id,
+        "source": "product_cli",
+    }
+
+
+def _task_preferred_provider(state: Any) -> tuple[str, str] | None:
+    product_execution = dict(
+        state.metadata.get("product_execution_config") or {}
+    )
+    provider_id = str(product_execution.get("provider_id") or "")
+    model_id = str(product_execution.get("model_id") or "")
+    if provider_id and model_id:
+        return provider_id, model_id
+    return _preferred_configured_provider()
 
 
 def _sync_configured_provider_environment(orchestrator: Any) -> None:
@@ -12471,6 +12534,17 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if parts == ["tasks"]:
             user_goal = str(payload.get("goal") or "Unspecified long-horizon task")
             auto_run = payload.get("auto_run", True) is not False
+            try:
+                product_execution_config = _task_product_execution_config(payload)
+            except (TypeError, ValueError, RuntimeError) as error:
+                self._send_json(
+                    HTTPStatus.UNPROCESSABLE_ENTITY,
+                    {
+                        "error": "task_execution_config_invalid",
+                        "message": str(error),
+                    },
+                )
+                return
             receipt_reservation = self._begin_typed_receipt(
                 operation="task.create",
                 path=parsed.path,
@@ -12481,6 +12555,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             state, created_event = make_task_created_event(user_goal)
             session_id = str(payload.get("session_id") or f"task:{state.task_id}")
             state.metadata["query_session_id"] = session_id
+            if product_execution_config:
+                state.metadata["product_execution_config"] = product_execution_config
+                state.metadata["provider"] = product_execution_config["provider_id"]
+                state.metadata["model"] = product_execution_config["model_id"]
             external_deadline = _external_deadline_epoch_ms()
             if external_deadline is not None:
                 runtime_remaining_seconds = max(

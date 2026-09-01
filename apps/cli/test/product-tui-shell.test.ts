@@ -100,4 +100,53 @@ describe("product TUI shell", () => {
     expect(output.text).toContain("PageUp/PageDown")
     shell.close()
   })
+
+  test("shows filtered slash completion and accepts it without losing the draft", async () => {
+    const stdin = new TtyInput()
+    const output = new TtyOutput()
+    const shell = new ProductTuiShell({
+      stdin,
+      output,
+      workspace: "G:\\agent-zoo\\zyra",
+      candidates: ["/resume", "/status", "@apps/cli/src/main.ts"],
+    })
+    shell.start()
+    const reading = shell.read(false)
+    stdin.write("/res")
+    expect(output.text).toContain("恢复 task 或 session")
+    stdin.write("\t\r")
+    await expect(reading).resolves.toEqual({ kind: "submit", text: "/resume", queue: false })
+    shell.close()
+  })
+
+  test("selects a recent session from a keyboard-driven picker", async () => {
+    const stdin = new TtyInput()
+    const output = new TtyOutput()
+    const shell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    shell.start()
+    const picking = shell.pick("恢复会话", [
+      { id: "session_1", label: "第一项", detail: "completed" },
+      { id: "session_2", label: "第二项", detail: "running" },
+    ])
+    stdin.write("\u001b[B\r")
+    await expect(picking).resolves.toMatchObject({ id: "session_2" })
+    expect(output.text).toContain("恢复会话")
+    expect(stdin.raw).toBe(false)
+    expect(stdin.isPaused()).toBe(true)
+    shell.close()
+  })
+
+  test("pages bounded content and restores the terminal after Escape", async () => {
+    const stdin = new TtyInput()
+    const output = new TtyOutput()
+    const shell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    shell.start()
+    const paging = shell.page("大型 Diff", Array.from({ length: 40 }, (_, index) => `line ${index + 1}`))
+    stdin.write("\u001b[6~\u001b")
+    await paging
+    expect(output.text).toContain("17–32 / 40")
+    expect(stdin.raw).toBe(false)
+    expect(stdin.isPaused()).toBe(true)
+    shell.close()
+  })
 })

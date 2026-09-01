@@ -2,6 +2,7 @@ import { ProductSessionState, type ProductViewState } from "../product/state/ses
 import { renderMarkdown } from "../tui/markdown.ts"
 import { clipDisplay, displayWidth, padDisplay, sanitizeTerminalText, wrapDisplay } from "../tui/text.ts"
 import type { ZyraUiEvent } from "./events.ts"
+import type { ProductOverlay } from "../tui/overlay/model.ts"
 
 export type { ProductViewState } from "../product/state/session-state.ts"
 export { displayWidth } from "../tui/text.ts"
@@ -16,6 +17,7 @@ export interface ProductRenderOptions {
   running?: boolean
   height?: number
   scrollOffset?: number
+  overlay?: ProductOverlay
 }
 
 export function reduceProductEvents(events: readonly ZyraUiEvent[]): ProductViewState {
@@ -123,6 +125,20 @@ function renderVerification(lines: string[], state: ProductViewState, width: num
   for (const detail of state.verification.details) lines.push(...prefixed(detail, "  ", width))
 }
 
+function renderOverlay(lines: string[], overlay: ProductOverlay, width: number): void {
+  const heading = `╭─ ${sanitizeTerminalText(overlay.title)} `
+  lines.push(`${heading}${"─".repeat(Math.max(1, width - displayWidth(heading) - 1))}╮`)
+  if (overlay.query !== undefined) lines.push(clipDisplay(`│ 搜索：${overlay.query || "输入以筛选"}`, width))
+  if (!overlay.rows.length) lines.push(clipDisplay("│   没有匹配项", width))
+  for (const [index, row] of overlay.rows.entries()) {
+    const marker = index === overlay.selected ? "›" : " "
+    const detail = row.detail ? `  ${row.detail}` : ""
+    lines.push(clipDisplay(`│ ${marker} ${row.label}${detail}`, width))
+  }
+  if (overlay.footer) lines.push(clipDisplay(`│ ${overlay.footer}`, width))
+  lines.push(clipDisplay(`╰${"─".repeat(Math.max(1, width - 2))}╯`, width))
+}
+
 export function renderProductState(state: ProductViewState, options: ProductRenderOptions): string {
   const width = Math.max(40, Math.floor(options.width))
   const lines: string[] = []
@@ -155,6 +171,10 @@ export function renderProductState(state: ProductViewState, options: ProductRend
   if (options.notice) {
     lines.push("")
     lines.push(...prefixed(options.notice, "! ", width))
+  }
+  if (options.overlay) {
+    lines.push("")
+    renderOverlay(lines, options.overlay, width)
   }
   lines.push("")
   lines.push(...prefixed(options.composerText || options.placeholder || "向 Zyra 描述任务", "› ", width))

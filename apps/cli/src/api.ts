@@ -13,6 +13,7 @@ import {
   type ControlCommandProjection,
   type EventProjection,
   type PermissionControlProjection,
+  type RuntimeReadiness,
   type SessionListProjection,
   type SessionProjection,
   type TaskListProjection,
@@ -22,6 +23,7 @@ import {
   ZyraTypedApiClient,
 } from "@zyra/typed-api-client"
 import { CliTaskError, CliVerifierError } from "./contracts.ts"
+import { parseProductModels, type ProductModelOption } from "./product/config/model.ts"
 
 const INGRESS_PROTOCOL = "zyra.event-ingress/v1"
 const CAPABILITIES_SCHEMA = "zyra.event-ingress-capabilities/v1"
@@ -44,8 +46,19 @@ export interface IngressFrame {
   raw: Readonly<Record<string, unknown>>
 }
 
-function taskCreateBody(goal: string, sealed: boolean, sessionId?: string) {
+export interface ProductExecutionConfig {
+  providerId: string
+  modelId: string
+}
+
+function taskCreateBody(goal: string, sealed: boolean, sessionId?: string, execution?: ProductExecutionConfig) {
   const session = sessionId?.trim() ? { session_id: sessionId.trim() } : {}
+  const productExecution = execution ? {
+    execution_config: {
+      provider_id: execution.providerId,
+      model_id: execution.modelId,
+    },
+  } : {}
   return sealed
     ? {
         goal,
@@ -54,8 +67,9 @@ function taskCreateBody(goal: string, sealed: boolean, sessionId?: string) {
         sealed_autonomous: true,
         competition_mode: "sealed_autonomous",
         ...session,
+        ...productExecution,
       } as const
-    : { goal, auto_run: false, ...session } as const
+    : { goal, auto_run: false, ...session, ...productExecution } as const
 }
 
 export function taskSubmissionIdempotencyKey(
@@ -63,11 +77,12 @@ export function taskSubmissionIdempotencyKey(
   sealed: boolean,
   submissionGeneration: string,
   sessionId?: string,
+  execution?: ProductExecutionConfig,
 ): string {
   return createIdempotencyKey(
     OPERATION_NAMES.taskCreate,
     {},
-    taskCreateBody(goal, sealed, sessionId),
+    taskCreateBody(goal, sealed, sessionId, execution),
     submissionGeneration,
   )
 }
@@ -369,11 +384,11 @@ export class CliApi {
     this.client.close(reason)
   }
 
-  async createPendingTask(goal: string, sealed: boolean, sessionId?: string): Promise<TaskMutationProjection> {
-    const body = taskCreateBody(goal, sealed, sessionId)
+  async createPendingTask(goal: string, sealed: boolean, sessionId?: string, execution?: ProductExecutionConfig): Promise<TaskMutationProjection> {
+    const body = taskCreateBody(goal, sealed, sessionId, execution)
     // Idempotency owns transport retries for one explicit submission. It must
     // not collapse a later `zyra run` with the same goal into an old task.
-    const idempotencyKey = taskSubmissionIdempotencyKey(goal, sealed, crypto.randomUUID(), sessionId)
+    const idempotencyKey = taskSubmissionIdempotencyKey(goal, sealed, crypto.randomUUID(), sessionId, execution)
     const response = await this.client.endpoint<TaskMutationProjection, typeof body>(OPERATION_NAMES.taskCreate, {
       body,
       idempotencyKey,
@@ -750,6 +765,72 @@ export class CliApi {
       timeoutMs: Math.min(this.timeoutMs, 30_000),
       coordinationKey: `cli.session.list:${input.status ?? "all"}:${input.cursor ?? "first"}`,
       latestWins: true,
+    })
+    return response.data
+  }
+
+  async readiness(signal?: AbortSignal): Promise<RuntimeReadiness> {
+    const response = await this.client.endpoint<RuntimeReadiness>(OPERATION_NAMES.readiness, {
+      signal,
+      timeoutMs: Math.min(this.timeoutMs, 30_000),
+      coordinationKey: `cli.runtime.readiness:${Date.now()}`,
+      latestWins: true,
+    })
+    return response.data
+  }
+
+  async providerModels(signal?: AbortSignal): Promise<readonly ProductModelOption[]> {
+    const response = await this.client.endpoint<Record<string, unknown>>(OPERATION_NAMES.providerModels, {
+      query: { available_only: true },
+      signal,
+      timeoutMs: Math.min(this.timeoutMs, 30_000),
+      coordinationKey: `cli.provider.models:${Date.now()}`,
+      latestWins: true,
+    })
+    return parseProductModels(response.data)
+  }
+
+  async diffReviewManifest(taskId: string, artifactId: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
+    const task = normalizeIdentity("task", taskId)
+    const artifact = normalizeIdentity("artifact", artifactId)
+    const response = await this.client.endpoint<Record<string, unknown>>(OPERATION_NAMES.taskDiffReviewManifest, {
+      path: { task_id: task, artifact_id: artifact },
+      binding: { taskId: task, artifactId: artifact },
+      signal,
+      timeoutMs: Math.min(this.timeoutMs, 30_000),
+      coordinationKey: `cli.diff.manifest:${task}:${artifact}`,
+      latestWins: true,
+    })
+    return response.data
+  }
+
+  async diffReviewPage(input: {
+    taskId: string
+    artifactId: string
+    fileId: string
+    revision: string
+    page: number
+    maximumBytes: number
+    maximumLines: number
+    signal?: AbortSignal
+  }): Promise<Record<string, unknown>> {
+    const task = normalizeIdentity("task", input.taskId)
+    const artifact = normalizeIdentity("artifact", input.artifactId)
+    const fileId = input.fileId.trim()
+    if (!fileId || fileId.length > 512 || /[\u0000\r\n]/u.test(fileId)) throw new TypeError("Diff file identity is invalid.")
+    const response = await this.client.endpoint<Record<string, unknown>>(OPERATION_NAMES.taskDiffReviewPage, {
+      path: { task_id: task, artifact_id: artifact, file_id: fileId },
+      query: {
+        revision: input.revision,
+        page: Math.max(0, Math.floor(input.page)),
+        maximum_bytes: Math.max(1_024, Math.min(8 * 1_024 * 1_024, Math.floor(input.maximumBytes))),
+        maximum_lines: Math.max(1, Math.min(100_000, Math.floor(input.maximumLines))),
+      },
+      binding: { taskId: task, artifactId: artifact },
+      signal: input.signal,
+      timeoutMs: Math.min(this.timeoutMs, 30_000),
+      coordinationKey: `cli.diff.page:${task}:${artifact}:${fileId}:${input.revision}:${input.page}`,
+      deduplicate: true,
     })
     return response.data
   }

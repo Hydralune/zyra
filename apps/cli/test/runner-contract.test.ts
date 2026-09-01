@@ -72,6 +72,13 @@ describe("FE-S01 run result and fail-closed contracts", () => {
 
     expect(firstRetry).toBe(first)
     expect(second).not.toBe(first)
+    expect(taskSubmissionIdempotencyKey(
+      "same goal",
+      false,
+      "submission-one",
+      undefined,
+      { providerId: "deepseek", modelId: "deepseek-v4-flash" },
+    )).not.toBe(first)
     expect(first.startsWith("task.create:global:")).toBe(true)
   })
 

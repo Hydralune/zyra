@@ -2,6 +2,7 @@ import type { Readable, Writable } from "node:stream"
 import { StringDecoder } from "node:string_decoder"
 import { editDraftExternally } from "../input/editor.ts"
 import { PromptDraft, PromptHistory, type DraftSnapshot } from "../input/draft.ts"
+import { acceptCompletion, completionState, type CompletionState } from "./overlay/completion.ts"
 
 const PASTE_START = "\u001b[200~"
 const PASTE_END = "\u001b[201~"
@@ -24,11 +25,12 @@ export class ProductComposer {
   readonly history = new PromptHistory()
   readonly #input: RawInput
   readonly #output: Writable
-  readonly #candidates: readonly string[]
+  readonly #candidates: () => readonly string[]
   readonly #decoder = new StringDecoder("utf8")
   readonly #onChange: (snapshot: DraftSnapshot) => void
   readonly #onNotice: (notice?: string) => void
   readonly #onScroll: (direction: "up" | "down") => void
+  readonly #onCompletion: (completion?: CompletionState) => void
   readonly #running: () => boolean
   #pending = ""
   #paste = ""
@@ -36,23 +38,28 @@ export class ProductComposer {
   #busy = false
   #dispose: (() => void) | undefined
   #settle: ((value: ProductComposerResult) => void) | undefined
+  #completion: CompletionState | undefined
 
   constructor(input: {
     stdin: Readable
     output: Writable
     candidates?: readonly string[]
+    candidateProvider?: () => readonly string[]
     running: () => boolean
     onChange: (snapshot: DraftSnapshot) => void
     onNotice: (notice?: string) => void
     onScroll: (direction: "up" | "down") => void
+    onCompletion?: (completion?: CompletionState) => void
   }) {
     this.#input = input.stdin as RawInput
     this.#output = input.output
-    this.#candidates = [...new Set(input.candidates ?? [])].sort()
+    const candidates = [...new Set(input.candidates ?? [])].sort()
+    this.#candidates = input.candidateProvider ?? (() => candidates)
     this.#running = input.running
     this.#onChange = input.onChange
     this.#onNotice = input.onNotice
     this.#onScroll = input.onScroll
+    this.#onCompletion = input.onCompletion ?? (() => undefined)
   }
 
   get snapshot(): DraftSnapshot { return this.draft.snapshot() }
@@ -118,7 +125,11 @@ export class ProductComposer {
         this.#pending = this.#pending.slice(key.length)
         const snapshot = this.draft.snapshot()
         const position = linePosition(snapshot.text, snapshot.cursor)
-        if (key === "\u001b[A") {
+        if ((key === "\u001b[A" || key === "\u001b[B") && this.#completion) {
+          const direction = key === "\u001b[A" ? -1 : 1
+          this.#completion = completionState(snapshot, this.#candidates(), this.#completion.selected + direction)
+          this.#onCompletion(this.#completion)
+        } else if (key === "\u001b[A") {
           const prior = this.history.previous(position.current)
           if (prior !== undefined) this.draft.set(prior)
         } else if (key === "\u001b[B") {
@@ -157,6 +168,12 @@ export class ProductComposer {
       const char = [...this.#pending][0]!
       this.#pending = this.#pending.slice(char.length)
       if (char === "\r") {
+        if (this.#completion && this.#completion.matches[this.#completion.selected] !== this.#completion.token) {
+          const accepted = acceptCompletion(this.draft.snapshot(), this.#completion)
+          this.draft.set(accepted.text, accepted.cursor)
+          this.#changed()
+          continue
+        }
         const submitted = this.draft.submit()
         if (!submitted) { this.#changed(); continue }
         this.history.push(submitted)
@@ -190,21 +207,16 @@ export class ProductComposer {
         continue
       }
       if (char === "\t") {
-        if (this.#running() && !this.draft.empty) {
+        if (this.#completion) {
+          const accepted = acceptCompletion(this.draft.snapshot(), this.#completion)
+          this.draft.set(accepted.text, accepted.cursor)
+        } else if (this.#running() && !this.draft.empty) {
           const submitted = this.draft.submit()
           if (submitted) {
             this.history.push(submitted)
             this.#finish({ kind: "submit", text: submitted, queue: true })
             return
           }
-        }
-        const matches = this.draft.complete(this.#candidates)
-        if (matches.length === 1) {
-          const snapshot = this.draft.snapshot()
-          const token = snapshot.text.slice(0, snapshot.cursor).match(/(?:^|\s)([/@][^\s]*)$/)?.[1] ?? ""
-          this.draft.insert(matches[0]!.slice(token.length))
-        } else if (matches.length > 1) {
-          this.#onNotice(matches.join("  "))
         }
         this.#changed()
         continue
@@ -227,7 +239,15 @@ export class ProductComposer {
     }
   }
 
-  #changed(): void { this.#onChange(this.draft.snapshot()) }
+  #changed(): void {
+    const snapshot = this.draft.snapshot()
+    const prior = this.#completion?.matches[this.#completion.selected]
+    const next = completionState(snapshot, this.#candidates())
+    const selected = prior && next ? next.matches.indexOf(prior) : -1
+    this.#completion = selected >= 0 ? completionState(snapshot, this.#candidates(), selected) : next
+    this.#onChange(snapshot)
+    this.#onCompletion(this.#completion)
+  }
 
   #finish(value: ProductComposerResult): void {
     const settle = this.#settle
@@ -235,6 +255,8 @@ export class ProductComposer {
     this.#settle = undefined
     this.#dispose?.()
     this.#dispose = undefined
+    this.#completion = undefined
+    this.#onCompletion(undefined)
     settle(value)
   }
 }

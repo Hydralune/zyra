@@ -1,6 +1,6 @@
 import type { Readable, Writable } from "node:stream"
-import { ZyraApiError, type TaskProjection } from "@zyra/typed-api-client"
-import { CliApi, type IngressCapabilities, type IngressFrame } from "../api.ts"
+import { ZyraApiError, type SessionProjection, type TaskProjection } from "@zyra/typed-api-client"
+import { CliApi, type IngressCapabilities, type IngressFrame, type ProductExecutionConfig } from "../api.ts"
 import { CliExitCode, CliTaskError, type InteractiveCommand, type ResumeCommand } from "../contracts.ts"
 import {
   CliControlSession,
@@ -14,6 +14,8 @@ import { ProductProjection } from "../presentation/projection.ts"
 import { buildBoundedWorkspaceDiff } from "../presentation/workspace-diff.ts"
 import { parseProductCommand, productCommandCandidates, productCommandHelp } from "../product/commands/registry.ts"
 import { workspaceReferenceCandidates } from "../product/files/index.ts"
+import { openProductDiff } from "../product/diff/controller.ts"
+import { formatExecutionMode, formatModelStatus, formatRuntimeReadiness } from "../product/diagnostics/status.ts"
 import { ProductTuiShell } from "../tui/shell.ts"
 import { mutationTransportDetached, type CommandOutcome } from "../runner.ts"
 import { launchUi } from "../ui.ts"
@@ -65,6 +67,57 @@ function controlError(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function permissionField(request: PermissionRequestView, ...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = request.raw[name]
+    if (typeof value === "string" && value.trim()) return value.trim()
+  }
+  return undefined
+}
+
+async function resolvePermissionFromPicker(input: {
+  shell: ProductTuiShell
+  permissions: CliPermissionSession
+  signal: AbortSignal
+  refreshPermissions: () => Promise<void>
+}): Promise<string> {
+  const pending = await input.permissions.pending(input.signal)
+  const selectable = pending.filter((request) => request.selectable)
+  if (!selectable.length) {
+    throw new CliTaskError(
+      pending.length ? "权限请求当前不可选择；custody、expiry 或绑定校验未通过。" : "当前没有待处理权限请求。",
+      "permission_selection_unavailable",
+    )
+  }
+  let request = selectable.length === 1 ? selectable[0] : undefined
+  if (!request) {
+    const selected = await input.shell.pick("选择权限请求", selectable.map((item) => ({
+      id: item.requestId,
+      label: item.prompt ?? item.operation ?? item.toolName ?? "受保护操作",
+      detail: `${permissionField(item, "risk", "risk_level") ?? "风险未标注"} · ${item.requestId}`,
+      keywords: [item.requestId, permissionField(item, "target") ?? "", item.reason ?? "", permissionField(item, "scope") ?? ""],
+    })), "先选择精确请求；决定会绑定 canonical request identity")
+    request = selected ? selectable.find((item) => item.requestId === selected.id) : undefined
+  }
+  if (!request) return "未处理权限请求。"
+  const decision = await input.shell.pick("权限决定", [
+    { id: "allow", label: "允许本次", detail: "仅提交后端正式支持的本次决定" },
+    { id: "deny", label: "拒绝", detail: "保持 fail closed" },
+  ], [
+    request.prompt ?? request.operation ?? request.toolName ?? "受保护操作",
+    permissionField(request, "target") ? `目标：${permissionField(request, "target")}` : undefined,
+    request.reason ? `原因：${request.reason}` : undefined,
+    permissionField(request, "risk", "risk_level") ? `风险：${permissionField(request, "risk", "risk_level")}` : undefined,
+    request.expiresAt ? `过期：${request.expiresAt}` : undefined,
+    `request：${request.requestId}`,
+  ].filter(Boolean).join(" · "))
+  if (!decision) return `未处理权限请求 · ${request.requestId}`
+  const effect = decision.id === "allow" ? "allow" : "deny"
+  await input.permissions.resolve({ requestId: request.requestId, effect, signal: input.signal })
+  await input.refreshPermissions()
+  return `权限已${effect === "allow" ? "允许" : "拒绝"} · ${request.requestId}`
+}
+
 async function runProductControlLoop(input: {
   shell: ProductTuiShell
   controls: CliControlSession
@@ -72,6 +125,9 @@ async function runProductControlLoop(input: {
   signal: AbortSignal
   refreshPermissions: () => Promise<void>
   openWeb: () => Promise<string>
+  openDiff: () => Promise<boolean>
+  taskStatus: () => Promise<TaskProjection>
+  readiness: () => ReturnType<CliApi["readiness"]>
 }): Promise<void> {
   while (!input.signal.aborted) {
     const result = await input.shell.read(true)
@@ -104,14 +160,29 @@ async function runProductControlLoop(input: {
         input.shell.notice(process.cwd())
         continue
       }
+      if (line === "/doctor") {
+        input.shell.notice(formatRuntimeReadiness(await input.readiness()))
+        continue
+      }
+      if (line === "/model") {
+        input.shell.notice(formatModelStatus(await input.taskStatus()))
+        continue
+      }
+      if (line === "/mode") {
+        input.shell.notice(formatExecutionMode(await input.taskStatus()))
+        continue
+      }
       if (line === "/agents") {
         const agents = input.shell.view.agents
         input.shell.notice(agents.length ? agents.map((agent) => `${agent.label} · ${agent.status} · ${agent.agentId}`).join("\n") : "当前没有可见协作代理。")
         continue
       }
       if (line === "/permissions") {
-        const permissions = input.shell.view.permissions
-        input.shell.notice(permissions.length ? permissions.map((request) => `${request.requestId} · ${request.action}`).join("\n") : "当前没有待处理权限请求。")
+        input.shell.notice(await resolvePermissionFromPicker(input))
+        continue
+      }
+      if (line === "/diff") {
+        if (!await input.openDiff()) input.shell.notice("当前任务没有可审查的 canonical diff。使用 /ui 查看 artifact。")
         continue
       }
       if (line === "/ui") {
@@ -258,6 +329,9 @@ export async function observeProductTask(input: {
       openWeb: input.openWeb ?? (async () => {
         throw new CliTaskError("当前入口无法启动 Web 看板。", "product_web_launcher_unavailable")
       }),
+      openDiff: async () => openProductDiff({ api: input.api, shell: input.shell, task, signal: input.signal }),
+      taskStatus: async () => input.api.task(task.taskId),
+      readiness: async () => input.api.readiness(input.signal),
     }).catch((error) => input.shell.notice(`控制输入已停止 · ${controlError(error)}`))
   }
 
@@ -501,6 +575,52 @@ function formatRecentSessions(sessions: Awaited<ReturnType<CliApi["sessions"]>>)
   }).join("\n")
 }
 
+async function pickRecentSession(api: CliApi, shell: ProductTuiShell): Promise<SessionProjection | undefined> {
+  const response = await api.sessions({ limit: 24 })
+  const eligible = response.sessions.filter((session) => session.resolution === "resolved" && session.resumeTaskId)
+  const taskTitles = new Map<string, string>()
+  await Promise.all(eligible.slice(0, 12).map(async (session) => {
+    const taskId = session.resumeTaskId!
+    const task = await api.task(taskId).catch(() => undefined)
+    if (task?.userGoal) taskTitles.set(session.sessionId, task.userGoal.replace(/\s+/gu, " ").slice(0, 72))
+  }))
+  const selected = await shell.pick("恢复会话", eligible.map((session) => ({
+    id: session.sessionId,
+    label: taskTitles.get(session.sessionId) ?? session.sessionId,
+    detail: `${session.statuses.join(", ") || "unknown"} · ${session.updatedAt ?? "时间未知"}`,
+    keywords: [session.sessionId, session.resumeTaskId ?? "", ...session.statuses],
+  })), "输入筛选 · ↑↓ 选择 · Enter 恢复 · Esc 返回")
+  return selected ? eligible.find((session) => session.sessionId === selected.id) : undefined
+}
+
+function executionConfigFromTask(task?: TaskProjection): ProductExecutionConfig | undefined {
+  const raw = task?.metadata.product_execution_config
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined
+  const providerId = (raw as Record<string, unknown>).provider_id
+  const modelId = (raw as Record<string, unknown>).model_id
+  return typeof providerId === "string" && typeof modelId === "string" && providerId && modelId
+    ? { providerId, modelId }
+    : undefined
+}
+
+async function pickProductModel(input: {
+  api: CliApi
+  shell: ProductTuiShell
+  signal: AbortSignal
+}): Promise<ProductExecutionConfig | undefined> {
+  const models = await input.api.providerModels(input.signal)
+  if (!models.length) throw new CliTaskError("canonical provider catalog 中没有当前可用模型。", "provider_model_unavailable")
+  const selected = await input.shell.pick("选择后续任务模型", models.map((model, index) => ({
+    id: String(index),
+    label: model.displayName,
+    detail: `${model.providerId}/${model.modelId} · context ${model.contextWindow || "?"}${model.reasoning ? " · reasoning" : ""}`,
+    keywords: [model.providerId, model.modelId, model.family],
+  })), "选择会写入新 task 的 canonical execution_config；不会改变运行中 task")
+  if (!selected) return undefined
+  const model = models[Number(selected.id)]
+  return model ? { providerId: model.providerId, modelId: model.modelId } : undefined
+}
+
 async function runProductSession(input: {
   api: CliApi
   shell: ProductTuiShell
@@ -516,6 +636,8 @@ async function runProductSession(input: {
     ? next.task.sessionId ?? `task:${next.task.taskId}`
     : newProductSessionId()
   let currentTaskId = next?.kind === "resume" ? next.task.taskId : undefined
+  let currentTask = next?.kind === "resume" ? next.task : undefined
+  let executionConfig = executionConfigFromTask(currentTask)
   let lastOutcome: CommandOutcome | undefined
 
   while (!input.signal.aborted) {
@@ -548,8 +670,12 @@ async function runProductSession(input: {
             continue
           case "resume": {
             if (!command.args) {
-              input.shell.notice(`${formatRecentSessions(await input.api.sessions({ limit: 12 }))}\n使用 /resume <task|session> 选择。`)
-              continue
+              const session = await pickRecentSession(input.api, input.shell)
+              if (!session?.resumeTaskId) {
+                input.shell.notice("未选择可恢复会话。")
+                continue
+              }
+              command.args = session.resumeTaskId
             }
             const resolved = await input.api.resolveTask(command.args)
             sessionId = resolved.task.sessionId ?? resolved.session?.sessionId ?? `task:${resolved.task.taskId}`
@@ -564,6 +690,20 @@ async function runProductSession(input: {
           case "pwd":
             input.shell.notice(input.cwd)
             continue
+          case "doctor":
+            input.shell.notice(formatRuntimeReadiness(await input.api.readiness(input.signal)))
+            continue
+          case "model":
+            if (command.args === "status") {
+              input.shell.notice(formatModelStatus(currentTask, executionConfig))
+              continue
+            }
+            executionConfig = await pickProductModel({ api: input.api, shell: input.shell, signal: input.signal }) ?? executionConfig
+            input.shell.notice(formatModelStatus(undefined, executionConfig))
+            continue
+          case "mode":
+            input.shell.notice(formatExecutionMode(currentTask))
+            continue
           case "agents": {
             const agents = input.shell.view.agents
             input.shell.notice(agents.length ? agents.map((agent) => `${agent.label} · ${agent.status} · ${agent.agentId}`).join("\n") : "当前没有可见协作代理。")
@@ -575,8 +715,9 @@ async function runProductSession(input: {
             continue
           }
           case "diff": {
-            const view = input.shell.view
-            input.shell.notice(view.changes.length ? `${view.changes.length} 个文件变更已显示在 transcript；使用 /ui 查看完整 diff。` : "当前任务没有可见文件变更。")
+            if (!currentTask || !await openProductDiff({ api: input.api, shell: input.shell, task: currentTask, signal: input.signal })) {
+              input.shell.notice("当前任务没有可审查的 canonical diff。")
+            }
             continue
           }
           case "ui":
@@ -603,8 +744,9 @@ async function runProductSession(input: {
     input.shell.beginTask()
     const task = next.kind === "resume"
       ? next.task
-      : (await input.api.createPendingTask(next.goal, false, sessionId)).task
+      : (await input.api.createPendingTask(next.goal, false, sessionId, executionConfig)).task
     currentTaskId = task.taskId
+    currentTask = task
     if (task.sessionId) sessionId = task.sessionId
     lastOutcome = await observeProductTask({
       api: input.api,
@@ -621,6 +763,7 @@ async function runProductSession(input: {
       })).url,
     })
     await appendFinalDiff({ api: input.api, shell: input.shell, taskId: currentTaskId, cwd: input.cwd })
+    currentTask = await input.api.task(currentTaskId).catch(() => currentTask)
     next = undefined
     if (!input.tty) {
       input.shell.finish()

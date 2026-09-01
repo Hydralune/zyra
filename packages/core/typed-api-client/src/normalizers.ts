@@ -600,6 +600,10 @@ export function normalizeControlCommand(value: unknown): ControlCommandProjectio
 export function registerCoreNormalizers(registry: NormalizerRegistry): void {
   registry.register(CONTRACT_NAMES.health, normalizeHealth)
   registry.register(CONTRACT_NAMES.readiness, normalizeReadiness)
+  registry.register(
+    CONTRACT_NAMES.providerBackend,
+    (value) => ({ ...responseRecord(value, "provider backend response") }),
+  )
   registry.register(CONTRACT_NAMES.taskList, normalizeTaskList)
   registry.register(CONTRACT_NAMES.taskDetail, normalizeTaskDetail)
   registry.register(CONTRACT_NAMES.sessionList, normalizeSessionList)

@@ -5,10 +5,18 @@ import type { ZyraUiEvent } from "../presentation/events.ts"
 import { renderProductState } from "../presentation/renderer.ts"
 import { ProductComposer, type ProductComposerResult } from "./composer.ts"
 import { LiveProductRenderer } from "./live-renderer.ts"
+import { PRODUCT_COMMAND_REGISTRY } from "../product/commands/registry.ts"
+import type { CompletionState } from "./overlay/completion.ts"
+import { pickProductItem } from "./overlay/list-picker.ts"
+import type { ProductOverlay, ProductPickerItem } from "./overlay/model.ts"
+import { pageProductText } from "./overlay/pager.ts"
 
 export class ProductTuiShell {
   readonly #workspace: string
   readonly #interactive: boolean
+  readonly #input: Readable
+  readonly #output: Writable
+  readonly #candidates: readonly string[]
   readonly #renderer: LiveProductRenderer
   readonly #composer: ProductComposer
   readonly #state = new ProductSessionState()
@@ -20,6 +28,7 @@ export class ProductTuiShell {
   #running = false
   #scrollOffset = 0
   #closed = false
+  #overlay: ProductOverlay | undefined
 
   constructor(input: {
     stdin: Readable
@@ -28,6 +37,9 @@ export class ProductTuiShell {
     candidates?: readonly string[]
   }) {
     this.#workspace = input.workspace
+    this.#input = input.stdin
+    this.#output = input.output
+    this.#candidates = input.candidates ?? []
     this.#interactive = (input.stdin as Readable & { isTTY?: boolean }).isTTY === true
     this.#renderer = new LiveProductRenderer(input.output, () => renderProductState(this.#state.snapshot(), {
       width: this.#renderer.width,
@@ -37,11 +49,13 @@ export class ProductTuiShell {
       notice: this.#notice,
       running: this.#running,
       scrollOffset: this.#scrollOffset,
+      overlay: this.#overlay,
     }))
     this.#composer = new ProductComposer({
       stdin: input.stdin,
       output: input.output,
       candidates: input.candidates,
+      candidateProvider: () => this.#availableCandidates(),
       running: () => this.#running,
       onChange: (snapshot) => {
         this.#draft = snapshot
@@ -54,6 +68,10 @@ export class ProductTuiShell {
       },
       onScroll: (direction) => {
         this.#scrollOffset = Math.max(0, this.#scrollOffset + (direction === "up" ? 5 : -5))
+        this.#renderer.render()
+      },
+      onCompletion: (completion) => {
+        this.#overlay = this.#completionOverlay(completion)
         this.#renderer.render()
       },
     })
@@ -111,6 +129,35 @@ export class ProductTuiShell {
     return result
   }
 
+  async pick(title: string, items: readonly ProductPickerItem[], footer?: string): Promise<ProductPickerItem | undefined> {
+    if (!this.#interactive) return undefined
+    return pickProductItem({
+      stdin: this.#input,
+      output: this.#output,
+      title,
+      items,
+      footer,
+      onChange: (overlay) => {
+        this.#overlay = overlay
+        this.#renderer.render()
+      },
+    })
+  }
+
+  async page(title: string, lines: readonly string[]): Promise<void> {
+    if (!this.#interactive) return
+    await pageProductText({
+      stdin: this.#input,
+      output: this.#output,
+      title,
+      lines,
+      onChange: (overlay) => {
+        this.#overlay = overlay
+        this.#renderer.render()
+      },
+    })
+  }
+
   detachInput(): void {
     this.#running = false
     this.#composer.close()
@@ -134,5 +181,29 @@ export class ProductTuiShell {
     this.#composer.close()
     this.#renderer.close()
     this.#closed = true
+  }
+
+  #completionOverlay(completion?: CompletionState): ProductOverlay | undefined {
+    if (!completion) return undefined
+    const rows = completion.matches.slice(0, 8).map((value) => {
+      const command = value.startsWith("/")
+        ? PRODUCT_COMMAND_REGISTRY.find((item) => `/${item.name}` === value)
+        : undefined
+      return { id: value, label: value, detail: command?.description }
+    })
+    return {
+      title: completion.token.startsWith("/") ? "命令" : "工作区引用",
+      rows,
+      selected: Math.min(completion.selected, rows.length - 1),
+      footer: "↑↓ 选择 · Tab/Enter 接受",
+    }
+  }
+
+  #availableCandidates(): readonly string[] {
+    return this.#candidates.filter((value) => {
+      if (!value.startsWith("/")) return true
+      const command = PRODUCT_COMMAND_REGISTRY.find((item) => `/${item.name}` === value)
+      return !command || command.availability === "always" || command.availability === (this.#running ? "running" : "idle")
+    })
   }
 }

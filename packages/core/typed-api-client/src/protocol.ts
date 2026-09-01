@@ -167,6 +167,18 @@ export const CORE_ENDPOINTS = {
     pathParameters: [],
     queryParameters: ["wait_ms"],
   }),
+  providerModels: normalizeEndpoint({
+    operation: OPERATION_NAMES.providerModels,
+    contract: CONTRACT_NAMES.providerBackend,
+    method: "GET",
+    pathTemplate: "/providers/models",
+    kind: "query",
+    receipt: "none",
+    auth: "optional",
+    expectedStatuses: [200, 409],
+    pathParameters: [],
+    queryParameters: ["available_only", "provider_id"],
+  }),
   taskList: normalizeEndpoint({
     operation: OPERATION_NAMES.taskList,
     contract: CONTRACT_NAMES.taskList,

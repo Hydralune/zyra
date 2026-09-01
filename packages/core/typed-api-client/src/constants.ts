@@ -163,6 +163,7 @@ export const ERROR_CODES = {
 export const OPERATION_NAMES = {
   health: "health",
   readiness: "runtime.readiness",
+  providerModels: "provider.models",
   taskList: "task.list",
   taskGet: "task.get",
   sessionList: "session.list",
@@ -239,6 +240,7 @@ export const OPERATION_NAMES = {
 export const CONTRACT_NAMES = {
   health: "zyra.health.v1",
   readiness: "zyra.runtime-readiness.v1",
+  providerBackend: "zyra.provider-backend-api/v1",
   taskList: "zyra.task-list.v1",
   taskDetail: "zyra.task-detail.v1",
   sessionList: "zyra.session-list.v1",
