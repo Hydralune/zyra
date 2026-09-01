@@ -141,15 +141,19 @@ export function parseIdentity(value: unknown, expected?: IdentityKind): ParsedId
   if (expected === "session" && /^task:task_[A-Za-z0-9._:-]+$/.test(normalized)) {
     normalized = `session_${normalized.slice("task:".length)}`
   }
+  // Product TUI builds before the canonical session generator shipped used
+  // this exact bounded alias. Preserve it as an input/binding value so those
+  // durable tasks remain resumable, while every new session is canonical.
+  const legacyProductSession = expected === "session" && /^product:[0-9a-f]{32}$/i.test(normalized)
   const prefix = normalized.split(/[_:-]/, 1)[0] ?? ""
-  const inferred = KIND_BY_PREFIX.get(prefix)
+  const inferred = legacyProductSession ? "session" : KIND_BY_PREFIX.get(prefix)
   const kind = expected ?? inferred
   if (!kind) throw new TypeError(`Unknown identity prefix: ${prefix}`)
   const canonical = canonicalPrefix(kind)
-  if (!identityPattern(canonical).test(normalized) && !legacyIdentityPattern(canonical).test(normalized)) {
+  if (!legacyProductSession && !identityPattern(canonical).test(normalized) && !legacyIdentityPattern(canonical).test(normalized)) {
     throw new TypeError(`Invalid ${kind} identity: ${normalized}`)
   }
-  if (expected && prefix !== canonical) {
+  if (expected && prefix !== canonical && !legacyProductSession) {
     throw new TypeError(`Expected ${canonical} identity, received ${prefix}`)
   }
   const parts = normalized.split("_")

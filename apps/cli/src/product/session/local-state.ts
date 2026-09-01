@@ -33,7 +33,7 @@ function workspaceDigest(workspace: string): string {
 }
 
 export function defaultProductStateDirectory(env: NodeJS.ProcessEnv = process.env): string {
-  const explicit = env.ZYRA_STATE_DIR?.trim()
+  const explicit = env.ZYRA_CLI_STATE_DIR?.trim() || env.ZYRA_STATE_DIR?.trim()
   if (explicit && isAbsolute(explicit)) return resolve(explicit, "product-tui", "drafts")
   if (process.platform === "win32") {
     const local = env.LOCALAPPDATA?.trim() || env.APPDATA?.trim()
@@ -142,11 +142,17 @@ export class ProductDraftStore {
       draft,
       updated_at: new Date().toISOString(),
     }
-    this.#write = this.#write.then(async () => {
+    const pending = this.#write.then(async () => {
       await mkdir(dirname(this.path), { recursive: true, mode: 0o700 })
       const temporary = `${this.path}.${process.pid}.${randomUUID()}.tmp`
       await writeFile(temporary, `${JSON.stringify(document)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 })
       await rename(temporary, this.path)
     })
+    // A debounced write can reject before the next explicit flush attaches a
+    // consumer. Mark it handled immediately while preserving the rejection
+    // for flush(), whose product-session caller reports it as non-fatal local
+    // state loss instead of letting Node terminate an active remote task.
+    void pending.catch(() => undefined)
+    this.#write = pending
   }
 }

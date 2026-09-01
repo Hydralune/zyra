@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { PromptDraft } from "../src/input/draft.ts"
-import { ProductDraftStore } from "../src/product/session/local-state.ts"
+import { defaultProductStateDirectory, ProductDraftStore } from "../src/product/session/local-state.ts"
 
 const temporaryDirectories: string[] = []
 
@@ -18,6 +18,12 @@ async function directory(): Promise<string> {
 }
 
 describe("product draft crash recovery", () => {
+  test("uses the canonical CLI state override for product-local state", async () => {
+    const stateDirectory = await directory()
+    expect(defaultProductStateDirectory({ ZYRA_CLI_STATE_DIR: stateDirectory }))
+      .toBe(join(stateDirectory, "product-tui", "drafts"))
+  })
+
   test("atomically restores the latest bounded draft without persisting the workspace path", async () => {
     const stateDirectory = await directory()
     const workspace = "G:\\sensitive-workspace\\project"
@@ -57,5 +63,15 @@ describe("product draft crash recovery", () => {
     draft.paste(pasted)
     expect(draft.snapshot().text).toMatch(/^@paste:/)
     expect(draft.persistenceSnapshot()).toEqual({ text: pasted, cursor: pasted.length })
+  })
+
+  test("does not surface a debounced write as an unhandled rejection", async () => {
+    const root = await directory()
+    const blocked = join(root, "not-a-directory")
+    await writeFile(blocked, "file", "utf8")
+    const store = ProductDraftStore.open({ workspace: "G:\\unwritable", stateDirectory: blocked })
+    store.schedule({ text: "preserve remotely running task", cursor: 8 })
+    await Bun.sleep(100)
+    await expect(store.flush()).rejects.toThrow()
   })
 })

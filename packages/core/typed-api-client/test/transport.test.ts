@@ -22,6 +22,7 @@ import {
   createReceiptId,
   clampTimeout,
   normalizeHealth,
+  normalizeIdentity,
   normalizeReceipt,
   registerCoreNormalizers,
 } from "../src/index.ts"
@@ -62,6 +63,13 @@ test("keeps long-running requests inside a fifteen-minute hard ceiling", () => {
   expect(MAX_TIMEOUT_MS).toBe(900_000)
   expect(clampTimeout(840_000)).toBe(840_000)
   expect(clampTimeout(1_200_000)).toBe(900_000)
+})
+
+test("accepts only the bounded historical product-session alias for durable task recovery", () => {
+  expect(normalizeIdentity("session", "product:eb78de98b8274166aa26c107eb1b8795"))
+    .toBe("product:eb78de98b8274166aa26c107eb1b8795")
+  expect(() => normalizeIdentity("session", "product:not-a-session"))
+    .toThrow("Invalid session identity")
 })
 
 describe("typed transport contract", () => {

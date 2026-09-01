@@ -619,7 +619,7 @@ describe("product commands and continuous session", () => {
     const outcome = await executing
     expect(outcome.status).toBe("exited")
     expect(calls.map((item) => item.goal)).toEqual(["第一轮", "第二轮"])
-    expect(calls[0]?.sessionId).toMatch(/^product:/)
+    expect(calls[0]?.sessionId).toMatch(/^session_[0-9a-f]{15}_[0-9a-f]{20}$/)
     expect(calls[1]!.sessionId).toBe(String(calls[0]!.sessionId))
     expect(terminalStarts).toBe(1)
     expect(stdout.text).toContain("第一轮")

@@ -1,5 +1,5 @@
 import type { Readable, Writable } from "node:stream"
-import { ZyraApiError, type SessionProjection, type TaskProjection } from "@zyra/typed-api-client"
+import { createSessionId, ZyraApiError, type SessionProjection, type TaskProjection } from "@zyra/typed-api-client"
 import { CliApi, type IngressCapabilities, type IngressPage, type ProductExecutionConfig } from "../api.ts"
 import { CliExitCode, CliTaskError, type InteractiveCommand, type ResumeCommand } from "../contracts.ts"
 import {
@@ -1138,7 +1138,7 @@ type ProductSessionInput =
   | { kind: "resume"; task: TaskProjection; bootstrap?: ResumeBootstrap }
 
 function newProductSessionId(): string {
-  return `product:${crypto.randomUUID().replaceAll("-", "")}`
+  return createSessionId()
 }
 
 function formatRecentSessions(sessions: Awaited<ReturnType<CliApi["sessions"]>>): string {
