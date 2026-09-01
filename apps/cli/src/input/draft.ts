@@ -17,6 +17,11 @@ export interface DraftSnapshot {
   pasteRefs: readonly string[]
 }
 
+export interface DraftPersistenceSnapshot {
+  text: string
+  cursor: number
+}
+
 interface DraftState {
   text: string
   cursor: number
@@ -66,6 +71,22 @@ export class PromptDraft {
       display: this.#text,
       pasteRefs: Object.freeze(refs),
     })
+  }
+
+  persistenceSnapshot(): DraftPersistenceSnapshot {
+    let text = this.#text
+    let cursor = this.#cursor
+    for (const [ref, value] of this.#pastes) {
+      let offset = 0
+      while (true) {
+        const index = text.indexOf(ref, offset)
+        if (index < 0) break
+        text = `${text.slice(0, index)}${value}${text.slice(index + ref.length)}`
+        if (index < cursor) cursor += value.length - ref.length
+        offset = index + value.length
+      }
+    }
+    return Object.freeze({ text, cursor: boundedCursor(text, cursor) })
   }
 
   set(text: string, cursor = text.length, record = true): DraftSnapshot {

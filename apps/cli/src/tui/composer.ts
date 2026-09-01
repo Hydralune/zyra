@@ -1,7 +1,7 @@
 import type { Readable, Writable } from "node:stream"
 import { StringDecoder } from "node:string_decoder"
 import { editDraftExternally } from "../input/editor.ts"
-import { MAX_PROMPT_BYTES, PromptDraft, PromptHistory, PromptInputLimitError, type DraftSnapshot } from "../input/draft.ts"
+import { MAX_PROMPT_BYTES, PromptDraft, PromptHistory, PromptInputLimitError, type DraftPersistenceSnapshot, type DraftSnapshot } from "../input/draft.ts"
 import { acceptCompletion, completionState, type CompletionState } from "./overlay/completion.ts"
 
 const PASTE_START = "\u001b[200~"
@@ -31,6 +31,7 @@ export class ProductComposer {
   readonly #onNotice: (notice?: string) => void
   readonly #onScroll: (direction: "up" | "down") => void
   readonly #onCompletion: (completion?: CompletionState) => void
+  readonly #onPersistence: (snapshot: DraftPersistenceSnapshot) => void
   readonly #running: () => boolean
   #pending = ""
   #paste = ""
@@ -47,7 +48,9 @@ export class ProductComposer {
     candidates?: readonly string[]
     candidateProvider?: () => readonly string[]
     running: () => boolean
+    initialDraft?: DraftPersistenceSnapshot
     onChange: (snapshot: DraftSnapshot) => void
+    onPersistence?: (snapshot: DraftPersistenceSnapshot) => void
     onNotice: (notice?: string) => void
     onScroll: (direction: "up" | "down") => void
     onCompletion?: (completion?: CompletionState) => void
@@ -61,6 +64,8 @@ export class ProductComposer {
     this.#onNotice = input.onNotice
     this.#onScroll = input.onScroll
     this.#onCompletion = input.onCompletion ?? (() => undefined)
+    this.#onPersistence = input.onPersistence ?? (() => undefined)
+    if (input.initialDraft) this.draft.set(input.initialDraft.text, input.initialDraft.cursor, false)
   }
 
   get snapshot(): DraftSnapshot { return this.draft.snapshot() }
@@ -283,6 +288,7 @@ export class ProductComposer {
     const selected = prior && next ? next.matches.indexOf(prior) : -1
     this.#completion = selected >= 0 ? completionState(snapshot, this.#candidates(), selected) : next
     this.#onChange(snapshot)
+    this.#onPersistence(this.draft.persistenceSnapshot())
     this.#onCompletion(this.#completion)
   }
 

@@ -16,6 +16,7 @@ import { parseProductCommand, productCommandCandidates, productCommandHelp } fro
 import { workspaceReferenceCandidates } from "../product/files/index.ts"
 import { openProductDiff } from "../product/diff/controller.ts"
 import { formatExecutionMode, formatModelStatus, formatRuntimeReadiness, type ProductExecutionMode } from "../product/diagnostics/status.ts"
+import { ProductDraftStore } from "../product/session/local-state.ts"
 import { ProductTuiShell } from "../tui/shell.ts"
 import { mutationTransportDetached, type CommandOutcome } from "../runner.ts"
 import { launchUi } from "../ui.ts"
@@ -590,13 +591,17 @@ export async function executeProductInteractive(input: {
   signal: AbortSignal
   cwd?: string
   ensureTerminal?: () => Promise<void>
+  draftStore?: ProductDraftStore | null
 }): Promise<CommandOutcome> {
   const cwd = input.cwd ?? process.cwd()
   const tty = Boolean((input.stdin as Readable & { isTTY?: boolean }).isTTY)
   if (!input.command.goal && !tty) {
     throw new CliTaskError("zyra without a goal requires an interactive terminal.", "interactive_terminal_required")
   }
-  const shell = new ProductTuiShell({ stdin: input.stdin, output: input.stdout, workspace: cwd, candidates: productCommandCandidates() })
+  const draftStore = input.draftStore === null
+    ? undefined
+    : input.draftStore ?? (input.stdin === process.stdin ? ProductDraftStore.open({ workspace: cwd }) : undefined)
+  const shell = new ProductTuiShell({ stdin: input.stdin, output: input.stdout, workspace: cwd, candidates: productCommandCandidates(), draftStore })
   shell.start()
   beginWorkspaceIndex(shell, cwd)
   try {
@@ -612,6 +617,7 @@ export async function executeProductInteractive(input: {
       initial: input.command.goal ? { kind: "goal", goal: input.command.goal } : undefined,
     })
   } finally {
+    await shell.flushLocalState().catch(() => undefined)
     shell.close()
   }
 }
@@ -624,11 +630,15 @@ export async function executeProductResume(input: {
   signal: AbortSignal
   cwd?: string
   ensureTerminal?: () => Promise<void>
+  draftStore?: ProductDraftStore | null
 }): Promise<CommandOutcome> {
   const cwd = input.cwd ?? process.cwd()
   const resolved = await input.api.resolveTask(input.command.identity)
   const tty = Boolean((input.stdin as Readable & { isTTY?: boolean }).isTTY)
-  const shell = new ProductTuiShell({ stdin: input.stdin, output: input.stdout, workspace: cwd, candidates: productCommandCandidates() })
+  const draftStore = input.draftStore === null
+    ? undefined
+    : input.draftStore ?? (input.stdin === process.stdin ? ProductDraftStore.open({ workspace: cwd }) : undefined)
+  const shell = new ProductTuiShell({ stdin: input.stdin, output: input.stdout, workspace: cwd, candidates: productCommandCandidates(), draftStore })
   shell.start()
   beginWorkspaceIndex(shell, cwd)
   try {
@@ -644,6 +654,7 @@ export async function executeProductResume(input: {
       initial: { kind: "resume", task: resolved.task },
     })
   } finally {
+    await shell.flushLocalState().catch(() => undefined)
     shell.close()
   }
 }

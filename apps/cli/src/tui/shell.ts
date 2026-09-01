@@ -1,6 +1,7 @@
 import type { Readable, Writable } from "node:stream"
 import type { DraftSnapshot } from "../input/draft.ts"
 import { ProductSessionState, type ProductViewState } from "../product/state/session-state.ts"
+import type { ProductDraftStore } from "../product/session/local-state.ts"
 import type { ZyraUiEvent } from "../presentation/events.ts"
 import { renderProductState } from "../presentation/renderer.ts"
 import { ProductComposer, type ProductComposerResult } from "./composer.ts"
@@ -19,6 +20,7 @@ export class ProductTuiShell {
   #candidates: readonly string[]
   readonly #renderer: LiveProductRenderer
   readonly #composer: ProductComposer
+  readonly #draftStore?: ProductDraftStore
   readonly #state = new ProductSessionState()
   #archivedEvents: readonly ZyraUiEvent[] = Object.freeze([])
   #taskEvents: readonly ZyraUiEvent[] = Object.freeze([])
@@ -35,11 +37,18 @@ export class ProductTuiShell {
     output: Writable
     workspace: string
     candidates?: readonly string[]
+    draftStore?: ProductDraftStore
   }) {
     this.#workspace = input.workspace
     this.#input = input.stdin
     this.#output = input.output
     this.#candidates = input.candidates ?? []
+    this.#draftStore = input.draftStore
+    if (input.draftStore?.restored.text) {
+      const restored = input.draftStore.restored
+      this.#draft = Object.freeze({ text: restored.text, cursor: restored.cursor, display: restored.text, pasteRefs: Object.freeze([]) })
+    }
+    this.#notice = input.draftStore?.warning
     this.#interactive = (input.stdin as Readable & { isTTY?: boolean }).isTTY === true
     this.#renderer = new LiveProductRenderer(input.output, () => renderProductState(this.#state.snapshot(), {
       width: this.#renderer.width,
@@ -57,6 +66,7 @@ export class ProductTuiShell {
       candidates: input.candidates,
       candidateProvider: () => this.#availableCandidates(),
       running: () => this.#running,
+      initialDraft: input.draftStore?.restored,
       onChange: (snapshot) => {
         this.#draft = snapshot
         this.#scrollOffset = 0
@@ -66,6 +76,7 @@ export class ProductTuiShell {
         this.#notice = notice
         this.#renderer.render()
       },
+      onPersistence: (snapshot) => input.draftStore?.schedule(snapshot),
       onScroll: (direction) => {
         this.#scrollOffset = Math.max(0, this.#scrollOffset + (direction === "up" ? 5 : -5))
         this.#renderer.render()
@@ -185,6 +196,10 @@ export class ProductTuiShell {
     this.#composer.close()
     this.#renderer.close()
     this.#closed = true
+  }
+
+  async flushLocalState(): Promise<void> {
+    await this.#draftStore?.flush()
   }
 
   #completionOverlay(completion?: CompletionState): ProductOverlay | undefined {
