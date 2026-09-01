@@ -125,6 +125,11 @@ export interface SessionListProjection {
   total: number
   cursor?: string
   stateOwner: "task_store_projection"
+  degraded?: ReadonlyArray<{
+    index: number
+    code: "session_projection_invalid"
+    message: string
+  }>
 }
 
 export interface TaskMutationProjection {
@@ -495,9 +500,24 @@ export function normalizeSessionList(value: unknown): SessionListProjection {
   if (stateOwner !== "task_store_projection") {
     throw new ResponseValidationError("Session list owner is not task-backed.", { state_owner: stateOwner })
   }
-  const sessions = responseArray(body.sessions ?? [], "session list.sessions", normalizeSession)
-  const total = responseInteger(body.total ?? sessions.length, "session list.total")
-  if (total < sessions.length) {
+  const sessionEntries = arrayBody(body.sessions ?? [], "session list.sessions")
+  const sessions: SessionProjection[] = []
+  const degraded: Array<{ index: number; code: "session_projection_invalid"; message: string }> = []
+  for (const [index, entry] of sessionEntries.entries()) {
+    try {
+      sessions.push(normalizeSession(entry, index))
+    } catch (error) {
+      degraded.push({
+        index,
+        code: "session_projection_invalid",
+        message: error instanceof ResponseValidationError
+          ? error.message
+          : "Session projection could not be normalized.",
+      })
+    }
+  }
+  const total = responseInteger(body.total ?? sessionEntries.length, "session list.total")
+  if (total < sessionEntries.length) {
     throw new ResponseValidationError("Session list total is smaller than returned session count.", { total })
   }
   return {
@@ -505,6 +525,7 @@ export function normalizeSessionList(value: unknown): SessionListProjection {
     total,
     cursor: optionalResponseString(body.cursor, "session list.cursor"),
     stateOwner,
+    ...(degraded.length ? { degraded: Object.freeze(degraded.map((issue) => Object.freeze(issue))) } : {}),
   }
 }
 

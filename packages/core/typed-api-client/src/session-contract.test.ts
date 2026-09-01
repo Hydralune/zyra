@@ -77,4 +77,31 @@ describe("task-backed session contract", () => {
       }),
     })).toThrow("Ambiguous session exposed a resume task identity")
   })
+
+  test("isolates an invalid historical entry without hiding healthy sessions", () => {
+    const list = normalizeSessionList({
+      schema: CONTRACT_NAMES.sessionList,
+      state_owner: "task_store_projection",
+      sessions: [
+        session(),
+        session({ session_id: "legacy-corrupt", task_ids: [], resume_task_id: null }),
+      ],
+      total: 2,
+    })
+    expect(list.sessions).toHaveLength(1)
+    expect(list.sessions[0]?.sessionId).toBe(SESSION)
+    expect(list.degraded).toEqual([{
+      index: 1,
+      code: "session_projection_invalid",
+      message: expect.any(String),
+    }])
+  })
+
+  test("still rejects a non-canonical list owner instead of degrading it", () => {
+    expect(() => normalizeSessionList({
+      state_owner: "local-cache",
+      sessions: [session()],
+      total: 1,
+    })).toThrow("not task-backed")
+  })
 })

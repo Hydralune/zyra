@@ -547,8 +547,7 @@ async function appendFinalDiff(input: {
     const diff = await buildBoundedWorkspaceDiff(task, input.cwd)
     if (diff) input.shell.append([diff])
   } catch {
-    // Diff is an optional bounded convenience view. The canonical Web route
-    // remains available through /ui when local materialization is absent.
+    input.shell.notice("本地 Diff 便利视图不可用或历史 artifact 已丢失；任务状态未受影响，可使用 /diff 或 /ui 检查 canonical 记录。")
   }
 }
 
@@ -627,11 +626,13 @@ function newProductSessionId(): string {
 }
 
 function formatRecentSessions(sessions: Awaited<ReturnType<CliApi["sessions"]>>): string {
-  if (!sessions.sessions.length) return "没有可恢复的历史会话。"
-  return sessions.sessions.slice(0, 12).map((session) => {
+  const lines = sessions.sessions.slice(0, 12).map((session) => {
     const status = session.statuses.join(", ") || (session.terminal ? "terminal" : "active")
     return `${session.sessionId} · ${status} · ${session.updatedAt ?? "时间未知"}`
-  }).join("\n")
+  })
+  if (!lines.length) lines.push("没有可恢复的历史会话。")
+  if (sessions.degraded?.length) lines.push(`⚠ ${sessions.degraded.length} 条旧版或损坏会话记录已安全隔离；未用于恢复选择。`)
+  return lines.join("\n")
 }
 
 async function pickRecentSession(api: CliApi, shell: ProductTuiShell): Promise<SessionProjection | undefined> {
@@ -648,7 +649,7 @@ async function pickRecentSession(api: CliApi, shell: ProductTuiShell): Promise<S
     label: taskTitles.get(session.sessionId) ?? session.sessionId,
     detail: `${session.statuses.join(", ") || "unknown"} · ${session.updatedAt ?? "时间未知"}`,
     keywords: [session.sessionId, session.resumeTaskId ?? "", ...session.statuses],
-  })), "输入筛选 · ↑↓ 选择 · Enter 恢复 · Esc 返回")
+  })), `输入筛选 · ↑↓ 选择 · Enter 恢复 · Esc 返回${response.degraded?.length ? ` · ${response.degraded.length} 条损坏记录已隔离` : ""}`)
   return selected ? eligible.find((session) => session.sessionId === selected.id) : undefined
 }
 

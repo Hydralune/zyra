@@ -267,6 +267,35 @@ describe("product commands and continuous session", () => {
     expect(productCommandHelp(true)).toContain("/redirect")
   })
 
+  test("keeps the session list usable when historical entries are isolated", async () => {
+    const api = {
+      async sessions() {
+        return {
+          sessions: [],
+          total: 1,
+          stateOwner: "task_store_projection" as const,
+          degraded: [{ index: 0, code: "session_projection_invalid" as const, message: "legacy record" }],
+        }
+      },
+    } as unknown as CliApi
+    const stdin = new TtyInput()
+    const stdout = new Capture()
+    const executing = executeProductInteractive({
+      command: { kind: "interactive", baseUrl: "http://127.0.0.1:8000", autoStart: false, startupTimeoutMs: 1_000, timeoutMs: 10_000 },
+      api,
+      stdin,
+      stdout,
+      signal: new AbortController().signal,
+      cwd: "G:\\agent-zoo\\zyra",
+    })
+    await waitUntil(() => stdin.raw)
+    stdin.write("/sessions\r")
+    await waitUntil(() => stdout.text.includes("旧版或损坏会话记录已安全隔离"))
+    stdin.write("/exit\r")
+    await executing
+    expect(stdout.text).toContain("没有可恢复的历史会话")
+  })
+
   test("runs two terminal tasks in one TUI process with one canonical session id", async () => {
     const calls: Array<{ goal: string; sessionId?: string }> = []
     let terminalStarts = 0
