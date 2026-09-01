@@ -90,6 +90,11 @@ export class TransportCircuitBreaker {
       if (this.#state === "half_open") this.#probeInFlight = false
       return
     }
+    // A request rejected by beforeRequest while the circuit is already open
+    // did not reach the network. Counting that rejection as a fresh failure
+    // would move openedAt forward on every poll and make the cooldown
+    // impossible to satisfy during a sustained daemon outage.
+    if (this.#state === "open") return
     this.#failures += 1
     this.#consecutiveFailures += 1
     if (this.#state === "half_open" || this.#consecutiveFailures >= this.#failureThreshold) {

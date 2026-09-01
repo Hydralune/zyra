@@ -183,15 +183,16 @@ export class CliPermissionSession {
   }
 
   get binding(): PermissionBinding { return this.#binding }
-  get available(): boolean { return Boolean(this.#claim) }
+  get available(): boolean { return Boolean(this.#claim) && !this.#custodyError }
   get custodyError(): CliTaskError | undefined { return this.#custodyError }
 
   async open(signal?: AbortSignal): Promise<boolean> {
-    if (this.#claim) {
-      await this.#api.resumePermissionSession(this.#binding, this.#claim.custodyToken, signal)
-      return true
-    }
     try {
+      if (this.#claim) {
+        await this.#api.resumePermissionSession(this.#binding, this.#claim.custodyToken, signal)
+        this.#custodyError = undefined
+        return true
+      }
       this.#claim = await this.#api.openPermissionSession(this.#binding, {
         custodyToken: this.#presentedToken,
         signal,

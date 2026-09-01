@@ -1,8 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import { PassThrough, Writable } from "node:stream"
-import type { TaskProjection } from "@zyra/typed-api-client"
+import {
+  HttpResponseError,
+  TransportDisconnectedError,
+  type TaskProjection,
+} from "@zyra/typed-api-client"
 import { CliApi, type IngressFrame } from "../src/api.ts"
 import { observeProductTask } from "../src/commands/product.ts"
+import { CliExitCode } from "../src/contracts.ts"
 import { ProductTuiShell } from "../src/tui/shell.ts"
 
 class Capture extends Writable {
@@ -45,12 +50,12 @@ function task(status: string, metadata: Readonly<Record<string, unknown>> = {}):
   } as unknown as TaskProjection
 }
 
-function frame(sequence: number, eventType: string): IngressFrame {
+function frame(sequence: number, eventType: string, generation = 1): IngressFrame {
   return {
     schema: "zyra.event-ingress-frame/v1",
     kind: "event",
     source: "runtime-event-spine",
-    generation: 1,
+    generation,
     taskId: "task_product",
     sequence,
     previousSequence: sequence - 1,
@@ -120,7 +125,7 @@ describe("product task observer", () => {
           cursor: "cursor_100",
         }
       },
-      async task() { return completed },
+      async task() { return streamCalls > 100 ? completed : running },
     } as unknown as CliApi
 
     productShell.start()
@@ -223,11 +228,101 @@ describe("product task observer", () => {
     productShell.finish()
 
     expect(result.status).toBe("completed")
-    expect(capabilityCalls).toBeGreaterThanOrEqual(3)
+    expect(capabilityCalls).toBe(2)
     expect(streamCalls).toBe(2)
     expect(output.text).toContain("恢复后完成。")
     expect(output.text.match(/恢复后完成。/g)).toHaveLength(1)
   })
+
+  test("survives daemon downtime, advances the ingress generation, and keeps controls bound to the recovered task", async () => {
+    const output = new Capture(true)
+    const stdin = new TtyInput()
+    const productShell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    const running = task("running", { recovery_epoch: 1 })
+    const recovered = task("running", { recovery_epoch: 2 })
+    const cancelled = task("cancelled", { recovery_epoch: 2 })
+    const snapshotGenerations: number[] = []
+    let capabilityCalls = 0
+    let streamCalls = 0
+    let cancellationCommitted = false
+    let cancelledFromEpoch: unknown
+    const api = {
+      async ingressCapabilities(_taskId: string, _cursor?: string, expectedGeneration?: number) {
+        capabilityCalls += 1
+        if (capabilityCalls === 2 || capabilityCalls === 3) {
+          throw new TransportDisconnectedError("injected daemon outage")
+        }
+        const generation = expectedGeneration ?? 1
+        return {
+          taskId: running.taskId,
+          generation,
+          subscriptionCursor: `cursor_${generation}_0`,
+          subscriptionSequence: 0,
+          sseAvailable: true,
+          raw: {},
+        }
+      },
+      async *snapshotIngress(_taskId: string, generation: number) {
+        snapshotGenerations.push(generation)
+        yield { cursor: `cursor_${generation}_0`, generation, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async openPermissionSession() { throw new Error("permission custody disabled") },
+      async *streamIngress(_taskId: string, _cursor: string, generation: number) {
+        streamCalls += 1
+        if (streamCalls <= 2) throw new TransportDisconnectedError("injected daemon outage")
+        if (streamCalls === 3) {
+          throw new HttpResponseError(400, "stale cursor from the previous daemon", {
+            code: "cursor_signature_invalid",
+            body: { resyncRequired: true },
+          })
+        }
+        while (!cancellationCommitted) {
+          await new Promise((resolve) => setTimeout(resolve, 10))
+          yield { kind: "heartbeat", taskId: running.taskId, generation, sequence: 0, cursor: `cursor_${generation}_0` }
+        }
+        yield {
+          kind: "event",
+          taskId: running.taskId,
+          generation,
+          sequence: 1,
+          frame: frame(1, "runtime.task.cancelled", generation),
+        }
+      },
+      async task() { return cancellationCommitted ? cancelled : recovered },
+      async cancelTask(selected: TaskProjection) {
+        cancelledFromEpoch = selected.metadata.recovery_epoch
+        cancellationCommitted = true
+        return { task: cancelled, events: [], receipt: {}, controls: {}, raw: {} }
+      },
+    } as unknown as CliApi
+
+    productShell.start()
+    const observation = observeProductTask({
+      api,
+      task: running,
+      shell: productShell,
+      signal: new AbortController().signal,
+      resume: false,
+    })
+    const deadline = Date.now() + 5_000
+    while (!snapshotGenerations.includes(2) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(snapshotGenerations).toEqual([1, 2])
+    stdin.write("/status\r")
+    stdin.write("/cancel recovery test\r")
+    const result = await observation
+    productShell.finish()
+
+    expect(result.status).toBe("cancelled")
+    expect(result.exitCode).toBe(CliExitCode.CANCELLED)
+    expect(cancelledFromEpoch).toBe(2)
+    expect(streamCalls).toBe(4)
+    expect(output.text).toContain("正在重连")
+    expect(output.text).toContain("connection connected")
+    expect(output.text).toContain("任务取消已提交")
+    expect(stdin.raw).toBeFalse()
+  }, 10_000)
 
   test("fails visibly and does not open a stream when SSE is unavailable", async () => {
     const output = new Capture()

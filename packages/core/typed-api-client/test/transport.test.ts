@@ -364,7 +364,15 @@ describe("typed transport contract", () => {
     breaker.beforeRequest("health")
     breaker.failure(new TransportDisconnectedError("disconnect two"))
     expect(breaker.snapshot().state).toBe("open")
-    expect(() => breaker.beforeRequest("health")).toThrow(TransportDisconnectedError)
+    expect(breaker.snapshot().retryAt).toBe(1_100)
+    try {
+      breaker.beforeRequest("health")
+    } catch (error) {
+      expect(error).toBeInstanceOf(TransportDisconnectedError)
+      breaker.failure(error)
+    }
+    expect(breaker.snapshot().retryAt).toBe(1_100)
+    expect(breaker.snapshot().failures).toBe(2)
     now += 100
     breaker.beforeRequest("health")
     expect(breaker.snapshot().state).toBe("half_open")

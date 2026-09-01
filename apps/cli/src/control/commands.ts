@@ -162,6 +162,22 @@ export class CliControlSession {
   get task(): TaskProjection { return this.#task }
   get revision(): number | undefined { return this.#revision }
 
+  refreshTask(task: TaskProjection): void {
+    if (task.taskId !== this.#task.taskId || task.runId !== this.#task.runId) {
+      throw new CliTaskError(
+        "Control session cannot bind a canonical task from another task or run.",
+        "control_task_binding_invalid",
+        {
+          expected_task_id: this.#task.taskId,
+          expected_run_id: this.#task.runId,
+          actual_task_id: task.taskId,
+          actual_run_id: task.runId,
+        },
+      )
+    }
+    this.#task = task
+  }
+
   async queue(signal?: AbortSignal, includeTerminal = false): Promise<CommandQueueSnapshot> {
     return this.#api.commandQueue({
       taskId: this.#task.taskId,

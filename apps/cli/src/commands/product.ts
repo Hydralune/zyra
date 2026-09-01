@@ -31,12 +31,45 @@ function terminalTask(task: TaskProjection): boolean {
   return task.terminal || ["completed", "failed", "blocked", "cancelled", "killed"].includes(task.status)
 }
 
+function terminalExitCode(task: TaskProjection): CliExitCode {
+  if (task.status === "completed") return CliExitCode.SUCCESS
+  if (task.status === "cancelled") return CliExitCode.CANCELLED
+  return CliExitCode.TASK_FAILED
+}
+
 function recoveryNeedsSnapshot(error: unknown): boolean {
   if (error instanceof CliTaskError) {
     return ["gap", "cursor", "generation", "order", "binding"].some((marker) => error.code.includes(marker))
   }
-  return error instanceof ZyraApiError && ["conflict", "not_found", "version", "protocol"].includes(error.category)
+  if (!(error instanceof ZyraApiError)) return false
+  if (["conflict", "not_found", "version", "protocol", "cursor"].includes(error.category)) return true
+  if (["gap", "cursor", "generation", "order", "binding"].some((marker) => error.code.includes(marker))) return true
+  const body = (error as { body?: unknown }).body
+  return Boolean(
+    body
+    && typeof body === "object"
+    && !Array.isArray(body)
+    && (body as Record<string, unknown>).resyncRequired === true,
+  )
 }
+
+function recoveryIsTransient(error: unknown): boolean {
+  return error instanceof ZyraApiError
+    && (error.retryable || ["disconnect", "timeout", "server", "unavailable"].includes(error.category))
+}
+
+function recoveryDiagnostic(error: unknown): string {
+  if (error instanceof CliTaskError) return error.code
+  if (error instanceof ZyraApiError) return `${error.code}/${error.category}`
+  return error instanceof Error ? error.name : "unknown_error"
+}
+
+function shouldReportRecoveryAttempt(attempt: number): boolean {
+  return attempt === 1 || (attempt & (attempt - 1)) === 0
+}
+
+const RECOVERY_ATTEMPT_BUDGET = 100
+const RECOVERY_OUTAGE_BUDGET_MS = 120_000
 
 function wait(milliseconds: number, signal: AbortSignal): Promise<void> {
   if (signal.aborted) return Promise.reject(signal.reason)
@@ -474,7 +507,7 @@ export async function observeProductTask(input: {
     projection.complete()
     renderProjection(true)
     return {
-      exitCode: task.status === "completed" ? CliExitCode.SUCCESS : CliExitCode.TASK_FAILED,
+      exitCode: terminalExitCode(task),
       status: task.status,
       taskId: task.taskId,
       runId: task.runId,
@@ -495,6 +528,7 @@ export async function observeProductTask(input: {
     detachController.abort(new CliTaskError("Product TUI detached from the canonical task.", "product_ui_detached"))
   }
 
+  let controlSession: CliControlSession | undefined
   let permissionSession: CliPermissionSession | undefined
   const refreshPermissions = async (): Promise<void> => {
     if (!permissionSession?.available) return
@@ -503,7 +537,7 @@ export async function observeProductTask(input: {
     renderProjection(true)
   }
   if (input.shell.interactive) {
-    const controls = new CliControlSession({ api: input.api, task })
+    controlSession = new CliControlSession({ api: input.api, task })
     permissionSession = new CliPermissionSession({
       api: input.api,
       task,
@@ -516,7 +550,7 @@ export async function observeProductTask(input: {
     }
     void runProductControlLoop({
       shell: input.shell,
-      controls,
+      controls: controlSession,
       permissions: permissionSession,
       signal: observationSignal,
       refreshPermissions,
@@ -558,6 +592,7 @@ export async function observeProductTask(input: {
     : undefined
 
   let recoveryAttempts = 0
+  let recoveryStartedAt: number | undefined
   let windows = 0
   let settled = false
   while (!settled && !observationSignal.aborted) {
@@ -572,6 +607,7 @@ export async function observeProductTask(input: {
           // retry streak instead of accumulating failures across hours of
           // otherwise healthy reconnect windows.
           recoveryAttempts = 0
+          recoveryStartedAt = undefined
           renderProjection()
           if (message.frame.eventType.startsWith("runtime.permission.")) {
             await refreshPermissions().catch((error) => {
@@ -596,6 +632,7 @@ export async function observeProductTask(input: {
           cursor = message.cursor
           projection.cursor(cursor)
           recoveryAttempts = 0
+          recoveryStartedAt = undefined
           if (message.kind === "close") closed = true
           await refreshPermissions().catch((error) => {
             input.shell.notice(`权限状态刷新失败并保持关闭 · ${controlError(error)}`)
@@ -625,38 +662,67 @@ export async function observeProductTask(input: {
       if (input.signal.aborted) throw input.signal.reason
       if (observationSignal.aborted) throw observationSignal.reason
       recoveryAttempts += 1
+      recoveryStartedAt ??= performance.now()
       projection.reconnecting(recoveryAttempts)
+      if (shouldReportRecoveryAttempt(recoveryAttempts)) {
+        input.shell.notice(`连接恢复中 · 第 ${recoveryAttempts} 次 · ${recoveryDiagnostic(error)}`)
+      }
       renderProjection(true)
-      if (recoveryAttempts > 6) {
+      if (
+        recoveryAttempts > RECOVERY_ATTEMPT_BUDGET
+        || performance.now() - recoveryStartedAt > RECOVERY_OUTAGE_BUDGET_MS
+      ) {
         throw new CliTaskError("Product event recovery exhausted its retry budget.", "event_stream_recovery_exhausted", {
           task_id: task.taskId,
           revision: projection.revision,
+          attempts: recoveryAttempts,
+          outage_budget_ms: RECOVERY_OUTAGE_BUDGET_MS,
         })
       }
       await wait(Math.min(2_000, 100 * (2 ** (recoveryAttempts - 1))), observationSignal)
       let replace = recoveryNeedsSnapshot(error)
-      if (!replace) {
-        try {
+      let replacementCapabilitiesReady = false
+      try {
+        if (!replace) {
+          const previousGeneration = capabilities.generation
           const probed = await input.api.ingressCapabilities(task.taskId, cursor, capabilities.generation)
-          replace = probed.generation !== capabilities.generation
+          replace = probed.generation !== previousGeneration
           capabilities = probed
-        } catch (probeError) {
-          if (!recoveryNeedsSnapshot(probeError)) throw probeError
-          replace = true
+          replacementCapabilitiesReady = replace
         }
-      }
-      if (replace) {
-        capabilities = await input.api.ingressCapabilities(task.taskId)
+        if (replace && !replacementCapabilitiesReady) {
+          const nextGeneration = capabilities.generation >= 2_147_483_647
+            ? 1
+            : capabilities.generation + 1
+          capabilities = await input.api.ingressCapabilities(task.taskId, undefined, nextGeneration)
+        }
         task = await input.api.task(task.taskId)
-        const replacement = await loadProjectionSnapshot({ api: input.api, task, capabilities })
-        projection = replacement.projection
-        cursor = replacement.cursor
+        controlSession?.refreshTask(task)
+        if (replace) {
+          const replacement = await loadProjectionSnapshot({ api: input.api, task, capabilities })
+          projection = replacement.projection
+          cursor = replacement.cursor
+        } else {
+          projection.refreshTask(task)
+        }
+        if (permissionSession && !await permissionSession.open(observationSignal)) {
+          input.shell.notice(`权限控制保持关闭 · ${permissionSession.custodyError?.code ?? "permission_custody_unavailable"}`)
+        }
+      } catch (recoveryError) {
+        if (recoveryIsTransient(recoveryError) || recoveryNeedsSnapshot(recoveryError)) {
+          if (shouldReportRecoveryAttempt(recoveryAttempts)) {
+            input.shell.notice(`恢复探测尚未就绪 · ${recoveryDiagnostic(recoveryError)}`)
+          }
+          continue
+        }
+        throw recoveryError
       }
       projection.connected()
       await refreshPermissions().catch((permissionError) => {
         input.shell.notice(`权限状态刷新失败并保持关闭 · ${controlError(permissionError)}`)
       })
       renderProjection(true)
+      if (terminalTask(task)) settled = true
     }
   }
   if (detached) {
@@ -690,7 +756,7 @@ export async function observeProductTask(input: {
   renderProjection(true)
   input.shell.detachInput()
   return {
-    exitCode: task.status === "completed" ? CliExitCode.SUCCESS : CliExitCode.TASK_FAILED,
+    exitCode: terminalExitCode(task),
     status: task.status,
     taskId: task.taskId,
     runId: task.runId,

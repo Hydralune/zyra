@@ -111,6 +111,10 @@ function auditPath(): string {
   return join(cliStateDirectory(), "daemon-stop-audit.jsonl")
 }
 
+function startupLogPath(): string {
+  return join(cliStateDirectory(), "daemon-startup.log")
+}
+
 function runtimeIdentityPath(generation: string): string {
   return join(cliStateDirectory(), `daemon-runtime-${generation}.json`)
 }
@@ -372,19 +376,26 @@ async function startManagedDaemon(options: DaemonOptions): Promise<DaemonState> 
     const generation = crypto.randomUUID()
     const runtimeIdentity = runtimeIdentityPath(generation)
     await rm(runtimeIdentity, { force: true })
-    const child = spawn(python, [join(projectRoot, "scripts", "dev_api.py")], {
-      cwd: projectRoot,
-      detached: true,
-      windowsHide: true,
-      stdio: "ignore",
-      env: {
-        ...process.env,
-        ZYRA_API_HOST: url.hostname,
-        ZYRA_API_PORT: String(port),
-        ZYRA_CLI_DAEMON_GENERATION: generation,
-        ZYRA_CLI_DAEMON_RUNTIME_IDENTITY: runtimeIdentity,
-      },
-    })
+    await mkdir(cliStateDirectory(), { recursive: true })
+    const launchLog = await open(startupLogPath(), "w", 0o600)
+    let child: ReturnType<typeof spawn>
+    try {
+      child = spawn(python, [join(projectRoot, "scripts", "dev_api.py")], {
+        cwd: projectRoot,
+        detached: true,
+        windowsHide: true,
+        stdio: ["ignore", launchLog.fd, launchLog.fd],
+        env: {
+          ...process.env,
+          ZYRA_API_HOST: url.hostname,
+          ZYRA_API_PORT: String(port),
+          ZYRA_CLI_DAEMON_GENERATION: generation,
+          ZYRA_CLI_DAEMON_RUNTIME_IDENTITY: runtimeIdentity,
+        },
+      })
+    } finally {
+      await launchLog.close()
+    }
     if (!child.pid) throw new CliDaemonError("The Zyra daemon process did not expose a pid.")
     child.unref()
     let state: DaemonState = {

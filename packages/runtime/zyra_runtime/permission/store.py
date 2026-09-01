@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import ctypes
 import hashlib
 import hmac
 import json
@@ -1265,9 +1266,60 @@ def _parse_time(value: str) -> datetime:
 
 def _lock_is_stale(path: Path, stale_seconds: float) -> bool:
     try:
-        return time.time() - path.stat().st_mtime > stale_seconds
+        if time.time() - path.stat().st_mtime > stale_seconds:
+            return True
+        # The lock owner writes pid:thread:timestamp before entering the
+        # critical section. A hard-killed daemon cannot unlink that file, so
+        # age alone would make an immediate restart fail for the full stale
+        # timeout. Reclaim only a well-formed lock whose OS process is
+        # definitely gone; malformed or access-denied owners remain closed.
+        material = path.read_text(encoding="ascii")[:256]
+        raw_pid = material.split(":", 1)[0]
+        if not raw_pid.isdigit():
+            return False
+        pid = int(raw_pid)
+        if pid <= 0 or pid == os.getpid():
+            return False
+        return not _process_is_alive(pid)
     except FileNotFoundError:
         return False
+    except (OSError, UnicodeError, ValueError):
+        return False
+
+
+def _process_is_alive(pid: int) -> bool:
+    if os.name == "nt":
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        open_process = kernel32.OpenProcess
+        open_process.argtypes = [ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
+        open_process.restype = ctypes.c_void_p
+        get_exit_code = kernel32.GetExitCodeProcess
+        get_exit_code.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+        get_exit_code.restype = ctypes.c_int
+        close_handle = kernel32.CloseHandle
+        close_handle.argtypes = [ctypes.c_void_p]
+        close_handle.restype = ctypes.c_int
+        handle = open_process(0x1000, 0, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            # Access denied means an owner exists but cannot be inspected;
+            # every other open failure is treated as a dead/nonexistent PID.
+            return int(kernel32.GetLastError()) == 5
+        try:
+            exit_code = ctypes.c_ulong()
+            if not get_exit_code(handle, ctypes.byref(exit_code)):
+                return True
+            return exit_code.value == 259  # STILL_ACTIVE
+        finally:
+            close_handle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
 
 
 def _as_mapping(value: Any) -> dict[str, Any]:

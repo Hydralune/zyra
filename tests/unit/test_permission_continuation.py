@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import subprocess
 import sys
 import tempfile
 import threading
@@ -57,6 +58,25 @@ class PermissionContinuationTests(unittest.TestCase):
 
     def _store(self, path: Path, *, disabled: bool = False) -> PermissionStateStore:
         return PermissionStateStore(path, clock=lambda: self.now, disabled=disabled)
+
+    def test_permission_store_reclaims_a_fresh_lock_from_a_dead_daemon(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "permission.json"
+            lock = path.with_name(f".{path.name}.lock")
+            exited = subprocess.Popen([sys.executable, "-c", "pass"])
+            exited.wait(timeout=10)
+            lock.write_text(f"{exited.pid}:1:0", encoding="ascii")
+            store = PermissionStateStore(
+                path,
+                clock=lambda: self.now,
+                lock_timeout=0.1,
+                stale_lock_seconds=30,
+            )
+
+            state = store.read_state()
+
+            self.assertEqual(state["revision"], 0)
+            self.assertFalse(lock.exists())
 
     def _pending_request(
         self,
