@@ -15,6 +15,7 @@ export interface ProductRenderOptions {
   composerText?: string
   notice?: string
   running?: boolean
+  acceptingInput?: boolean
   height?: number
   scrollOffset?: number
   overlay?: ProductOverlay
@@ -264,9 +265,16 @@ export function renderProductState(state: ProductViewState, options: ProductRend
     lines.push("")
     renderOverlay(lines, options.overlay, width)
   }
+  const acceptingInput = options.acceptingInput ?? true
   lines.push("")
-  lines.push(...prefixed(options.composerText || options.placeholder || "向 Zyra 描述任务", "› ", width))
-  const leadingStatus = options.running
+  lines.push(...prefixed(
+    acceptingInput ? options.composerText || options.placeholder || "向 Zyra 描述任务" : "正在同步会话…",
+    "› ",
+    width,
+  ))
+  const leadingStatus = !acceptingInput
+    ? "输入暂不可用"
+    : options.running
     ? "Tab 排队 · Esc 中断"
     : state.taskStatus === "completed"
       ? "任务已完成 · 可继续输入新任务"

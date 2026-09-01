@@ -227,6 +227,48 @@ describe("product task observer", () => {
     expect(output.text).not.toContain("run rejected after canonical failure")
   })
 
+  test("aborts a pending run transport after canonical terminal settlement", async () => {
+    const output = new Capture()
+    const productShell = shell(output)
+    const pending = task("pending")
+    const failed = task("failed", { failure_reason: "canonical failure" })
+    let mutationAborted = false
+    const api = {
+      async ingressCapabilities() {
+        return { taskId: pending.taskId, generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress() {
+        yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask(_task: TaskProjection, signal?: AbortSignal) {
+        return await new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => {
+            mutationAborted = true
+            reject(signal.reason)
+          }, { once: true })
+        })
+      },
+      async *streamIngress() {
+        yield { kind: "event", taskId: pending.taskId, generation: 1, sequence: 1, frame: frame(1, "runtime.task.failed") }
+      },
+      async task() { return failed },
+    } as unknown as CliApi
+
+    productShell.start()
+    const result = await observeProductTask({
+      api,
+      task: pending,
+      shell: productShell,
+      signal: new AbortController().signal,
+      resume: false,
+    })
+    productShell.finish()
+
+    expect(result.status).toBe("failed")
+    expect(mutationAborted).toBeTrue()
+    expect(output.text).not.toContain("已从 task task_product 分离")
+  })
+
   test("ignores the prior terminal frame until a failed resume advances canonically", async () => {
     const output = new Capture()
     const productShell = shell(output)

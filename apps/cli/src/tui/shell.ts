@@ -32,6 +32,7 @@ export class ProductTuiShell {
   #draft: DraftSnapshot = Object.freeze({ text: "", cursor: 0, display: "", pasteRefs: Object.freeze([]) })
   #notice: string | undefined
   #running = false
+  #acceptingInput = false
   #scrollOffset = 0
   #closed = false
   #overlay: ProductOverlay | undefined
@@ -65,6 +66,7 @@ export class ProductTuiShell {
       composerText: this.#draft.display,
       notice: this.#notice,
       running: this.#running,
+      acceptingInput: this.#acceptingInput,
       scrollOffset: this.#scrollOffset,
       overlay: this.#overlay,
     }))
@@ -150,11 +152,14 @@ export class ProductTuiShell {
 
   async read(running = false): Promise<ProductComposerResult> {
     this.#running = running
-    const pending = this.#composer.read()
-    const result = await pending
-    this.#running = false
-    this.#renderer.renderNow()
-    return result
+    this.#acceptingInput = true
+    try {
+      return await this.#composer.read()
+    } finally {
+      this.#acceptingInput = false
+      this.#running = false
+      this.#renderer.renderNow()
+    }
   }
 
   async pick(title: string, items: readonly ProductPickerItem[], footer?: string): Promise<ProductPickerItem | undefined> {
@@ -188,6 +193,7 @@ export class ProductTuiShell {
   }
 
   detachInput(): void {
+    this.#acceptingInput = false
     this.#running = false
     this.#composer.close()
     this.#renderer.renderNow()
@@ -199,6 +205,7 @@ export class ProductTuiShell {
       this.#events = Object.freeze([...this.#archivedEvents, ...events])
       this.#state.reconcile(this.#events)
     }
+    this.#acceptingInput = false
     this.#running = false
     this.#composer.close()
     this.#renderer.finish()
@@ -207,6 +214,7 @@ export class ProductTuiShell {
 
   close(): void {
     if (this.#closed) return
+    this.#acceptingInput = false
     this.#composer.close()
     this.#renderer.close()
     this.#closed = true

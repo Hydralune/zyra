@@ -774,11 +774,12 @@ export async function observeProductTask(input: {
     }
   }
 
+  let settled = false
   let detached = false
   const detachController = new AbortController()
   const observationSignal = AbortSignal.any([input.signal, detachController.signal])
   const detach = () => {
-    if (detached) return
+    if (detached || settled) return
     detached = true
     if (pendingProjectionRender) clearTimeout(pendingProjectionRender)
     pendingProjectionRender = undefined
@@ -857,7 +858,6 @@ export async function observeProductTask(input: {
   let recoveryAttempts = 0
   let recoveryStartedAt: number | undefined
   let windows = 0
-  let settled = false
   while (!settled && !observationSignal.aborted) {
     try {
       let closed = false
@@ -1028,6 +1028,13 @@ export async function observeProductTask(input: {
   projection.complete()
   renderProjection(true)
   input.shell.detachInput()
+  // The canonical event stream can settle before the long-lived task.run
+  // response.  Release that transport explicitly so its HTTP socket cannot
+  // keep an otherwise completed CLI process alive.
+  detachController.abort(new CliTaskError(
+    "Product observation settled at the canonical terminal state.",
+    "product_observation_settled",
+  ))
   await controlLoop
   return {
     exitCode: terminalExitCode(task),
@@ -1363,6 +1370,9 @@ async function runProductSession(input: {
   initialExecutionConfig?: ProductModelSelection
   ensureTerminal?: () => Promise<void>
 }): Promise<CommandOutcome> {
+  const trace = (stage: string): void => {
+    if (process.env.ZYRA_CLI_TRACE_SHUTDOWN === "1") process.stderr.write(`[zyra session] ${stage}\n`)
+  }
   let next = input.initial
   let sessionId = next?.kind === "resume"
     ? next.task.sessionId ?? `task:${next.task.taskId}`
@@ -1625,16 +1635,22 @@ async function runProductSession(input: {
       permissionSession: currentPermissionSession,
       bootstrap: next.kind === "resume" ? next.bootstrap : undefined,
     })
+    trace(`observation complete · ${lastOutcome.status}`)
     if (lastOutcome.status === "detached") break
+    trace("final diff start")
     await appendFinalDiff({ api: input.api, shell: input.shell, taskId: currentTaskId, cwd: input.cwd })
+    trace("final diff complete")
     currentTask = await input.api.task(currentTaskId).catch(() => currentTask)
+    trace("canonical refresh complete")
     next = undefined
     if (!input.tty) {
       input.shell.finish()
       return lastOutcome
     }
     input.shell.notice("本轮已收敛。继续输入可在同一会话发起下一轮；/new 开始新会话，/exit 退出。")
+    trace("idle composer next")
   }
+  trace("session loop complete")
   input.shell.finish()
   const detached = lastOutcome?.status === "detached"
   const interrupted = input.signal.aborted && !detached

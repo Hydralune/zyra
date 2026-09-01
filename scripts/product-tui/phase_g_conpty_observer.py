@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -143,6 +144,15 @@ def _wait_for_control_receipt(capture: RollingCapture, command_name: str, timeou
         time.sleep(0.02)
 
 
+def _terminal_input_marker(status: str) -> str:
+    return {
+        "completed": "任务已完成 · 可继续输入新任务",
+        "failed": "任务失败 · /resume 或输入新任务",
+        "blocked": "任务已阻塞 · /resume 或输入新任务",
+        "killed": "任务已终止 · 输入新任务",
+    }.get(status, "/help 查看命令")
+
+
 def _receipt_command_name(command: str) -> str:
     parts = command.split()
     trigger = parts[0]
@@ -169,6 +179,17 @@ def _type_command(process: object, command: str) -> None:
         time.sleep(0.02)
     time.sleep(0.15)
     process.write(b"\r")  # type: ignore[attr-defined]
+    # Windows ConPTY may coalesce the character writes into one paste-like
+    # burst.  The product correctly turns that burst's first Enter into a
+    # newline; confirm once more after its 120 ms safety window.  If the first
+    # Enter already submitted, this is only an empty Enter in the next active
+    # composer.
+    time.sleep(0.2)
+    if process.poll() is None:  # type: ignore[attr-defined]
+        try:
+            process.write(b"\r")  # type: ignore[attr-defined]
+        except OSError:
+            pass
 
 
 def _canonical_task(base_url: str, task_id: str) -> dict[str, Any]:
@@ -184,12 +205,19 @@ def _wait_for_canonical_terminal(
     process: object,
     base_url: str,
     task_id: str,
+    baseline: dict[str, Any],
     timeout: float,
 ) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
+    baseline_revision = (baseline.get("status"), baseline.get("updated_at"))
+    advanced = baseline.get("status") not in {"failed", "blocked"}
     while True:
         task = _canonical_task(base_url, task_id)
-        if task.get("terminal") is True or task.get("status") in TERMINAL_STATUSES:
+        revision = (task.get("status"), task.get("updated_at"))
+        terminal = task.get("terminal") is True or task.get("status") in TERMINAL_STATUSES
+        if revision != baseline_revision or not terminal:
+            advanced = True
+        if terminal and advanced:
             return task
         exit_code = process.poll()  # type: ignore[attr-defined]
         if exit_code is not None:
@@ -197,6 +225,26 @@ def _wait_for_canonical_terminal(
         if time.monotonic() >= deadline:
             raise TimeoutError(f"canonical task {task_id} did not settle within {timeout:.3f}s")
         time.sleep(1.0)
+
+
+def _wait_for_canonical_advance(
+    process: object,
+    base_url: str,
+    task_id: str,
+    baseline: dict[str, Any],
+    timeout: float,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout
+    baseline_revision = (baseline.get("status"), baseline.get("updated_at"))
+    while True:
+        task = _canonical_task(base_url, task_id)
+        if (task.get("status"), task.get("updated_at")) != baseline_revision:
+            return task
+        if process.poll() is not None:  # type: ignore[attr-defined]
+            raise RuntimeError("product TUI exited before the resumed canonical task advanced")
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"canonical task {task_id} did not advance after resume within {timeout:.3f}s")
+        time.sleep(0.25)
 
 
 def _ingress_statistics(base_url: str, task_id: str) -> dict[str, Any]:
@@ -252,6 +300,7 @@ def _attach_cycle(
     wait_terminal: bool,
     task_timeout: float,
 ) -> AttachResult:
+    baseline = _canonical_task(base_url, task_id)
     command = subprocess.list2cmdline([
         "node",
         str(ROOT / "apps" / "cli" / "dist" / "zyra.js"),
@@ -297,11 +346,14 @@ def _attach_cycle(
             process.resize(18 + (index % 43), 60 + (index % 141))
             if index % 25 == 0:
                 time.sleep(0.005)
-        canonical = _wait_for_canonical_terminal(process, base_url, task_id, task_timeout) \
-            if wait_terminal else _canonical_task(base_url, task_id)
+        canonical = _wait_for_canonical_terminal(process, base_url, task_id, baseline, task_timeout) \
+            if wait_terminal else _wait_for_canonical_advance(process, base_url, task_id, baseline, timeout)
         canonical_status = str(canonical.get("status") or "unknown")
-        if wait_terminal:
+        if canonical_status in TERMINAL_STATUSES:
             _request_status_until(process, capture, task_id, canonical_status, timeout)
+            # Product rendering exposes terminal input readiness only after
+            # the idle composer's listeners are actually bound.
+            _wait_for(capture, _terminal_input_marker(canonical_status), timeout)
         detach_started = time.monotonic()
         _type_command(process, "/exit")
         exit_code = process.wait(timeout=timeout)
@@ -341,6 +393,10 @@ def _attach_cycle(
         ):
             raise AssertionError(f"product TUI attach gate failed: {asdict(result)}\n{visible[-2_000:]}")
         return result
+    except Exception:
+        print(f"--- product TUI attach cycle {cycle} visible tail ---", file=sys.stderr)
+        print(_visible(capture)[-4_000:], file=sys.stderr)
+        raise
     finally:
         if process.poll() is None:
             process.terminate_tree(grace_seconds=0.5)

@@ -79,6 +79,23 @@ describe("product TUI shell", () => {
     expect(output.text).toContain("正在检查项目")
     expect(output.text).toContain("\u001b[J")
     expect(output.text).not.toContain("\u001b[?1049")
+    expect(output.text).toContain("输入暂不可用")
+  })
+
+  test("advertises composer readiness only while input is actually bound", async () => {
+    const stdin = new TtyInput()
+    const output = new TtyOutput()
+    const shell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    shell.start()
+    expect(output.text).toContain("输入暂不可用")
+
+    const reading = shell.read(false)
+    expect(output.text).toContain("/help 查看命令")
+    stdin.write("ready\r")
+    await reading
+
+    expect(output.text.slice(-500)).toContain("输入暂不可用")
+    shell.close()
   })
 
   test("submits multiline input and restores raw/bracketed-paste mode", async () => {
