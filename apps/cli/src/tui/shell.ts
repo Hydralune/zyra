@@ -1,7 +1,8 @@
 import type { Readable, Writable } from "node:stream"
 import type { DraftSnapshot } from "../input/draft.ts"
+import { ProductSessionState, type ProductViewState } from "../product/state/session-state.ts"
 import type { ZyraUiEvent } from "../presentation/events.ts"
-import { renderProductSnapshot } from "../presentation/renderer.ts"
+import { renderProductState } from "../presentation/renderer.ts"
 import { ProductComposer, type ProductComposerResult } from "./composer.ts"
 import { LiveProductRenderer } from "./live-renderer.ts"
 
@@ -10,6 +11,9 @@ export class ProductTuiShell {
   readonly #interactive: boolean
   readonly #renderer: LiveProductRenderer
   readonly #composer: ProductComposer
+  readonly #state = new ProductSessionState()
+  #archivedEvents: readonly ZyraUiEvent[] = Object.freeze([])
+  #taskEvents: readonly ZyraUiEvent[] = Object.freeze([])
   #events: readonly ZyraUiEvent[] = Object.freeze([])
   #draft: DraftSnapshot = Object.freeze({ text: "", cursor: 0, display: "", pasteRefs: Object.freeze([]) })
   #notice: string | undefined
@@ -25,7 +29,7 @@ export class ProductTuiShell {
   }) {
     this.#workspace = input.workspace
     this.#interactive = (input.stdin as Readable & { isTTY?: boolean }).isTTY === true
-    this.#renderer = new LiveProductRenderer(input.output, () => renderProductSnapshot(this.#events, {
+    this.#renderer = new LiveProductRenderer(input.output, () => renderProductState(this.#state.snapshot(), {
       width: this.#renderer.width,
       height: this.#renderer.height,
       workspace: this.#workspace,
@@ -57,16 +61,39 @@ export class ProductTuiShell {
 
   get alternateScreenUsed(): false { return this.#renderer.alternateScreenUsed }
   get interactive(): boolean { return this.#interactive }
+  get view(): ProductViewState { return this.#state.snapshot() }
 
   start(): void { this.#renderer.start() }
 
   update(events: readonly ZyraUiEvent[]): void {
-    this.#events = events
+    this.#taskEvents = events
+    this.#events = Object.freeze([...this.#archivedEvents, ...events])
+    this.#state.reconcile(this.#events)
     this.#renderer.render()
   }
 
   append(events: readonly ZyraUiEvent[]): void {
-    this.#events = Object.freeze([...this.#events, ...events])
+    this.#taskEvents = Object.freeze([...this.#taskEvents, ...events])
+    this.#events = Object.freeze([...this.#archivedEvents, ...this.#taskEvents])
+    this.#state.reconcile(this.#events)
+    this.#renderer.render()
+  }
+
+  beginTask(): void {
+    this.#archivedEvents = Object.freeze([...this.#archivedEvents, ...this.#taskEvents].slice(-20_000))
+    this.#taskEvents = Object.freeze([])
+    this.#events = this.#archivedEvents
+    this.#state.reconcile(this.#events)
+    this.#scrollOffset = 0
+    this.#renderer.render()
+  }
+
+  clearTranscript(): void {
+    this.#archivedEvents = Object.freeze([])
+    this.#taskEvents = Object.freeze([])
+    this.#events = Object.freeze([])
+    this.#state.reconcile(this.#events)
+    this.#scrollOffset = 0
     this.#renderer.render()
   }
 
@@ -91,7 +118,11 @@ export class ProductTuiShell {
   }
 
   finish(events?: readonly ZyraUiEvent[]): void {
-    if (events) this.#events = events
+    if (events) {
+      this.#taskEvents = events
+      this.#events = Object.freeze([...this.#archivedEvents, ...events])
+      this.#state.reconcile(this.#events)
+    }
     this.#running = false
     this.#composer.close()
     this.#renderer.finish()

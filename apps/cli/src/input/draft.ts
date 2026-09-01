@@ -9,6 +9,32 @@ export interface DraftSnapshot {
   pasteRefs: readonly string[]
 }
 
+interface DraftState {
+  text: string
+  cursor: number
+  pastes: Map<string, string>
+}
+
+const segmenter = typeof Intl.Segmenter === "function"
+  ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+  : undefined
+
+function boundaries(text: string): number[] {
+  if (!segmenter) {
+    const result = [0]
+    let offset = 0
+    for (const value of Array.from(text)) {
+      offset += value.length
+      result.push(offset)
+    }
+    return result
+  }
+  const result = [...segmenter.segment(text)].map((item) => item.index)
+  if (result[0] !== 0) result.unshift(0)
+  if (result.at(-1) !== text.length) result.push(text.length)
+  return result
+}
+
 function boundedCursor(text: string, cursor: number): number {
   return Math.max(0, Math.min(text.length, Math.floor(cursor)))
 }
@@ -18,6 +44,9 @@ export class PromptDraft {
   #cursor = 0
   #stashed: DraftSnapshot | undefined
   readonly #pastes = new Map<string, string>()
+  readonly #undo: DraftState[] = []
+  readonly #redo: DraftState[] = []
+  readonly #undoLimit = 200
 
   get empty(): boolean { return this.#text.length === 0 }
 
@@ -31,27 +60,83 @@ export class PromptDraft {
     })
   }
 
-  set(text: string, cursor = text.length): DraftSnapshot {
+  set(text: string, cursor = text.length, record = true): DraftSnapshot {
+    if (record && (text !== this.#text || cursor !== this.#cursor)) this.#checkpoint()
     this.#text = text
     this.#cursor = boundedCursor(text, cursor)
     return this.snapshot()
   }
 
   insert(text: string): DraftSnapshot {
+    if (!text) return this.snapshot()
+    this.#checkpoint()
     const next = `${this.#text.slice(0, this.#cursor)}${text}${this.#text.slice(this.#cursor)}`
-    return this.set(next, this.#cursor + text.length)
+    this.#text = next
+    this.#cursor += text.length
+    return this.snapshot()
   }
 
   deleteBackward(): DraftSnapshot {
     if (this.#cursor <= 0) return this.snapshot()
-    const previous = this.#cursor - 1
+    this.#checkpoint()
+    const previous = boundaries(this.#text).filter((value) => value < this.#cursor).at(-1) ?? 0
     this.#text = `${this.#text.slice(0, previous)}${this.#text.slice(this.#cursor)}`
     this.#cursor = previous
     return this.snapshot()
   }
 
+  deleteForward(): DraftSnapshot {
+    if (this.#cursor >= this.#text.length) return this.snapshot()
+    this.#checkpoint()
+    const next = boundaries(this.#text).find((value) => value > this.#cursor) ?? this.#text.length
+    this.#text = `${this.#text.slice(0, this.#cursor)}${this.#text.slice(next)}`
+    return this.snapshot()
+  }
+
   move(offset: number): DraftSnapshot {
-    this.#cursor = boundedCursor(this.#text, this.#cursor + offset)
+    const points = boundaries(this.#text)
+    const current = Math.max(0, points.findIndex((value) => value >= this.#cursor))
+    this.#cursor = points[Math.max(0, Math.min(points.length - 1, current + Math.trunc(offset)))] ?? this.#cursor
+    return this.snapshot()
+  }
+
+  moveWord(direction: -1 | 1): DraftSnapshot {
+    if (direction < 0) {
+      const before = this.#text.slice(0, this.#cursor)
+      this.#cursor = before.search(/\S+\s*$/u)
+      if (this.#cursor < 0) this.#cursor = 0
+    } else {
+      const after = this.#text.slice(this.#cursor)
+      const match = after.match(/^\s*\S+/u)
+      this.#cursor = boundedCursor(this.#text, this.#cursor + (match?.[0].length ?? after.length))
+    }
+    return this.snapshot()
+  }
+
+  home(): DraftSnapshot {
+    this.#cursor = (this.#text.lastIndexOf("\n", Math.max(0, this.#cursor - 1)) + 1)
+    return this.snapshot()
+  }
+
+  end(): DraftSnapshot {
+    const next = this.#text.indexOf("\n", this.#cursor)
+    this.#cursor = next < 0 ? this.#text.length : next
+    return this.snapshot()
+  }
+
+  undo(): DraftSnapshot {
+    const prior = this.#undo.pop()
+    if (!prior) return this.snapshot()
+    this.#redo.push(this.#capture())
+    this.#restoreState(prior)
+    return this.snapshot()
+  }
+
+  redo(): DraftSnapshot {
+    const next = this.#redo.pop()
+    if (!next) return this.snapshot()
+    this.#undo.push(this.#capture())
+    this.#restoreState(next)
     return this.snapshot()
   }
 
@@ -74,6 +159,8 @@ export class PromptDraft {
     this.#text = ""
     this.#cursor = 0
     this.#pastes.clear()
+    this.#undo.length = 0
+    this.#redo.length = 0
     return expanded
   }
 
@@ -82,6 +169,8 @@ export class PromptDraft {
     this.#stashed = this.snapshot()
     this.#text = ""
     this.#cursor = 0
+    this.#undo.length = 0
+    this.#redo.length = 0
     return this.#stashed
   }
 
@@ -99,6 +188,23 @@ export class PromptDraft {
     const token = before.match(/(?:^|\s)([/@][^\s]*)$/)?.[1] ?? ""
     if (!token) return []
     return candidates.filter((candidate) => candidate.startsWith(token)).sort()
+  }
+
+  #capture(): DraftState {
+    return { text: this.#text, cursor: this.#cursor, pastes: new Map(this.#pastes) }
+  }
+
+  #restoreState(state: DraftState): void {
+    this.#text = state.text
+    this.#cursor = state.cursor
+    this.#pastes.clear()
+    for (const [key, value] of state.pastes) this.#pastes.set(key, value)
+  }
+
+  #checkpoint(): void {
+    this.#undo.push(this.#capture())
+    if (this.#undo.length > this.#undoLimit) this.#undo.shift()
+    this.#redo.length = 0
   }
 }
 

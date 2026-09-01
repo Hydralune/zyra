@@ -45,18 +45,28 @@ export class TerminalNodeLifecycle {
     if (this.#stopped) return undefined
     this.#stopped = true
     const deadline = Date.now() + Math.max(100, this.shutdownTimeoutMs)
+    const trace = (stage: string) => {
+      if (process.env.ZYRA_CLI_TRACE_SHUTDOWN === "1") process.stderr.write(`[zyra shutdown] ${stage}\n`)
+    }
     try {
+      trace("terminal drain start")
       await this.server.drain(reason)
+      trace("terminal settle start")
       await this.server.settle(Math.max(100, deadline - Date.now()))
       if (!this.#started) return undefined
       const remaining = deadline - Date.now()
       if (remaining <= 0) throw new Error("Terminal node cleanup deadline expired.")
-      return await this.registration.disable({
+      trace("terminal registration disable start")
+      const receipt = await this.registration.disable({
         timeoutMs: remaining,
         maximumAttempts: 1,
       })
+      trace("terminal registration disable complete")
+      return receipt
     } finally {
+      trace("terminal server close start")
       await this.server.close()
+      trace("terminal server close complete")
     }
   }
 }

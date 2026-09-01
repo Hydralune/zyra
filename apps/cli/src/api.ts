@@ -44,7 +44,8 @@ export interface IngressFrame {
   raw: Readonly<Record<string, unknown>>
 }
 
-function taskCreateBody(goal: string, sealed: boolean) {
+function taskCreateBody(goal: string, sealed: boolean, sessionId?: string) {
+  const session = sessionId?.trim() ? { session_id: sessionId.trim() } : {}
   return sealed
     ? {
         goal,
@@ -52,19 +53,21 @@ function taskCreateBody(goal: string, sealed: boolean) {
         sealed: true,
         sealed_autonomous: true,
         competition_mode: "sealed_autonomous",
+        ...session,
       } as const
-    : { goal, auto_run: false } as const
+    : { goal, auto_run: false, ...session } as const
 }
 
 export function taskSubmissionIdempotencyKey(
   goal: string,
   sealed: boolean,
   submissionGeneration: string,
+  sessionId?: string,
 ): string {
   return createIdempotencyKey(
     OPERATION_NAMES.taskCreate,
     {},
-    taskCreateBody(goal, sealed),
+    taskCreateBody(goal, sealed, sessionId),
     submissionGeneration,
   )
 }
@@ -366,11 +369,11 @@ export class CliApi {
     this.client.close(reason)
   }
 
-  async createPendingTask(goal: string, sealed: boolean): Promise<TaskMutationProjection> {
-    const body = taskCreateBody(goal, sealed)
+  async createPendingTask(goal: string, sealed: boolean, sessionId?: string): Promise<TaskMutationProjection> {
+    const body = taskCreateBody(goal, sealed, sessionId)
     // Idempotency owns transport retries for one explicit submission. It must
     // not collapse a later `zyra run` with the same goal into an old task.
-    const idempotencyKey = taskSubmissionIdempotencyKey(goal, sealed, crypto.randomUUID())
+    const idempotencyKey = taskSubmissionIdempotencyKey(goal, sealed, crypto.randomUUID(), sessionId)
     const response = await this.client.endpoint<TaskMutationProjection, typeof body>(OPERATION_NAMES.taskCreate, {
       body,
       idempotencyKey,

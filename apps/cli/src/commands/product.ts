@@ -1,10 +1,8 @@
-import { readdir } from "node:fs/promises"
 import type { Readable, Writable } from "node:stream"
 import { ZyraApiError, type TaskProjection } from "@zyra/typed-api-client"
 import { CliApi, type IngressCapabilities, type IngressFrame } from "../api.ts"
 import { CliExitCode, CliTaskError, type InteractiveCommand, type ResumeCommand } from "../contracts.ts"
 import {
-  ACTIVE_CONTROL_COMMANDS,
   CliControlSession,
   formatCommandQueue,
   formatCommandReceipt,
@@ -14,13 +12,11 @@ import { CliPermissionSession, type PermissionRequestView } from "../control/per
 import type { UiPermissionSnapshot } from "../presentation/events.ts"
 import { ProductProjection } from "../presentation/projection.ts"
 import { buildBoundedWorkspaceDiff } from "../presentation/workspace-diff.ts"
+import { parseProductCommand, productCommandCandidates, productCommandHelp } from "../product/commands/registry.ts"
+import { workspaceReferenceCandidates } from "../product/files/index.ts"
 import { ProductTuiShell } from "../tui/shell.ts"
 import { mutationTransportDetached, type CommandOutcome } from "../runner.ts"
 import { launchUi } from "../ui.ts"
-
-const PRODUCT_COMMANDS = Object.freeze([
-  "/help", "/exit", "/ui", ...ACTIVE_CONTROL_COMMANDS,
-])
 
 function terminalTask(task: TaskProjection): boolean {
   return task.terminal || ["completed", "failed", "blocked", "cancelled", "killed"].includes(task.status)
@@ -79,6 +75,7 @@ async function runProductControlLoop(input: {
 }): Promise<void> {
   while (!input.signal.aborted) {
     const result = await input.shell.read(true)
+    if (result.kind === "closed") return
     if (result.kind === "exit" || (result.kind === "submit" && result.text.trim() === "/exit")) {
       input.shell.notice("输入已分离；远端任务会继续运行，可稍后使用 zyra resume 恢复。")
       return
@@ -95,7 +92,26 @@ async function runProductControlLoop(input: {
       }
       const line = result.text.trim()
       if (line === "/help" || line === "?") {
-        input.shell.notice(`Enter 立即重定向 · Tab 排队 · Esc 中断 · ${PRODUCT_COMMANDS.join("  ")}`)
+        input.shell.notice(`Enter 立即重定向 · Tab 排队 · Esc 中断\n${productCommandHelp(true)}`)
+        continue
+      }
+      if (line === "/status") {
+        const view = input.shell.view
+        input.shell.notice(`session ${view.sessionId ?? "未绑定"}\ntask ${view.taskId ?? "未绑定"} · ${view.taskStatus}\nconnection ${view.connection}`)
+        continue
+      }
+      if (line === "/pwd") {
+        input.shell.notice(process.cwd())
+        continue
+      }
+      if (line === "/agents") {
+        const agents = input.shell.view.agents
+        input.shell.notice(agents.length ? agents.map((agent) => `${agent.label} · ${agent.status} · ${agent.agentId}`).join("\n") : "当前没有可见协作代理。")
+        continue
+      }
+      if (line === "/permissions") {
+        const permissions = input.shell.view.permissions
+        input.shell.notice(permissions.length ? permissions.map((request) => `${request.requestId} · ${request.action}`).join("\n") : "当前没有待处理权限请求。")
         continue
       }
       if (line === "/ui") {
@@ -389,10 +405,7 @@ export async function observeProductTask(input: {
 }
 
 async function candidates(cwd: string): Promise<readonly string[]> {
-  const references = await readdir(cwd, { withFileTypes: true })
-    .then((entries) => entries.slice(0, 500).map((entry) => `@${entry.name}${entry.isDirectory() ? "/" : ""}`))
-    .catch(() => [] as string[])
-  return [...PRODUCT_COMMANDS, ...references]
+  return [...productCommandCandidates(), ...await workspaceReferenceCandidates(cwd)]
 }
 
 async function appendFinalDiff(input: {
@@ -428,32 +441,16 @@ export async function executeProductInteractive(input: {
   const shell = new ProductTuiShell({ stdin: input.stdin, output: input.stdout, workspace: cwd, candidates: await candidates(cwd) })
   shell.start()
   try {
-    let goal = input.command.goal
-    if (!goal) {
-      const entry = await shell.read(false)
-      if (entry.kind !== "submit") {
-        return { exitCode: CliExitCode.SUCCESS, status: "exited" }
-      }
-      goal = entry.text
-    }
-    const created = await input.api.createPendingTask(goal, false)
-    const outcome = await observeProductTask({
+    return await runProductSession({
       api: input.api,
-      task: created.task,
       shell,
       signal: input.signal,
-      resume: false,
-      openWeb: async () => (await launchUi({
-        baseUrl: input.command.baseUrl,
-        webPort: 5173,
-        startupTimeoutMs: input.command.startupTimeoutMs,
-        open: true,
-        taskId: created.task.taskId,
-      })).url,
+      cwd,
+      tty,
+      baseUrl: input.command.baseUrl,
+      startupTimeoutMs: input.command.startupTimeoutMs,
+      initial: input.command.goal ? { kind: "goal", goal: input.command.goal } : undefined,
     })
-    await appendFinalDiff({ api: input.api, shell, taskId: outcome.taskId, cwd })
-    shell.finish()
-    return outcome
   } finally {
     shell.close()
   }
@@ -469,27 +466,174 @@ export async function executeProductResume(input: {
 }): Promise<CommandOutcome> {
   const cwd = input.cwd ?? process.cwd()
   const resolved = await input.api.resolveTask(input.command.identity)
+  const tty = Boolean((input.stdin as Readable & { isTTY?: boolean }).isTTY)
   const shell = new ProductTuiShell({ stdin: input.stdin, output: input.stdout, workspace: cwd, candidates: await candidates(cwd) })
   shell.start()
   try {
-    const outcome = await observeProductTask({
+    return await runProductSession({
       api: input.api,
-      task: resolved.task,
       shell,
       signal: input.signal,
-      resume: true,
-      openWeb: async () => (await launchUi({
-        baseUrl: input.command.baseUrl,
-        webPort: 5173,
-        startupTimeoutMs: input.command.startupTimeoutMs,
-        open: true,
-        taskId: resolved.task.taskId,
-      })).url,
+      cwd,
+      tty,
+      baseUrl: input.command.baseUrl,
+      startupTimeoutMs: input.command.startupTimeoutMs,
+      initial: { kind: "resume", task: resolved.task },
     })
-    await appendFinalDiff({ api: input.api, shell, taskId: outcome.taskId, cwd })
-    shell.finish()
-    return outcome
   } finally {
     shell.close()
+  }
+}
+
+type ProductSessionInput =
+  | { kind: "goal"; goal: string }
+  | { kind: "resume"; task: TaskProjection }
+
+function newProductSessionId(): string {
+  return `product:${crypto.randomUUID().replaceAll("-", "")}`
+}
+
+function formatRecentSessions(sessions: Awaited<ReturnType<CliApi["sessions"]>>): string {
+  if (!sessions.sessions.length) return "没有可恢复的历史会话。"
+  return sessions.sessions.slice(0, 12).map((session) => {
+    const status = session.statuses.join(", ") || (session.terminal ? "terminal" : "active")
+    return `${session.sessionId} · ${status} · ${session.updatedAt ?? "时间未知"}`
+  }).join("\n")
+}
+
+async function runProductSession(input: {
+  api: CliApi
+  shell: ProductTuiShell
+  signal: AbortSignal
+  cwd: string
+  tty: boolean
+  baseUrl: string
+  startupTimeoutMs: number
+  initial?: ProductSessionInput
+}): Promise<CommandOutcome> {
+  let next = input.initial
+  let sessionId = next?.kind === "resume"
+    ? next.task.sessionId ?? `task:${next.task.taskId}`
+    : newProductSessionId()
+  let currentTaskId = next?.kind === "resume" ? next.task.taskId : undefined
+  let lastOutcome: CommandOutcome | undefined
+
+  while (!input.signal.aborted) {
+    if (!next) {
+      const entry = await input.shell.read(false)
+      if (entry.kind === "exit" || entry.kind === "closed" || entry.kind === "interrupt") break
+      const line = entry.text.trim()
+      const command = parseProductCommand(line)
+      if (command) {
+        switch (command.definition.name) {
+          case "exit":
+          case "detach":
+            next = undefined
+            break
+          case "help":
+            input.shell.notice(`Enter 提交 · Ctrl+J 换行 · Ctrl+E 外部编辑 · Ctrl+R 恢复草稿\n${productCommandHelp(false)}`)
+            continue
+          case "new":
+            sessionId = newProductSessionId()
+            currentTaskId = undefined
+            input.shell.clearTranscript()
+            input.shell.notice(`已开始新会话 · ${sessionId}`)
+            continue
+          case "clear":
+            input.shell.clearTranscript()
+            input.shell.notice("本地 transcript 已清除；远端任务和历史未删除。")
+            continue
+          case "sessions":
+            input.shell.notice(formatRecentSessions(await input.api.sessions({ limit: 12 })))
+            continue
+          case "resume": {
+            if (!command.args) {
+              input.shell.notice(`${formatRecentSessions(await input.api.sessions({ limit: 12 }))}\n使用 /resume <task|session> 选择。`)
+              continue
+            }
+            const resolved = await input.api.resolveTask(command.args)
+            sessionId = resolved.task.sessionId ?? resolved.session?.sessionId ?? `task:${resolved.task.taskId}`
+            next = { kind: "resume", task: resolved.task }
+            break
+          }
+          case "status": {
+            const view = input.shell.view
+            input.shell.notice(`session ${view.sessionId ?? sessionId}\ntask ${view.taskId ?? currentTaskId ?? "未绑定"} · ${view.taskStatus}\nconnection ${view.connection}`)
+            continue
+          }
+          case "pwd":
+            input.shell.notice(input.cwd)
+            continue
+          case "agents": {
+            const agents = input.shell.view.agents
+            input.shell.notice(agents.length ? agents.map((agent) => `${agent.label} · ${agent.status} · ${agent.agentId}`).join("\n") : "当前没有可见协作代理。")
+            continue
+          }
+          case "permissions": {
+            const permissions = input.shell.view.permissions
+            input.shell.notice(permissions.length ? permissions.map((request) => `${request.requestId} · ${request.action}`).join("\n") : "当前没有待处理权限请求。")
+            continue
+          }
+          case "diff": {
+            const view = input.shell.view
+            input.shell.notice(view.changes.length ? `${view.changes.length} 个文件变更已显示在 transcript；使用 /ui 查看完整 diff。` : "当前任务没有可见文件变更。")
+            continue
+          }
+          case "ui":
+            input.shell.notice(currentTaskId
+              ? `已打开 Web 看板：${(await launchUi({ baseUrl: input.baseUrl, webPort: 5173, startupTimeoutMs: input.startupTimeoutMs, open: true, taskId: currentTaskId })).url}`
+              : "当前尚未绑定 task。")
+            continue
+          default:
+            input.shell.notice(`${command.raw} 只能在任务运行期间使用。`)
+            continue
+        }
+        if (!next) break
+      } else if (line.startsWith("/")) {
+        input.shell.notice(`未知命令：${line.split(/\s/u)[0]}。输入 /help 查看可用命令。`)
+        continue
+      } else if (line) {
+        next = { kind: "goal", goal: entry.text }
+      } else {
+        continue
+      }
+    }
+
+    if (!next) break
+    input.shell.beginTask()
+    const task = next.kind === "resume"
+      ? next.task
+      : (await input.api.createPendingTask(next.goal, false, sessionId)).task
+    currentTaskId = task.taskId
+    if (task.sessionId) sessionId = task.sessionId
+    lastOutcome = await observeProductTask({
+      api: input.api,
+      task,
+      shell: input.shell,
+      signal: input.signal,
+      resume: next.kind === "resume",
+      openWeb: async () => (await launchUi({
+        baseUrl: input.baseUrl,
+        webPort: 5173,
+        startupTimeoutMs: input.startupTimeoutMs,
+        open: true,
+        taskId: currentTaskId,
+      })).url,
+    })
+    await appendFinalDiff({ api: input.api, shell: input.shell, taskId: currentTaskId, cwd: input.cwd })
+    next = undefined
+    if (!input.tty) {
+      input.shell.finish()
+      return lastOutcome
+    }
+    input.shell.notice("本轮已收敛。继续输入可在同一会话发起下一轮；/new 开始新会话，/exit 退出。")
+  }
+  input.shell.finish()
+  return {
+    exitCode: CliExitCode.SUCCESS,
+    status: "exited",
+    taskId: lastOutcome?.taskId,
+    runId: lastOutcome?.runId,
+    result: { schema: "zyra.cli-product-session-result.v1", last_status: lastOutcome?.status, session_id: sessionId },
   }
 }

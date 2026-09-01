@@ -1,40 +1,10 @@
-import type { UiFileChange, UiPermissionRequest, UiVerificationSummary, ZyraUiEvent } from "./events.ts"
+import { ProductSessionState, type ProductViewState } from "../product/state/session-state.ts"
+import { renderMarkdown } from "../tui/markdown.ts"
+import { clipDisplay, displayWidth, padDisplay, sanitizeTerminalText, wrapDisplay } from "../tui/text.ts"
+import type { ZyraUiEvent } from "./events.ts"
 
-interface UiMessageState {
-  messageId: string
-  role: "user" | "assistant"
-  text: string
-}
-
-interface UiActivityState {
-  activityId: string
-  label: string
-  status: "pending" | "running" | "completed"
-  outcome?: string
-}
-
-interface UiToolState {
-  toolCallId: string
-  name: string
-  summary: string
-  status: "running" | "completed" | "failed"
-}
-
-export interface ProductViewState {
-  sessionId?: string
-  taskId?: string
-  messages: readonly UiMessageState[]
-  activities: readonly UiActivityState[]
-  tools: readonly UiToolState[]
-  permissions: readonly UiPermissionRequest[]
-  changes: readonly UiFileChange[]
-  diff?: { lines: readonly string[]; truncated: boolean }
-  verification?: UiVerificationSummary
-  connection: "connected" | "reconnecting" | "disconnected"
-  reconnectAttempt?: number
-  taskStatus: "idle" | "running" | "completed" | "failed" | "cancelled"
-  taskMessage?: string
-}
+export type { ProductViewState } from "../product/state/session-state.ts"
+export { displayWidth } from "../tui/text.ts"
 
 export interface ProductRenderOptions {
   width: number
@@ -48,218 +18,21 @@ export interface ProductRenderOptions {
   scrollOffset?: number
 }
 
-const COMBINING = /[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff\ufe20-\ufe2f\ufe0e\ufe0f]/u
-
-function runeWidth(value: string): number {
-  const code = value.codePointAt(0) ?? 0
-  if (COMBINING.test(value) || code === 0x200d) return 0
-  if (
-    code >= 0x1100 && (
-      code <= 0x115f
-      || code === 0x2329
-      || code === 0x232a
-      || (code >= 0x2e80 && code <= 0xa4cf && code !== 0x303f)
-      || (code >= 0xac00 && code <= 0xd7a3)
-      || (code >= 0xf900 && code <= 0xfaff)
-      || (code >= 0xfe10 && code <= 0xfe19)
-      || (code >= 0xfe30 && code <= 0xfe6f)
-      || (code >= 0xff00 && code <= 0xff60)
-      || (code >= 0xffe0 && code <= 0xffe6)
-      || (code >= 0x1f300 && code <= 0x1faff)
-      || (code >= 0x20000 && code <= 0x3fffd)
-    )
-  ) return 2
-  return 1
-}
-
-export function displayWidth(value: string): number {
-  return Array.from(value).reduce((sum, rune) => sum + runeWidth(rune), 0)
-}
-
-function takeWidth(value: string, width: number): { head: string; tail: string } {
-  let used = 0
-  let head = ""
-  const runes = Array.from(value)
-  let index = 0
-  while (index < runes.length) {
-    const rune = runes[index]!
-    const next = runeWidth(rune)
-    if (used + next > width) break
-    head += rune
-    used += next
-    index += 1
-  }
-  return { head, tail: runes.slice(index).join("") }
-}
-
-function padFit(value: string, width: number): string {
-  if (displayWidth(value) <= width) return value + " ".repeat(Math.max(0, width - displayWidth(value)))
-  const clipped = takeWidth(value, Math.max(1, width - 1)).head
-  return `${clipped}…`
-}
-
-function clip(value: string, width: number): string {
-  if (displayWidth(value) <= width) return value
-  return `${takeWidth(value, Math.max(1, width - 1)).head}…`
-}
-
-function wrapLine(value: string, width: number): string[] {
-  if (!value) return [""]
-  const lines: string[] = []
-  let remaining = value
-  while (displayWidth(remaining) > width) {
-    const selected = takeWidth(remaining, width)
-    if (!selected.head) break
-    lines.push(selected.head)
-    remaining = selected.tail
-  }
-  lines.push(remaining)
-  return lines
+export function reduceProductEvents(events: readonly ZyraUiEvent[]): ProductViewState {
+  const state = new ProductSessionState()
+  state.reconcile(events)
+  return state.snapshot()
 }
 
 function prefixed(value: string, prefix: string, width: number): string[] {
   const continuation = " ".repeat(displayWidth(prefix))
   const available = Math.max(8, width - displayWidth(prefix))
   const output: string[] = []
-  for (const source of value.split("\n")) {
-    if (!source) {
-      output.push("")
-      continue
-    }
-    const chunks = wrapLine(source, available)
+  for (const source of sanitizeTerminalText(value).split("\n")) {
+    const chunks = wrapDisplay(source, available)
     for (const [index, chunk] of chunks.entries()) output.push(`${output.length === 0 && index === 0 ? prefix : continuation}${chunk}`)
   }
   return output
-}
-
-function findMessage(messages: UiMessageState[], messageId: string, role: UiMessageState["role"]): UiMessageState {
-  let selected = messages.find((message) => message.messageId === messageId)
-  if (!selected) {
-    selected = { messageId, role, text: "" }
-    messages.push(selected)
-  }
-  return selected
-}
-
-export function reduceProductEvents(events: readonly ZyraUiEvent[]): ProductViewState {
-  const messages: UiMessageState[] = []
-  const activities = new Map<string, UiActivityState>()
-  const tools = new Map<string, UiToolState>()
-  const permissions = new Map<string, UiPermissionRequest>()
-  const changes = new Map<string, UiFileChange>()
-  let diff: ProductViewState["diff"]
-  let verification: UiVerificationSummary | undefined
-  let sessionId: string | undefined
-  let taskId: string | undefined
-  let connection: ProductViewState["connection"] = "connected"
-  let reconnectAttempt: number | undefined
-  let taskStatus: ProductViewState["taskStatus"] = "idle"
-  let taskMessage: string | undefined
-
-  for (const event of events) {
-    switch (event.type) {
-      case "session.started":
-        sessionId = event.sessionId
-        taskId = event.taskId
-        taskStatus = event.taskId ? "running" : "idle"
-        break
-      case "user.message":
-        findMessage(messages, event.messageId, "user").text = event.text
-        break
-      case "assistant.message.started":
-        findMessage(messages, event.messageId, "assistant")
-        break
-      case "assistant.message.delta":
-        findMessage(messages, event.messageId, "assistant").text += event.text
-        break
-      case "assistant.message.completed":
-        findMessage(messages, event.messageId, "assistant").text = event.text
-        break
-      case "activity.started":
-      case "activity.updated":
-      case "activity.completed":
-        activities.set(event.activityId, {
-          activityId: event.activityId,
-          label: event.label,
-          status: event.type === "activity.completed" ? "completed" : event.type === "activity.started" ? "running" : "pending",
-          outcome: event.type === "activity.completed" ? event.outcome : undefined,
-        })
-        break
-      case "tool.started":
-        tools.set(event.toolCallId, { toolCallId: event.toolCallId, name: event.name, summary: event.summary, status: "running" })
-        break
-      case "tool.updated": {
-        const prior = tools.get(event.toolCallId)
-        tools.set(event.toolCallId, { toolCallId: event.toolCallId, name: prior?.name ?? "工具", summary: event.summary, status: "running" })
-        break
-      }
-      case "tool.completed": {
-        const prior = tools.get(event.toolCallId)
-        tools.set(event.toolCallId, { toolCallId: event.toolCallId, name: prior?.name ?? "工具", summary: event.summary, status: "completed" })
-        break
-      }
-      case "tool.failed": {
-        const prior = tools.get(event.toolCallId)
-        tools.set(event.toolCallId, { toolCallId: event.toolCallId, name: prior?.name ?? "工具", summary: event.message, status: "failed" })
-        break
-      }
-      case "permission.requested":
-        permissions.set(event.request.requestId, event.request)
-        break
-      case "permission.resolved":
-        permissions.delete(event.requestId)
-        break
-      case "workspace.changed":
-        for (const change of event.changes) changes.set(`${change.kind}:${change.path}`, change)
-        break
-      case "workspace.diff":
-        diff = { lines: event.lines, truncated: event.truncated }
-        break
-      case "verification.updated":
-        verification = event.verification
-        break
-      case "task.completed":
-        taskId = event.taskId
-        taskStatus = "completed"
-        break
-      case "task.failed":
-        taskId = event.taskId
-        taskStatus = "failed"
-        taskMessage = event.recovery ? `${event.message} ${event.recovery}` : event.message
-        break
-      case "task.cancelled":
-        taskId = event.taskId
-        taskStatus = "cancelled"
-        taskMessage = event.message
-        break
-      case "transport.reconnecting":
-        connection = "reconnecting"
-        reconnectAttempt = event.attempt
-        break
-      case "transport.recovered":
-        connection = "connected"
-        reconnectAttempt = undefined
-        break
-      case "subagent.updated":
-        break
-    }
-  }
-
-  return Object.freeze({
-    sessionId,
-    taskId,
-    messages: Object.freeze(messages.map((item) => Object.freeze({ ...item }))),
-    activities: Object.freeze([...activities.values()]),
-    tools: Object.freeze([...tools.values()]),
-    permissions: Object.freeze([...permissions.values()]),
-    changes: Object.freeze([...changes.values()]),
-    diff,
-    verification,
-    connection,
-    reconnectAttempt,
-    taskStatus,
-    taskMessage,
-  })
 }
 
 function connectionLabel(state: ProductViewState): string {
@@ -268,37 +41,51 @@ function connectionLabel(state: ProductViewState): string {
   return "已连接"
 }
 
-export function renderProductSnapshot(events: readonly ZyraUiEvent[], options: ProductRenderOptions): string {
-  const width = Math.max(40, Math.floor(options.width))
-  const state = reduceProductEvents(events)
-  const lines: string[] = []
-  const inner = width - 2
-  const header = ` >_ Zyra (v${options.version ?? "0.1.0"})`
-  const workspace = ` ${options.workspace} · ${connectionLabel(state)} · 产品模式`
-  lines.push(`╭${"─".repeat(inner)}╮`)
-  lines.push(`│${padFit(header, inner)}│`)
-  lines.push(`│${padFit(workspace, inner)}│`)
-  lines.push(`╰${"─".repeat(inner)}╯`)
-
-  for (const message of state.messages) {
-    if (!message.text) continue
-    lines.push("")
-    lines.push(...prefixed(message.text, message.role === "user" ? "› " : "• ", width))
+function renderMessage(lines: string[], message: ProductViewState["messages"][number], width: number): void {
+  if (!message.text) return
+  lines.push("")
+  const marker = message.role === "user" ? "› " : message.streaming ? "◌ " : "• "
+  const bodyWidth = Math.max(12, width - displayWidth(marker))
+  const rendered = message.role === "assistant"
+    ? renderMarkdown(message.text, bodyWidth)
+    : wrapDisplay(message.text, bodyWidth)
+  for (const [index, line] of rendered.entries()) {
+    lines.push(line ? `${index ? " ".repeat(displayWidth(marker)) : marker}${line}` : "")
   }
+}
 
-  const runningActivity = state.activities.find((activity) => activity.status === "running")
-  const completedActivities = state.activities.filter((activity) => activity.status === "completed").length
-  if (runningActivity) {
-    lines.push("")
-    lines.push(...prefixed(`${runningActivity.label}（Esc 中断）`, "• ", width))
-  } else if (completedActivities) {
-    lines.push("")
-    lines.push(...prefixed(`已完成 ${completedActivities} 个步骤`, "✓ ", width))
+function renderActivity(lines: string[], state: ProductViewState, width: number): void {
+  const active = state.activities.filter((item) => item.status === "running")
+  const pending = state.activities.filter((item) => item.status === "pending")
+  const completed = state.activities.filter((item) => item.status === "completed")
+  if (!active.length && !pending.length && !completed.length) return
+  lines.push("")
+  lines.push(...prefixed(`计划 · ${completed.length} 完成 · ${active.length} 进行中 · ${pending.length} 待执行`, "  ", width))
+  for (const item of active.slice(0, 3)) lines.push(...prefixed(`${item.label}（Esc 中断）`, "◌ ", width))
+  if (!active.length && completed.length) lines.push(...prefixed(`已完成 ${completed.length} 个步骤`, "✓ ", width))
+}
+
+function renderTools(lines: string[], state: ProductViewState, width: number): void {
+  const visible = state.tools.slice(-8)
+  if (!visible.length) return
+  lines.push("")
+  for (const tool of visible) {
+    const marker = tool.status === "failed" ? "! " : tool.status === "completed" ? "✓ " : "◌ "
+    lines.push(...prefixed(`${tool.name} · ${tool.summary}`, marker, width))
   }
+  if (state.tools.length > visible.length) lines.push(...prefixed(`${state.tools.length - visible.length} 个较早工具调用已折叠`, "… ", width))
+}
 
-  const visibleTools = state.tools.slice(-3)
-  for (const tool of visibleTools) lines.push(...prefixed(tool.summary, tool.status === "failed" ? "! " : "  ", width))
+function renderAgents(lines: string[], state: ProductViewState, width: number): void {
+  if (!state.agents.length) return
+  lines.push("")
+  const active = state.agents.filter((agent) => !["completed", "failed", "cancelled"].includes(agent.status))
+  const failed = state.agents.filter((agent) => agent.status === "failed")
+  lines.push(...prefixed(`协作代理 · ${active.length} 活跃 · ${failed.length} 失败 · ${state.agents.length} 总计`, "◎ ", width))
+  for (const agent of [...active, ...failed].slice(0, 5)) lines.push(...prefixed(`${agent.label} · ${agent.status}`, "  ", width))
+}
 
+function renderPermissions(lines: string[], state: ProductViewState, width: number): void {
   for (const permission of state.permissions) {
     lines.push("")
     lines.push(...prefixed(`需要权限：${permission.action}${permission.target ? ` · ${permission.target}` : ""}`, "! ", width))
@@ -308,25 +95,52 @@ export function renderProductSnapshot(events: readonly ZyraUiEvent[], options: P
     if (permission.expiresAt) lines.push(...prefixed(`有效期至：${permission.expiresAt}`, "  ", width))
     lines.push(...prefixed(`[A] 允许本次   [D] 拒绝 · ${permission.requestId}`, "  ", width))
   }
+}
 
+function renderWorkspace(lines: string[], state: ProductViewState, width: number): void {
   if (state.changes.length) {
     lines.push("")
     lines.push(...prefixed(`${state.changes.length} 个文件发生变更`, "✓ ", width))
-    for (const change of state.changes.slice(0, 5)) lines.push(...prefixed(`${change.kind.padEnd(8)} ${change.path}`, "  ", width))
+    for (const change of state.changes.slice(0, 12)) lines.push(...prefixed(`${change.kind.padEnd(8)} ${change.path}`, "  ", width))
+    if (state.changes.length > 12) lines.push(...prefixed(`${state.changes.length - 12} 个文件已折叠；/diff 查看`, "… ", width))
   }
-
   if (state.diff?.lines.length) {
-    lines.push(...prefixed("有界 diff：", "  ", width))
-    for (const line of state.diff.lines) lines.push(...prefixed(line, "  ", width))
-    if (state.diff.truncated) lines.push(...prefixed("diff 已截断；使用 /ui 查看完整审查。", "… ", width))
+    lines.push(...prefixed("Diff 预览：", "  ", width))
+    for (const raw of state.diff.lines.slice(0, 160)) {
+      const line = sanitizeTerminalText(raw)
+      const marker = line.startsWith("+") ? "+ " : line.startsWith("-") ? "- " : "  "
+      lines.push(...prefixed(line, marker, width))
+    }
+    if (state.diff.truncated || state.diff.lines.length > 160) lines.push(...prefixed("diff 已折叠；使用 /diff 或 /ui 查看完整审查。", "… ", width))
   }
+}
 
-  if (state.verification) {
-    lines.push("")
-    const marker = state.verification.status === "passed" ? "✓ " : state.verification.status === "failed" ? "! " : "• "
-    lines.push(...prefixed(state.verification.label, marker, width))
-    for (const detail of state.verification.details) lines.push(...prefixed(detail, "  ", width))
-  }
+function renderVerification(lines: string[], state: ProductViewState, width: number): void {
+  if (!state.verification) return
+  lines.push("")
+  const marker = state.verification.status === "passed" ? "✓ " : state.verification.status === "failed" ? "! " : "• "
+  lines.push(...prefixed(state.verification.label, marker, width))
+  for (const detail of state.verification.details) lines.push(...prefixed(detail, "  ", width))
+}
+
+export function renderProductState(state: ProductViewState, options: ProductRenderOptions): string {
+  const width = Math.max(40, Math.floor(options.width))
+  const lines: string[] = []
+  const inner = width - 2
+  const header = ` >_ Zyra (v${options.version ?? "0.1.0"})`
+  const workspace = ` ${sanitizeTerminalText(options.workspace)} · ${connectionLabel(state)} · 产品模式`
+  lines.push(`╭${"─".repeat(inner)}╮`)
+  lines.push(`│${padDisplay(header, inner)}│`)
+  lines.push(`│${padDisplay(workspace, inner)}│`)
+  lines.push(`╰${"─".repeat(inner)}╯`)
+
+  for (const message of state.messages) renderMessage(lines, message, width)
+  renderActivity(lines, state, width)
+  renderTools(lines, state, width)
+  renderAgents(lines, state, width)
+  renderPermissions(lines, state, width)
+  renderWorkspace(lines, state, width)
+  renderVerification(lines, state, width)
 
   if (state.taskMessage) {
     lines.push("")
@@ -336,7 +150,8 @@ export function renderProductSnapshot(events: readonly ZyraUiEvent[], options: P
     lines.push("")
     lines.push(...prefixed(connectionLabel(state), "◌ ", width))
   }
-
+  const totalEvicted = Object.values(state.evicted).reduce((sum, value) => sum + value, 0)
+  if (totalEvicted) lines.push(...prefixed(`${totalEvicted} 个较早条目已从内存视图折叠`, "… ", width))
   if (options.notice) {
     lines.push("")
     lines.push(...prefixed(options.notice, "! ", width))
@@ -346,29 +161,34 @@ export function renderProductSnapshot(events: readonly ZyraUiEvent[], options: P
   const leadingStatus = options.running
     ? "Tab 排队 · Esc 中断"
     : state.taskStatus === "completed"
-      ? "任务已完成"
+      ? "任务已完成 · 可继续输入新任务"
       : state.taskStatus === "failed"
-        ? "任务失败"
-        : "? 查看快捷键"
+        ? "任务失败 · /resume 或输入新任务"
+        : "/help 查看命令"
   const status = `${leadingStatus} · ${connectionLabel(state)}${state.taskId ? ` · ${state.taskId}` : ""}`
-  lines.push(clip(`  ${status}`, width))
-  let visible = lines.map((line) => clip(line, width))
+  lines.push(clipDisplay(`  ${status}`, width))
+
+  let visible = lines.map((line) => clipDisplay(line, width))
   const height = options.height === undefined ? undefined : Math.max(8, Math.floor(options.height))
   if (height !== undefined && visible.length > height) {
-    const header = visible.slice(0, 4)
+    const fixedHeader = visible.slice(0, 4)
     const footer = visible.slice(-4)
     const body = visible.slice(4, -4)
-    const bodyBudget = Math.max(0, height - header.length - footer.length - 1)
+    const bodyBudget = Math.max(0, height - fixedHeader.length - footer.length - 1)
     const offset = Math.max(0, Math.min(body.length, Math.floor(options.scrollOffset ?? 0)))
     const end = Math.max(0, body.length - offset)
     const start = Math.max(0, end - bodyBudget)
     const hidden = start + (body.length - end)
     visible = [
-      ...header,
-      clip(`… ${hidden} 行已隐藏 · PageUp/PageDown 滚动`, width),
+      ...fixedHeader,
+      clipDisplay(`… ${hidden} 行已隐藏 · PageUp/PageDown 滚动`, width),
       ...body.slice(start, end),
       ...footer,
     ]
   }
   return `${visible.join("\n")}\n`
+}
+
+export function renderProductSnapshot(events: readonly ZyraUiEvent[], options: ProductRenderOptions): string {
+  return renderProductState(reduceProductEvents(events), options)
 }

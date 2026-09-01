@@ -1,8 +1,8 @@
 # Codex → Zyra 产品 CLI / TUI 覆盖矩阵
 
-状态：Phase B 基线（实施中）  
-参考源码：`G:\agent-zoo\codex`  
-目标仓库：`G:\agent-zoo\zyra`  
+状态：Phase B 基线（实施中）
+参考源码：`G:\agent-zoo\codex`
+目标仓库：`G:\agent-zoo\zyra`
 审计日期：2026-09-01
 
 ## 口径

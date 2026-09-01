@@ -11,6 +11,7 @@ type RawInput = Readable & { isTTY?: boolean; setRawMode?: (enabled: boolean) =>
 export type ProductComposerResult =
   | { kind: "submit"; text: string; queue: boolean }
   | { kind: "interrupt" }
+  | { kind: "closed" }
   | { kind: "exit" }
 
 function linePosition(text: string, cursor: number): { current: number; total: number } {
@@ -74,16 +75,17 @@ export class ProductComposer {
         this.#input.off("data", data)
         this.#input.off("end", end)
         this.#input.setRawMode?.(false)
+        this.#input.pause()
         this.#output.write("\u001b[?2004l")
       }
     })
   }
 
-  close(): void { this.#finish({ kind: "exit" }) }
+  close(): void { this.#finish({ kind: "closed" }) }
 
   async #consume(value: string): Promise<void> {
-    if (this.#busy) return
     this.#pending += value
+    if (this.#busy) return
     while (this.#pending) {
       if (this.#pasting) {
         const end = this.#pending.indexOf(PASTE_END)
@@ -111,19 +113,29 @@ export class ProductComposer {
         this.#onScroll(page === "\u001b[5~" ? "up" : "down")
         continue
       }
-      const arrow = this.#pending.match(/^\u001b\[[ABCD]/)?.[0]
-      if (arrow) {
-        this.#pending = this.#pending.slice(arrow.length)
+      const key = this.#pending.match(/^\u001b\[(?:1;5[CD]|[ABCDHF]|[134]~)/)?.[0]
+      if (key) {
+        this.#pending = this.#pending.slice(key.length)
         const snapshot = this.draft.snapshot()
         const position = linePosition(snapshot.text, snapshot.cursor)
-        if (arrow === "\u001b[A") {
+        if (key === "\u001b[A") {
           const prior = this.history.previous(position.current)
           if (prior !== undefined) this.draft.set(prior)
-        } else if (arrow === "\u001b[B") {
+        } else if (key === "\u001b[B") {
           const next = this.history.next(position.current, position.total)
           if (next !== undefined) this.draft.set(next)
+        } else if (key === "\u001b[H" || key === "\u001b[1~") {
+          this.draft.home()
+        } else if (key === "\u001b[F" || key === "\u001b[4~") {
+          this.draft.end()
+        } else if (key === "\u001b[3~") {
+          this.draft.deleteForward()
+        } else if (key === "\u001b[1;5D") {
+          this.draft.moveWord(-1)
+        } else if (key === "\u001b[1;5C") {
+          this.draft.moveWord(1)
         } else {
-          this.draft.move(arrow === "\u001b[C" ? 1 : -1)
+          this.draft.move(key === "\u001b[C" ? 1 : -1)
         }
         this.#changed()
         continue
@@ -164,6 +176,9 @@ export class ProductComposer {
         continue
       }
       if (char === "\u007f" || char === "\b") { this.draft.deleteBackward(); this.#changed(); continue }
+      if (char === "\u001a") { this.draft.undo(); this.#changed(); continue }
+      if (char === "\u0019") { this.draft.redo(); this.#changed(); continue }
+      if (char === "\u0001") { this.draft.home(); this.#changed(); continue }
       if (char === "\u0012") {
         const snapshot = this.draft.snapshot()
         const found = snapshot.text

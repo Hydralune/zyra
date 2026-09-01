@@ -347,6 +347,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       }
     } finally {
       try {
+        if (process.env.ZYRA_CLI_TRACE_SHUTDOWN === "1") stderr.write("[zyra shutdown] command cleanup start\n")
         const cleanupWarning = await stopTerminalBestEffort(terminal)
         if (cleanupWarning) output.event({ ...cleanupWarning })
       } finally {
@@ -354,6 +355,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
         if (cancelTimer) clearTimeout(cancelTimer)
         signal.dispose()
         api.close("CLI command complete")
+        if (process.env.ZYRA_CLI_TRACE_SHUTDOWN === "1") stderr.write("[zyra shutdown] command cleanup complete\n")
       }
     }
     if (!humanMode && !listTty) output.result({
