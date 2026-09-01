@@ -228,4 +228,58 @@ describe("product task observer", () => {
     expect(output.text).toContain("安全完成。")
     expect(stdin.raw).toBeFalse()
   })
+
+  test("detaches immediately without sending a canonical task cancellation", async () => {
+    const output = new Capture(true)
+    const stdin = new TtyInput()
+    const productShell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    const running = task("running")
+    let cancelled = 0
+    let runTransportAborted = false
+    const api = {
+      async ingressCapabilities() {
+        return { taskId: running.taskId, generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress() {
+        yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async openPermissionSession() { throw new Error("permission custody disabled") },
+      async runTask(_task: TaskProjection, signal?: AbortSignal) {
+        return await new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => {
+            runTransportAborted = true
+            reject(signal.reason)
+          }, { once: true })
+        })
+      },
+      async *streamIngress(_taskId: string, _cursor: string, _generation: number, signal?: AbortSignal) {
+        await new Promise<void>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
+        })
+      },
+      async cancelTask() { cancelled += 1; throw new Error("must not cancel") },
+      async task() { return running },
+    } as unknown as CliApi
+
+    productShell.start()
+    const startedAt = performance.now()
+    const observation = observeProductTask({
+      api,
+      task: running,
+      shell: productShell,
+      signal: new AbortController().signal,
+      resume: true,
+    })
+    setTimeout(() => stdin.write("/exit\r"), 20)
+    const result = await observation
+    productShell.finish()
+
+    expect(result.status).toBe("detached")
+    expect(result.taskId).toBe(running.taskId)
+    expect(performance.now() - startedAt).toBeLessThan(1_000)
+    expect(cancelled).toBe(0)
+    expect(runTransportAborted).toBeTrue()
+    expect(output.text).toContain(`zyra resume ${running.taskId}`)
+    expect(stdin.raw).toBeFalse()
+  })
 })

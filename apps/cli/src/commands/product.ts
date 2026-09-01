@@ -128,12 +128,19 @@ async function runProductControlLoop(input: {
   openDiff: () => Promise<boolean>
   taskStatus: () => Promise<TaskProjection>
   readiness: () => ReturnType<CliApi["readiness"]>
+  detach: () => void
 }): Promise<void> {
   while (!input.signal.aborted) {
     const result = await input.shell.read(true)
-    if (result.kind === "closed") return
-    if (result.kind === "exit" || (result.kind === "submit" && result.text.trim() === "/exit")) {
-      input.shell.notice("输入已分离；远端任务会继续运行，可稍后使用 zyra resume 恢复。")
+    if (result.kind === "closed") {
+      input.detach()
+      return
+    }
+    if (
+      result.kind === "exit"
+      || (result.kind === "submit" && ["/exit", "/detach"].includes(result.text.trim()))
+    ) {
+      input.detach()
       return
     }
     try {
@@ -301,10 +308,21 @@ export async function observeProductTask(input: {
     }
   }
 
+  let detached = false
+  const detachController = new AbortController()
+  const observationSignal = AbortSignal.any([input.signal, detachController.signal])
+  const detach = () => {
+    if (detached) return
+    detached = true
+    input.shell.notice(`已从 task ${task.taskId} 分离；未发送 cancel，使用 zyra resume ${task.taskId} 恢复观察和控制。`)
+    input.shell.detachInput()
+    detachController.abort(new CliTaskError("Product TUI detached from the canonical task.", "product_ui_detached"))
+  }
+
   let permissionSession: CliPermissionSession | undefined
   const refreshPermissions = async (): Promise<void> => {
     if (!permissionSession?.available) return
-    const pending = await permissionSession.pending(input.signal)
+    const pending = await permissionSession.pending(observationSignal)
     projection.permissions(pending.map(permissionSnapshot))
     input.shell.update(projection.snapshot().events)
   }
@@ -315,7 +333,7 @@ export async function observeProductTask(input: {
       task,
       custodyToken: process.env.ZYRA_PERMISSION_CUSTODY_TOKEN,
     })
-    if (await permissionSession.open(input.signal)) {
+    if (await permissionSession.open(observationSignal)) {
       await refreshPermissions()
     } else {
       input.shell.notice(`权限控制保持关闭 · ${permissionSession.custodyError?.code ?? "permission_custody_unavailable"}`)
@@ -324,15 +342,18 @@ export async function observeProductTask(input: {
       shell: input.shell,
       controls,
       permissions: permissionSession,
-      signal: input.signal,
+      signal: observationSignal,
       refreshPermissions,
       openWeb: input.openWeb ?? (async () => {
         throw new CliTaskError("当前入口无法启动 Web 看板。", "product_web_launcher_unavailable")
       }),
-      openDiff: async () => openProductDiff({ api: input.api, shell: input.shell, task, signal: input.signal }),
+      openDiff: async () => openProductDiff({ api: input.api, shell: input.shell, task, signal: observationSignal }),
       taskStatus: async () => input.api.task(task.taskId),
-      readiness: async () => input.api.readiness(input.signal),
-    }).catch((error) => input.shell.notice(`控制输入已停止 · ${controlError(error)}`))
+      readiness: async () => input.api.readiness(observationSignal),
+      detach,
+    }).catch((error) => {
+      if (!detached && !input.signal.aborted) input.shell.notice(`控制输入已停止 · ${controlError(error)}`)
+    })
   }
 
   type RunOutcome =
@@ -342,7 +363,7 @@ export async function observeProductTask(input: {
   let runSettled = false
   const shouldRun = input.resume || ["pending", "paused", "interrupted"].includes(task.status)
   const runResult = shouldRun
-    ? input.api.runTask(task, input.signal)
+    ? input.api.runTask(task, observationSignal)
         .then(
           (value): RunOutcome => ({ ok: true, value }),
           (error: unknown): RunOutcome => ({ ok: false, error }),
@@ -362,10 +383,10 @@ export async function observeProductTask(input: {
   let recoveryAttempts = 0
   let windows = 0
   let settled = false
-  while (!settled && !input.signal.aborted) {
+  while (!settled && !observationSignal.aborted) {
     try {
       let closed = false
-      for await (const message of input.api.streamIngress(task.taskId, cursor, capabilities.generation, input.signal)) {
+      for await (const message of input.api.streamIngress(task.taskId, cursor, capabilities.generation, observationSignal)) {
         if (message.kind === "event") {
           projection.apply(message.frame)
           if (message.frame.cursor) cursor = message.frame.cursor
@@ -412,7 +433,9 @@ export async function observeProductTask(input: {
       windows += 1
       if (windows > 10_000) throw new CliTaskError("Product stream exceeded its bounded reconnect window.", "event_stream_budget")
     } catch (error) {
+      if (detached) break
       if (input.signal.aborted) throw input.signal.reason
+      if (observationSignal.aborted) throw observationSignal.reason
       recoveryAttempts += 1
       projection.reconnecting(recoveryAttempts)
       input.shell.update(projection.snapshot().events)
@@ -422,7 +445,7 @@ export async function observeProductTask(input: {
           revision: projection.revision,
         })
       }
-      await wait(Math.min(2_000, 100 * (2 ** (recoveryAttempts - 1))), input.signal)
+      await wait(Math.min(2_000, 100 * (2 ** (recoveryAttempts - 1))), observationSignal)
       let replace = recoveryNeedsSnapshot(error)
       if (!replace) {
         try {
@@ -451,6 +474,20 @@ export async function observeProductTask(input: {
         input.shell.notice(`权限状态刷新失败并保持关闭 · ${controlError(permissionError)}`)
       })
       input.shell.update(projection.snapshot().events)
+    }
+  }
+  if (detached) {
+    return {
+      exitCode: CliExitCode.SUCCESS,
+      status: "detached",
+      taskId: task.taskId,
+      runId: task.runId,
+      result: {
+        schema: "zyra.cli-product-result.v1",
+        revision: projection.revision,
+        resumed: input.resume,
+        remote_task_cancelled: false,
+      },
     }
   }
   if (input.signal.aborted) throw input.signal.reason
@@ -762,6 +799,7 @@ async function runProductSession(input: {
         taskId: currentTaskId,
       })).url,
     })
+    if (lastOutcome.status === "detached") break
     await appendFinalDiff({ api: input.api, shell: input.shell, taskId: currentTaskId, cwd: input.cwd })
     currentTask = await input.api.task(currentTaskId).catch(() => currentTask)
     next = undefined
@@ -774,7 +812,7 @@ async function runProductSession(input: {
   input.shell.finish()
   return {
     exitCode: CliExitCode.SUCCESS,
-    status: "exited",
+    status: lastOutcome?.status === "detached" ? "detached" : "exited",
     taskId: lastOutcome?.taskId,
     runId: lastOutcome?.runId,
     result: { schema: "zyra.cli-product-session-result.v1", last_status: lastOutcome?.status, session_id: sessionId },
