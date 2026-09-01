@@ -351,6 +351,10 @@ def _attach_cycle(
     task_timeout: float,
 ) -> AttachResult:
     baseline = _canonical_task(base_url, task_id)
+    baseline_status = str(baseline.get("status") or "unknown")
+    baseline_terminal = (
+        baseline.get("terminal") is True or baseline_status in TERMINAL_STATUSES
+    )
     command = subprocess.list2cmdline([
         "node",
         str(ROOT / "apps" / "cli" / "dist" / "zyra.js"),
@@ -382,7 +386,10 @@ def _attach_cycle(
     try:
         _wait_for(capture, ">_ Zyra", timeout)
         _wait_for(capture, task_id, timeout)
-        _wait_for(capture, "Tab 排队 · Esc 中断", timeout)
+        if baseline_terminal:
+            _wait_for(capture, _terminal_input_marker(baseline_status), timeout)
+        else:
+            _wait_for(capture, "Tab 排队 · Esc 中断", timeout)
         startup_ms = (time.monotonic() - started) * 1_000
         control_receipt = None
         if control_command is not None:
@@ -395,11 +402,34 @@ def _attach_cycle(
             if index % 25 == 0:
                 time.sleep(0.005)
         canonical_position = capture.position()
-        canonical = _wait_for_canonical_terminal(process, base_url, task_id, baseline, task_timeout) \
-            if wait_terminal else _wait_for_canonical_advance(process, base_url, task_id, baseline, timeout)
+        canonical = (
+            _wait_for_canonical_terminal(
+                process,
+                base_url,
+                task_id,
+                baseline,
+                task_timeout if wait_terminal else timeout,
+            )
+            if wait_terminal or baseline_terminal
+            else _wait_for_canonical_advance(
+                process,
+                base_url,
+                task_id,
+                baseline,
+                timeout,
+            )
+        )
         canonical_status = str(canonical.get("status") or "unknown")
         if canonical_status in TERMINAL_STATUSES:
-            _wait_for_since(capture, _terminal_input_marker(canonical_status), canonical_position, timeout)
+            if baseline_terminal:
+                _wait_for(capture, _terminal_input_marker(canonical_status), timeout)
+            else:
+                _wait_for_since(
+                    capture,
+                    _terminal_input_marker(canonical_status),
+                    canonical_position,
+                    timeout,
+                )
         detach_started = time.monotonic()
         _type_command(process, "/exit")
         exit_code = process.wait(timeout=timeout)

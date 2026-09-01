@@ -31,6 +31,32 @@ import { ProductTuiShell } from "../tui/shell.ts"
 import { formatTerminalCapabilities } from "../tui/terminal-capabilities.ts"
 import { mutationTransportDetached, type CommandOutcome } from "../runner.ts"
 import { launchUi } from "../ui.ts"
+import {
+  materializeWorkspaceDelivery,
+  stageWorkspace,
+  type WorkspaceMaterializationReport,
+  type WorkspaceStageReport,
+} from "../workspace-transfer.ts"
+
+export interface ProductWorkspaceTransfer {
+  stage(
+    api: CliApi,
+    task: TaskProjection,
+    root: string,
+    signal: AbortSignal,
+  ): Promise<WorkspaceStageReport>
+  materialize(
+    api: CliApi,
+    task: TaskProjection,
+    root: string,
+    signal: AbortSignal,
+  ): Promise<WorkspaceMaterializationReport>
+}
+
+const DEFAULT_PRODUCT_WORKSPACE_TRANSFER: ProductWorkspaceTransfer = {
+  stage: stageWorkspace,
+  materialize: materializeWorkspaceDelivery,
+}
 
 function terminalTask(task: TaskProjection): boolean {
   return task.terminal || ["completed", "failed", "blocked", "cancelled", "killed"].includes(task.status)
@@ -1077,6 +1103,7 @@ export async function executeProductInteractive(input: {
   ensureTerminal?: () => Promise<void>
   draftStore?: ProductDraftStore | null
   onboardingStore?: ProductOnboardingStore | null
+  workspaceTransfer?: ProductWorkspaceTransfer
 }): Promise<CommandOutcome> {
   const cwd = input.cwd ?? process.cwd()
   const tty = Boolean((input.stdin as Readable & { isTTY?: boolean }).isTTY)
@@ -1111,6 +1138,7 @@ export async function executeProductInteractive(input: {
       baseUrl: input.command.baseUrl,
       startupTimeoutMs: input.command.startupTimeoutMs,
       ensureTerminal: input.ensureTerminal,
+      workspaceTransfer: input.workspaceTransfer ?? DEFAULT_PRODUCT_WORKSPACE_TRANSFER,
       initialExecutionConfig,
       initial: input.command.goal ? { kind: "goal", goal: input.command.goal } : undefined,
     })
@@ -1130,6 +1158,7 @@ export async function executeProductResume(input: {
   cwd?: string
   ensureTerminal?: () => Promise<void>
   draftStore?: ProductDraftStore | null
+  workspaceTransfer?: ProductWorkspaceTransfer
 }): Promise<CommandOutcome> {
   const cwd = input.cwd ?? process.cwd()
   const bootstrapPromise = prefetchResumeBootstrap(input.api, input.command.identity).catch(() => undefined)
@@ -1158,6 +1187,7 @@ export async function executeProductResume(input: {
       baseUrl: input.command.baseUrl,
       startupTimeoutMs: input.command.startupTimeoutMs,
       ensureTerminal: input.ensureTerminal,
+      workspaceTransfer: input.workspaceTransfer ?? DEFAULT_PRODUCT_WORKSPACE_TRANSFER,
       initial: { kind: "resume", task: resolved.task, bootstrap },
     })
   } finally {
@@ -1369,6 +1399,7 @@ async function runProductSession(input: {
   initial?: ProductSessionInput
   initialExecutionConfig?: ProductModelSelection
   ensureTerminal?: () => Promise<void>
+  workspaceTransfer: ProductWorkspaceTransfer
 }): Promise<CommandOutcome> {
   const trace = (stage: string): void => {
     if (process.env.ZYRA_CLI_TRACE_SHUTDOWN === "1") process.stderr.write(`[zyra session] ${stage}\n`)
@@ -1609,6 +1640,16 @@ async function runProductSession(input: {
             ...(executionConfig.reasoningEffort ? { reasoningEffort: executionConfig.reasoningEffort } : {}),
           } : undefined,
         )).task
+    if (next.kind === "goal") {
+      input.shell.notice("正在同步当前工作区到隔离任务环境…")
+      const staged = await input.workspaceTransfer.stage(
+        input.api,
+        task,
+        input.cwd,
+        input.signal,
+      )
+      input.shell.notice(`工作区已同步 · ${staged.fileCount} 个文件 · ${staged.bytes} bytes`)
+    }
     currentTaskId = task.taskId
     currentTask = task
     if (task.sessionId) sessionId = task.sessionId
@@ -1637,11 +1678,29 @@ async function runProductSession(input: {
     })
     trace(`observation complete · ${lastOutcome.status}`)
     if (lastOutcome.status === "detached") break
+    currentTask = await input.api.task(currentTaskId).catch(() => currentTask)
+    trace("canonical refresh complete")
+    if (currentTask) {
+      try {
+        const materialized = await input.workspaceTransfer.materialize(
+          input.api,
+          currentTask,
+          input.cwd,
+          input.signal,
+        )
+        if (materialized.fileCount > 0 || materialized.deletedPaths.length > 0) {
+          input.shell.notice(
+            `工作区交付已落盘 · ${materialized.fileCount} 个写入 · ${materialized.deletedPaths.length} 个删除`,
+          )
+        }
+      } catch (error) {
+        if (currentTask.status === "completed") throw error
+        input.shell.notice(`任务已${currentTask.status}；部分工作区交付未能落盘 · ${controlError(error)}`)
+      }
+    }
     trace("final diff start")
     await appendFinalDiff({ api: input.api, shell: input.shell, taskId: currentTaskId, cwd: input.cwd })
     trace("final diff complete")
-    currentTask = await input.api.task(currentTaskId).catch(() => currentTask)
-    trace("canonical refresh complete")
     next = undefined
     if (!input.tty) {
       input.shell.finish()

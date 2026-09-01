@@ -89,6 +89,38 @@ describe("CLI managed-workspace transfer", () => {
     }
   })
 
+  test("applies canonical file deletions without touching undeclared files", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zyra-cli-delete-"))
+    try {
+      await mkdir(join(root, "src"), { recursive: true })
+      await writeFile(join(root, "src", "remove.txt"), "remove")
+      await writeFile(join(root, "src", "keep.txt"), "keep")
+      const api = {
+        async readWorkspaceFile() { throw new Error("no changed files should be read") },
+      } as unknown as CliApi
+      const selected = task({
+        schema: "zyra.task-workspace-delivery/v1",
+        workspace_id: "ws_workspace_transfer",
+        changed_paths: ["src/remove.txt"],
+        deleted_paths: ["src/remove.txt"],
+      })
+
+      const report = await materializeWorkspaceDelivery(
+        api,
+        selected,
+        root,
+        new AbortController().signal,
+      )
+
+      expect(report.paths).toEqual([])
+      expect(report.deletedPaths).toEqual(["src/remove.txt"])
+      await expect(readFile(join(root, "src", "remove.txt"))).rejects.toMatchObject({ code: "ENOENT" })
+      expect(await readFile(join(root, "src", "keep.txt"), "utf8")).toBe("keep")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test("rejects a delivery path that escapes the startup root", async () => {
     const root = await mkdtemp(join(tmpdir(), "zyra-cli-escape-"))
     try {

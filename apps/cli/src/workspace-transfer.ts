@@ -50,6 +50,7 @@ export interface WorkspaceMaterializationReport {
   fileCount: number
   bytes: number
   paths: string[]
+  deletedPaths: string[]
 }
 
 interface WorkspaceFile {
@@ -244,6 +245,54 @@ async function writeLocalOutput(destination: string, content: Uint8Array): Promi
   }
 }
 
+async function deleteLocalOutput(root: string, logicalPath: string): Promise<boolean> {
+  const normalized = assertRelativeWorkspacePath(logicalPath)
+  const destination = resolve(root, ...normalized.split("/"))
+  if (!contained(root, destination)) {
+    throw new CliTaskError(
+      `Workspace deletion escapes the CLI startup root: ${logicalPath}`,
+      "workspace_output_path_escape",
+    )
+  }
+  let current = root
+  for (const part of normalized.split("/").slice(0, -1)) {
+    current = resolve(current, part)
+    try {
+      const status = await lstat(current)
+      if (status.isSymbolicLink() || !status.isDirectory()) {
+        throw new CliTaskError(
+          `Workspace deletion parent is not a real directory: ${logicalPath}`,
+          "workspace_output_parent_invalid",
+        )
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false
+      throw error
+    }
+  }
+  try {
+    const status = await lstat(destination)
+    if (status.isSymbolicLink() || !status.isFile()) {
+      throw new CliTaskError(
+        `Workspace deletion target is not a regular file: ${logicalPath}`,
+        "workspace_output_target_invalid",
+      )
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false
+    throw error
+  }
+  const parent = await realpath(dirname(destination))
+  if (!contained(root, parent)) {
+    throw new CliTaskError(
+      `Workspace deletion parent resolves outside the CLI startup root: ${logicalPath}`,
+      "workspace_output_parent_escape",
+    )
+  }
+  await unlink(destination)
+  return true
+}
+
 export async function materializeWorkspaceDelivery(
   api: CliApi,
   task: TaskProjection,
@@ -252,11 +301,21 @@ export async function materializeWorkspaceDelivery(
 ): Promise<WorkspaceMaterializationReport> {
   const delivery = record(task.metadata.delivery)
   if (delivery.schema !== "zyra.task-workspace-delivery/v1") {
-    return { workspaceId: workspaceId(task), root: await realpath(root), fileCount: 0, bytes: 0, paths: [] }
+    return {
+      workspaceId: workspaceId(task),
+      root: await realpath(root),
+      fileCount: 0,
+      bytes: 0,
+      paths: [],
+      deletedPaths: [],
+    }
   }
   const selectedWorkspaceId = workspaceId(task)
   const selectedRoot = await realpath(root)
-  const deleted = new Set(strings(delivery.deleted_paths))
+  const deletedPaths = [...new Set(strings(delivery.deleted_paths))]
+    .map(assertRelativeWorkspacePath)
+    .sort()
+  const deleted = new Set(deletedPaths)
   const paths = [...new Set(strings(delivery.changed_paths))]
     .filter((path) => !deleted.has(path))
     .map(assertRelativeWorkspacePath)
@@ -269,11 +328,17 @@ export async function materializeWorkspaceDelivery(
     await writeLocalOutput(destination, content)
     bytes += content.byteLength
   }
+  const appliedDeletions: string[] = []
+  for (const path of deletedPaths) {
+    if (signal.aborted) throw signal.reason
+    if (await deleteLocalOutput(selectedRoot, path)) appliedDeletions.push(path)
+  }
   return {
     workspaceId: selectedWorkspaceId,
     root: selectedRoot,
     fileCount: paths.length,
     bytes,
     paths,
+    deletedPaths: appliedDeletions,
   }
 }

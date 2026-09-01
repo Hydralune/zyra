@@ -5,7 +5,13 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { TaskMutationProjection, TaskProjection } from "@zyra/typed-api-client"
 import type { CliApi, IngressPage } from "../src/api.ts"
-import { agentContextLines, executeProductInteractive, executeProductResume, productWorkflowGoal } from "../src/commands/product.ts"
+import {
+  agentContextLines,
+  executeProductInteractive,
+  executeProductResume,
+  productWorkflowGoal,
+  type ProductWorkspaceTransfer,
+} from "../src/commands/product.ts"
 import { CliExitCode } from "../src/contracts.ts"
 import { PromptDraft } from "../src/input/draft.ts"
 import { ProductSessionState } from "../src/product/state/session-state.ts"
@@ -57,6 +63,22 @@ function completedTask(index: number, goal: string, sessionId: string): TaskProj
 
 function mutation(task: TaskProjection): TaskMutationProjection {
   return { task, events: [], receipt: {}, controls: {}, raw: {} }
+}
+
+const noWorkspaceTransfer: ProductWorkspaceTransfer = {
+  async stage(_api, _task, root) {
+    return { workspaceId: "ws_product_test", root, fileCount: 0, bytes: 0, paths: [] }
+  },
+  async materialize(_api, _task, root) {
+    return {
+      workspaceId: "ws_product_test",
+      root,
+      fileCount: 0,
+      bytes: 0,
+      paths: [],
+      deletedPaths: [],
+    }
+  },
 }
 
 async function waitUntil(predicate: () => boolean): Promise<void> {
@@ -542,6 +564,7 @@ describe("product commands and continuous session", () => {
       cwd: "G:\\agent-zoo\\zyra",
       draftStore: null,
       onboardingStore: null,
+      workspaceTransfer: noWorkspaceTransfer,
     })
     await waitUntil(() => stdin.raw)
     stdin.write("/review authentication boundary\r")
@@ -551,6 +574,71 @@ describe("product commands and continuous session", () => {
     expect(calls[0]).toContain("independent code reviewer")
     expect(calls[0]).toContain("Review focus: authentication boundary")
     expect(stdout.text).not.toContain("runtime.")
+  })
+
+  test("stages the current workspace before observation and materializes delivery before idle", async () => {
+    const order: string[] = []
+    let latest: TaskProjection | undefined
+    const api = {
+      async createPendingTask(goal: string, _sealed: boolean, sessionId?: string) {
+        order.push("create")
+        latest = completedTask(1, goal, sessionId ?? "missing")
+        return mutation(latest)
+      },
+      async ingressCapabilities(taskId: string) {
+        order.push("observe")
+        return { taskId, generation: 1, subscriptionCursor: "cursor", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress(): AsyncGenerator<IngressPage> {
+        yield { cursor: "cursor", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async task() { return latest! },
+    } as unknown as CliApi
+    const transfer: ProductWorkspaceTransfer = {
+      async stage(_api, task, root) {
+        order.push(`stage:${task.taskId}`)
+        return { workspaceId: "ws_product_test", root, fileCount: 3, bytes: 42, paths: ["README.md"] }
+      },
+      async materialize(_api, task, root) {
+        order.push(`materialize:${task.taskId}`)
+        return {
+          workspaceId: "ws_product_test",
+          root,
+          fileCount: 1,
+          bytes: 12,
+          paths: ["RESULT.md"],
+          deletedPaths: [],
+        }
+      },
+    }
+    const stdin = new TtyInput()
+    const stdout = new Capture()
+    const executing = executeProductInteractive({
+      command: {
+        kind: "interactive",
+        goal: "修改真实工作区",
+        baseUrl: "http://127.0.0.1:8000",
+        autoStart: false,
+        startupTimeoutMs: 1_000,
+        timeoutMs: 10_000,
+      },
+      api,
+      stdin,
+      stdout,
+      signal: new AbortController().signal,
+      cwd: "G:\\agent-zoo\\zyra",
+      workspaceTransfer: transfer,
+    })
+
+    await waitUntil(() => order.some((item) => item.startsWith("materialize:")) && stdin.raw)
+    stdin.write("/exit\r")
+    await executing
+
+    expect(order.indexOf("create")).toBeLessThan(order.indexOf("stage:task_product_1"))
+    expect(order.indexOf("stage:task_product_1")).toBeLessThan(order.indexOf("observe"))
+    expect(order.indexOf("observe")).toBeLessThan(order.indexOf("materialize:task_product_1"))
+    expect(stdout.text).toContain("工作区已同步 · 3 个文件 · 42 bytes")
+    expect(stdout.text).toContain("工作区交付已落盘 · 1 个写入 · 0 个删除")
   })
 
   test("keeps the session list usable when historical entries are isolated", async () => {
@@ -611,6 +699,7 @@ describe("product commands and continuous session", () => {
       signal: new AbortController().signal,
       cwd: "G:\\agent-zoo\\zyra",
       ensureTerminal: async () => { terminalStarts += 1 },
+      workspaceTransfer: noWorkspaceTransfer,
     })
     await waitUntil(() => calls.length === 1 && stdin.raw)
     stdin.write("第二轮\r")
@@ -681,6 +770,7 @@ describe("product commands and continuous session", () => {
       cwd: "G:\\agent-zoo\\zyra",
       ensureTerminal: async () => { terminalStarts += 1 },
       draftStore: null,
+      workspaceTransfer: noWorkspaceTransfer,
     })
 
     expect(terminalStarts).toBe(1)
@@ -732,6 +822,7 @@ describe("product commands and continuous session", () => {
       stdout,
       signal: new AbortController().signal,
       cwd: "G:\\agent-zoo\\zyra",
+      workspaceTransfer: noWorkspaceTransfer,
     })
     await waitUntil(() => stdin.raw)
     stdin.write("/model\r")
@@ -784,6 +875,7 @@ describe("product commands and continuous session", () => {
       stdout,
       signal: new AbortController().signal,
       cwd: "G:\\agent-zoo\\zyra",
+      workspaceTransfer: noWorkspaceTransfer,
     })
     await waitUntil(() => stdin.raw)
     stdin.write("/mode\r")
