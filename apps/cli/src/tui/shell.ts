@@ -38,6 +38,7 @@ export class ProductTuiShell {
     workspace: string
     candidates?: readonly string[]
     draftStore?: ProductDraftStore
+    bracketedPaste?: boolean
   }) {
     this.#workspace = input.workspace
     this.#input = input.stdin
@@ -67,6 +68,7 @@ export class ProductTuiShell {
       candidateProvider: () => this.#availableCandidates(),
       running: () => this.#running,
       initialDraft: input.draftStore?.restored,
+      bracketedPaste: input.bracketedPaste,
       onChange: (snapshot) => {
         this.#draft = snapshot
         this.#scrollOffset = 0

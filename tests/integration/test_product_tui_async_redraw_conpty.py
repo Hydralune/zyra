@@ -74,6 +74,7 @@ def test_real_conpty_preserves_unicode_input_during_async_redraw_and_resize() ->
             process.write(bytes([value]))
             process.resize(18 + (index % 43), 60 + (index % 141))
             time.sleep(0.001)
+        time.sleep(0.15)
         process.write(b"\r")
         _wait_for(capture, b"ZYRA_ASYNC_REDRAW_RESULT")
         exit_code = process.wait(timeout=30)
@@ -91,7 +92,7 @@ def test_real_conpty_preserves_unicode_input_during_async_redraw_and_resize() ->
         assert result["diagnostics"]["coalesced"] >= result["eventUpdates"] // 2
         assert result["diagnostics"]["writes"] < result["eventUpdates"] // 4
         assert "�" not in result["result"]["text"]
-        assert b"\x1b[?2004h" in material
+        assert b"\x1b[?2004h" not in material
         assert b"\x1b[?2004l" in material
         assert b"\x1b[?1049" not in material
     finally:
@@ -129,8 +130,8 @@ def test_real_conpty_restores_terminal_state_after_uncaught_crash() -> None:
         assert exit_code != 0
         assert "controlled terminal crash" in visible
         ready = material.index(b"ZYRA_TERMINAL_CRASH_READY")
-        paste_on = material.index(b"\x1b[?2004h")
-        assert material.index(b"\x1b[?2004l") < paste_on < ready
+        assert b"\x1b[?2004h" not in material
+        assert material.index(b"\x1b[?2004l") < ready
         assert material.index(b"\x1b[?2004l", ready) > ready
         assert material.index(b"\x1b[?25h", ready) > ready
         assert b"\x1b[?1049" not in material
@@ -139,3 +140,43 @@ def test_real_conpty_restores_terminal_state_after_uncaught_crash() -> None:
             process.terminate_tree(grace_seconds=0.5)
         process.close()
         reader.join(timeout=2)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows ConPTY evidence requires Windows")
+def test_windows_conpty_100_force_kills_cannot_leave_persistent_terminal_modes() -> None:
+    from zyra_workers.terminal import PtySpawnOptions, spawn_pty
+
+    environment = dict(os.environ)
+    environment["ZYRA_TEST_WAIT_FOR_FORCE_KILL"] = "1"
+    command = subprocess.list2cmdline([str(BUN), str(CRASH_FIXTURE)])
+    for _cycle in range(100):
+        process = spawn_pty(
+            PtySpawnOptions(
+                command=command,
+                cwd=ROOT,
+                shell=os.environ.get("COMSPEC", "cmd.exe"),
+                rows=24,
+                cols=80,
+                environment=environment,
+            )
+        )
+        capture = Capture()
+        reader = threading.Thread(target=_reader, args=(process, capture), daemon=True)
+        reader.start()
+        try:
+            _wait_for(capture, b"ZYRA_TERMINAL_CRASH_READY")
+            ready = capture.value().index(b"ZYRA_TERMINAL_CRASH_READY")
+            process.terminate_tree(grace_seconds=0)
+            process.wait(timeout=30)
+            reader.join(timeout=5)
+            material = capture.value()
+
+            assert b"\x1b[?2004h" not in material
+            assert material.index(b"\x1b[?2004l") < ready
+            assert material.index(b"\x1b[?25h", ready) > ready
+            assert b"\x1b[?1049" not in material
+        finally:
+            if process.poll() is None:
+                process.terminate_tree(grace_seconds=0)
+            process.close()
+            reader.join(timeout=2)

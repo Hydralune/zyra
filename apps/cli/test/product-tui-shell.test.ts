@@ -51,7 +51,7 @@ describe("product TUI shell", () => {
   test("emergency cleanup restores every active terminal session idempotently", () => {
     const stdin = new TtyInput()
     const output = new TtyOutput()
-    const session = new TerminalSessionGuard(stdin, output)
+    const session = new TerminalSessionGuard(stdin, output, { bracketedPaste: true })
     session.enter()
     expect(stdin.raw).toBe(true)
     emergencyTerminalCleanup()
@@ -89,6 +89,31 @@ describe("product TUI shell", () => {
     await expect(reading).resolves.toEqual({ kind: "submit", text: "第一行\n第二行", queue: false })
     expect(stdin.raw).toBe(false)
     expect(output.text).toContain("\u001b[?2004h")
+    expect(output.text).toContain("\u001b[?2004l")
+    shell.close()
+  })
+
+  test("accepts rapid unbracketed Windows paste without treating its newline as submit", async () => {
+    const stdin = new TtyInput()
+    const output = new TtyOutput()
+    const shell = new ProductTuiShell({
+      stdin,
+      output,
+      workspace: "G:\\agent-zoo\\zyra",
+      bracketedPaste: false,
+    })
+    shell.start()
+    const reading = shell.read(false)
+    stdin.write("first line\rsecond line")
+    await new Promise((resolve) => setTimeout(resolve, 140))
+    expect(output.text).toContain("first line")
+    stdin.write("\r")
+    await expect(reading).resolves.toEqual({
+      kind: "submit",
+      text: "first line\nsecond line",
+      queue: false,
+    })
+    expect(output.text).not.toContain("\u001b[?2004h")
     expect(output.text).toContain("\u001b[?2004l")
     shell.close()
   })

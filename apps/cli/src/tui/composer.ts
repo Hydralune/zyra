@@ -3,6 +3,7 @@ import { StringDecoder } from "node:string_decoder"
 import { editDraftExternally } from "../input/editor.ts"
 import { MAX_PROMPT_BYTES, PromptDraft, PromptHistory, PromptInputLimitError, type DraftPersistenceSnapshot, type DraftSnapshot } from "../input/draft.ts"
 import { acceptCompletion, completionState, type CompletionState } from "./overlay/completion.ts"
+import { PasteBurstDetector, type PasteBurstFlush } from "./paste-burst.ts"
 import { TerminalSessionGuard } from "./terminal-session.ts"
 
 const PASTE_START = "\u001b[200~"
@@ -27,6 +28,7 @@ export class ProductComposer {
   readonly #input: RawInput
   readonly #output: Writable
   readonly #terminalSession: TerminalSessionGuard
+  readonly #pasteBurst: PasteBurstDetector | undefined
   readonly #candidates: () => readonly string[]
   readonly #decoder = new StringDecoder("utf8")
   readonly #onChange: (snapshot: DraftSnapshot) => void
@@ -43,6 +45,7 @@ export class ProductComposer {
   #dispose: (() => void) | undefined
   #settle: ((value: ProductComposerResult) => void) | undefined
   #completion: CompletionState | undefined
+  #pasteBurstTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(input: {
     stdin: Readable
@@ -56,10 +59,14 @@ export class ProductComposer {
     onNotice: (notice?: string) => void
     onScroll: (direction: "up" | "down") => void
     onCompletion?: (completion?: CompletionState) => void
+    bracketedPaste?: boolean
   }) {
     this.#input = input.stdin as RawInput
     this.#output = input.output
-    this.#terminalSession = new TerminalSessionGuard(input.stdin, input.output)
+    const bracketedPaste = input.bracketedPaste
+      ?? (input.stdin !== process.stdin || process.platform !== "win32")
+    this.#terminalSession = new TerminalSessionGuard(input.stdin, input.output, { bracketedPaste })
+    this.#pasteBurst = bracketedPaste ? undefined : new PasteBurstDetector(MAX_PROMPT_BYTES)
     const candidates = [...new Set(input.candidates ?? [])].sort()
     this.#candidates = input.candidateProvider ?? (() => candidates)
     this.#running = input.running
@@ -103,6 +110,7 @@ export class ProductComposer {
         this.#input.off("data", data)
         this.#input.off("end", end)
         this.#terminalSession.restore()
+        this.#clearPasteBurstTimer()
       }
     })
   }
@@ -145,18 +153,21 @@ export class ProductComposer {
         continue
       }
       if (this.#pending.startsWith(PASTE_START)) {
+        this.#flushPasteBurstBeforeControl()
         this.#pending = this.#pending.slice(PASTE_START.length)
         this.#pasting = true
         continue
       }
       const page = this.#pending.match(/^\u001b\[[56]~/)?.[0]
       if (page) {
+        this.#flushPasteBurstBeforeControl()
         this.#pending = this.#pending.slice(page.length)
         this.#onScroll(page === "\u001b[5~" ? "up" : "down")
         continue
       }
       const key = this.#pending.match(/^\u001b\[(?:1;5[CD]|[ABCDHF]|[134]~)/)?.[0]
       if (key) {
+        this.#flushPasteBurstBeforeControl()
         this.#pending = this.#pending.slice(key.length)
         const snapshot = this.draft.snapshot()
         const position = linePosition(snapshot.text, snapshot.cursor)
@@ -189,11 +200,13 @@ export class ProductComposer {
       if (/^\u001b\[[0-9;?]*$/u.test(this.#pending) && this.#pending.length < 32) return
       const unknownControl = this.#pending.match(/^\u001b\[[0-?]*[ -/]*[@-~]/u)?.[0]
       if (unknownControl) {
+        this.#flushPasteBurstBeforeControl()
         this.#pending = this.#pending.slice(unknownControl.length)
         continue
       }
       if (this.#pending.startsWith("\u001b") && this.#pending.length === 2) return
       if (this.#pending.startsWith("\u001b")) {
+        this.#flushPasteBurstBeforeControl()
         this.#pending = this.#pending.slice(1)
         if (this.#running()) {
           this.#finish({ kind: "interrupt" })
@@ -209,6 +222,12 @@ export class ProductComposer {
       const char = [...this.#pending][0]!
       this.#pending = this.#pending.slice(char.length)
       if (char === "\r") {
+        if (this.#pasteBurst) {
+          this.#applyPasteBurstFlush(this.#pasteBurst.flushIfDue(performance.now()))
+          const newline = this.#pasteBurst.onNewline(performance.now())
+          if (newline === "buffer") { this.#schedulePasteBurstFlush(); continue }
+          if (newline === "insert") { this.draft.newline(); this.#changed(); continue }
+        }
         if (this.#completion && this.#completion.matches[this.#completion.selected] !== this.#completion.token) {
           const accepted = acceptCompletion(this.draft.snapshot(), this.#completion)
           this.draft.set(accepted.text, accepted.cursor)
@@ -223,7 +242,17 @@ export class ProductComposer {
         this.#finish({ kind: "submit", text: submitted, queue: false })
         return
       }
-      if (char === "\n") { this.draft.newline(); this.#changed(); continue }
+      if (char === "\n") {
+        if (this.#pasteBurst) {
+          this.#applyPasteBurstFlush(this.#pasteBurst.flushIfDue(performance.now()))
+          if (this.#pasteBurst.onNewline(performance.now()) === "buffer") {
+            this.#schedulePasteBurstFlush()
+            continue
+          }
+        }
+        this.draft.newline(); this.#changed(); continue
+      }
+      if (char < " " || char === "\u007f") this.#flushPasteBurstBeforeControl()
       if (char === "\u0004" && this.draft.empty) { this.#finish({ kind: "exit" }); return }
       if (char === "\u0003") {
         if (this.#running()) { this.#finish({ kind: "interrupt" }); return }
@@ -274,7 +303,72 @@ export class ProductComposer {
         }
         continue
       }
-      if (char >= " ") { this.draft.insert(char); this.#onNotice(undefined); this.#changed() }
+      if (char >= " ") {
+        if (!this.#pasteBurst) {
+          this.draft.insert(char)
+        } else {
+          const now = performance.now()
+          this.#applyPasteBurstFlush(this.#pasteBurst.flushIfDue(now))
+          const decision = this.#pasteBurst.onCharacter(char, now)
+          if (decision.kind === "insert") this.draft.insert(char)
+          if (decision.kind === "retro") {
+            const snapshot = this.draft.snapshot()
+            const before = snapshot.text.slice(0, snapshot.cursor)
+            const grabbedCandidate = [...before].slice(-decision.characters).join("")
+            const start = before.length - grabbedCandidate.length
+            const grabbed = before.slice(start)
+            const looksPasted = /\s/u.test(grabbed) || [...grabbed].length >= 16
+            if (looksPasted) {
+              this.draft.set(`${snapshot.text.slice(0, start)}${snapshot.text.slice(snapshot.cursor)}`, start, false)
+              this.#pasteBurst.acceptRetroactive(grabbed, char, now)
+            } else {
+              this.draft.insert(char)
+            }
+          }
+          this.#schedulePasteBurstFlush()
+        }
+        this.#onNotice(undefined)
+        this.#changed()
+      }
+    }
+  }
+
+  #schedulePasteBurstFlush(): void {
+    if (!this.#pasteBurst) return
+    this.#clearPasteBurstTimer()
+    const delay = this.#pasteBurst.nextFlushDelay(performance.now())
+    if (delay === undefined) return
+    this.#pasteBurstTimer = setTimeout(() => {
+      this.#pasteBurstTimer = undefined
+      this.#applyPasteBurstFlush(this.#pasteBurst!.flushIfDue(performance.now()))
+      this.#schedulePasteBurstFlush()
+    }, delay)
+  }
+
+  #clearPasteBurstTimer(): void {
+    if (this.#pasteBurstTimer !== undefined) clearTimeout(this.#pasteBurstTimer)
+    this.#pasteBurstTimer = undefined
+  }
+
+  #flushPasteBurstBeforeControl(): void {
+    if (!this.#pasteBurst) return
+    this.#clearPasteBurstTimer()
+    this.#applyPasteBurstFlush(this.#pasteBurst.flushBeforeControl())
+  }
+
+  #applyPasteBurstFlush(result: PasteBurstFlush): void {
+    if (result.kind === "none") return
+    try {
+      if (result.kind === "typed") this.draft.insert(result.text)
+      if (result.kind === "paste") this.draft.paste(result.text)
+      if (result.kind === "overflow") {
+        this.#onNotice(`粘贴超过 ${MAX_PROMPT_BYTES} bytes，已丢弃；请改用文件或 artifact 引用。`)
+      }
+      this.#changed()
+    } catch (error) {
+      if (!(error instanceof PromptInputLimitError)) throw error
+      this.#onNotice(error.message)
+      this.#changed()
     }
   }
 
@@ -292,6 +386,7 @@ export class ProductComposer {
   #finish(value: ProductComposerResult): void {
     const settle = this.#settle
     if (!settle) return
+    this.#flushPasteBurstBeforeControl()
     this.#settle = undefined
     this.#dispose?.()
     this.#dispose = undefined
