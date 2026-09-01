@@ -73,6 +73,10 @@ function severity(value: unknown): "info" | "warning" | "error" {
   return value === "warning" || value === "error" ? value : "info"
 }
 
+function failureImpact(value: unknown, fallback: "local" | "task"): "local" | "task" {
+  return value === "local" || value === "task" ? value : fallback
+}
+
 function safeInteger(value: unknown): number | undefined {
   return Number.isSafeInteger(value) && Number(value) >= 0 ? Number(value) : undefined
 }
@@ -101,6 +105,7 @@ function productPresentationEvents(frame: IngressFrame): ZyraUiEvent[] | undefin
       category: text(presentation.category),
       summary,
       severity: severity(presentation.severity),
+      impact: presentation.impact === undefined ? undefined : failureImpact(presentation.impact, "local"),
     }
     if (["completed", "failed", "cancelled", "replaced"].includes(phase)) {
       return [{ ...fields, type: "activity.completed", outcome: phase }]
@@ -109,7 +114,21 @@ function productPresentationEvents(frame: IngressFrame): ZyraUiEvent[] | undefin
     return [{ ...fields, type: "activity.updated" }]
   }
   if (kind === "worker") {
-    return [{ ...base, type: "subagent.updated", agentId: identity, label, status: phase, summary }]
+    const impact = presentation.impact === undefined ? undefined : failureImpact(presentation.impact, "local")
+    const code = text(presentation.code)
+    const recovery = text(presentation.recovery)
+    return [{
+      ...base,
+      type: "subagent.updated",
+      agentId: identity,
+      label,
+      status: phase,
+      summary,
+      ...(impact === undefined ? {} : { impact }),
+      ...(code === undefined ? {} : { code }),
+      ...(presentation.retryable === true ? { retryable: true } : {}),
+      ...(recovery === undefined ? {} : { recovery }),
+    }]
   }
   if (kind === "tool") {
     const durationMs = safeInteger(presentation.durationMs)
@@ -119,7 +138,22 @@ function productPresentationEvents(frame: IngressFrame): ZyraUiEvent[] | undefin
       return [{ ...base, type: "tool.started", toolCallId: identity, name: label, summary: summary ?? `正在运行 ${label}`, durationMs, artifactIds, outputRefs }]
     }
     if (phase === "failed" || phase === "cancelled") {
-      return [{ ...base, type: "tool.failed", toolCallId: identity, name: label, message: summary ?? `${label}${phase === "failed" ? "执行失败" : "已取消"}`, durationMs, artifactIds, outputRefs }]
+      const code = text(presentation.code)
+      const recovery = text(presentation.recovery)
+      return [{
+        ...base,
+        type: "tool.failed",
+        toolCallId: identity,
+        name: label,
+        message: summary ?? `${label}${phase === "failed" ? "执行失败" : "已取消"}`,
+        durationMs,
+        artifactIds,
+        outputRefs,
+        impact: failureImpact(presentation.impact, "local"),
+        ...(code === undefined ? {} : { code }),
+        ...(presentation.retryable === true ? { retryable: true } : {}),
+        ...(recovery === undefined ? {} : { recovery }),
+      }]
     }
     if (phase === "completed") {
       return [{ ...base, type: "tool.completed", toolCallId: identity, name: label, summary: summary ?? `${label} 已完成`, durationMs, artifactIds, outputRefs }]
@@ -136,6 +170,7 @@ function productPresentationEvents(frame: IngressFrame): ZyraUiEvent[] | undefin
       code: text(presentation.code),
       retryable: presentation.retryable === true,
       recovery: text(presentation.recovery),
+      impact: failureImpact(presentation.impact, "task"),
     }]
   }
   return []
@@ -436,10 +471,10 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
         push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: at, type: "tool.completed", toolCallId, summary: `${toolName} 已完成` })
         break
       case "runtime.tool.failed":
-        push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: at, type: "tool.failed", toolCallId, message: `${toolName} 执行失败${text(inline.error_code) ? `（${text(inline.error_code)}）` : ""}` })
+        push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: at, type: "tool.failed", toolCallId, message: `${toolName} 执行失败${text(inline.error_code) ? `（${text(inline.error_code)}）` : ""}`, impact: "local", code: text(inline.error_code) })
         break
       case "runtime.tool.cancelled":
-        push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: at, type: "tool.failed", toolCallId, message: `${toolName} 已取消` })
+        push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: at, type: "tool.failed", toolCallId, message: `${toolName} 已取消`, impact: "local" })
         break
       case "runtime.permission.requested":
       case "runtime.permission.pending": { // Canonical permission custody snapshot wins when available.
@@ -465,7 +500,7 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
       case "runtime.subagent.cancelled": { // Product state receives a stable aggregate, never topology details.
         const agentId = text(inline.subagent_id) ?? frame.eventId
         const status = frame.eventType.split(".").at(-1) ?? "updated"
-        push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: at, type: "subagent.updated", agentId, label: "协作代理", status })
+        push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: at, type: "subagent.updated", agentId, label: "协作代理", status, impact: status === "failed" || status === "cancelled" ? "local" : undefined })
         break
       }
       default:

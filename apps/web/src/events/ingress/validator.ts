@@ -925,6 +925,7 @@ const PRODUCT_PRESENTATION_KINDS = new Set([
   "issue",
 ])
 const PRODUCT_PRESENTATION_SEVERITIES = new Set(["info", "warning", "error"])
+const PRODUCT_PRESENTATION_IMPACTS = new Set(["local", "task"])
 
 /**
  * Admits only the bounded public product protocol.  Unknown runtime fields are
@@ -964,6 +965,16 @@ function normalizeProductPresentation(
       )
     }
     presentation.severity = severity
+  }
+  const impact = optionalString(body.impact, `${label}.impact`, 32)
+  if (impact !== undefined) {
+    if (!PRODUCT_PRESENTATION_IMPACTS.has(impact)) {
+      throw new EventIngressError(
+        IngressErrorCode.INVALID_FRAME,
+        `${label}.impact is not admitted by the product protocol.`,
+      )
+    }
+    presentation.impact = impact
   }
   for (const [field, maximum] of [
     ["streamId", 1024],

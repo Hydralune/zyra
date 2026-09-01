@@ -273,6 +273,29 @@ describe("event ingress envelope validation", () => {
     expect(live.presentation.text).toBe(" \n")
   })
 
+  test("admits explicit local failure impact and rejects unknown impact values", () => {
+    const presentation = {
+      schema: "zyra.product-presentation/v1",
+      kind: "tool",
+      phase: "failed",
+      identity: "tool-local-failure",
+      label: "tests",
+      summary: "one test failed",
+      severity: "error",
+      impact: "local",
+      code: "exit_1",
+    }
+    const normalized = frame(2, 1, {
+      eventType: "runtime.tool.failed",
+      presentation,
+    })
+    expect(normalized.presentation).toMatchObject({ impact: "local", code: "exit_1" })
+    expect(() => frame(2, 1, {
+      eventType: "runtime.tool.failed",
+      presentation: { ...presentation, impact: "global-maybe" },
+    })).toThrow(EventIngressError)
+  })
+
   test("fails closed on schema mismatch, cross-task frame, and digest mutation", () => {
     expect(() =>
       normalizeEventFrame(

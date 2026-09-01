@@ -202,3 +202,78 @@ def test_tool_output_projection_admits_only_bounded_stdout_stderr_descriptors() 
     assert "source_path" not in str(projected)
     assert "secret-digest" not in str(projected)
     assert "must-not-leak" not in str(projected)
+
+
+def test_local_worker_tool_failure_and_recovery_have_explicit_non_task_impact() -> None:
+    tool = project_product_presentation(
+        {
+            "eventId": "event_tool_failed",
+            "eventType": "runtime.tool.failed",
+            "identity": {"taskId": "task_1", "toolCallId": "tool_call_failed"},
+            "inline": {
+                "tool_name": "tests",
+                "error_code": "exit_1",
+                "presentation_summary": "one test failed",
+                "authorization": "Bearer must-not-leak",
+            },
+        }
+    )
+    worker = project_product_presentation(
+        {
+            "eventId": "event_worker_failed",
+            "eventType": "runtime.node.failed",
+            "identity": {"taskId": "task_1", "workerId": "worker-a"},
+            "inline": {
+                "reason": "worker heartbeat timeout",
+                "secret": "must-not-leak",
+            },
+        }
+    )
+    recovered = project_product_presentation(
+        {
+            "eventId": "event_recovery_completed",
+            "eventType": "runtime.recovery.completed",
+            "identity": {"taskId": "task_1"},
+            "inline": {
+                "recovery_id": "recovery-1",
+                "strategy": "replace_worker",
+                "status": "completed",
+            },
+        }
+    )
+
+    assert tool is not None
+    assert tool["kind"] == "tool"
+    assert tool["phase"] == "failed"
+    assert tool["impact"] == "local"
+    assert tool["code"] == "exit_1"
+    assert worker is not None
+    assert worker["kind"] == "worker"
+    assert worker["phase"] == "failed"
+    assert worker["impact"] == "local"
+    assert worker["severity"] == "warning"
+    assert recovered is not None
+    assert recovered["kind"] == "activity"
+    assert recovered["phase"] == "completed"
+    assert recovered["impact"] == "local"
+    assert recovered["category"] == "recovery"
+    assert "must-not-leak" not in str(tool)
+    assert "must-not-leak" not in str(worker)
+
+
+def test_task_execution_error_is_explicitly_task_scoped() -> None:
+    projected = project_product_presentation(
+        {
+            "eventId": "event_task_error",
+            "eventType": "runtime.agent.message",
+            "identity": {"taskId": "task_1"},
+            "inline": {
+                "schema": "zyra.task-execution-error/v1",
+                "error": "provider_unavailable",
+                "message": "Task execution could not continue.",
+            },
+        }
+    )
+    assert projected is not None
+    assert projected["kind"] == "issue"
+    assert projected["impact"] == "task"

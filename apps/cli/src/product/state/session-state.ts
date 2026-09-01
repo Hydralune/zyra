@@ -1,4 +1,4 @@
-import type { UiFileChange, UiPermissionRequest, UiSeverity, UiToolOutputRef, UiVerificationSummary, ZyraUiEvent } from "../../presentation/events.ts"
+import type { UiFailureImpact, UiFileChange, UiPermissionRequest, UiSeverity, UiToolOutputRef, UiVerificationSummary, ZyraUiEvent } from "../../presentation/events.ts"
 
 export interface ProductMessageState {
   messageId: string
@@ -16,6 +16,7 @@ export interface ProductActivityState {
   category?: string
   summary?: string
   severity?: UiSeverity
+  impact?: UiFailureImpact
 }
 
 export interface ProductToolState {
@@ -26,6 +27,10 @@ export interface ProductToolState {
   durationMs?: number
   artifactIds?: readonly string[]
   outputRefs?: readonly UiToolOutputRef[]
+  impact?: UiFailureImpact
+  code?: string
+  retryable?: boolean
+  recovery?: string
 }
 
 export interface ProductAgentState {
@@ -33,6 +38,10 @@ export interface ProductAgentState {
   label: string
   status: string
   summary?: string
+  impact?: UiFailureImpact
+  code?: string
+  retryable?: boolean
+  recovery?: string
 }
 
 export interface ProductIssueState {
@@ -42,6 +51,7 @@ export interface ProductIssueState {
   code?: string
   retryable?: boolean
   recovery?: string
+  impact?: UiFailureImpact
 }
 
 export interface ProductViewState {
@@ -188,6 +198,7 @@ export class ProductSessionState {
           category: event.category,
           summary: event.summary,
           severity: event.severity,
+          ...(event.impact === undefined ? {} : { impact: event.impact }),
         }, this.#limits.activities)
         break
       case "tool.started":
@@ -197,6 +208,10 @@ export class ProductSessionState {
       case "tool.completed":
       case "tool.failed": { // Preserve the stable name across lifecycle updates.
         const prior = this.#tools.get(event.toolCallId)
+        const impact = event.type === "tool.failed" ? event.impact : prior?.impact
+        const code = event.type === "tool.failed" ? event.code : prior?.code
+        const retryable = event.type === "tool.failed" ? event.retryable : prior?.retryable
+        const recovery = event.type === "tool.failed" ? event.recovery : prior?.recovery
         this.#evicted.tools += putBounded(this.#tools, event.toolCallId, {
           toolCallId: event.toolCallId,
           name: event.name ?? prior?.name ?? "工具",
@@ -205,6 +220,10 @@ export class ProductSessionState {
           durationMs: event.durationMs ?? prior?.durationMs,
           artifactIds: event.artifactIds ?? prior?.artifactIds,
           outputRefs: event.outputRefs ?? prior?.outputRefs,
+          ...(impact === undefined ? {} : { impact }),
+          ...(code === undefined ? {} : { code }),
+          ...(retryable === undefined ? {} : { retryable }),
+          ...(recovery === undefined ? {} : { recovery }),
         }, this.#limits.tools)
         break
       }
@@ -212,7 +231,16 @@ export class ProductSessionState {
         {
           const prior = this.#agents.get(event.agentId)
           const label = event.label === "Execution worker" && prior ? prior.label : event.label
-          this.#evicted.agents += putBounded(this.#agents, event.agentId, { agentId: event.agentId, label, status: event.status, summary: event.summary }, this.#limits.agents)
+          this.#evicted.agents += putBounded(this.#agents, event.agentId, {
+            agentId: event.agentId,
+          label,
+          status: event.status,
+          summary: event.summary,
+          ...(event.impact === undefined ? {} : { impact: event.impact }),
+          ...(event.code === undefined ? {} : { code: event.code }),
+          ...(event.retryable === undefined ? {} : { retryable: event.retryable }),
+          ...(event.recovery === undefined ? {} : { recovery: event.recovery }),
+          }, this.#limits.agents)
         }
         break
       case "task.issue":
@@ -223,6 +251,7 @@ export class ProductSessionState {
           code: event.code,
           retryable: event.retryable,
           recovery: event.recovery,
+          ...(event.impact === undefined ? {} : { impact: event.impact }),
         }, this.#limits.issues)
         break
       case "permission.requested":

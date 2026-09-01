@@ -18,6 +18,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 BUN = ROOT / "node_modules" / ".bin" / ("bun.exe" if os.name == "nt" else "bun")
 PROBE = ROOT / "apps" / "web" / "test" / "product-live-cross-view-probe.ts"
+LOCAL_FAILURE_PROBE = ROOT / "apps" / "cli" / "test" / "product-local-failure-probe.ts"
 
 
 @contextmanager
@@ -274,3 +275,122 @@ def test_web_consumes_live_product_text_and_reconciles_cli_canonical_final(
                 process.kill()
                 process.wait(timeout=30)
             reader.join(timeout=5)
+
+
+def test_real_tool_failure_remains_local_when_task_recovers_and_completes(
+    tmp_path: Path,
+) -> None:
+    with _real_api(tmp_path) as (base_url, api_main):
+        from zyra_core import PlanNodeStatus, now_iso
+        from zyra_runtime.runtime_events import (
+            CodeWorkerRuntimeEventIngress,
+            WorkerIngressIdentity,
+        )
+
+        state = api_main.create_task_state(
+            user_goal="Recover from one physical tool failure and complete."
+        )
+        state.status = PlanNodeStatus.RUNNING
+        state.plan_nodes[state.root_node_id].status = PlanNodeStatus.RUNNING
+        state.metadata["query_session_id"] = f"task:{state.task_id}"
+        state.metadata["goal_contract"] = {"kind": "code_change"}
+        api_main.get_store().save_checkpoint(state)
+
+        ingress = CodeWorkerRuntimeEventIngress(
+            api_main.get_runtime_event_spine_bridge(),
+            WorkerIngressIdentity(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                session_id=f"task:{state.task_id}",
+                worker_request_id="request-local-failure-recovery",
+            ),
+        )
+        ingress.admit_query(sequence=0)
+        ingress.emit_payload(
+            {
+                "phase": "tool_call_started",
+                "sequence": 1,
+                "tool_call_id": "tool-failed-once",
+                "tool_name": "tests",
+                "arguments": {"suite": "physical"},
+            }
+        )
+        ingress.emit_payload(
+            {
+                "phase": "tool_call_completed",
+                "sequence": 2,
+                "tool_call_id": "tool-failed-once",
+                "tool_name": "tests",
+                "tool_result": {
+                    "tool_call_id": "tool-failed-once",
+                    "tool_name": "tests",
+                    "ok": False,
+                    "error": "exit_1",
+                },
+            }
+        )
+        ingress.emit_payload(
+            {
+                "phase": "tool_failure_signal",
+                "sequence": 3,
+                "tool_call_id": "tool-failed-once",
+                "error": "exit_1",
+            }
+        )
+        ingress.emit_payload(
+            {
+                "phase": "tool_call_started",
+                "sequence": 4,
+                "tool_call_id": "tool-retry",
+                "tool_name": "tests",
+                "arguments": {"suite": "physical", "retry": 1},
+            }
+        )
+        ingress.emit_payload(
+            {
+                "phase": "tool_call_completed",
+                "sequence": 5,
+                "tool_call_id": "tool-retry",
+                "tool_name": "tests",
+                "tool_result": {
+                    "tool_call_id": "tool-retry",
+                    "tool_name": "tests",
+                    "ok": True,
+                    "output": "passed",
+                },
+            }
+        )
+
+        state.status = PlanNodeStatus.COMPLETED
+        state.plan_nodes[state.root_node_id].status = PlanNodeStatus.COMPLETED
+        state.metadata["final_answer"] = "Recovered after a local tool failure."
+        state.updated_at = now_iso()
+        api_main.get_store().save_checkpoint(state)
+
+        process = subprocess.run(
+            [str(BUN), str(LOCAL_FAILURE_PROBE), base_url, state.task_id],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=60,
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        assert process.returncode == 0, process.stderr
+        result = json.loads(process.stdout)
+        assert result["taskStatus"] == "completed"
+        assert result["taskFailedEvent"] is False
+        assert result["renderedLocalFailure"] is True
+        assert result["renderedCompleted"] is True
+        assert result["failedTools"][0]["impact"] == "local"
+        assert result["failedTools"][0]["code"] == "exit_1"
+        assert len(result["completedTools"]) == 1
+        assert result["recoveryActivities"][0]["impact"] == "local"
+        assert "runtime.tool.failed" in result["frameTypes"]
+        assert "runtime.recovery.requested" in result["frameTypes"]
+        local_presentations = [
+            item for item in result["presentations"] if item.get("impact") == "local"
+        ]
+        assert any(item["kind"] == "tool" for item in local_presentations)
+        assert any(item.get("category") == "recovery" for item in local_presentations)

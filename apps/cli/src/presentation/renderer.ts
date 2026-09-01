@@ -90,6 +90,21 @@ function renderActivity(lines: string[], state: ProductViewState, width: number)
   lines.push(...prefixed(`计划 · ${completed.length} 完成 · ${active.length} 进行中 · ${pending.length} 待执行`, "  ", width))
   for (const item of active.slice(0, 3)) lines.push(...prefixed(`${item.label}（Esc 中断）`, "◌ ", width))
   if (!active.length && completed.length) lines.push(...prefixed(`已完成 ${completed.length} 个步骤`, "✓ ", width))
+  const exceptional = completed.filter((item) =>
+    item.category === "recovery" || item.severity === "warning" || item.severity === "error"
+  )
+  for (const item of exceptional.slice(-3)) {
+    const impact = item.impact === "local" ? " · 局部恢复" : ""
+    lines.push(...prefixed(`${item.label}${item.summary ? ` · ${item.summary}` : ""}${impact}`, item.outcome === "failed" ? "! " : "✓ ", width))
+  }
+}
+
+function localFailureStatus(taskStatus: ProductViewState["taskStatus"]): string {
+  if (taskStatus === "running") return "局部失败 · 任务仍在运行"
+  if (taskStatus === "completed") return "局部失败 · 任务已完成"
+  if (taskStatus === "failed") return "局部失败 · 任务最终失败"
+  if (taskStatus === "cancelled") return "局部失败 · 任务已取消"
+  return "局部失败"
 }
 
 function renderTools(lines: string[], state: ProductViewState, width: number): void {
@@ -101,7 +116,10 @@ function renderTools(lines: string[], state: ProductViewState, width: number): v
     const duration = tool.durationMs === undefined ? "" : ` · ${tool.durationMs < 1_000 ? `${tool.durationMs}ms` : `${(tool.durationMs / 1_000).toFixed(1)}s`}`
     const artifacts = tool.artifactIds?.length ? ` · ${tool.artifactIds.length} artifact` : ""
     const output = tool.outputRefs?.length ? ` · ${tool.outputRefs.map((item) => item.stream).join("+")} 可查看` : ""
-    lines.push(...prefixed(`${tool.name} · ${tool.summary}${duration}${output}${artifacts}`, marker, width))
+    const impact = tool.status === "failed" && tool.impact === "local" ? ` · ${localFailureStatus(state.taskStatus)}` : ""
+    const code = tool.code ? ` · ${tool.code}` : ""
+    lines.push(...prefixed(`${tool.name} · ${tool.summary}${code}${duration}${output}${artifacts}${impact}`, marker, width))
+    if (tool.recovery) lines.push(...prefixed(tool.recovery, "  ", width))
   }
   if (state.tools.length > visible.length) lines.push(...prefixed(`${state.tools.length - visible.length} 个较早工具调用已折叠`, "… ", width))
 }
@@ -112,14 +130,19 @@ function renderAgents(lines: string[], state: ProductViewState, width: number): 
   const active = state.agents.filter((agent) => !["completed", "failed", "cancelled"].includes(agent.status))
   const failed = state.agents.filter((agent) => agent.status === "failed")
   lines.push(...prefixed(`协作代理 · ${active.length} 活跃 · ${failed.length} 失败 · ${state.agents.length} 总计`, "◎ ", width))
-  for (const agent of [...active, ...failed].slice(0, 5)) lines.push(...prefixed(`${agent.label} · ${agent.status}${agent.summary ? ` · ${agent.summary}` : ""}`, "  ", width))
+  for (const agent of [...active, ...failed].slice(0, 5)) {
+    const impact = agent.status === "failed" && agent.impact === "local" ? ` · ${localFailureStatus(state.taskStatus)}` : ""
+    lines.push(...prefixed(`${agent.label} · ${agent.status}${agent.summary ? ` · ${agent.summary}` : ""}${agent.code ? ` · ${agent.code}` : ""}${impact}`, "  ", width))
+    if (agent.recovery) lines.push(...prefixed(agent.recovery, "    ", width))
+  }
 }
 
 function renderIssues(lines: string[], state: ProductViewState, width: number): void {
   for (const issue of state.issues.slice(-8)) {
     lines.push("")
     const marker = issue.severity === "error" ? "! " : issue.severity === "warning" ? "▲ " : "• "
-    lines.push(...prefixed(`${issue.message}${issue.code ? `（${issue.code}）` : ""}`, marker, width))
+    const impact = issue.impact === "local" ? ` · ${localFailureStatus(state.taskStatus)}` : issue.impact === "task" ? " · 影响整个任务" : ""
+    lines.push(...prefixed(`${issue.message}${issue.code ? `（${issue.code}）` : ""}${impact}`, marker, width))
     if (issue.recovery) lines.push(...prefixed(issue.recovery, "  ", width))
     else if (issue.retryable) lines.push(...prefixed("该问题可重试；使用 /continue 或恢复 task。", "  ", width))
   }

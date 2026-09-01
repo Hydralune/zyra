@@ -245,8 +245,72 @@ describe("ZyraUiEvent/v2 product projection", () => {
         sizeBytes: 10 * 1024 * 1024,
       }],
     }])
-    expect(state.issues).toEqual([{ issueId: "issue_provider", severity: "error", message: "Provider unavailable.", code: "provider_unavailable", retryable: true, recovery: undefined }])
+    expect(state.issues).toEqual([{ issueId: "issue_provider", severity: "error", message: "Provider unavailable.", code: "provider_unavailable", retryable: true, recovery: undefined, impact: "task" }])
     expect(JSON.stringify(projected)).not.toContain("must-not-leak")
+  })
+
+  test("keeps local tool and worker failures distinct from the canonical task outcome", () => {
+    const task = {
+      ...fixture.task,
+      status: "completed",
+      terminal: true,
+      metadata: { ...fixture.task.metadata, final_answer: "Recovered and completed." },
+    }
+    const frames: IngressFrame[] = [
+      {
+        ...frame(301, "runtime.tool.failed", {}),
+        presentation: {
+          schema: "zyra.product-presentation/v1",
+          kind: "tool",
+          phase: "failed",
+          identity: "tool_local_failure",
+          label: "tests",
+          summary: "one test failed",
+          severity: "error",
+          impact: "local",
+          code: "exit_1",
+        },
+      },
+      {
+        ...frame(302, "runtime.node.failed", {}),
+        presentation: {
+          schema: "zyra.product-presentation/v1",
+          kind: "worker",
+          phase: "failed",
+          identity: "worker_failed",
+          label: "worker-a",
+          summary: "heartbeat timeout",
+          severity: "warning",
+          impact: "local",
+        },
+      },
+      {
+        ...frame(303, "runtime.recovery.completed", {}),
+        presentation: {
+          schema: "zyra.product-presentation/v1",
+          kind: "activity",
+          phase: "completed",
+          identity: "recovery_worker_a",
+          label: "Local failure recovery",
+          summary: "recovery completed (replace_worker)",
+          category: "recovery",
+          severity: "info",
+          impact: "local",
+        },
+      },
+    ]
+    const projected = projectProductEvents({ task, frames })
+    const state = reduceProductEvents(projected)
+    const rendered = renderProductSnapshot(projected, { width: 120, workspace: "G:\\agent-zoo\\zyra" })
+
+    expect(state.taskStatus).toBe("completed")
+    expect(state.tools).toContainEqual(expect.objectContaining({ status: "failed", impact: "local", code: "exit_1" }))
+    expect(state.agents).toContainEqual(expect.objectContaining({ status: "failed", impact: "local" }))
+    expect(state.activities).toContainEqual(expect.objectContaining({ category: "recovery", impact: "local", status: "completed" }))
+    expect(projected.some((event) => event.type === "task.failed")).toBe(false)
+    expect(rendered).toContain("局部失败 · 任务已完成")
+    expect(rendered).toContain("Local failure recovery")
+    expect(rendered).toContain("任务已完成 · 可继续输入新任务")
   })
 
   test("bounds hostile presentation labels, summaries, and artifact identities before state admission", () => {
