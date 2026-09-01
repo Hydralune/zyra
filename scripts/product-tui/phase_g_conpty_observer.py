@@ -271,6 +271,38 @@ def _wait_for_canonical_terminal(
         time.sleep(1.0)
 
 
+def _wait_for_stable_canonical_terminal(
+    base_url: str,
+    task_id: str,
+    timeout: float,
+    *,
+    stability_seconds: float = 2.0,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout
+    terminal_revision: tuple[object, object] | None = None
+    terminal_since: float | None = None
+    while True:
+        task = _canonical_task(base_url, task_id)
+        revision = (task.get("status"), task.get("updated_at"))
+        terminal = task.get("terminal") is True or task.get("status") in TERMINAL_STATUSES
+        now = time.monotonic()
+        if terminal:
+            if revision != terminal_revision:
+                terminal_revision = revision
+                terminal_since = now
+            elif terminal_since is not None and now - terminal_since >= stability_seconds:
+                return task
+        else:
+            terminal_revision = None
+            terminal_since = None
+        if now >= deadline:
+            raise TimeoutError(
+                f"canonical task {task_id} did not preserve a terminal revision "
+                f"for {stability_seconds:.3f}s within {timeout:.3f}s"
+            )
+        time.sleep(0.25)
+
+
 def _wait_for_canonical_advance(
     process: object,
     base_url: str,
@@ -444,8 +476,16 @@ def _attach_cycle(
             raise AssertionError(f"product TUI attach gate failed: {asdict(result)}\n{visible[-2_000:]}")
         return result
     except Exception:
+        visible = _visible(capture)
         print(f"--- product TUI attach cycle {cycle} visible tail ---", file=sys.stderr)
-        print(_visible(capture)[-4_000:], file=sys.stderr)
+        print(visible[-4_000:], file=sys.stderr)
+        shutdown_trace = "\n".join(
+            line for line in visible.splitlines()
+            if "[zyra session]" in line or "[zyra shutdown]" in line
+        )
+        if shutdown_trace:
+            print(f"--- product TUI attach cycle {cycle} shutdown trace ---", file=sys.stderr)
+            print(shutdown_trace[-4_000:], file=sys.stderr)
         raise
     finally:
         if process.poll() is None:
@@ -523,7 +563,11 @@ def main() -> int:
             )
             for index in (1, 2)
         ]
-    after = _canonical_task(arguments.base_url, arguments.task_id)
+    after = _wait_for_stable_canonical_terminal(
+        arguments.base_url,
+        arguments.task_id,
+        arguments.task_timeout,
+    ) if arguments.wait_terminal_cycle else _canonical_task(arguments.base_url, arguments.task_id)
     if before.get("run_id") != after.get("run_id"):
         raise AssertionError("detach/resume changed the canonical run identity")
     payload = {
@@ -536,6 +580,7 @@ def main() -> int:
         "run_id": before.get("run_id"),
         "canonical_before": {"status": before.get("status"), "terminal": before.get("terminal")},
         "canonical_after": {"status": after.get("status"), "terminal": after.get("terminal")},
+        "canonical_after_stability_ms": 2_000 if arguments.wait_terminal_cycle else None,
         "control": {
             "cycle": arguments.control_cycle if control_command is not None else None,
             "command": control_command,
