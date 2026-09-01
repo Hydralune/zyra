@@ -27,6 +27,7 @@ EXPECTED_COMMAND_LINES = (
     "zyra ls                           list canonical tasks and sessions",
     "zyra scenario <action> [...]      scenario lifecycle over the daemon API",
     "zyra ui [--task <id>]             ensure daemon, start Web, open product route",
+    "zyra doctor [--bundle <file>]     read-only product diagnostics",
     "zyra daemon <start|stop|status>   local daemon supervision",
 )
 FORBIDDEN_DEPENDENCIES = frozenset(

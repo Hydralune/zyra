@@ -3,10 +3,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from scripts.verify_product_entry_release import (
+    EXPECTED_COMMAND_LINES,
     PROJECT_ROOT,
     audit_cli_dependency_closure,
     audit_node_artifact,
 )
+
+
+def test_release_command_surface_includes_product_diagnostics() -> None:
+    assert len(EXPECTED_COMMAND_LINES) == 11
+    assert "zyra doctor [--bundle <file>]     read-only product diagnostics" in EXPECTED_COMMAND_LINES
 
 
 def test_cli_dependency_closure_excludes_web_react_tui_and_external_paths() -> None:
