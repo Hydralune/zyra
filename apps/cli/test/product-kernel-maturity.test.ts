@@ -265,6 +265,8 @@ describe("product commands and continuous session", () => {
     expect(parseProductCommand("/subagents")).toMatchObject({ definition: { name: "agents" } })
     expect(productCommandHelp(false)).toContain("/new")
     expect(productCommandHelp(true)).toContain("/redirect")
+    expect(productCommandHelp(true)).toContain("/plan")
+    expect(productCommandHelp(true)).toContain("/tools")
   })
 
   test("keeps the session list usable when historical entries are isolated", async () => {

@@ -21,6 +21,8 @@ const LOCAL_COMMANDS: readonly ProductCommandDefinition[] = Object.freeze([
   { name: "model", description: "选择后续任务模型；status 查看当前状态", usage: "/model [status]", availability: "always" },
   { name: "mode", description: "选择后续任务执行模式；运行中只读", usage: "/mode [status]", availability: "always" },
   { name: "diff", description: "查看当前任务文件变更", availability: "always" },
+  { name: "plan", description: "查看完整计划和步骤状态", availability: "always" },
+  { name: "tools", description: "查看工具调用、耗时和 artifact", availability: "always" },
   { name: "agents", aliases: ["subagents"], description: "查看协作代理摘要", availability: "always" },
   { name: "permissions", description: "查看当前权限请求", availability: "always" },
   { name: "ui", description: "在 Web 看板打开当前任务", availability: "always" },

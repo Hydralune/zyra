@@ -67,6 +67,30 @@ function controlError(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function planLines(view: ProductTuiShell["view"]): string[] {
+  if (!view.activities.length) return ["当前没有 canonical 计划步骤。"]
+  return view.activities.map((activity, index) => {
+    const marker = activity.status === "completed" ? "✓" : activity.status === "running" ? "◌" : "○"
+    const detail = [activity.category, activity.outcome, activity.summary].filter(Boolean).join(" · ")
+    return `${marker} ${index + 1}. ${activity.label}${detail ? ` · ${detail}` : ""}`
+  })
+}
+
+function toolLines(view: ProductTuiShell["view"]): string[] {
+  if (!view.tools.length) return ["当前没有 canonical 工具调用。"]
+  return view.tools.map((tool, index) => {
+    const marker = tool.status === "completed" ? "✓" : tool.status === "failed" ? "!" : "◌"
+    const duration = tool.durationMs === undefined ? "耗时未知" : `${tool.durationMs}ms`
+    const artifacts = tool.artifactIds?.length ? ` · artifacts: ${tool.artifactIds.join(", ")}` : ""
+    return `${marker} ${index + 1}. ${tool.name} · ${tool.status} · ${duration} · ${tool.summary}${artifacts}`
+  })
+}
+
+function agentLines(view: ProductTuiShell["view"]): string[] {
+  if (!view.agents.length) return ["当前没有可见协作代理。"]
+  return view.agents.map((agent, index) => `${index + 1}. ${agent.label} · ${agent.status}${agent.summary ? ` · ${agent.summary}` : ""} · ${agent.agentId}`)
+}
+
 function permissionField(request: PermissionRequestView, ...names: string[]): string | undefined {
   for (const name of names) {
     const value = request.raw[name]
@@ -180,8 +204,7 @@ async function runProductControlLoop(input: {
         continue
       }
       if (line === "/agents") {
-        const agents = input.shell.view.agents
-        input.shell.notice(agents.length ? agents.map((agent) => `${agent.label} · ${agent.status} · ${agent.agentId}`).join("\n") : "当前没有可见协作代理。")
+        await input.shell.page("协作代理", agentLines(input.shell.view))
         continue
       }
       if (line === "/permissions") {
@@ -190,6 +213,14 @@ async function runProductControlLoop(input: {
       }
       if (line === "/diff") {
         if (!await input.openDiff()) input.shell.notice("当前任务没有可审查的 canonical diff。使用 /ui 查看 artifact。")
+        continue
+      }
+      if (line === "/plan") {
+        await input.shell.page("计划与步骤", planLines(input.shell.view))
+        continue
+      }
+      if (line === "/tools") {
+        await input.shell.page("工具调用", toolLines(input.shell.view))
         continue
       }
       if (line === "/ui") {
@@ -801,8 +832,7 @@ async function runProductSession(input: {
             input.shell.notice(formatExecutionMode(undefined, executionMode))
             continue
           case "agents": {
-            const agents = input.shell.view.agents
-            input.shell.notice(agents.length ? agents.map((agent) => `${agent.label} · ${agent.status} · ${agent.agentId}`).join("\n") : "当前没有可见协作代理。")
+            await input.shell.page("协作代理", agentLines(input.shell.view))
             continue
           }
           case "permissions": {
@@ -816,6 +846,12 @@ async function runProductSession(input: {
             }
             continue
           }
+          case "plan":
+            await input.shell.page("计划与步骤", planLines(input.shell.view))
+            continue
+          case "tools":
+            await input.shell.page("工具调用", toolLines(input.shell.view))
+            continue
           case "ui":
             input.shell.notice(currentTaskId
               ? `已打开 Web 看板：${(await launchUi({ baseUrl: input.baseUrl, webPort: 5173, startupTimeoutMs: input.startupTimeoutMs, open: true, taskId: currentTaskId })).url}`
