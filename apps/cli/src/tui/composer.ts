@@ -86,7 +86,6 @@ export class ProductComposer {
   async read(): Promise<ProductComposerResult> {
     if (this.#settle) throw new TypeError("ProductComposer already has an active read.")
     this.#terminalSession.enter()
-    this.#changed()
     return new Promise<ProductComposerResult>((resolve, reject) => {
       const data = (chunk: Buffer | string) => {
         void this.#consume(typeof chunk === "string" ? chunk : this.#decoder.write(chunk)).catch((error) => {
@@ -115,6 +114,9 @@ export class ProductComposer {
         this.#terminalSession.restore()
         this.#clearPasteBurstTimer()
       }
+      // The first rendered draft is the user-visible readiness boundary.
+      // Publish it only after the input listeners and settle callback exist.
+      this.#changed()
     })
   }
 

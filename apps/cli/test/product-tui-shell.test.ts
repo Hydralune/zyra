@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { PassThrough, Writable } from "node:stream"
 import { ZYRA_UI_EVENT_SCHEMA, type ZyraUiEvent } from "../src/presentation/events.ts"
 import { LiveProductRenderer } from "../src/tui/live-renderer.ts"
+import { ProductComposer } from "../src/tui/composer.ts"
 import { pickProductItem } from "../src/tui/overlay/list-picker.ts"
 import { ProductTuiShell } from "../src/tui/shell.ts"
 import { emergencyTerminalCleanup, TerminalSessionGuard } from "../src/tui/terminal-session.ts"
@@ -244,6 +245,29 @@ describe("product TUI shell", () => {
     })
 
     await expect(picking).resolves.toMatchObject({ id: "model-1" })
+    expect(stdin.raw).toBe(false)
+    expect(stdin.isPaused()).toBe(true)
+  })
+
+  test("accepts input at the first observable composer paint", async () => {
+    const stdin = new TtyInput()
+    const output = new TtyOutput()
+    let submitted = false
+    const composer = new ProductComposer({
+      stdin,
+      output,
+      running: () => false,
+      onChange: () => {
+        if (!submitted) {
+          submitted = true
+          stdin.write("首帧输入\r")
+        }
+      },
+      onNotice: () => undefined,
+      onScroll: () => undefined,
+    })
+
+    await expect(composer.read()).resolves.toEqual({ kind: "submit", text: "首帧输入", queue: false })
     expect(stdin.raw).toBe(false)
     expect(stdin.isPaused()).toBe(true)
   })

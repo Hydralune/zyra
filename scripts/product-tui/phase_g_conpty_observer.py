@@ -278,6 +278,7 @@ def _attach_cycle(
     try:
         _wait_for(capture, ">_ Zyra", timeout)
         _wait_for(capture, task_id, timeout)
+        _wait_for(capture, "Tab 排队 · Esc 中断", timeout)
         startup_ms = (time.monotonic() - started) * 1_000
         control_receipt = None
         if control_command is not None:

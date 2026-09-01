@@ -150,8 +150,8 @@ export class ProductTuiShell {
 
   async read(running = false): Promise<ProductComposerResult> {
     this.#running = running
-    this.#renderer.renderNow()
-    const result = await this.#composer.read()
+    const pending = this.#composer.read()
+    const result = await pending
     this.#running = false
     this.#renderer.renderNow()
     return result
