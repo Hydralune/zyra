@@ -13,6 +13,7 @@ import {
 import { CliPermissionSession, type PermissionRequestView } from "../control/permission.ts"
 import type { UiPermissionSnapshot } from "../presentation/events.ts"
 import { ProductProjection } from "../presentation/projection.ts"
+import { buildBoundedWorkspaceDiff } from "../presentation/workspace-diff.ts"
 import { ProductTuiShell } from "../tui/shell.ts"
 import { mutationTransportDetached, type CommandOutcome } from "../runner.ts"
 import { launchUi } from "../ui.ts"
@@ -394,6 +395,23 @@ async function candidates(cwd: string): Promise<readonly string[]> {
   return [...PRODUCT_COMMANDS, ...references]
 }
 
+async function appendFinalDiff(input: {
+  api: CliApi
+  shell: ProductTuiShell
+  taskId?: string
+  cwd: string
+}): Promise<void> {
+  if (!input.taskId) return
+  try {
+    const task = await input.api.task(input.taskId)
+    const diff = await buildBoundedWorkspaceDiff(task, input.cwd)
+    if (diff) input.shell.append([diff])
+  } catch {
+    // Diff is an optional bounded convenience view. The canonical Web route
+    // remains available through /ui when local materialization is absent.
+  }
+}
+
 export async function executeProductInteractive(input: {
   command: InteractiveCommand
   api: CliApi
@@ -433,6 +451,7 @@ export async function executeProductInteractive(input: {
         taskId: created.task.taskId,
       })).url,
     })
+    await appendFinalDiff({ api: input.api, shell, taskId: outcome.taskId, cwd })
     shell.finish()
     return outcome
   } finally {
@@ -467,6 +486,7 @@ export async function executeProductResume(input: {
         taskId: resolved.task.taskId,
       })).url,
     })
+    await appendFinalDiff({ api: input.api, shell, taskId: outcome.taskId, cwd })
     shell.finish()
     return outcome
   } finally {

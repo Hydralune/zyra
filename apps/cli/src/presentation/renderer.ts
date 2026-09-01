@@ -1,4 +1,4 @@
-import type { UiFileChange, UiPermissionRequest, ZyraUiEvent } from "./events.ts"
+import type { UiFileChange, UiPermissionRequest, UiVerificationSummary, ZyraUiEvent } from "./events.ts"
 
 interface UiMessageState {
   messageId: string
@@ -28,6 +28,8 @@ export interface ProductViewState {
   tools: readonly UiToolState[]
   permissions: readonly UiPermissionRequest[]
   changes: readonly UiFileChange[]
+  diff?: { lines: readonly string[]; truncated: boolean }
+  verification?: UiVerificationSummary
   connection: "connected" | "reconnecting" | "disconnected"
   reconnectAttempt?: number
   taskStatus: "idle" | "running" | "completed" | "failed" | "cancelled"
@@ -145,6 +147,8 @@ export function reduceProductEvents(events: readonly ZyraUiEvent[]): ProductView
   const tools = new Map<string, UiToolState>()
   const permissions = new Map<string, UiPermissionRequest>()
   const changes = new Map<string, UiFileChange>()
+  let diff: ProductViewState["diff"]
+  let verification: UiVerificationSummary | undefined
   let sessionId: string | undefined
   let taskId: string | undefined
   let connection: ProductViewState["connection"] = "connected"
@@ -208,6 +212,12 @@ export function reduceProductEvents(events: readonly ZyraUiEvent[]): ProductView
       case "workspace.changed":
         for (const change of event.changes) changes.set(`${change.kind}:${change.path}`, change)
         break
+      case "workspace.diff":
+        diff = { lines: event.lines, truncated: event.truncated }
+        break
+      case "verification.updated":
+        verification = event.verification
+        break
       case "task.completed":
         taskId = event.taskId
         taskStatus = "completed"
@@ -243,6 +253,8 @@ export function reduceProductEvents(events: readonly ZyraUiEvent[]): ProductView
     tools: Object.freeze([...tools.values()]),
     permissions: Object.freeze([...permissions.values()]),
     changes: Object.freeze([...changes.values()]),
+    diff,
+    verification,
     connection,
     reconnectAttempt,
     taskStatus,
@@ -301,6 +313,19 @@ export function renderProductSnapshot(events: readonly ZyraUiEvent[], options: P
     lines.push("")
     lines.push(...prefixed(`${state.changes.length} 个文件发生变更`, "✓ ", width))
     for (const change of state.changes.slice(0, 5)) lines.push(...prefixed(`${change.kind.padEnd(8)} ${change.path}`, "  ", width))
+  }
+
+  if (state.diff?.lines.length) {
+    lines.push(...prefixed("有界 diff：", "  ", width))
+    for (const line of state.diff.lines) lines.push(...prefixed(line, "  ", width))
+    if (state.diff.truncated) lines.push(...prefixed("diff 已截断；使用 /ui 查看完整审查。", "… ", width))
+  }
+
+  if (state.verification) {
+    lines.push("")
+    const marker = state.verification.status === "passed" ? "✓ " : state.verification.status === "failed" ? "! " : "• "
+    lines.push(...prefixed(state.verification.label, marker, width))
+    for (const detail of state.verification.details) lines.push(...prefixed(detail, "  ", width))
   }
 
   if (state.taskMessage) {

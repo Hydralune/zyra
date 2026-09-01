@@ -9,12 +9,23 @@ class Capture extends Writable {
   text = ""
   columns = 100
   rows = 32
-  isTTY = false
+  isTTY: boolean
+
+  constructor(tty = false) {
+    super()
+    this.isTTY = tty
+  }
 
   override _write(chunk: Buffer | string, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
     this.text += chunk.toString()
     callback()
   }
+}
+
+class TtyInput extends PassThrough {
+  isTTY = true
+  raw = false
+  setRawMode(enabled: boolean): void { this.raw = enabled }
 }
 
 function task(status: string, metadata: Readonly<Record<string, unknown>> = {}): TaskProjection {
@@ -178,5 +189,43 @@ describe("product task observer", () => {
     })).rejects.toThrow("实时事件流不可用")
     productShell.close()
     expect(streamed).toBeFalse()
+  })
+
+  test("keeps permissions fail-closed when custody is unavailable and restores TTY mode", async () => {
+    const output = new Capture(true)
+    const stdin = new TtyInput()
+    const productShell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    const pending = task("pending")
+    const completed = task("completed", { final_answer: "安全完成。" })
+    const api = {
+      async ingressCapabilities() {
+        return { taskId: pending.taskId, generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress() {
+        yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async openPermissionSession() { throw new Error("permission custody disabled") },
+      async runTask() { return { task: completed, events: [], receipt: {}, controls: {}, raw: {} } },
+      async *streamIngress() {
+        await Promise.resolve()
+        yield { kind: "heartbeat", taskId: pending.taskId, generation: 1, sequence: 0, cursor: "cursor_0" }
+      },
+      async task() { return completed },
+    } as unknown as CliApi
+
+    productShell.start()
+    const result = await observeProductTask({
+      api,
+      task: pending,
+      shell: productShell,
+      signal: new AbortController().signal,
+      resume: false,
+    })
+    productShell.finish()
+
+    expect(result.status).toBe("completed")
+    expect(output.text).toContain("权限控制保持关闭")
+    expect(output.text).toContain("安全完成。")
+    expect(stdin.raw).toBeFalse()
   })
 })

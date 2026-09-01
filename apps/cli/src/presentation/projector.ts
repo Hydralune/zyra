@@ -135,6 +135,26 @@ function taskFailure(task: TaskProjection): string {
     ?? "任务未能完成。"
 }
 
+function verificationSummary(task: TaskProjection): {
+  status: "passed" | "failed" | "not_run"
+  label: string
+  details: readonly string[]
+} | undefined {
+  if (!task.terminal && !["completed", "failed", "blocked", "cancelled", "killed"].includes(task.status)) return undefined
+  const outcome = object(task.metadata.canonical_task_outcome)
+  const verification = object(outcome.verification)
+  const finalVerifier = object(verification.final_verifier)
+  const completionGate = object(verification.completion_gate)
+  const failedConditions = stringList(completionGate.failed_conditions).slice(0, 5)
+  if (finalVerifier.passed === false || completionGate.hard_conditions_passed === false) {
+    return Object.freeze({ status: "failed", label: "最终验证未通过", details: Object.freeze(failedConditions) })
+  }
+  if (finalVerifier.passed === true && completionGate.hard_conditions_passed === true) {
+    return Object.freeze({ status: "passed", label: "最终验证通过", details: Object.freeze([]) })
+  }
+  return Object.freeze({ status: "not_run", label: "未记录最终验证", details: Object.freeze([]) })
+}
+
 export function projectProductEvents(input: ProductProjectionInput): readonly ZyraUiEvent[] {
   const { task } = input
   const events: ZyraUiEvent[] = []
@@ -286,6 +306,18 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
   const changes = workspaceChanges(task)
   if (changes.length) {
     push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:workspace:${task.taskId}:${task.updatedAt}`, occurredAt: task.updatedAt, type: "workspace.changed", changes })
+  }
+
+
+  const verification = verificationSummary(task)
+  if (verification) {
+    push({
+      schema: ZYRA_UI_EVENT_SCHEMA,
+      eventId: `ui:verification:${task.taskId}:${task.updatedAt}`,
+      occurredAt: task.updatedAt,
+      type: "verification.updated",
+      verification,
+    })
   }
 
   const finalAnswer = content(task.metadata.final_answer)

@@ -57,6 +57,7 @@ describe("ZyraUiEvent/v1 product projection", () => {
       "activity.completed",
       "activity.completed",
       "activity.completed",
+      "verification.updated",
       "assistant.message.completed",
       "task.completed",
     ])

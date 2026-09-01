@@ -21,6 +21,12 @@ export interface UiFileChange {
   previousPath?: string
 }
 
+export interface UiVerificationSummary {
+  status: "passed" | "failed" | "not_run"
+  label: string
+  details: readonly string[]
+}
+
 interface UiEventBase {
   schema: typeof ZYRA_UI_EVENT_SCHEMA
   eventId: string
@@ -48,6 +54,8 @@ export type ZyraUiEvent =
   | (UiEventBase & { type: "permission.requested"; request: UiPermissionRequest })
   | (UiEventBase & { type: "permission.resolved"; requestId: string; decision: string })
   | (UiEventBase & { type: "workspace.changed"; changes: readonly UiFileChange[] })
+  | (UiEventBase & { type: "workspace.diff"; lines: readonly string[]; truncated: boolean; source: "local_workspace" })
+  | (UiEventBase & { type: "verification.updated"; verification: UiVerificationSummary })
   | (UiEventBase & { type: "subagent.updated"; agentId: string; label: string; status: string })
   | (UiEventBase & { type: "task.completed"; taskId: string; finalAnswer: string })
   | (UiEventBase & { type: "task.failed"; taskId: string; message: string; recovery?: string })

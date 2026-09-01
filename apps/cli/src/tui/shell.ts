@@ -65,6 +65,11 @@ export class ProductTuiShell {
     this.#renderer.render()
   }
 
+  append(events: readonly ZyraUiEvent[]): void {
+    this.#events = Object.freeze([...this.#events, ...events])
+    this.#renderer.render()
+  }
+
   notice(message?: string): void {
     this.#notice = message
     this.#renderer.render()
