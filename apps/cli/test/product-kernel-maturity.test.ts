@@ -11,6 +11,7 @@ import { parseProductDiffManifest, parseProductDiffPage } from "../src/product/d
 import { productPatchArtifacts } from "../src/product/diff/controller.ts"
 import { ZYRA_UI_EVENT_SCHEMA, type ZyraUiEvent } from "../src/presentation/events.ts"
 import { renderMarkdown } from "../src/tui/markdown.ts"
+import { renderProductState } from "../src/presentation/renderer.ts"
 import { displayWidth, sanitizeTerminalText } from "../src/tui/text.ts"
 
 class TtyInput extends PassThrough {
@@ -105,6 +106,29 @@ describe("product state kernel", () => {
     expect(message).toMatchObject({ truncated: true })
     expect(message.text).toContain("0123456789abcdef\n…[内容已截断")
     expect(message.text).not.toContain("must-not-remain-in-memory")
+  })
+
+  test("virtualizes a 10,000-message transcript before Markdown rendering", () => {
+    const state = new ProductSessionState()
+    for (let index = 0; index < 10_000; index += 1) {
+      state.apply({
+        schema: ZYRA_UI_EVENT_SCHEMA,
+        eventId: `long_${index}`,
+        type: "assistant.message.completed",
+        messageId: `long_message_${index}`,
+        text: `history ${index} with **markdown**`,
+        source: "stream",
+      })
+    }
+    const rendered = renderProductState(state.snapshot(), {
+      width: 100,
+      height: 40,
+      workspace: "G:\\agent-zoo\\zyra",
+    })
+    expect(rendered).toContain("history 9999 with markdown")
+    expect(rendered).toContain("条更早消息虚拟化")
+    expect(rendered).not.toContain("history 0 with markdown")
+    expect(rendered.split("\n").length).toBeLessThanOrEqual(41)
   })
 
   test("keeps streaming messages, tools, agents, permissions, and terminal state separate", () => {

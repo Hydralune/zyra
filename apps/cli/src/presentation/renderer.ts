@@ -56,6 +56,31 @@ function renderMessage(lines: string[], message: ProductViewState["messages"][nu
   }
 }
 
+function renderMessageWindow(
+  messages: ProductViewState["messages"],
+  width: number,
+  lineBudget?: number,
+): { lines: string[]; omitted: number } {
+  if (lineBudget === undefined) {
+    const lines: string[] = []
+    for (const message of messages) renderMessage(lines, message, width)
+    return { lines, omitted: 0 }
+  }
+  const segments: string[][] = []
+  let renderedLines = 0
+  let firstIncluded = messages.length
+  const budget = Math.max(16, Math.floor(lineBudget))
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const segment: string[] = []
+    renderMessage(segment, messages[index]!, width)
+    segments.unshift(segment)
+    renderedLines += segment.length
+    firstIncluded = index
+    if (renderedLines >= budget) break
+  }
+  return { lines: segments.flat(), omitted: firstIncluded }
+}
+
 function renderActivity(lines: string[], state: ProductViewState, width: number): void {
   const active = state.activities.filter((item) => item.status === "running")
   const pending = state.activities.filter((item) => item.status === "pending")
@@ -154,6 +179,8 @@ function renderOverlay(lines: string[], overlay: ProductOverlay, width: number):
 export function renderProductState(state: ProductViewState, options: ProductRenderOptions): string {
   const width = Math.max(40, Math.floor(options.width))
   const lines: string[] = []
+  const height = options.height === undefined ? undefined : Math.max(8, Math.floor(options.height))
+  const scrollOffset = Math.max(0, Math.floor(options.scrollOffset ?? 0))
   const inner = width - 2
   const header = ` >_ Zyra (v${options.version ?? "0.1.0"})`
   const workspace = ` ${sanitizeTerminalText(options.workspace)} · ${connectionLabel(state)} · 产品模式`
@@ -162,7 +189,16 @@ export function renderProductState(state: ProductViewState, options: ProductRend
   lines.push(`│${padDisplay(workspace, inner)}│`)
   lines.push(`╰${"─".repeat(inner)}╯`)
 
-  for (const message of state.messages) renderMessage(lines, message, width)
+  const messageWindow = renderMessageWindow(
+    state.messages,
+    width,
+    height === undefined ? undefined : height + scrollOffset + 24,
+  )
+  if (messageWindow.omitted) {
+    lines.push("")
+    lines.push(...prefixed(`${messageWindow.omitted} 条较早消息已虚拟化；PageUp 继续回看`, "… ", width))
+  }
+  lines.push(...messageWindow.lines)
   renderActivity(lines, state, width)
   renderTools(lines, state, width)
   renderAgents(lines, state, width)
@@ -202,19 +238,18 @@ export function renderProductState(state: ProductViewState, options: ProductRend
   lines.push(clipDisplay(`  ${status}`, width))
 
   let visible = lines.map((line) => clipDisplay(line, width))
-  const height = options.height === undefined ? undefined : Math.max(8, Math.floor(options.height))
   if (height !== undefined && visible.length > height) {
     const fixedHeader = visible.slice(0, 4)
     const footer = visible.slice(-4)
     const body = visible.slice(4, -4)
     const bodyBudget = Math.max(0, height - fixedHeader.length - footer.length - 1)
-    const offset = Math.max(0, Math.min(body.length, Math.floor(options.scrollOffset ?? 0)))
+    const offset = Math.max(0, Math.min(body.length, scrollOffset))
     const end = Math.max(0, body.length - offset)
     const start = Math.max(0, end - bodyBudget)
     const hidden = start + (body.length - end)
     visible = [
       ...fixedHeader,
-      clipDisplay(`… ${hidden} 行已隐藏 · PageUp/PageDown 滚动`, width),
+      clipDisplay(`… ${hidden} 行已隐藏${messageWindow.omitted ? ` · ${messageWindow.omitted} 条更早消息虚拟化` : ""} · PageUp/PageDown 滚动`, width),
       ...body.slice(start, end),
       ...footer,
     ]
