@@ -261,14 +261,13 @@ def _attach_cycle(
         _wait_for(capture, ">_ Zyra", timeout)
         _wait_for(capture, task_id, timeout)
         startup_ms = (time.monotonic() - started) * 1_000
-        time.sleep(0.5)
-        _type_command(process, "/status")
-        reported_status = _wait_for_reported_status(capture, task_id, timeout)
         control_receipt = None
         if control_command is not None:
             command_name = _receipt_command_name(control_command)
             _type_command(process, control_command)
             control_receipt = _wait_for_control_receipt(capture, command_name, timeout)
+        _type_command(process, "/status")
+        reported_status = _wait_for_reported_status(capture, task_id, timeout)
         for index in range(resize_count):
             process.resize(18 + (index % 43), 60 + (index % 141))
             if index % 25 == 0:

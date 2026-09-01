@@ -748,6 +748,20 @@ export async function observeProductTask(input: {
   }
 
   const resumableTerminal = input.resume && ["failed", "blocked"].includes(task.status)
+  const resumedFromRevision = resumableTerminal ? `${task.status}:${task.updatedAt}` : undefined
+  let resumedExecutionAdvanced = !resumableTerminal
+  const observationHasSettled = (candidate: TaskProjection): boolean => {
+    const revision = `${candidate.status}:${candidate.updatedAt}`
+    if (terminalTask(candidate) && resumedFromRevision !== undefined && revision === resumedFromRevision) {
+      return false
+    }
+    if (!terminalTask(candidate)) {
+      resumedExecutionAdvanced = true
+      return false
+    }
+    if (resumedFromRevision !== undefined && revision !== resumedFromRevision) resumedExecutionAdvanced = true
+    return resumedExecutionAdvanced
+  }
   if (terminalTask(task) && !resumableTerminal) {
     projection.complete()
     renderProjection(true)
@@ -830,6 +844,7 @@ export async function observeProductTask(input: {
           runOutcome = outcome
           if (outcome.ok) {
             task = outcome.value.task
+            observationHasSettled(task)
             projection.refreshTask(task)
             renderProjection(true)
           }
@@ -865,7 +880,7 @@ export async function observeProductTask(input: {
             task = await input.api.task(task.taskId)
             projection.refreshTask(task)
             renderProjection(true)
-            if (terminalTask(task)) { settled = true; break }
+            if (observationHasSettled(task)) { settled = true; break }
           }
         } else if (message.kind === "live") {
           if (projection.applyLive(message.frame)) {
@@ -884,11 +899,11 @@ export async function observeProductTask(input: {
           await refreshPermissions().catch((error) => {
             input.shell.notice(`权限状态刷新失败并保持关闭 · ${controlError(error)}`)
           })
-          if (terminalTask(task) || (message.kind === "heartbeat" && (input.resume || runSettled))) {
-            task = terminalTask(task) ? task : await input.api.task(task.taskId)
+          if (observationHasSettled(task) || (message.kind === "heartbeat" && (input.resume || runSettled))) {
+            task = observationHasSettled(task) ? task : await input.api.task(task.taskId)
             projection.refreshTask(task)
             renderProjection(true)
-            if (terminalTask(task)) { settled = true; break }
+            if (observationHasSettled(task)) { settled = true; break }
           }
         }
       }
@@ -899,7 +914,7 @@ export async function observeProductTask(input: {
       task = await input.api.task(task.taskId)
       projection.refreshTask(task)
       renderProjection(true)
-      if (terminalTask(task)) { settled = true; break }
+      if (observationHasSettled(task)) { settled = true; break }
       if (runSettled && runOutcome?.ok === false && !mutationTransportDetached(runOutcome.error)) throw runOutcome.error
       recoveryAttempts = 0
       windows += 1
@@ -969,7 +984,7 @@ export async function observeProductTask(input: {
         input.shell.notice(`权限状态刷新失败并保持关闭 · ${controlError(permissionError)}`)
       })
       renderProjection(true)
-      if (terminalTask(task)) settled = true
+      if (observationHasSettled(task)) settled = true
     }
   }
   if (detached) {

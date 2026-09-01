@@ -185,6 +185,53 @@ describe("product task observer", () => {
     expect(output.text).not.toContain("\u001b[?1049")
   })
 
+  test("ignores the prior terminal frame until a failed resume advances canonically", async () => {
+    const output = new Capture()
+    const productShell = shell(output)
+    const initialFailed = task("failed", { failure_reason: "first attempt failed" })
+    const running = {
+      ...task("running"),
+      updatedAt: "2026-09-01T00:00:02.000Z",
+    } as TaskProjection
+    const resumedFailed = {
+      ...task("failed", { failure_reason: "resumed attempt failed" }),
+      updatedAt: "2026-09-01T00:00:03.000Z",
+    } as TaskProjection
+    const taskReads = [initialFailed, running, resumedFailed]
+    const api = {
+      async ingressCapabilities() {
+        return { taskId: initialFailed.taskId, generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress() {
+        yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask() { return { task: running, events: [], receipt: {}, controls: {}, raw: {} } },
+      async *streamIngress() {
+        yield { kind: "event", taskId: initialFailed.taskId, generation: 1, sequence: 1, frame: frame(1, "runtime.task.failed") }
+        yield { kind: "heartbeat", taskId: initialFailed.taskId, generation: 1, sequence: 1, cursor: "cursor_1" }
+        yield { kind: "event", taskId: initialFailed.taskId, generation: 1, sequence: 2, frame: frame(2, "runtime.task.failed") }
+        yield { kind: "close", taskId: initialFailed.taskId, generation: 1, sequence: 2, cursor: "cursor_2" }
+      },
+      async task() { return taskReads.shift() ?? resumedFailed },
+    } as unknown as CliApi
+
+    productShell.start()
+    const result = await observeProductTask({
+      api,
+      task: initialFailed,
+      shell: productShell,
+      signal: new AbortController().signal,
+      resume: true,
+    })
+    productShell.finish()
+
+    expect(result.status).toBe("failed")
+    expect(result.exitCode).toBe(CliExitCode.TASK_FAILED)
+    expect(productShell.view.taskStatus).toBe("failed")
+    expect(taskReads).toHaveLength(0)
+    expect(output.text).toContain("resumed attempt failed")
+  })
+
   test("replaces a gapped generation from the canonical snapshot", async () => {
     const output = new Capture()
     const productShell = shell(output)
