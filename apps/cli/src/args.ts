@@ -346,6 +346,24 @@ export function parseCliArgs(argv: readonly string[]): CliCommand {
       identity: String(values.identity),
     }
   }
+  if (command === "dev") {
+    const values = bound(argv.slice(1), INTERACTIVE_SPECS)
+    return {
+      kind: "dev",
+      ...common(values),
+      goal: typeof values.goal === "string" && values.goal.trim()
+        ? values.goal.trim()
+        : undefined,
+    }
+  }
+  if (command === "events") {
+    const values = bound(argv.slice(1), RESUME_SPECS)
+    return {
+      kind: "events",
+      ...common(values),
+      identity: String(values.identity),
+    }
+  }
   if (command === "ls") {
     const values = bound(argv.slice(1), LIST_SPECS)
     return {
@@ -376,14 +394,17 @@ export function parseCliArgs(argv: readonly string[]): CliCommand {
 
 export const CLI_USAGE = `Zyra CLI command surface
 
-  zyra                              interactive session
-  zyra "<goal>"                     interactive task with live events
+  zyra                              product TUI
+  zyra "<goal>"                     product TUI with an initial goal
+  zyra resume <task|session>        resume in the product TUI
+  zyra dev [<goal>]                 developer event interface
+  zyra events <task|session>        observe raw canonical events
   zyra run <goal | -f file | stdin> non-interactive JSONL execution
-  zyra resume <task|session>        resume from server snapshot/cursor
   zyra ls                           list canonical tasks and sessions
   zyra scenario <action> [...]      scenario lifecycle over the daemon API
   zyra ui [--task <id>]             ensure daemon, start Web, open product route
   zyra daemon <start|stop|status>   local daemon supervision
 
-Interactive TTY mode uses an append-only line transcript. Non-TTY commands emit
-JSONL on stdout and plain diagnostics on stderr.`
+Product TTY mode renders an inline conversation and never exposes raw runtime
+events. Developer mode keeps the append-only canonical event transcript.
+Non-TTY automation commands emit JSONL on stdout and diagnostics on stderr.`

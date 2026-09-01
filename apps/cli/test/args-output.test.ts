@@ -35,7 +35,7 @@ class BrokenPipe extends Writable {
 }
 
 describe("FE-S01 CLI argument and output contract", () => {
-  test("exposes exactly eight product entries without bare help/version commands", () => {
+  test("keeps help/version flags separate from product prompt text", () => {
     expect(parseCliArgs(["--help"]).kind).toBe("help")
     expect(parseCliArgs(["-h"]).kind).toBe("help")
     expect(parseCliArgs(["--version"]).kind).toBe("version")

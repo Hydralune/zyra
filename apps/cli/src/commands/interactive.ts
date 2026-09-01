@@ -2,7 +2,7 @@ import { readdir } from "node:fs/promises"
 import type { Readable, Writable } from "node:stream"
 import { ZyraApiError, type TaskProjection } from "@zyra/typed-api-client"
 import { CliApi } from "../api.ts"
-import { CliExitCode, CliTaskError, type InteractiveCommand, type ResumeCommand } from "../contracts.ts"
+import { CliExitCode, CliTaskError, type EventsCommand, type InteractiveCommand, type ResumeCommand } from "../contracts.ts"
 import {
   ACTIVE_CONTROL_COMMANDS,
   CliControlSession,
@@ -117,6 +117,7 @@ export async function observeTask(input: {
   stderr?: Writable
   signal: AbortSignal
   resume: boolean
+  observeOnly?: boolean
   terminalStatus?: () => TerminalNodeStatus
 }): Promise<CommandOutcome> {
   let capabilities = await input.api.ingressCapabilities(input.task.taskId)
@@ -186,7 +187,7 @@ export async function observeTask(input: {
   // the durable task projection at `running` even though its in-process
   // execution owner no longer exists.  The task-run endpoint owns fencing
   // the stale reservation and restoring the physical continuation.
-  if (input.resume || ["pending", "paused", "interrupted"].includes(input.task.status)) {
+  if (!input.observeOnly && (input.resume || ["pending", "paused", "interrupted"].includes(input.task.status))) {
     runResult = input.api.runTask(input.task, input.signal)
       .then(
         (value): RunOutcome => ({ ok: true, value }),
@@ -233,7 +234,7 @@ export async function observeTask(input: {
             // mutation response and SSE connection remain open.  Reconcile on
             // the server-owned heartbeat boundary; this preserves SSE as the
             // progress channel without introducing a separate polling loop.
-            if (message.kind === "heartbeat" && input.resume) {
+            if (message.kind === "heartbeat" && (input.resume || input.observeOnly)) {
               const observed = await input.api.task(input.task.taskId)
               if (terminalTask(observed)) {
                 detachedSettlement = observed
@@ -488,5 +489,24 @@ export async function executeResume(input: {
     stdin: input.stdin,
     stderr: input.stderr,
     terminalStatus: input.terminalStatus,
+  })
+}
+
+export async function executeEvents(input: {
+  command: EventsCommand
+  api: CliApi
+  stdout: Writable
+  signal: AbortSignal
+  cwd?: string
+}): Promise<CommandOutcome> {
+  const resolved = await input.api.resolveTask(input.command.identity)
+  return observeTask({
+    api: input.api,
+    task: resolved.task,
+    cwd: input.cwd ?? process.cwd(),
+    output: input.stdout,
+    signal: input.signal,
+    resume: false,
+    observeOnly: true,
   })
 }

@@ -12,6 +12,7 @@ import {
   CliTaskError,
   CliUsageError,
   type CliCommand,
+  type InteractiveCommand,
 } from "./contracts.ts"
 import {
   daemonStatus,
@@ -21,7 +22,8 @@ import {
 import { CliOutput } from "./output.ts"
 import { executeRun, type CommandOutcome } from "./runner.ts"
 import { executeScenario } from "./scenario.ts"
-import { executeInteractive, executeResume } from "./commands/interactive.ts"
+import { executeEvents, executeInteractive } from "./commands/interactive.ts"
+import { executeProductInteractive, executeProductResume } from "./commands/product.ts"
 import { executeList } from "./commands/list.ts"
 import { TerminalNodeLifecycle } from "./terminal/lifecycle.ts"
 import { launchUi } from "./ui.ts"
@@ -189,7 +191,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
     })
     if (command.kind === "help") {
       output.diagnostic(CLI_USAGE)
-      output.event({ schema: "zyra.cli-help.v1", command_count: 8 })
+      output.event({ schema: "zyra.cli-help.v1", command_count: 10 })
       output.result({ ok: true, exit_code: CliExitCode.SUCCESS, status: "help" })
       return CliExitCode.SUCCESS
     }
@@ -229,10 +231,12 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       autoStart: command.autoStart,
       startupTimeoutMs: command.startupTimeoutMs,
     })
-    const lineMode = command.kind === "interactive" || command.kind === "resume"
-    const terminalMode = lineMode || command.kind === "run" || command.kind === "scenario"
+    const productMode = command.kind === "interactive" || command.kind === "resume"
+    const developerMode = command.kind === "dev" || command.kind === "events"
+    const humanMode = productMode || developerMode
+    const terminalMode = productMode || command.kind === "dev" || command.kind === "run" || command.kind === "scenario"
     const listTty = command.kind === "ls" && Boolean((stdout as Writable & { isTTY?: boolean }).isTTY)
-    if (!lineMode && !listTty) {
+    if (!humanMode && !listTty) {
       output.event({
         schema: "zyra.cli-daemon-connection.v1",
         reachable: daemon.reachable,
@@ -311,7 +315,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
           startupRoot: process.cwd(),
         })
         const registration = await terminal.start()
-        if (lineMode) stderr.write(`terminal node ${registration.backend_id} registered · generation ${registration.generation.slice(0, 8)}\n`)
+        if (command.kind === "dev") stderr.write(`terminal node ${registration.backend_id} registered · generation ${registration.generation.slice(0, 8)}\n`)
       }
       if (command.kind === "run") outcome = await executeRun({
         command,
@@ -323,9 +327,21 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       })
       else if (command.kind === "scenario") outcome = await executeScenario({ command, api, output })
       else if (command.kind === "interactive") {
-        outcome = await executeInteractive({ command, api, stdin, stdout, stderr, signal: signal.controller.signal, terminalStatus: () => terminal!.status() })
+        outcome = await executeProductInteractive({ command, api, stdin, stdout, signal: signal.controller.signal })
       } else if (command.kind === "resume") {
-        outcome = await executeResume({ command, api, stdin, stdout, stderr, signal: signal.controller.signal, terminalStatus: () => terminal!.status() })
+        outcome = await executeProductResume({ command, api, stdin, stdout, signal: signal.controller.signal })
+      } else if (command.kind === "dev") {
+        const developerCommand: InteractiveCommand = {
+          kind: "interactive",
+          baseUrl: command.baseUrl,
+          autoStart: command.autoStart,
+          startupTimeoutMs: command.startupTimeoutMs,
+          timeoutMs: command.timeoutMs,
+          goal: command.goal,
+        }
+        outcome = await executeInteractive({ command: developerCommand, api, stdin, stdout, stderr, signal: signal.controller.signal, terminalStatus: () => terminal!.status() })
+      } else if (command.kind === "events") {
+        outcome = await executeEvents({ command, api, stdout, signal: signal.controller.signal })
       } else {
         outcome = await executeList({ command, api, stdout, jsonl: output })
       }
@@ -340,7 +356,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
         api.close("CLI command complete")
       }
     }
-    if (!lineMode && !listTty) output.result({
+    if (!humanMode && !listTty) output.result({
       ok: outcome.exitCode === CliExitCode.SUCCESS,
       exit_code: outcome.exitCode,
       status: outcome.status,
@@ -360,8 +376,11 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
       requestId,
       command: commandLabel(command),
     })
-    const lineMode = command?.kind === "interactive" || command?.kind === "resume"
-    if (lineMode) {
+    const humanMode = command?.kind === "interactive"
+      || command?.kind === "resume"
+      || command?.kind === "dev"
+      || command?.kind === "events"
+    if (humanMode) {
       stderr.write(`Zyra: ${error.message}\n`)
       return error.exitCode
     }

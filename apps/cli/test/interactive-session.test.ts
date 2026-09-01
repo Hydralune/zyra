@@ -58,6 +58,8 @@ describe("FE-S02 interactive command surface", () => {
     expect(parseCliArgs([])).toMatchObject({ kind: "interactive", goal: undefined })
     expect(parseCliArgs(["inspect", "this", "workspace"])).toMatchObject({ kind: "interactive", goal: "inspect this workspace" })
     expect(parseCliArgs(["resume", "task_test"])).toMatchObject({ kind: "resume", identity: "task_test" })
+    expect(parseCliArgs(["dev", "inspect", "this"])).toMatchObject({ kind: "dev", goal: "inspect this" })
+    expect(parseCliArgs(["events", "task_test"])).toMatchObject({ kind: "events", identity: "task_test" })
     expect(parseCliArgs(["ls", "--limit=25"])).toMatchObject({ kind: "ls", limit: 25 })
     expect(parseCliArgs(["ui"])).toMatchObject({
       kind: "ui",

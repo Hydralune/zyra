@@ -13,6 +13,8 @@ export enum CliExitCode {
 export type CliCommandName =
   | "interactive"
   | "resume"
+  | "dev"
+  | "events"
   | "ls"
   | "run"
   | "scenario"
@@ -43,6 +45,16 @@ export interface InteractiveCommand extends CommonOptions {
 
 export interface ResumeCommand extends CommonOptions {
   kind: "resume"
+  identity: string
+}
+
+export interface DeveloperCommand extends CommonOptions {
+  kind: "dev"
+  goal?: string
+}
+
+export interface EventsCommand extends CommonOptions {
+  kind: "events"
   identity: string
 }
 
@@ -106,6 +118,8 @@ export interface VersionCommand {
 export type CliCommand =
   | InteractiveCommand
   | ResumeCommand
+  | DeveloperCommand
+  | EventsCommand
   | ListCommand
   | RunCommand
   | ScenarioCommand

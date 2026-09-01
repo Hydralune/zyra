@@ -39,6 +39,11 @@ export interface ProductRenderOptions {
   workspace: string
   version?: string
   placeholder?: string
+  composerText?: string
+  notice?: string
+  running?: boolean
+  height?: number
+  scrollOffset?: number
 }
 
 const COMBINING = /[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff\ufe20-\ufe2f\ufe0e\ufe0f]/u
@@ -286,7 +291,10 @@ export function renderProductSnapshot(events: readonly ZyraUiEvent[], options: P
     lines.push("")
     lines.push(...prefixed(`需要权限：${permission.action}${permission.target ? ` · ${permission.target}` : ""}`, "! ", width))
     if (permission.reason) lines.push(...prefixed(permission.reason, "  ", width))
-    lines.push(...prefixed("[A] 允许本次   [D] 拒绝", "  ", width))
+    if (permission.risk) lines.push(...prefixed(`风险：${permission.risk}`, "  ", width))
+    if (permission.scope) lines.push(...prefixed(`作用域：${permission.scope}`, "  ", width))
+    if (permission.expiresAt) lines.push(...prefixed(`有效期至：${permission.expiresAt}`, "  ", width))
+    lines.push(...prefixed(`[A] 允许本次   [D] 拒绝 · ${permission.requestId}`, "  ", width))
   }
 
   if (state.changes.length) {
@@ -304,9 +312,38 @@ export function renderProductSnapshot(events: readonly ZyraUiEvent[], options: P
     lines.push(...prefixed(connectionLabel(state), "◌ ", width))
   }
 
+  if (options.notice) {
+    lines.push("")
+    lines.push(...prefixed(options.notice, "! ", width))
+  }
   lines.push("")
-  lines.push(...prefixed(options.placeholder ?? "向 Zyra 描述任务", "› ", width))
-  const status = `${state.taskStatus === "completed" ? "任务已完成" : state.taskStatus === "failed" ? "任务失败" : "? 查看快捷键"} · ${connectionLabel(state)}${state.taskId ? ` · ${state.taskId}` : ""}`
+  lines.push(...prefixed(options.composerText || options.placeholder || "向 Zyra 描述任务", "› ", width))
+  const leadingStatus = options.running
+    ? "Tab 排队 · Esc 中断"
+    : state.taskStatus === "completed"
+      ? "任务已完成"
+      : state.taskStatus === "failed"
+        ? "任务失败"
+        : "? 查看快捷键"
+  const status = `${leadingStatus} · ${connectionLabel(state)}${state.taskId ? ` · ${state.taskId}` : ""}`
   lines.push(clip(`  ${status}`, width))
-  return `${lines.map((line) => clip(line, width)).join("\n")}\n`
+  let visible = lines.map((line) => clip(line, width))
+  const height = options.height === undefined ? undefined : Math.max(8, Math.floor(options.height))
+  if (height !== undefined && visible.length > height) {
+    const header = visible.slice(0, 4)
+    const footer = visible.slice(-4)
+    const body = visible.slice(4, -4)
+    const bodyBudget = Math.max(0, height - header.length - footer.length - 1)
+    const offset = Math.max(0, Math.min(body.length, Math.floor(options.scrollOffset ?? 0)))
+    const end = Math.max(0, body.length - offset)
+    const start = Math.max(0, end - bodyBudget)
+    const hidden = start + (body.length - end)
+    visible = [
+      ...header,
+      clip(`… ${hidden} 行已隐藏 · PageUp/PageDown 滚动`, width),
+      ...body.slice(start, end),
+      ...footer,
+    ]
+  }
+  return `${visible.join("\n")}\n`
 }
