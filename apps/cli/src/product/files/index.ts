@@ -1,5 +1,6 @@
 import { readdir, realpath, stat } from "node:fs/promises"
 import { join, relative, sep } from "node:path"
+import { workspaceReferenceCandidate } from "./mention-codec.ts"
 
 const IGNORED = new Set([".git", ".hg", ".svn", "node_modules", "target", ".venv", "venv", "dist", "build", ".next", ".cache"])
 const MAX_INDEX_ENTRIES = 20_000
@@ -30,7 +31,9 @@ export async function workspaceReferenceCandidates(root: string, limit = 2_000):
       const absolute = join(current.path, entry.name)
       const display = relative(canonicalRoot, absolute).split(sep).join("/")
       if (!display || display.startsWith("../") || display === "..") continue
-      output.push(`@${display}${entry.isDirectory() ? "/" : ""}`)
+      const candidate = workspaceReferenceCandidate(`${display}${entry.isDirectory() ? "/" : ""}`)
+      if (!candidate) continue
+      output.push(candidate)
       if (entry.isDirectory() && current.depth < MAX_INDEX_DEPTH) queue.push({ path: absolute, depth: current.depth + 1 })
     }
   }

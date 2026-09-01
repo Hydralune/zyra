@@ -19,6 +19,7 @@ export class ProductTuiShell {
   readonly #input: Readable
   readonly #output: Writable
   #candidates: readonly string[]
+  #availableCandidateCache: { running: boolean; source: readonly string[]; values: readonly string[] } | undefined
   readonly #renderer: LiveProductRenderer
   readonly #composer: ProductComposer
   readonly #draftStore?: ProductDraftStore
@@ -46,7 +47,7 @@ export class ProductTuiShell {
     this.#workspace = input.workspace
     this.#input = input.stdin
     this.#output = input.output
-    this.#candidates = input.candidates ?? []
+    this.#candidates = Object.freeze([...(input.candidates ?? [])])
     this.#draftStore = input.draftStore
     this.#terminalCapabilities = probeTerminalCapabilities({ stdin: input.stdin, output: input.output })
     this.#bracketedPaste = input.bracketedPaste
@@ -105,6 +106,7 @@ export class ProductTuiShell {
 
   addCandidates(candidates: readonly string[]): void {
     this.#candidates = Object.freeze([...new Set([...this.#candidates, ...candidates])].sort())
+    this.#availableCandidateCache = undefined
   }
 
   start(): void { this.#renderer.start() }
@@ -231,10 +233,14 @@ export class ProductTuiShell {
   }
 
   #availableCandidates(): readonly string[] {
-    return this.#candidates.filter((value) => {
+    const cached = this.#availableCandidateCache
+    if (cached?.source === this.#candidates && cached.running === this.#running) return cached.values
+    const values = Object.freeze(this.#candidates.filter((value) => {
       if (!value.startsWith("/")) return true
       const command = PRODUCT_COMMAND_REGISTRY.find((item) => `/${item.name}` === value)
       return !command || command.availability === "always" || command.availability === (this.#running ? "running" : "idle")
-    })
+    }))
+    this.#availableCandidateCache = { running: this.#running, source: this.#candidates, values }
+    return values
   }
 }
