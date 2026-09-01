@@ -97,9 +97,9 @@ def _wait_for_reported_status(capture: RollingCapture, task_id: str, timeout: fl
     )
     deadline = time.monotonic() + timeout
     while True:
-        match = pattern.search(_visible(capture))
-        if match:
-            return match.group(1)
+        matches = list(pattern.finditer(_visible(capture)))
+        if matches:
+            return matches[-1].group(1)
         if time.monotonic() >= deadline:
             raise TimeoutError(f"missing canonical status notice:\n{_visible(capture)[-2_000:]}")
         time.sleep(0.02)
@@ -112,15 +112,20 @@ def _request_status_until(
     expected_status: str,
     timeout: float,
 ) -> None:
-    marker = f"task {task_id} · {expected_status}"
     deadline = time.monotonic() + timeout
-    while marker not in _visible(capture):
+    while True:
         if process.poll() is not None:  # type: ignore[attr-defined]
             raise RuntimeError("product TUI exited before canonical status reconciliation")
         if time.monotonic() >= deadline:
-            raise TimeoutError(f"missing TUI marker {marker!r}:\n{_visible(capture)[-2_000:]}")
+            marker = f"task {task_id} · {expected_status}"
+            raise TimeoutError(f"missing latest TUI marker {marker!r}:\n{_visible(capture)[-2_000:]}")
         _type_command(process, "/status")
+        # A status notice is painted just before the next composer read.  Give
+        # that synchronous hand-off time to bind input, then inspect the latest
+        # status rather than accepting a matching line from an older repaint.
         time.sleep(0.75)
+        if _wait_for_reported_status(capture, task_id, min(1.0, max(0.1, deadline - time.monotonic()))) == expected_status:
+            return
 
 
 def _wait_for_control_receipt(capture: RollingCapture, command_name: str, timeout: float) -> str:
@@ -286,6 +291,7 @@ def _attach_cycle(
             _type_command(process, control_command)
             control_receipt = _wait_for_control_receipt(capture, command_name, timeout)
         _type_command(process, "/status")
+        time.sleep(0.75)
         reported_status = _wait_for_reported_status(capture, task_id, timeout)
         for index in range(resize_count):
             process.resize(18 + (index % 43), 60 + (index % 141))
