@@ -63,6 +63,8 @@ export const ACTIVE_TASK_STATUSES = new Set([
   "waiting",
   "paused",
   "recovering",
+  "needs_revision",
+  "replanned",
 ])
 
 export const SAFE_HTTP_METHODS = new Set(["GET", "HEAD", "OPTIONS"])

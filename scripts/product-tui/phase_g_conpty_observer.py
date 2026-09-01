@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[2]
 ANSI = re.compile(rb"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))", re.DOTALL)
 DEVELOPER_EVENT_FLOOD = re.compile(rb"\b\d{6}\s+(?:event|model|artifact|error)\s+runtime\.")
 MAX_CAPTURE_BYTES = 8 * 1024 * 1024
-TERMINAL_STATUSES = frozenset({"completed", "failed", "blocked", "cancelled", "killed"})
+TERMINAL_STATUSES = frozenset({"completed", "failed", "blocked", "needs_revision", "cancelled", "killed"})
 
 
 class RollingCapture:
@@ -149,8 +149,13 @@ def _terminal_input_marker(status: str) -> str:
         "completed": "任务已完成 · 可继续输入新任务",
         "failed": "任务失败 · /resume 或输入新任务",
         "blocked": "任务已阻塞 · /resume 或输入新任务",
+        "needs_revision": "任务已阻塞 · /resume 或输入新任务",
         "killed": "任务已终止 · 输入新任务",
     }.get(status, "/help 查看命令")
+
+
+def _visible_task_status(status: str) -> str:
+    return "blocked" if status == "needs_revision" else status
 
 
 def _receipt_command_name(command: str) -> str:
@@ -210,7 +215,7 @@ def _wait_for_canonical_terminal(
 ) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
     baseline_revision = (baseline.get("status"), baseline.get("updated_at"))
-    advanced = baseline.get("status") not in {"failed", "blocked"}
+    advanced = baseline.get("status") not in {"failed", "blocked", "needs_revision"}
     while True:
         task = _canonical_task(base_url, task_id)
         revision = (task.get("status"), task.get("updated_at"))
@@ -350,7 +355,7 @@ def _attach_cycle(
             if wait_terminal else _wait_for_canonical_advance(process, base_url, task_id, baseline, timeout)
         canonical_status = str(canonical.get("status") or "unknown")
         if canonical_status in TERMINAL_STATUSES:
-            _request_status_until(process, capture, task_id, canonical_status, timeout)
+            _request_status_until(process, capture, task_id, _visible_task_status(canonical_status), timeout)
             # Product rendering exposes terminal input readiness only after
             # the idle composer's listeners are actually bound.
             _wait_for(capture, _terminal_input_marker(canonical_status), timeout)

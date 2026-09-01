@@ -227,6 +227,53 @@ describe("product task observer", () => {
     expect(output.text).not.toContain("run rejected after canonical failure")
   })
 
+  test("presents canonical needs_revision as a resumable blocked product state", async () => {
+    const output = new Capture()
+    const productShell = shell(output)
+    const pending = task("pending")
+    const needsRevision = {
+      ...task("needs_revision"),
+      terminal: false,
+      active: true,
+      updatedAt: "2026-09-01T00:00:02.000Z",
+    } as TaskProjection
+    const api = {
+      async ingressCapabilities() {
+        return { taskId: pending.taskId, generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress() {
+        yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask() {
+        await Promise.resolve()
+        throw new HttpResponseError(409, "review requires revision", {
+          code: "contract_run_rejected",
+          body: {},
+        })
+      },
+      async *streamIngress() {
+        yield { kind: "event", taskId: pending.taskId, generation: 1, sequence: 1, frame: frame(1, "runtime.task.failed") }
+      },
+      async task() { return needsRevision },
+    } as unknown as CliApi
+
+    productShell.start()
+    const result = await observeProductTask({
+      api,
+      task: pending,
+      shell: productShell,
+      signal: new AbortController().signal,
+      resume: false,
+    })
+    productShell.finish()
+
+    expect(result.status).toBe("needs_revision")
+    expect(result.exitCode).toBe(CliExitCode.TASK_FAILED)
+    expect(productShell.view.taskStatus).toBe("blocked")
+    expect(output.text).toContain("任务需要修订后继续")
+    expect(output.text).not.toContain("review requires revision")
+  })
+
   test("aborts a pending run transport after canonical terminal settlement", async () => {
     const output = new Capture()
     const productShell = shell(output)
