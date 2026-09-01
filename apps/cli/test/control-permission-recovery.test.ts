@@ -97,6 +97,12 @@ describe("FE-S03 command routing and revision safety", () => {
     expect(parseControlIntent("redirect this task")).toMatchObject({ kind: "submit", text: "/change redirect this task" })
     expect(parseControlIntent("/cancel reason")).toEqual({ kind: "task-cancel", reason: "reason" })
     expect(parseControlIntent("/retry request_1")).toEqual({ kind: "command-retry", requestId: "request_1" })
+    expect(parseControlIntent("/compact preserve verification context")).toMatchObject({
+      kind: "submit",
+      text: "/compact preserve verification context",
+      mode: "enqueue",
+      priority: "next",
+    })
   })
 
   test("probes canonical revision before a mutation and surfaces stale conflicts without auto retry", async () => {

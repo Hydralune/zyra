@@ -14,6 +14,7 @@ Codex 的 `custom_terminal.rs`、`tui.rs` 和 startup replay 测试表明，终�
 4. 每次进入交互模式先输出 reset、show-cursor、paste-off 的安全基线。Linux/macOS 路径随后启用 bracketed paste；Windows 产品路径不启用可跨强杀残留的 bracketed-paste 模式，改由 composer 的有界 paste-burst 状态机识别 Windows 终端产生的快速按键流。显式 bracketed-paste 序列仍可解析。
 5. 外部编辑器启动前复用同一 restore，返回后重新 enter，避免形成第二套终端状态逻辑。
 6. paste-burst 采用 8ms 字符窗口、60ms Windows 空闲 flush 和 120ms Enter 抑制窗口；ASCII 首字符短暂 hold，非 ASCII/IME 首字符立即显示，形成可信 burst 后才回收前缀。输入总量继续受 256KiB composer 上限约束。
+7. 启动时进行不消费输入的 bounded capability probe：只读取 TTY flags、窗口尺寸、`WT_SESSION`/`TERM_PROGRAM`/`TERM`/颜色环境与 Node color depth，产出版本化 inline/color/Unicode/paste 能力。Windows 与 Codex 一样避免通过终端应答读取共享输入队列；尺寸和标识均有上限，unknown/dumb/redirected 环境保守降级。
 
 ## 验证
 
@@ -22,6 +23,7 @@ Codex 的 `custom_terminal.rs`、`tui.rs` 和 startup replay 测试表明，终�
 - Windows 真实 ConPTY 连续 100 次使用 `TerminateProcess` 级强杀；验证产品路径从未开启 bracketed paste、每轮先重放 paste-off、安全关闭 ConPTY、宿主恢复可见光标且未使用 alternate screen。
 - 快速 ASCII、非 ASCII/IME、包含换行和超过 256KiB 的无 bracketed paste 流由状态机与 composer 测试覆盖；异步重绘 ConPTY 以 1ms 字节流验证 Unicode 粘贴不丢失、不提前提交。
 - 既有异步 resize/Unicode ConPTY 用例与 CLI 全量测试作为回归门。
+- capability contract 测试覆盖 Windows Terminal、redirected/dumb、尺寸钳制、颜色 override 和 typeahead 不被消费；`/status` 与首次引导显示实际选择的渲染/paste 路径。
 
 ## 不可消除的平台边界
 

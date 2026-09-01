@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { TaskMutationProjection, TaskProjection } from "@zyra/typed-api-client"
 import type { CliApi, IngressPage } from "../src/api.ts"
-import { executeProductInteractive } from "../src/commands/product.ts"
+import { executeProductInteractive, productWorkflowGoal } from "../src/commands/product.ts"
 import { CliExitCode } from "../src/contracts.ts"
 import { PromptDraft } from "../src/input/draft.ts"
 import { ProductSessionState } from "../src/product/state/session-state.ts"
@@ -430,6 +430,50 @@ describe("product commands and continuous session", () => {
     expect(productCommandHelp(true)).toContain("/redirect")
     expect(productCommandHelp(true)).toContain("/plan")
     expect(productCommandHelp(true)).toContain("/tools")
+    expect(productCommandHelp(true)).toContain("/compact [focus]")
+    expect(productCommandHelp(false)).toContain("/review [focus]")
+    expect(productCommandHelp(false)).toContain("/init [focus]")
+    expect(productWorkflowGoal("review", "authentication")).toContain("Do not modify files")
+    expect(productWorkflowGoal("init")).toContain("preserve existing user rules")
+  })
+
+  test("starts a review command as a canonical task with a bounded product workflow", async () => {
+    const calls: string[] = []
+    let latest: TaskProjection | undefined
+    const api = {
+      async createPendingTask(goal: string, _sealed: boolean, sessionId?: string) {
+        calls.push(goal)
+        latest = completedTask(1, goal, sessionId ?? "missing")
+        return mutation(latest)
+      },
+      async ingressCapabilities(taskId: string) {
+        return { taskId, generation: 1, subscriptionCursor: "cursor", subscriptionSequence: 0, sseAvailable: true, raw: {} }
+      },
+      async *snapshotIngress(): AsyncGenerator<IngressPage> {
+        yield { cursor: "cursor", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async task() { return latest! },
+    } as unknown as CliApi
+    const stdin = new TtyInput()
+    const stdout = new Capture()
+    const executing = executeProductInteractive({
+      command: { kind: "interactive", baseUrl: "http://127.0.0.1:8000", autoStart: false, startupTimeoutMs: 1_000, timeoutMs: 10_000 },
+      api,
+      stdin,
+      stdout,
+      signal: new AbortController().signal,
+      cwd: "G:\\agent-zoo\\zyra",
+      draftStore: null,
+      onboardingStore: null,
+    })
+    await waitUntil(() => stdin.raw)
+    stdin.write("/review authentication boundary\r")
+    await waitUntil(() => calls.length === 1 && stdin.raw)
+    stdin.write("/exit\r")
+    await executing
+    expect(calls[0]).toContain("independent code reviewer")
+    expect(calls[0]).toContain("Review focus: authentication boundary")
+    expect(stdout.text).not.toContain("runtime.")
   })
 
   test("keeps the session list usable when historical entries are isolated", async () => {

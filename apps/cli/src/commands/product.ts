@@ -28,6 +28,7 @@ import { ProductOnboardingStore } from "../product/onboarding/state.ts"
 import { ProductDraftStore } from "../product/session/local-state.ts"
 import { copyLatestAssistantMessage, exportProductTranscript, rawTranscriptLines } from "../product/transcript/export.ts"
 import { ProductTuiShell } from "../tui/shell.ts"
+import { formatTerminalCapabilities } from "../tui/terminal-capabilities.ts"
 import { mutationTransportDetached, type CommandOutcome } from "../runner.ts"
 import { launchUi } from "../ui.ts"
 
@@ -198,6 +199,26 @@ function verificationLines(view: ProductTuiShell["view"]): string[] {
 function agentLines(view: ProductTuiShell["view"]): string[] {
   if (!view.agents.length) return ["当前没有可见协作代理。"]
   return view.agents.map((agent, index) => `${index + 1}. ${agent.label} · ${agent.status}${agent.summary ? ` · ${agent.summary}` : ""} · ${agent.agentId}`)
+}
+
+export function productWorkflowGoal(name: "review" | "init", focus = ""): string {
+  const selected = focus.trim()
+  if (name === "review") {
+    return [
+      "Review the current workspace changes as an independent code reviewer.",
+      "Prioritize correctness bugs, regressions, security issues, unsafe failure paths, and missing tests.",
+      "Do not modify files unless the user explicitly asks after reviewing the findings.",
+      "Report findings first, ordered by severity, with precise file and line references; then list residual risks and verification gaps.",
+      selected ? `Review focus: ${selected}` : "Review focus: all current tracked and untracked workspace changes within the task boundary.",
+    ].join("\n")
+  }
+  return [
+    "Initialize this repository for reliable Zyra agent work.",
+    "Inspect the actual repository structure, existing AGENTS.md files, build/test commands, and safety constraints before editing.",
+    "Create or improve the root AGENTS.md with concise, verified instructions; preserve existing user rules and do not overwrite them blindly.",
+    "Run proportionate validation and clearly report every file changed and any unverified command.",
+    selected ? `Initialization focus: ${selected}` : "Initialization focus: the current workspace root.",
+  ].join("\n")
 }
 
 function permissionField(request: PermissionRequestView, ...names: string[]): string | undefined {
@@ -397,7 +418,7 @@ async function runProductControlLoop(input: {
       }
       if (line === "/status") {
         const view = input.shell.view
-        input.shell.notice(`session ${view.sessionId ?? "未绑定"}\ntask ${view.taskId ?? "未绑定"} · ${view.taskStatus}\nconnection ${view.connection}`)
+        input.shell.notice(`session ${view.sessionId ?? "未绑定"}\ntask ${view.taskId ?? "未绑定"} · ${view.taskStatus}\nconnection ${view.connection}\n${formatTerminalCapabilities(input.shell.terminalCapabilities)}`)
         continue
       }
       if (line === "/pwd") {
@@ -430,6 +451,22 @@ async function runProductControlLoop(input: {
       }
       if (line === "/permissions") {
         input.shell.notice(await resolvePermissionFromPicker(input))
+        continue
+      }
+      if (line === "/compact" || line.startsWith("/compact ")) {
+        input.shell.notice(formatCommandReceipt(await input.controls.submit(line, {
+          mode: "enqueue",
+          priority: "next",
+          signal: input.signal,
+        })))
+        continue
+      }
+      if (line === "/review" || line.startsWith("/review ")) {
+        const focus = line.slice("/review".length).trim()
+        input.shell.notice(formatCommandReceipt(await input.controls.submit(
+          `/change ${productWorkflowGoal("review", focus)}`,
+          { mode: "steer", priority: "now", signal: input.signal },
+        )))
         continue
       }
       if (line === "/copy") {
@@ -1114,6 +1151,7 @@ async function runProductOnboarding(input: {
     "欢迎使用 Zyra 产品 CLI",
     `workspace · ${input.cwd}`,
     runtime,
+    formatTerminalCapabilities(input.shell.terminalCapabilities),
     `provider catalog · ${providers.length} providers · ${models.length} available models`,
     "permission · task 创建后由 canonical session custody 管理；不可用时 fail closed",
   ].join("\n"))
@@ -1230,7 +1268,7 @@ async function runProductSession(input: {
           }
           case "status": {
             const view = input.shell.view
-            input.shell.notice(`session ${view.sessionId ?? sessionId}\ntask ${view.taskId ?? currentTaskId ?? "未绑定"} · ${view.taskStatus}\nconnection ${view.connection}`)
+            input.shell.notice(`session ${view.sessionId ?? sessionId}\ntask ${view.taskId ?? currentTaskId ?? "未绑定"} · ${view.taskStatus}\nconnection ${view.connection}\n${formatTerminalCapabilities(input.shell.terminalCapabilities)}`)
             continue
           }
           case "pwd":
@@ -1294,6 +1332,15 @@ async function runProductSession(input: {
             ].join("\n"))
             continue
           }
+          case "review":
+            next = { kind: "goal", goal: productWorkflowGoal("review", command.args) }
+            break
+          case "init":
+            next = { kind: "goal", goal: productWorkflowGoal("init", command.args) }
+            break
+          case "compact":
+            input.shell.notice("/compact 只作用于正在运行的 canonical task；任务运行期间再次执行。")
+            continue
           case "copy": {
             try {
               const copied = await copyLatestAssistantMessage(input.shell.view)

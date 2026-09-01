@@ -11,6 +11,7 @@ import type { CompletionState } from "./overlay/completion.ts"
 import { pickProductItem } from "./overlay/list-picker.ts"
 import type { ProductOverlay, ProductPickerItem } from "./overlay/model.ts"
 import { pageProductText } from "./overlay/pager.ts"
+import { probeTerminalCapabilities, type TerminalCapabilities } from "./terminal-capabilities.ts"
 
 export class ProductTuiShell {
   readonly #workspace: string
@@ -22,6 +23,7 @@ export class ProductTuiShell {
   readonly #composer: ProductComposer
   readonly #draftStore?: ProductDraftStore
   readonly #bracketedPaste: boolean
+  readonly #terminalCapabilities: TerminalCapabilities
   readonly #state = new ProductSessionState()
   #archivedEvents: readonly ZyraUiEvent[] = Object.freeze([])
   #taskEvents: readonly ZyraUiEvent[] = Object.freeze([])
@@ -46,8 +48,9 @@ export class ProductTuiShell {
     this.#output = input.output
     this.#candidates = input.candidates ?? []
     this.#draftStore = input.draftStore
+    this.#terminalCapabilities = probeTerminalCapabilities({ stdin: input.stdin, output: input.output })
     this.#bracketedPaste = input.bracketedPaste
-      ?? (input.stdin !== process.stdin || process.platform !== "win32")
+      ?? (input.stdin !== process.stdin ? true : this.#terminalCapabilities.bracketedPaste)
     if (input.draftStore?.restored.text) {
       const restored = input.draftStore.restored
       this.#draft = Object.freeze({ text: restored.text, cursor: restored.cursor, display: restored.text, pasteRefs: Object.freeze([]) })
@@ -98,6 +101,7 @@ export class ProductTuiShell {
   get workspace(): string { return this.#workspace }
   get view(): ProductViewState { return this.#state.snapshot() }
   get renderDiagnostics(): LiveRendererDiagnostics { return this.#renderer.diagnostics }
+  get terminalCapabilities(): TerminalCapabilities { return this.#terminalCapabilities }
 
   addCandidates(candidates: readonly string[]): void {
     this.#candidates = Object.freeze([...new Set([...this.#candidates, ...candidates])].sort())
