@@ -5,6 +5,7 @@ import {
   redactHeaders,
 } from "../src/headers.ts"
 import { normalizePermissionControl } from "../src/normalizers.ts"
+import { CORE_ENDPOINTS, resolveEndpoint } from "../src/protocol.ts"
 
 function context() {
   return {
@@ -18,6 +19,21 @@ function context() {
 }
 
 describe("permission session custody headers", () => {
+  test("registers permission mode reads and revisioned mutations as separate operations", () => {
+    expect(resolveEndpoint(CORE_ENDPOINTS.permissionMode)).toMatchObject({
+      operation: "permission.mode",
+      method: "GET",
+      path: "/permissions/mode",
+      kind: "query",
+    })
+    expect(resolveEndpoint(CORE_ENDPOINTS.permissionModeUpdate)).toMatchObject({
+      operation: "permission.mode.update",
+      method: "POST",
+      path: "/permissions/mode",
+      kind: "mutation",
+    })
+  })
+
   test("admits the deployed permission-api v1 schema", () => {
     expect(normalizePermissionControl({
       schema: "zyra.permission-api.v1",

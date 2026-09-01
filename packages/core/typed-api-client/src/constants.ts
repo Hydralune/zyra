@@ -210,6 +210,7 @@ export const OPERATION_NAMES = {
   permissionRequestsExpire: "permission.requests.expire",
   permissionRules: "permission.rules",
   permissionMode: "permission.mode",
+  permissionModeUpdate: "permission.mode.update",
   permissionDecisions: "permission.decisions",
   scenarioRegistry: "scenario.registry",
   scenarioRunList: "scenario.run.list",

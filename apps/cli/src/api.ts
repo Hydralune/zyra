@@ -791,6 +791,71 @@ export class CliApi {
     return Object.freeze({ ...permissionOk(response.data, response.raw.status).raw })
   }
 
+  async permissionMode(
+    binding: PermissionBinding,
+    custodyToken: string,
+    signal?: AbortSignal,
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const normalized = permissionBinding(binding)
+    const response = await this.client.endpoint<PermissionControlProjection>(
+      OPERATION_NAMES.permissionMode,
+      {
+        query: {
+          task_id: normalized.taskId,
+          run_id: normalized.runId,
+          session_id: normalized.sessionId,
+        },
+        headers: permissionHeaders(custodyToken),
+        binding: { taskId: normalized.taskId, runId: normalized.runId },
+        signal,
+        timeoutMs: Math.min(this.timeoutMs, 30_000),
+        coordinationKey: `cli.permission.mode:${permissionBindingKey(normalized)}`,
+        latestWins: true,
+      },
+    )
+    return Object.freeze({ ...permissionOk(response.data, response.raw.status).raw })
+  }
+
+  async updatePermissionMode(input: {
+    binding: PermissionBinding
+    custodyToken: string
+    mode: string
+    expectedRevision: number
+    reason: string
+    signal?: AbortSignal
+  }): Promise<Readonly<Record<string, unknown>>> {
+    const binding = permissionBinding(input.binding)
+    const mode = stringValue(input.mode, "Permission mode").trim()
+    const expectedRevision = integerValue(input.expectedRevision, "Permission mode revision")
+    const reason = stringValue(input.reason, "Permission mode transition reason").trim()
+    const body = {
+      task_id: binding.taskId,
+      run_id: binding.runId,
+      session_id: binding.sessionId,
+      mode,
+      expected_revision: expectedRevision,
+      reason,
+    }
+    const response = await this.client.endpoint<PermissionControlProjection, typeof body>(
+      OPERATION_NAMES.permissionModeUpdate,
+      {
+        body,
+        headers: permissionHeaders(input.custodyToken),
+        binding: { taskId: binding.taskId, runId: binding.runId },
+        idempotencyKey: createIdempotencyKey(
+          OPERATION_NAMES.permissionModeUpdate,
+          { taskId: binding.taskId, runId: binding.runId },
+          body,
+        ),
+        signal: input.signal,
+        timeoutMs: Math.min(this.timeoutMs, 30_000),
+        coordinationKey: `cli.permission.mode-update:${permissionBindingKey(binding)}`,
+        deduplicate: true,
+      },
+    )
+    return Object.freeze({ ...permissionOk(response.data, response.raw.status).raw })
+  }
+
   async resolvePermission(input: {
     binding: PermissionBinding
     custodyToken: string

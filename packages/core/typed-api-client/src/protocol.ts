@@ -790,6 +790,18 @@ export const CORE_ENDPOINTS = {
     pathParameters: [],
     queryParameters: ["session_id", "run_id", "task_id"],
   }),
+  permissionModeUpdate: normalizeEndpoint({
+    operation: OPERATION_NAMES.permissionModeUpdate,
+    contract: CONTRACT_NAMES.permissionControl,
+    method: "POST",
+    pathTemplate: "/permissions/mode",
+    kind: "mutation",
+    receipt: "required",
+    auth: "required",
+    expectedStatuses: [200, 400, 401, 403, 404, 409],
+    pathParameters: [],
+    queryParameters: [],
+  }),
   permissionDecisions: normalizeEndpoint({
     operation: OPERATION_NAMES.permissionDecisions,
     contract: CONTRACT_NAMES.permissionControl,

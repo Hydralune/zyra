@@ -11,7 +11,10 @@ import {
 import {
   CliPermissionSession,
   type PermissionDecisionScope,
+  type PermissionModeName,
+  type PermissionModeView,
   type PermissionRequestView,
+  type UserSelectablePermissionMode,
 } from "../control/permission.ts"
 import type { UiPermissionSnapshot } from "../presentation/events.ts"
 import { ProductProjection } from "../presentation/projection.ts"
@@ -204,6 +207,84 @@ function permissionField(request: PermissionRequestView, ...names: string[]): st
   return undefined
 }
 
+const PERMISSION_MODE_CHOICES: Readonly<Record<UserSelectablePermissionMode, {
+  label: string
+  detail: string
+  keywords: readonly string[]
+}>> = Object.freeze({
+  default: {
+    label: "按需询问 (default)",
+    detail: "只读通常自动允许；编辑和未设规则的操作会请求确认",
+    keywords: ["ask", "default", "询问", "默认"],
+  },
+  acceptEdits: {
+    label: "自动接受编辑 (acceptEdits)",
+    detail: "自动允许非高风险的工作区编辑；其他未授权操作仍询问",
+    keywords: ["edit", "write", "编辑", "写入"],
+  },
+  dontAsk: {
+    label: "不询问 (dontAsk)",
+    detail: "不弹出审批；未被规则允许的操作直接拒绝",
+    keywords: ["deny", "dont ask", "拒绝", "不询问"],
+  },
+  plan: {
+    label: "计划模式 (plan)",
+    detail: "允许只读信息收集，拒绝所有副作用",
+    keywords: ["plan", "read only", "计划", "只读"],
+  },
+  auto: {
+    label: "自治模式 (auto)",
+    detail: "允许低风险操作和非高风险编辑；高风险或未知操作直接拒绝",
+    keywords: ["auto", "autonomous", "自治", "自动"],
+  },
+  bypassPermissions: {
+    label: "托管权限绕过 (bypassPermissions)",
+    detail: "仅在后端显式授予 bypassAvailable 时可用；不可绕过 immutable deny/hook",
+    keywords: ["managed", "bypass", "托管", "绕过"],
+  },
+})
+
+function permissionModeStatus(mode: PermissionModeView): string {
+  const choice = mode.mode === "sealed" ? undefined : PERMISSION_MODE_CHOICES[mode.mode]
+  return [
+    `permission mode · ${mode.mode} · revision ${mode.revision}`,
+    choice?.detail ?? "sealed 自治权限策略；只能由 managed override 退出",
+    `交互 · ${mode.interactive && !mode.headless ? "可询问" : "不询问"}`,
+    `托管绕过 · ${mode.bypassAvailable ? "后端已授权" : "不可用"}`,
+    mode.reason ? `最近变更 · ${mode.reason}${mode.changedBy ? ` · ${mode.changedBy}` : ""}` : undefined,
+  ].filter(Boolean).join("\n")
+}
+
+async function pickPermissionMode(input: {
+  shell: ProductTuiShell
+  permissions: CliPermissionSession
+  signal: AbortSignal
+}): Promise<string> {
+  const current = await input.permissions.mode(input.signal)
+  if (current.mode === "sealed") {
+    return `${permissionModeStatus(current)}\nsealed 模式不能由普通 CLI custody 退出；请结束 sealed task 或使用受管控制面。`
+  }
+  const names: UserSelectablePermissionMode[] = ["default", "acceptEdits", "dontAsk", "plan", "auto"]
+  if (current.bypassAvailable) names.push("bypassPermissions")
+  const selected = await input.shell.pick("选择当前任务权限模式", names.map((mode) => ({
+    id: mode,
+    label: `${mode === current.mode ? "✓ " : ""}${PERMISSION_MODE_CHOICES[mode].label}`,
+    detail: PERMISSION_MODE_CHOICES[mode].detail,
+    keywords: [...PERMISSION_MODE_CHOICES[mode].keywords],
+  })), `当前 ${current.mode} · revision ${current.revision}；选择将提交 canonical revisioned mutation`)
+  if (!selected) return permissionModeStatus(current)
+  const requested = selected.id as PermissionModeName
+  if (!(requested in PERMISSION_MODE_CHOICES)) {
+    throw new CliTaskError("选择器返回了未知权限模式。", "permission_mode_selection_invalid")
+  }
+  const result = await input.permissions.setMode({
+    mode: requested as UserSelectablePermissionMode,
+    expectedRevision: current.revision,
+    signal: input.signal,
+  })
+  return `${result.reconciled ? "权限模式已从 canonical state 对账" : "权限模式已更新"}\n${permissionModeStatus(result.state)}`
+}
+
 async function resolvePermissionFromPicker(input: {
   shell: ProductTuiShell
   permissions: CliPermissionSession
@@ -338,6 +419,14 @@ async function runProductControlLoop(input: {
         await input.shell.page("协作代理", agentLines(input.shell.view))
         continue
       }
+      if (line === "/permissions mode") {
+        input.shell.notice(await pickPermissionMode(input))
+        continue
+      }
+      if (line === "/permissions status") {
+        input.shell.notice(permissionModeStatus(await input.permissions.mode(input.signal)))
+        continue
+      }
       if (line === "/permissions") {
         input.shell.notice(await resolvePermissionFromPicker(input))
         continue
@@ -466,6 +555,7 @@ export async function observeProductTask(input: {
   signal: AbortSignal
   resume: boolean
   openWeb?: () => Promise<string>
+  permissionSession?: CliPermissionSession
 }): Promise<CommandOutcome> {
   let task = input.task
   let capabilities = await input.api.ingressCapabilities(task.taskId)
@@ -529,7 +619,7 @@ export async function observeProductTask(input: {
   }
 
   let controlSession: CliControlSession | undefined
-  let permissionSession: CliPermissionSession | undefined
+  let permissionSession: CliPermissionSession | undefined = input.permissionSession
   const refreshPermissions = async (): Promise<void> => {
     if (!permissionSession?.available) return
     const pending = await permissionSession.pending(observationSignal)
@@ -538,7 +628,7 @@ export async function observeProductTask(input: {
   }
   if (input.shell.interactive) {
     controlSession = new CliControlSession({ api: input.api, task })
-    permissionSession = new CliPermissionSession({
+    permissionSession ??= new CliPermissionSession({
       api: input.api,
       task,
       custodyToken: process.env.ZYRA_PERMISSION_CUSTODY_TOKEN,
@@ -1006,6 +1096,7 @@ async function runProductSession(input: {
   let executionMode: ProductExecutionMode = "standard"
   let lastOutcome: CommandOutcome | undefined
   let terminalReady = false
+  let currentPermissionSession: CliPermissionSession | undefined
 
   while (!input.signal.aborted) {
     if (!next) {
@@ -1081,8 +1172,38 @@ async function runProductSession(input: {
             continue
           }
           case "permissions": {
-            const permissions = input.shell.view.permissions
-            input.shell.notice(permissions.length ? permissions.map((request) => `${request.requestId} · ${request.action}`).join("\n") : "当前没有待处理权限请求。")
+            if (!currentPermissionSession?.available) {
+              input.shell.notice(currentTask
+                ? "当前 task 的权限 custody 不可用；请先恢复该 task，或运行 /doctor 查看诊断。"
+                : "当前尚未绑定 task；权限模式会在任务创建后由 canonical permission session 拥有。")
+              continue
+            }
+            if (command.args === "mode") {
+              input.shell.notice(await pickPermissionMode({
+                shell: input.shell,
+                permissions: currentPermissionSession,
+                signal: input.signal,
+              }))
+              continue
+            }
+            if (command.args === "status") {
+              input.shell.notice(permissionModeStatus(await currentPermissionSession.mode(input.signal)))
+              continue
+            }
+            if (command.args) {
+              input.shell.notice("用法：/permissions [mode|status]")
+              continue
+            }
+            const [mode, permissions] = await Promise.all([
+              currentPermissionSession.mode(input.signal),
+              currentPermissionSession.pending(input.signal),
+            ])
+            input.shell.notice([
+              permissionModeStatus(mode),
+              permissions.length
+                ? permissions.map((request) => `${request.requestId} · ${request.operation || request.toolName || "受保护操作"}`).join("\n")
+                : "当前没有待处理权限请求。",
+            ].join("\n"))
             continue
           }
           case "copy": {
@@ -1190,6 +1311,13 @@ async function runProductSession(input: {
     currentTaskId = task.taskId
     currentTask = task
     if (task.sessionId) sessionId = task.sessionId
+    currentPermissionSession = input.shell.interactive
+      ? new CliPermissionSession({
+          api: input.api,
+          task,
+          custodyToken: process.env.ZYRA_PERMISSION_CUSTODY_TOKEN,
+        })
+      : undefined
     lastOutcome = await observeProductTask({
       api: input.api,
       task,
@@ -1203,6 +1331,7 @@ async function runProductSession(input: {
         open: true,
         taskId: currentTaskId,
       })).url,
+      permissionSession: currentPermissionSession,
     })
     if (lastOutcome.status === "detached") break
     await appendFinalDiff({ api: input.api, shell: input.shell, taskId: currentTaskId, cwd: input.cwd })

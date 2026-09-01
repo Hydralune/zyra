@@ -396,6 +396,119 @@ describe("FE-S03 permission proof and projection", () => {
     })
   })
 
+  test("updates canonical permission mode with revision fencing and reconciles a lost acknowledgement", async () => {
+    let state = {
+      mode: "default",
+      revision: 0,
+      interactive: true,
+      headless: false,
+      sealedAutonomous: false,
+      bypassAvailable: false,
+      autoClassifierEnabled: false,
+      changedAt: "2026-08-04T00:00:00.000Z",
+      changedBy: "bootstrap",
+      reason: "initial permission mode",
+    }
+    let loseAcknowledgement = false
+    const updates: Array<Record<string, unknown>> = []
+    const api = {
+      async openPermissionSession() {
+        return {
+          taskId: "task_control",
+          runId: "run_control",
+          sessionId: "session_control",
+          custodyToken: "custody-token",
+          created: true,
+          verified: true,
+        }
+      },
+      async permissionMode() {
+        return { mode: { ...state } }
+      },
+      async updatePermissionMode(input: Record<string, unknown>) {
+        updates.push(input)
+        const before = state.revision
+        const next = String(input.mode)
+        state = {
+          ...state,
+          mode: next,
+          revision: before + 1,
+          changedBy: "zyra-cli",
+          reason: String(input.reason),
+        }
+        if (loseAcknowledgement) throw new TransportDisconnectedError("mode response lost")
+        return {
+          receipt: {
+            transition: {
+              from: "default",
+              to: next,
+              revisionBefore: before,
+              revisionAfter: state.revision,
+              changed: true,
+            },
+          },
+        }
+      },
+    } as unknown as CliApi
+    const session = new CliPermissionSession({ api, task: task() })
+    expect(await session.open()).toBe(true)
+    expect(await session.mode()).toMatchObject({ mode: "default", revision: 0 })
+    const updated = await session.setMode({ mode: "acceptEdits", expectedRevision: 0 })
+    expect(updated).toMatchObject({ reconciled: false, revisionBefore: 0, revisionAfter: 1 })
+    expect(updated.state).toMatchObject({ mode: "acceptEdits", revision: 1 })
+
+    loseAcknowledgement = true
+    const reconciled = await session.setMode({ mode: "plan", expectedRevision: 1 })
+    expect(reconciled).toMatchObject({ reconciled: true, revisionBefore: 1, revisionAfter: 2 })
+    expect(reconciled.state).toMatchObject({ mode: "plan", revision: 2 })
+    expect(updates).toHaveLength(2)
+  })
+
+  test("does not retry a conflicting permission mode mutation", async () => {
+    let updates = 0
+    const api = {
+      async openPermissionSession() {
+        return {
+          taskId: "task_control",
+          runId: "run_control",
+          sessionId: "session_control",
+          custodyToken: "custody-token",
+          created: true,
+          verified: true,
+        }
+      },
+      async updatePermissionMode() {
+        updates += 1
+        throw new HttpResponseError(409, "permission mode revision conflict")
+      },
+      async permissionMode() {
+        return {
+          mode: {
+            mode: "dontAsk",
+            revision: 4,
+            interactive: true,
+            headless: false,
+            sealedAutonomous: false,
+            bypassAvailable: false,
+            autoClassifierEnabled: false,
+          },
+        }
+      },
+    } as unknown as CliApi
+    const session = new CliPermissionSession({ api, task: task() })
+    expect(await session.open()).toBe(true)
+    await expect(session.setMode({ mode: "plan", expectedRevision: 3 })).rejects.toMatchObject({
+      code: "permission_mode_conflict",
+      details: {
+        requested_mode: "plan",
+        actual_mode: "dontAsk",
+        actual_revision: 4,
+        automatic_retry: false,
+      },
+    })
+    expect(updates).toBe(1)
+  })
+
   test("rejects expired requests and fails closed when permission custody is disabled", async () => {
     expect(() => createPermissionProof({
       response_challenge: { version: "zyra.permission-response/v1", nonce: "nonce", canonical_owner: "typescript.PermissionCoordinator" },

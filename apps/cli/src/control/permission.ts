@@ -11,6 +11,45 @@ const PERMISSION_RESPONSE_VERSION = "zyra.permission-response/v2"
 const LEGACY_PERMISSION_RESPONSE_VERSION = "zyra.permission-response/v1"
 const PERMISSION_OWNER = "typescript.PermissionCoordinator"
 export type PermissionDecisionScope = "once" | "session" | "workspace"
+export type PermissionModeName =
+  | "default"
+  | "acceptEdits"
+  | "dontAsk"
+  | "plan"
+  | "bypassPermissions"
+  | "auto"
+  | "sealed"
+export type UserSelectablePermissionMode = Exclude<PermissionModeName, "sealed">
+
+const PERMISSION_MODES = new Set<PermissionModeName>([
+  "default",
+  "acceptEdits",
+  "dontAsk",
+  "plan",
+  "bypassPermissions",
+  "auto",
+  "sealed",
+])
+
+export interface PermissionModeView {
+  mode: PermissionModeName
+  revision: number
+  interactive: boolean
+  headless: boolean
+  sealedAutonomous: boolean
+  bypassAvailable: boolean
+  autoClassifierEnabled: boolean
+  changedAt?: string
+  changedBy?: string
+  reason?: string
+}
+
+export interface PermissionModeUpdateResult {
+  state: PermissionModeView
+  reconciled: boolean
+  revisionBefore: number
+  revisionAfter: number
+}
 
 export interface PermissionRequestView {
   requestId: string
@@ -45,6 +84,37 @@ function integer(value: unknown, label: string): number {
     throw new CliTaskError(`${label} must be a non-negative safe integer.`, "permission_contract_invalid")
   }
   return Number(value)
+}
+
+function boolean(value: unknown, label: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new CliTaskError(`${label} must be boolean.`, "permission_contract_invalid")
+  }
+  return value
+}
+
+function permissionModeName(value: unknown): PermissionModeName {
+  const mode = text(value, "permission mode") as PermissionModeName
+  if (!PERMISSION_MODES.has(mode)) {
+    throw new CliTaskError(`Permission mode ${mode} is unsupported.`, "permission_mode_unsupported")
+  }
+  return mode
+}
+
+export function projectPermissionMode(value: Readonly<Record<string, unknown>>): PermissionModeView {
+  const mode = object(value.mode, "permission mode state")
+  return Object.freeze({
+    mode: permissionModeName(mode.mode),
+    revision: integer(mode.revision, "permission mode revision"),
+    interactive: boolean(mode.interactive, "permission mode interactive"),
+    headless: boolean(mode.headless, "permission mode headless"),
+    sealedAutonomous: boolean(mode.sealedAutonomous, "permission mode sealedAutonomous"),
+    bypassAvailable: boolean(mode.bypassAvailable, "permission mode bypassAvailable"),
+    autoClassifierEnabled: boolean(mode.autoClassifierEnabled, "permission mode autoClassifierEnabled"),
+    ...(typeof mode.changedAt === "string" && mode.changedAt ? { changedAt: mode.changedAt } : {}),
+    ...(typeof mode.changedBy === "string" && mode.changedBy ? { changedBy: mode.changedBy } : {}),
+    ...(typeof mode.reason === "string" && mode.reason ? { reason: mode.reason } : {}),
+  })
 }
 
 function sortedJson(value: unknown): string {
@@ -226,6 +296,102 @@ export class CliPermissionSession {
       signal,
     })
     return projectPermissionRequests(raw).filter((item) => item.selectable)
+  }
+
+  async mode(signal?: AbortSignal): Promise<PermissionModeView> {
+    const claim = this.#requireClaim()
+    return projectPermissionMode(
+      await this.#api.permissionMode(this.#binding, claim.custodyToken, signal),
+    )
+  }
+
+  async setMode(input: {
+    mode: UserSelectablePermissionMode
+    expectedRevision: number
+    reason?: string
+    signal?: AbortSignal
+  }): Promise<PermissionModeUpdateResult> {
+    const claim = this.#requireClaim()
+    if (input.mode === "bypassPermissions") {
+      const current = await this.mode(input.signal)
+      if (!current.bypassAvailable) {
+        throw new CliTaskError(
+          "Managed permission bypass is not available for this session.",
+          "permission_bypass_unavailable",
+        )
+      }
+    }
+    let receipt: Readonly<Record<string, unknown>> | undefined
+    let mutationError: unknown
+    try {
+      receipt = await this.#api.updatePermissionMode({
+        binding: this.#binding,
+        custodyToken: claim.custodyToken,
+        mode: input.mode,
+        expectedRevision: input.expectedRevision,
+        reason: input.reason ?? "Zyra product CLI permission mode selection",
+        signal: input.signal,
+      })
+    } catch (error) {
+      mutationError = error
+    }
+
+    const observed = await this.mode(input.signal)
+    if (mutationError) {
+      if (
+        observed.mode === input.mode
+        && observed.revision >= input.expectedRevision
+      ) {
+        return Object.freeze({
+          state: observed,
+          reconciled: true,
+          revisionBefore: input.expectedRevision,
+          revisionAfter: observed.revision,
+        })
+      }
+      throw new CliTaskError(
+        `Permission mode changed concurrently; canonical state is ${observed.mode} revision ${observed.revision}.`,
+        "permission_mode_conflict",
+        {
+          requested_mode: input.mode,
+          expected_revision: input.expectedRevision,
+          actual_mode: observed.mode,
+          actual_revision: observed.revision,
+          automatic_retry: false,
+          cause: mutationError instanceof Error ? mutationError.message : String(mutationError),
+        },
+      )
+    }
+
+    const transition = object(object(receipt?.receipt, "permission mode receipt").transition, "permission mode transition")
+    const transitionTo = permissionModeName(transition.to)
+    const revisionBefore = integer(transition.revisionBefore, "permission mode revision before")
+    const revisionAfter = integer(transition.revisionAfter, "permission mode revision after")
+    if (
+      transitionTo !== input.mode
+      || revisionBefore !== input.expectedRevision
+      || observed.mode !== transitionTo
+      || observed.revision !== revisionAfter
+    ) {
+      throw new CliTaskError(
+        "Permission mode receipt did not converge with canonical state.",
+        "permission_mode_reconciliation_failed",
+        {
+          requested_mode: input.mode,
+          expected_revision: input.expectedRevision,
+          receipt_mode: transitionTo,
+          receipt_revision: revisionAfter,
+          actual_mode: observed.mode,
+          actual_revision: observed.revision,
+        },
+      )
+    }
+    return Object.freeze({
+      state: observed,
+      reconciled: false,
+      revisionBefore,
+      revisionAfter,
+    })
   }
 
   async resolve(input: {

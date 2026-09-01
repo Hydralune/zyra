@@ -26,7 +26,7 @@ const LOCAL_COMMANDS: readonly ProductCommandDefinition[] = Object.freeze([
   { name: "tools", description: "查看工具调用、耗时和 artifact", availability: "always" },
   { name: "artifact", description: "查看脱敏且有界的 artifact 预览", usage: "/artifact <artifact-id>", availability: "always" },
   { name: "agents", aliases: ["subagents"], description: "查看协作代理摘要", availability: "always" },
-  { name: "permissions", description: "查看当前权限请求", availability: "always" },
+  { name: "permissions", description: "处理权限请求或管理当前权限模式", usage: "/permissions [mode|status]", availability: "always" },
   { name: "copy", description: "复制最近一条助手回答", availability: "always" },
   { name: "export", description: "将当前 transcript 导出为 Markdown", usage: "/export [workspace-relative.md]", availability: "always" },
   { name: "raw", description: "打开适合复制的纯文本 transcript", availability: "always" },
