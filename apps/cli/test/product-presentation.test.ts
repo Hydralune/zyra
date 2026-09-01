@@ -146,6 +146,31 @@ describe("ZyraUiEvent/v2 product projection", () => {
     expect(JSON.stringify(projected)).not.toContain("must-not-leak")
   })
 
+  test("bounds hostile presentation labels, summaries, and artifact identities before state admission", () => {
+    const huge = "x".repeat(10 * 1024 * 1024)
+    const projected = projectProductEvents({
+      task: { ...fixture.task, status: "running", terminal: false, active: true, metadata: {} },
+      frames: [{
+        ...frame(1, "runtime.tool.succeeded", { raw_stdout: huge }),
+        presentation: {
+          schema: "zyra.product-presentation/v1",
+          kind: "tool",
+          phase: "completed",
+          identity: huge,
+          label: huge,
+          summary: huge,
+          artifactIds: [huge],
+        },
+      }],
+    })
+    const tool = reduceProductEvents(projected).tools[0]!
+    expect(tool.toolCallId).toHaveLength(256)
+    expect(tool.name).toHaveLength(256)
+    expect(tool.summary).toHaveLength(2_000)
+    expect(tool.artifactIds?.[0]).toHaveLength(256)
+    expect(JSON.stringify(projected).length).toBeLessThan(5_000)
+  })
+
   test("prefers canonical permission custody snapshots and keeps decisions fail-closed", () => {
     const permission: UiPermissionSnapshot = {
       requestId: "permission_fixture",

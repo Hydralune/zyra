@@ -13,6 +13,7 @@ import type { UiPermissionSnapshot } from "../presentation/events.ts"
 import { ProductProjection } from "../presentation/projection.ts"
 import { buildBoundedWorkspaceDiff } from "../presentation/workspace-diff.ts"
 import { parseProductCommand, productCommandCandidates, productCommandHelp } from "../product/commands/registry.ts"
+import { openProductArtifact } from "../product/artifact/controller.ts"
 import { workspaceReferenceCandidates } from "../product/files/index.ts"
 import { openProductDiff } from "../product/diff/controller.ts"
 import { formatExecutionMode, formatModelStatus, formatRuntimeReadiness, type ProductExecutionMode } from "../product/diagnostics/status.ts"
@@ -151,6 +152,7 @@ async function runProductControlLoop(input: {
   refreshPermissions: () => Promise<void>
   openWeb: () => Promise<string>
   openDiff: () => Promise<boolean>
+  openArtifact: (artifactId: string) => Promise<void>
   taskStatus: () => Promise<TaskProjection>
   readiness: () => ReturnType<CliApi["readiness"]>
   detach: () => void
@@ -222,6 +224,12 @@ async function runProductControlLoop(input: {
       }
       if (line === "/tools") {
         await input.shell.page("工具调用", toolLines(input.shell.view))
+        continue
+      }
+      if (line === "/artifact" || line.startsWith("/artifact ")) {
+        const artifactId = line.slice("/artifact".length).trim()
+        if (!artifactId) throw new CliTaskError("/artifact 需要 artifact id。", "artifact_argument_missing")
+        await input.openArtifact(artifactId)
         continue
       }
       if (line === "/ui") {
@@ -399,6 +407,7 @@ export async function observeProductTask(input: {
         throw new CliTaskError("当前入口无法启动 Web 看板。", "product_web_launcher_unavailable")
       }),
       openDiff: async () => openProductDiff({ api: input.api, shell: input.shell, task, signal: observationSignal }),
+      openArtifact: async (artifactId) => openProductArtifact({ api: input.api, shell: input.shell, taskId: task.taskId, artifactId, signal: observationSignal }),
       taskStatus: async () => input.api.task(task.taskId),
       readiness: async () => input.api.readiness(observationSignal),
       detach,
@@ -863,6 +872,22 @@ async function runProductSession(input: {
           case "tools":
             await input.shell.page("工具调用", toolLines(input.shell.view))
             continue
+          case "artifact": {
+            if (!currentTaskId) {
+              input.shell.notice("当前尚未绑定 task。")
+              continue
+            }
+            if (!command.args) {
+              input.shell.notice("用法：/artifact <artifact-id>")
+              continue
+            }
+            try {
+              await openProductArtifact({ api: input.api, shell: input.shell, taskId: currentTaskId, artifactId: command.args, signal: input.signal })
+            } catch (error) {
+              input.shell.notice(`Artifact 不可用 · ${controlError(error)}`)
+            }
+            continue
+          }
           case "ui":
             input.shell.notice(currentTaskId
               ? `已打开 Web 看板：${(await launchUi({ baseUrl: input.baseUrl, webPort: 5173, startupTimeoutMs: input.startupTimeoutMs, open: true, taskId: currentTaskId })).url}`

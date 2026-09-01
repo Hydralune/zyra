@@ -456,6 +456,32 @@ export class CliApi {
     return Buffer.from(content, "base64")
   }
 
+  async artifactContent(input: {
+    taskId: string
+    artifactId: string
+    offset?: number
+    length?: number
+    signal?: AbortSignal
+  }): Promise<Readonly<Record<string, unknown>>> {
+    const taskId = normalizeIdentity("task", input.taskId)
+    const artifactId = normalizeIdentity("artifact", input.artifactId)
+    const offset = Math.max(0, Math.min(1_000_000_000, Math.floor(input.offset ?? 0)))
+    const length = Math.max(1, Math.min(64 * 1_024, Math.floor(input.length ?? 64 * 1_024)))
+    const response = await this.client.endpoint<Readonly<Record<string, unknown>>>(
+      OPERATION_NAMES.taskArtifactContent,
+      {
+        path: { task_id: taskId, artifact_id: artifactId },
+        query: { offset, length, purpose: "preview" },
+        binding: { taskId, artifactId },
+        signal: input.signal,
+        timeoutMs: this.timeoutMs,
+        coordinationKey: `cli.artifact.preview:${taskId}:${artifactId}:${offset}:${length}`,
+        deduplicate: true,
+      },
+    )
+    return Object.freeze({ ...response.data })
+  }
+
   async runTask(task: TaskProjection, signal?: AbortSignal): Promise<TaskMutationProjection> {
     // One invocation keeps one key across transport retries, while a later
     // explicit `zyra resume` receives a fresh generation.  Reusing a key

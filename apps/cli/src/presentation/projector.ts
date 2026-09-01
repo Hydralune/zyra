@@ -22,17 +22,17 @@ function object(value: unknown): Readonly<Record<string, unknown>> {
     : {}
 }
 
-function text(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined
+function text(value: unknown, maximum = 2_000): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, maximum) : undefined
 }
 
-function content(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value : undefined
+function content(value: unknown, maximum = 1_000_000): string | undefined {
+  return typeof value === "string" && value.trim() ? value.slice(0, maximum) : undefined
 }
 
 function stringList(value: unknown): string[] {
   return Array.isArray(value)
-    ? value.flatMap((item) => typeof item === "string" && item.trim() ? [item.trim()] : [])
+    ? value.flatMap((item) => typeof item === "string" && item.trim() ? [item.trim().slice(0, 256)] : [])
     : []
 }
 
@@ -57,13 +57,13 @@ function safeInteger(value: unknown): number | undefined {
 function productPresentationEvents(frame: IngressFrame): ZyraUiEvent[] | undefined {
   const presentation = object(frame.presentation)
   if (presentation.schema !== "zyra.product-presentation/v1") return undefined
-  const kind = text(presentation.kind)
-  const phase = text(presentation.phase) ?? "updated"
-  const identity = text(presentation.identity)
-  const label = text(presentation.label)
+  const kind = text(presentation.kind, 64)
+  const phase = text(presentation.phase, 64) ?? "updated"
+  const identity = text(presentation.identity, 256)
+  const label = text(presentation.label, 256)
   if (!kind || !identity || !label) return []
   const at = occurredAt(frame)
-  const summary = text(presentation.summary)
+  const summary = text(presentation.summary, 2_000)
   const base = { schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: at } as const
   if (kind === "activity") {
     const fields = {
