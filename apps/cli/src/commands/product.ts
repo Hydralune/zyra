@@ -1,6 +1,6 @@
 import type { Readable, Writable } from "node:stream"
 import { ZyraApiError, type SessionProjection, type TaskProjection } from "@zyra/typed-api-client"
-import { CliApi, type IngressCapabilities, type ProductExecutionConfig } from "../api.ts"
+import { CliApi, type IngressCapabilities, type IngressPage, type ProductExecutionConfig } from "../api.ts"
 import { CliExitCode, CliTaskError, type InteractiveCommand, type ResumeCommand } from "../contracts.ts"
 import {
   CliControlSession,
@@ -662,6 +662,7 @@ async function loadProjectionSnapshot(input: {
   api: CliApi
   task: TaskProjection
   capabilities: IngressCapabilities
+  bootstrap?: ResumeBootstrap
 }): Promise<{ projection: ProductProjection; cursor: string }> {
   const projection = new ProductProjection({
     task: input.task,
@@ -669,12 +670,35 @@ async function loadProjectionSnapshot(input: {
     cursor: input.capabilities.subscriptionCursor,
   })
   let cursor = input.capabilities.subscriptionCursor
-  for await (const page of input.api.snapshotIngress(input.task.taskId, input.capabilities.generation)) {
+  const applyPage = (page: IngressPage): void => {
     for (const frame of page.frames) projection.apply(frame)
     cursor = page.cursor
   }
+  if (input.bootstrap) {
+    if (!input.bootstrap.first.done) applyPage(input.bootstrap.first.value)
+    while (true) {
+      const next = await input.bootstrap.iterator.next()
+      if (next.done) break
+      applyPage(next.value)
+    }
+  } else {
+    for await (const page of input.api.snapshotIngress(input.task.taskId, input.capabilities.generation)) applyPage(page)
+  }
   projection.cursor(cursor)
   return { projection, cursor }
+}
+
+interface ResumeBootstrap {
+  capabilities: IngressCapabilities
+  iterator: AsyncIterator<IngressPage>
+  first: IteratorResult<IngressPage>
+}
+
+async function prefetchResumeBootstrap(api: CliApi, taskId: string): Promise<ResumeBootstrap> {
+  const capabilities = await api.ingressCapabilities(taskId)
+  const iterator = api.snapshotIngress(taskId, capabilities.generation)[Symbol.asyncIterator]()
+  const first = await iterator.next()
+  return { capabilities, iterator, first }
 }
 
 export async function observeProductTask(input: {
@@ -685,10 +709,12 @@ export async function observeProductTask(input: {
   resume: boolean
   openWeb?: () => Promise<string>
   permissionSession?: CliPermissionSession
+  bootstrap?: ResumeBootstrap
 }): Promise<CommandOutcome> {
   let task = input.task
-  let capabilities = await input.api.ingressCapabilities(task.taskId)
-  const initial = await loadProjectionSnapshot({ api: input.api, task, capabilities })
+  let capabilities = input.bootstrap?.capabilities ?? await input.api.ingressCapabilities(task.taskId)
+  const bootstrap = input.bootstrap?.capabilities.taskId === task.taskId ? input.bootstrap : undefined
+  const initial = await loadProjectionSnapshot({ api: input.api, task, capabilities, bootstrap })
   let cursor = initial.cursor
   let projection = initial.projection
   let lastProjectionRenderAt = 0
@@ -1072,7 +1098,12 @@ export async function executeProductResume(input: {
   draftStore?: ProductDraftStore | null
 }): Promise<CommandOutcome> {
   const cwd = input.cwd ?? process.cwd()
-  const resolved = await input.api.resolveTask(input.command.identity)
+  const bootstrapPromise = prefetchResumeBootstrap(input.api, input.command.identity).catch(() => undefined)
+  const [resolved, directBootstrap] = await Promise.all([
+    input.api.resolveTask(input.command.identity),
+    bootstrapPromise,
+  ])
+  const bootstrap = directBootstrap?.capabilities.taskId === resolved.task.taskId ? directBootstrap : undefined
   const tty = Boolean((input.stdin as Readable & { isTTY?: boolean }).isTTY)
   const draftStore = input.draftStore === null
     ? undefined
@@ -1093,7 +1124,7 @@ export async function executeProductResume(input: {
       baseUrl: input.command.baseUrl,
       startupTimeoutMs: input.command.startupTimeoutMs,
       ensureTerminal: input.ensureTerminal,
-      initial: { kind: "resume", task: resolved.task },
+      initial: { kind: "resume", task: resolved.task, bootstrap },
     })
   } finally {
     input.signal.removeEventListener("abort", abortInput)
@@ -1104,7 +1135,7 @@ export async function executeProductResume(input: {
 
 type ProductSessionInput =
   | { kind: "goal"; goal: string }
-  | { kind: "resume"; task: TaskProjection }
+  | { kind: "resume"; task: TaskProjection; bootstrap?: ResumeBootstrap }
 
 function newProductSessionId(): string {
   return `product:${crypto.randomUUID().replaceAll("-", "")}`
@@ -1560,6 +1591,7 @@ async function runProductSession(input: {
         taskId: currentTaskId,
       })).url,
       permissionSession: currentPermissionSession,
+      bootstrap: next.kind === "resume" ? next.bootstrap : undefined,
     })
     if (lastOutcome.status === "detached") break
     await appendFinalDiff({ api: input.api, shell: input.shell, taskId: currentTaskId, cwd: input.cwd })
