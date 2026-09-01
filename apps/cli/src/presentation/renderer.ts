@@ -158,15 +158,19 @@ function renderIssues(lines: string[], state: ProductViewState, width: number): 
 }
 
 function renderPermissions(lines: string[], state: ProductViewState, width: number): void {
-  for (const permission of state.permissions) {
+  for (const [index, permission] of state.permissions.slice(0, 3).entries()) {
     lines.push("")
-    lines.push(...prefixed(`需要权限：${permission.action}${permission.target ? ` · ${permission.target}` : ""}`, "! ", width))
-    if (permission.reason) lines.push(...prefixed(permission.reason, "  ", width))
-    if (permission.risk) lines.push(...prefixed(`风险：${permission.risk}`, "  ", width))
-    if (permission.scope) lines.push(...prefixed(`作用域：${permission.scope}`, "  ", width))
-    if (permission.expiresAt) lines.push(...prefixed(`有效期至：${permission.expiresAt}`, "  ", width))
-    lines.push(...prefixed(`[A] 允许本次   [D] 拒绝 · ${permission.requestId}`, "  ", width))
+    lines.push(clipDisplay(`╭─ 权限请求 ${index + 1}/${state.permissions.length} ${"─".repeat(Math.max(1, width - 18))}╮`, width))
+    lines.push(clipDisplay(`│ 动作：${permission.action}`, width))
+    if (permission.target) lines.push(clipDisplay(`│ 目标：${permission.target}`, width))
+    if (permission.reason) lines.push(clipDisplay(`│ 原因：${permission.reason}`, width))
+    const policy = [permission.risk ? `风险：${permission.risk}` : "风险：未标注", permission.scope ? `作用域：${permission.scope}` : undefined, permission.expiresAt ? `有效期至：${permission.expiresAt}` : undefined].filter(Boolean).join(" · ")
+    lines.push(clipDisplay(`│ ${policy}`, width))
+    lines.push(clipDisplay(`│ request：${permission.requestId}`, width))
+    lines.push(clipDisplay(`│ [A]+Enter 允许本次   [D]+Enter 拒绝   /permissions 查看全部/选择范围`, width))
+    lines.push(clipDisplay(`╰${"─".repeat(Math.max(1, width - 2))}╯`, width))
   }
+  if (state.permissions.length > 3) lines.push(...prefixed(`${state.permissions.length - 3} 个权限请求已折叠；使用 /permissions 精确选择`, "… ", width))
 }
 
 function renderWorkspace(lines: string[], state: ProductViewState, width: number): void {
@@ -236,9 +240,9 @@ export function renderProductState(state: ProductViewState, options: ProductRend
   renderTools(lines, state, width)
   renderAgents(lines, state, width)
   renderIssues(lines, state, width)
-  renderPermissions(lines, state, width)
   renderWorkspace(lines, state, width)
   renderVerification(lines, state, width)
+  renderPermissions(lines, state, width)
 
   if (state.taskMessage) {
     lines.push("")

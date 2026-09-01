@@ -427,7 +427,7 @@ export class CliPermissionSession {
       effect: input.effect,
       decisionScope,
     })
-    return this.#api.resolvePermission({
+    const result = await this.#api.resolvePermission({
       binding: this.#binding,
       custodyToken: claim.custodyToken,
       requestId: input.requestId,
@@ -438,6 +438,33 @@ export class CliPermissionSession {
       feedback: input.feedback,
       signal: input.signal,
     })
+    const receipt = object(result.receipt, "permission resolution receipt")
+    const actualEffect = text(receipt.effect, "permission receipt effect")
+    const actualScope = text(receipt.decision_scope ?? receipt.decisionScope ?? "once", "permission receipt decision scope")
+    const actualRequestId = text(receipt.request_id ?? receipt.requestId ?? input.requestId, "permission receipt request id")
+    if (receipt.accepted !== true) {
+      throw new CliTaskError("Canonical permission owner did not accept the decision.", "permission_decision_rejected", {
+        request_id: input.requestId,
+        effect: input.effect,
+        decision_scope: decisionScope,
+      })
+    }
+    if (actualRequestId !== input.requestId || actualEffect !== input.effect || actualScope !== decisionScope) {
+      throw new CliTaskError(
+        `Permission decision lost a concurrency race; canonical decision is ${actualEffect}/${actualScope}.`,
+        "permission_decision_conflict",
+        {
+          request_id: input.requestId,
+          requested_effect: input.effect,
+          requested_scope: decisionScope,
+          actual_request_id: actualRequestId,
+          actual_effect: actualEffect,
+          actual_scope: actualScope,
+          automatic_retry: false,
+        },
+      )
+    }
+    return result
   }
 
   #requireClaim(): PermissionSessionClaim {

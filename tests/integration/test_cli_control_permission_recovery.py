@@ -341,3 +341,50 @@ const [baseUrl,taskId,sessionId,token]=process.argv.slice(1); const api=new CliA
         assert time.monotonic() - started < 5
         assert sealed_status == 403, sealed_response
         assert sealed_response.get("human_intervention_count", 0) == 0
+
+
+def test_real_permission_concurrent_opposite_decisions_have_one_winner(tmp_path: Path) -> None:
+    with _real_api(tmp_path) as (base_url, api_main):
+        state = _running_task(api_main, "Exercise concurrent product permission decisions.")
+        session_id = f"permission-console:{state.task_id}"
+        facade = api_main.get_permission_api_facade(task_id=state.task_id, session_id=session_id)
+        custody = facade.open_session(
+            session_id=session_id,
+            run_id=state.run_id,
+            task_id=state.task_id,
+        )
+        token = custody.body["session"]["bearer_token"]
+
+        status, denied_command, _ = _request(
+            base_url,
+            f"/tasks/{state.task_id}/commands",
+            method="POST",
+            payload={
+                "text": "/e02-reload",
+                "actor_id": "product-permission-race",
+                "tool_call_id": f"toolcall_{uuid4().hex}",
+            },
+        )
+        assert status == 403, denied_command
+
+        raced = _bun_json(
+            """
+import {CliApi} from './apps/cli/src/api.ts'; import {CliPermissionSession} from './apps/cli/src/control/permission.ts';
+const [baseUrl,taskId,sessionId,token]=process.argv.slice(1); const api=new CliApi({baseUrl,timeoutMs:30000}); const task=await api.task(taskId);
+const first=new CliPermissionSession({api,task,sessionId,custodyToken:token}); const second=new CliPermissionSession({api,task,sessionId,custodyToken:token});
+const opened=await Promise.all([first.open(),second.open()]); const pending=await first.pending(); const requestId=pending[0].requestId;
+const results=await Promise.allSettled([first.resolve({requestId,effect:'allow'}),second.resolve({requestId,effect:'deny'})]); const after=await first.pending();
+console.log(JSON.stringify({opened,requestId,after:after.length,results:results.map(item=>item.status==='fulfilled'?{status:item.status,effect:item.value.receipt?.effect}:{status:item.status,httpStatus:item.reason?.status,code:item.reason?.code,message:item.reason?.message})})); api.close();
+""",
+            base_url,
+            state.task_id,
+            session_id,
+            token,
+        )
+        assert raced["opened"] == [True, True]
+        assert raced["after"] == 0
+        fulfilled = [item for item in raced["results"] if item["status"] == "fulfilled"]
+        rejected = [item for item in raced["results"] if item["status"] == "rejected"]
+        assert len(fulfilled) == 1, raced
+        assert len(rejected) == 1, raced
+        assert rejected[0]["code"] == "permission_decision_conflict", raced

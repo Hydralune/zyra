@@ -363,6 +363,44 @@ async function pickPermissionMode(input: {
   return `${result.reconciled ? "权限模式已从 canonical state 对账" : "权限模式已更新"}\n${permissionModeStatus(result.state)}`
 }
 
+async function resolvePermissionRequest(input: {
+  permissions: CliPermissionSession
+  signal: AbortSignal
+  refreshPermissions: () => Promise<void>
+}, request: PermissionRequestView, effect: "allow" | "deny", decisionScope: PermissionDecisionScope): Promise<string> {
+  const receipt = await input.permissions.resolve({
+    requestId: request.requestId,
+    effect,
+    decisionScope,
+    signal: input.signal,
+  })
+  await input.refreshPermissions()
+  const scopeRule = receipt.scope_rule && typeof receipt.scope_rule === "object"
+    ? receipt.scope_rule as Record<string, unknown>
+    : undefined
+  const scopeLabel = decisionScope === "workspace" ? "工作区持久范围" : decisionScope === "session" ? "本会话范围" : "仅本次"
+  const installed = scopeRule && typeof scopeRule.installed === "boolean"
+    ? ` · 规则${scopeRule.installed ? "已安装" : "已存在"}`
+    : ""
+  return `权限已${effect === "allow" ? "允许" : "拒绝"} · ${scopeLabel}${installed} · ${request.requestId}`
+}
+
+export async function resolveSinglePermissionShortcut(input: {
+  permissions: CliPermissionSession
+  signal: AbortSignal
+  refreshPermissions: () => Promise<void>
+}, effect: "allow" | "deny"): Promise<string> {
+  const pending = (await input.permissions.pending(input.signal)).filter((request) => request.selectable)
+  if (pending.length !== 1) {
+    throw new CliTaskError(
+      pending.length ? "存在多个权限请求；请使用 /permissions 选择精确 request。" : "当前没有可处理权限请求。",
+      pending.length ? "permission_shortcut_ambiguous" : "permission_selection_unavailable",
+      { pending_request_count: pending.length },
+    )
+  }
+  return resolvePermissionRequest(input, pending[0]!, effect, "once")
+}
+
 async function resolvePermissionFromPicker(input: {
   shell: ProductTuiShell
   permissions: CliPermissionSession
@@ -414,21 +452,7 @@ async function resolvePermissionFromPicker(input: {
   const [rawEffect, rawScope] = decision.id.split(":")
   const effect = rawEffect === "allow" ? "allow" : "deny"
   const decisionScope = (rawScope ?? "once") as PermissionDecisionScope
-  const receipt = await input.permissions.resolve({
-    requestId: request.requestId,
-    effect,
-    decisionScope,
-    signal: input.signal,
-  })
-  await input.refreshPermissions()
-  const scopeRule = receipt.scope_rule && typeof receipt.scope_rule === "object"
-    ? receipt.scope_rule as Record<string, unknown>
-    : undefined
-  const scopeLabel = decisionScope === "workspace" ? "工作区持久范围" : decisionScope === "session" ? "本会话范围" : "仅本次"
-  const installed = scopeRule && typeof scopeRule.installed === "boolean"
-    ? ` · 规则${scopeRule.installed ? "已安装" : "已存在"}`
-    : ""
-  return `权限已${effect === "allow" ? "允许" : "拒绝"} · ${scopeLabel}${installed} · ${request.requestId}`
+  return resolvePermissionRequest(input, request, effect, decisionScope)
 }
 
 async function runProductControlLoop(input: {
@@ -468,6 +492,10 @@ async function runProductControlLoop(input: {
         continue
       }
       const line = result.text.trim()
+      if (input.shell.view.permissions.length > 0 && (line.toLocaleLowerCase() === "a" || line.toLocaleLowerCase() === "d")) {
+        input.shell.notice(await resolveSinglePermissionShortcut(input, line.toLocaleLowerCase() === "a" ? "allow" : "deny"))
+        continue
+      }
       if (line === "/help" || line === "?") {
         input.shell.notice(`Enter 立即重定向 · Tab 排队 · Esc 中断\n${productCommandHelp(true)}`)
         continue

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { TaskProjection } from "@zyra/typed-api-client"
 import type { IngressFrame } from "../src/api.ts"
+import { ZYRA_UI_EVENT_SCHEMA } from "../src/presentation/events.ts"
 import { projectProductEvents } from "../src/presentation/projector.ts"
 import { reduceProductEvents, renderProductSnapshot } from "../src/presentation/renderer.ts"
 import { buildBoundedWorkspaceDiff } from "../src/presentation/workspace-diff.ts"
@@ -196,5 +197,13 @@ describe("product file, verification, and failure results", () => {
     expect(rendered).toContain("作用域：once")
     expect(rendered).toContain("有效期至：2099-01-01")
     expect(rendered).toContain("permission_visible")
+    expect(rendered).toContain("[A]+Enter 允许本次")
+    const pressured = renderProductSnapshot([
+      ...events,
+      { schema: ZYRA_UI_EVENT_SCHEMA, eventId: "diff-pressure", type: "workspace.diff", lines: Array.from({ length: 200 }, (_, index) => `+line ${index}`), truncated: true, source: "local_workspace" },
+    ], { width: 100, height: 24, workspace: "workspace" })
+    expect(pressured).toContain("权限请求 1/1")
+    expect(pressured).toContain("写入受保护文件")
+    expect(pressured).toContain("[D]+Enter 拒绝")
   })
 })

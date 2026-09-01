@@ -8,6 +8,7 @@ import {
 import type { CommandTransportRequest } from "@zyra/commands"
 import { CliApi, type IngressFrame } from "../src/api.ts"
 import { observeTask } from "../src/commands/interactive.ts"
+import { resolveSinglePermissionShortcut } from "../src/commands/product.ts"
 import {
   CliControlSession,
   formatCommandQueue,
@@ -41,6 +42,35 @@ function task(overrides: Partial<TaskProjection> = {}): TaskProjection {
     terminal: false,
     active: true,
     ...overrides,
+  }
+}
+
+function permissionRequest(requestId = "permission-concurrent"): Record<string, unknown> {
+  return {
+    response_challenge: {
+      version: "zyra.permission-response/v2",
+      nonce: `nonce-${requestId}`,
+      canonical_owner: "typescript.PermissionCoordinator",
+    },
+    envelope_id: `envelope-${requestId}`,
+    request_id: requestId,
+    run_id: "run_control",
+    task_id: "task_control",
+    session_id: "session_control",
+    session_revision: 4,
+    worker_request_id: `worker-${requestId}`,
+    tool_call_id: `tool-${requestId}`,
+    request_fingerprint: "c".repeat(64),
+    arguments_digest: "d".repeat(64),
+    policy_revision: 5,
+    mode_revision: 6,
+    expires_at: "2099-01-01T00:00:00.000Z",
+    status: "delivered",
+    prompt: "写入受保护文件",
+    reason: "保存用户要求的修改",
+    tool_name: "write_file",
+    operation: "execute",
+    supported_decision_scopes: ["once", "session", "workspace"],
   }
 }
 
@@ -380,7 +410,7 @@ describe("FE-S03 permission proof and projection", () => {
       async resolvePermission(input: Record<string, unknown>) {
         submitted = input
         return {
-          decision_scope: "workspace",
+          receipt: { accepted: true, effect: "allow", decision_scope: "workspace", request_id: "scope-request" },
           scope_rule: { installed: true, persistent: true },
         }
       },
@@ -400,6 +430,82 @@ describe("FE-S03 permission proof and projection", () => {
       effect: "allow",
       decision_scope: "workspace",
     })
+  })
+
+  test("binds the A/D shortcut to one exact pending request and rejects ambiguity", async () => {
+    let resolved: Record<string, unknown> | undefined
+    let refreshes = 0
+    const request = permissionRequest("permission-shortcut")
+    const api = {
+      async openPermissionSession() {
+        return { taskId: "task_control", runId: "run_control", sessionId: "session_control", custodyToken: "custody-token", created: true, verified: true }
+      },
+      async permissionRequests() { return { requests: { items: [request] } } },
+      async resolvePermission(input: Record<string, unknown>) {
+        resolved = input
+        return { receipt: { accepted: true, effect: "allow", decision_scope: "once", request_id: "permission-shortcut" } }
+      },
+    } as unknown as CliApi
+    const session = new CliPermissionSession({ api, task: task() })
+    expect(await session.open()).toBe(true)
+    expect(await resolveSinglePermissionShortcut({
+      permissions: session,
+      signal: new AbortController().signal,
+      refreshPermissions: async () => { refreshes += 1 },
+    }, "allow")).toContain("permission-shortcut")
+    expect(resolved).toMatchObject({ requestId: "permission-shortcut", effect: "allow", decisionScope: "once" })
+    expect(refreshes).toBe(1)
+
+    const ambiguousApi = {
+      ...api,
+      async permissionRequests() {
+        return { requests: { items: [permissionRequest("permission-a"), permissionRequest("permission-b")] } }
+      },
+    } as unknown as CliApi
+    const ambiguous = new CliPermissionSession({ api: ambiguousApi, task: task() })
+    expect(await ambiguous.open()).toBe(true)
+    await expect(resolveSinglePermissionShortcut({
+      permissions: ambiguous,
+      signal: new AbortController().signal,
+      refreshPermissions: async () => undefined,
+    }, "deny")).rejects.toMatchObject({ code: "permission_shortcut_ambiguous" })
+  })
+
+  test("allows exactly one winner for concurrent opposite decisions without replay", async () => {
+    const request = permissionRequest()
+    let reads = 0
+    let releaseReads: (() => void) | undefined
+    const bothRead = new Promise<void>((resolve) => { releaseReads = resolve })
+    let acceptedEffect: "allow" | "deny" | undefined
+    let mutations = 0
+    const api = {
+      async openPermissionSession() {
+        return { taskId: "task_control", runId: "run_control", sessionId: "session_control", custodyToken: "custody-token", created: true, verified: true }
+      },
+      async permissionRequests() {
+        reads += 1
+        if (reads === 2) releaseReads?.()
+        await bothRead
+        return { requests: { items: [request] } }
+      },
+      async resolvePermission(input: Record<string, unknown>) {
+        mutations += 1
+        acceptedEffect ??= input.effect as "allow" | "deny"
+        return { receipt: { accepted: true, effect: acceptedEffect, decision_scope: "once", request_id: "permission-concurrent" } }
+      },
+    } as unknown as CliApi
+    const first = new CliPermissionSession({ api, task: task() })
+    const second = new CliPermissionSession({ api, task: task() })
+    expect(await first.open()).toBe(true)
+    expect(await second.open()).toBe(true)
+    const outcomes = await Promise.allSettled([
+      first.resolve({ requestId: "permission-concurrent", effect: "allow" }),
+      second.resolve({ requestId: "permission-concurrent", effect: "deny" }),
+    ])
+    expect(outcomes.filter((item) => item.status === "fulfilled")).toHaveLength(1)
+    expect(outcomes.filter((item) => item.status === "rejected")).toHaveLength(1)
+    expect(outcomes.find((item) => item.status === "rejected")).toMatchObject({ reason: { code: "permission_decision_conflict" } })
+    expect(mutations).toBe(2)
   })
 
   test("updates canonical permission mode with revision fencing and reconciles a lost acknowledgement", async () => {
