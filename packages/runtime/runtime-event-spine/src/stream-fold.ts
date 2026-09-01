@@ -17,6 +17,14 @@ export const StreamPhase = {
 } as const;
 export type StreamPhaseValue = (typeof StreamPhase)[keyof typeof StreamPhase];
 
+const PRODUCT_TEXT_CHUNK_LIMIT_BYTES = 1_024;
+
+function presentationText(kind: StreamKindValue, value: string): string | undefined {
+  return kind === StreamKind.TEXT && Buffer.byteLength(value, "utf8") <= PRODUCT_TEXT_CHUNK_LIMIT_BYTES
+    ? value
+    : undefined;
+}
+
 export interface StreamIdentity {
   aggregateId: string;
   runId: string;
@@ -103,6 +111,7 @@ export class StreamFold {
       assistant_message_id: this.identity.assistantMessageId,
       chunk_index: chunk.index,
       delta: value,
+      presentation_text: presentationText(this.identity.kind, value),
       delta_digest: chunk.digest,
       delta_bytes: chunk.byteLength,
       tool_name: this.identity.kind === StreamKind.TOOL_INPUT ? "unknown" : undefined,
@@ -121,6 +130,7 @@ export class StreamFold {
       stream_id: this.identity.streamId,
       assistant_message_id: this.identity.assistantMessageId,
       final_text: selected,
+      presentation_text: presentationText(this.identity.kind, selected),
       final_digest: this.finalDigest,
       chunk_count: this.chunks.length,
       total_bytes: this.totalBytes,
@@ -141,6 +151,7 @@ export class StreamFold {
       stream_id: this.identity.streamId,
       assistant_message_id: this.identity.assistantMessageId,
       final_text: completedPrefix,
+      presentation_text: presentationText(this.identity.kind, completedPrefix),
       final_digest: this.finalDigest,
       chunk_count: this.chunks.length,
       total_bytes: this.totalBytes,

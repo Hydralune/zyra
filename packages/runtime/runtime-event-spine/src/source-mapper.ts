@@ -150,13 +150,35 @@ const safeStatusInline = (record: SourceRecord): Readonly<Record<string, JsonVal
   source_event_id: record.sourceId,
 });
 
-const streamInline = (record: SourceRecord): Readonly<Record<string, JsonValue>> => ({
-  stream_id: compactId(record, "stream_id", "message_id"),
-  segment_index: integer(record.payload, "segment_index", 0),
-  delta_bytes: Math.max(0, integer(record.payload, "delta_bytes", 0)),
-  content_digest: optionalText(record.payload, "content_digest") ?? digestJson(record.payload),
-  source_event_id: record.sourceId,
-});
+const PRODUCT_TEXT_CHUNK_LIMIT_BYTES = 1_024;
+
+const productTextChunk = (record: SourceRecord): string | undefined => {
+  if (record.kind !== SourceRecordKind.TEXT_DELTA && record.kind !== SourceRecordKind.TEXT_ENDED) return undefined;
+  for (const key of ["presentation_text", "content", "delta", "text", "final_text", "message"] as const) {
+    const value = record.payload[key];
+    if (typeof value === "string" && value.length > 0 && Buffer.byteLength(value, "utf8") <= PRODUCT_TEXT_CHUNK_LIMIT_BYTES) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const streamInline = (record: SourceRecord): Readonly<Record<string, JsonValue>> => {
+  const streamId = compactId(record, "stream_id", "message_id");
+  const presentationText = productTextChunk(record);
+  const declaredDeltaBytes = Math.max(0, integer(record.payload, "delta_bytes", 0));
+  return {
+    stream_id: streamId,
+    assistant_message_id: compactId(record, "assistant_message_id", "message_id", "stream_id"),
+    segment_index: integer(record.payload, "segment_index", 0),
+    delta_bytes: declaredDeltaBytes || (record.kind === SourceRecordKind.TEXT_DELTA && presentationText !== undefined
+      ? Buffer.byteLength(presentationText, "utf8")
+      : 0),
+    content_digest: optionalText(record.payload, "content_digest") ?? digestJson(record.payload),
+    source_event_id: record.sourceId,
+    ...(presentationText === undefined ? {} : { presentation_text: presentationText }),
+  };
+};
 
 const toolIdentity = (record: SourceRecord): string => record.identity.toolCallId
   ?? optionalText(record.payload, "tool_call_id")

@@ -24,6 +24,55 @@ def test_generic_agent_message_is_not_admitted_as_assistant_content() -> None:
     )
 
 
+def test_text_stream_projects_versioned_assistant_content_without_runtime_fields() -> None:
+    started = project_product_presentation(
+        {
+            "eventId": "event_text_started",
+            "eventType": "runtime.text.started",
+            "identity": {"taskId": "task_1"},
+            "inline": {
+                "stream_id": "answer_1",
+                "assistant_message_id": "message_1",
+                "content_digest": "must-not-leak",
+            },
+        }
+    )
+    delta = project_product_presentation(
+        {
+            "eventId": "event_text_delta",
+            "eventType": "runtime.text.delta",
+            "identity": {"taskId": "task_1"},
+            "inline": {
+                "stream_id": "answer_1",
+                "assistant_message_id": "message_1",
+                "presentation_text": "你好\n\n**world**\x1b[2J",
+                "content_digest": "must-not-leak",
+            },
+        }
+    )
+    assert started == {
+        "schema": PRODUCT_PRESENTATION_SCHEMA,
+        "kind": "assistant",
+        "phase": "started",
+        "identity": "message_1",
+        "label": "Assistant",
+        "severity": "info",
+        "streamId": "answer_1",
+    }
+    assert delta == {
+        "schema": PRODUCT_PRESENTATION_SCHEMA,
+        "kind": "assistant",
+        "phase": "delta",
+        "identity": "message_1",
+        "label": "Assistant",
+        "severity": "info",
+        "streamId": "answer_1",
+        "text": "你好\n\n**world**",
+    }
+    assert "must-not-leak" not in str(started)
+    assert "must-not-leak" not in str(delta)
+
+
 def test_execution_and_dispatch_have_stable_user_level_projection() -> None:
     started = project_product_presentation(
         {

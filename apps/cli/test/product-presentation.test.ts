@@ -96,6 +96,88 @@ describe("ZyraUiEvent/v2 product projection", () => {
     expect(JSON.stringify(projected)).not.toContain("redacted")
   })
 
+  test("assembles only versioned assistant presentation and converges with canonical final text", () => {
+    const finalAnswer = "你好\n\n**world**"
+    const runningTask = { ...fixture.task, status: "completed", terminal: true, metadata: { ...fixture.task.metadata, final_answer: finalAnswer } }
+    const frames: IngressFrame[] = [
+      {
+        ...frame(11, "runtime.text.started", { presentation_text: "raw-must-not-win" }),
+        presentation: {
+          schema: "zyra.product-presentation/v1",
+          kind: "assistant",
+          phase: "started",
+          identity: "message_1",
+          label: "Assistant",
+          streamId: "answer_1",
+        },
+      },
+      {
+        ...frame(12, "runtime.text.delta", { presentation_text: "raw-must-not-win" }),
+        presentation: {
+          schema: "zyra.product-presentation/v1",
+          kind: "assistant",
+          phase: "delta",
+          identity: "message_1",
+          label: "Assistant",
+          streamId: "answer_1",
+          text: "你好\n\n",
+        },
+      },
+      {
+        ...frame(13, "runtime.text.delta", { presentation_text: "raw-must-not-win" }),
+        presentation: {
+          schema: "zyra.product-presentation/v1",
+          kind: "assistant",
+          phase: "delta",
+          identity: "message_1",
+          label: "Assistant",
+          streamId: "answer_1",
+          text: "**world**",
+        },
+      },
+      {
+        ...frame(14, "runtime.text.ended", { final_text: "raw-must-not-win" }),
+        presentation: {
+          schema: "zyra.product-presentation/v1",
+          kind: "assistant",
+          phase: "completed",
+          identity: "message_1",
+          label: "Assistant",
+          streamId: "answer_1",
+        },
+      },
+    ]
+    const projected = projectProductEvents({ task: runningTask, frames })
+    const assistant = projected.filter((event) => event.type.startsWith("assistant.message"))
+    expect(assistant.at(-1)).toMatchObject({ type: "assistant.message.completed", text: finalAnswer, source: "stream" })
+    expect(assistant.filter((event) => event.type === "assistant.message.completed")).toHaveLength(1)
+    expect(JSON.stringify(projected)).not.toContain("raw-must-not-win")
+  })
+
+  test("reconciles a mismatched streamed completion onto the same message identity", () => {
+    const task = { ...fixture.task, status: "completed", terminal: true, metadata: { ...fixture.task.metadata, final_answer: "canonical answer" } }
+    const frames: IngressFrame[] = [{
+      ...frame(21, "runtime.text.ended", {}),
+      presentation: {
+        schema: "zyra.product-presentation/v1",
+        kind: "assistant",
+        phase: "completed",
+        identity: "message_mismatch",
+        label: "Assistant",
+        streamId: "answer_mismatch",
+        text: "partial answer",
+      },
+    }]
+    const projected = projectProductEvents({ task, frames })
+    const completed = projected.filter((event) => event.type === "assistant.message.completed")
+    expect(completed).toHaveLength(2)
+    expect(completed[0]).toMatchObject({ messageId: "message:assistant:message_mismatch", text: "partial answer", source: "stream" })
+    expect(completed[1]).toMatchObject({ messageId: "message:assistant:message_mismatch", text: "canonical answer", source: "canonical_final_answer" })
+    expect(reduceProductEvents(projected).messages.filter((message) => message.role === "assistant")).toEqual([
+      expect.objectContaining({ messageId: "message:assistant:message_mismatch", text: "canonical answer", streaming: false }),
+    ])
+  })
+
   test("consumes only versioned backend product presentation for worker, tool, and issue state", () => {
     const frames: IngressFrame[] = [
       {

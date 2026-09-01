@@ -9,11 +9,15 @@ import {
   EventSpineError,
   LowEntropyBaselineHarness,
   RuntimeEventSpine,
+  RuntimeSourceMapper,
   SenderKind,
+  StreamFold,
+  StreamKind,
   TrustLevel,
   byteLength,
   inlinePayloadContainsForbiddenContent,
   normalizeOmpFrame,
+  ompFrameToSourceRecord,
   type RuntimeEventDraft,
   type SubscriptionSpec,
 } from "../src/index.ts";
@@ -370,6 +374,59 @@ test("OMP frames preserve typed tool, partial/final, and subagent lifecycle", ()
   });
   assert.equal(yielded.eventType, "runtime.subagent.yield");
   assert.equal(yielded.causationId, "omp-subagent-created");
+});
+
+test("typed text source exposes only a bounded assistant presentation chunk", () => {
+  const mapper = new RuntimeSourceMapper();
+  const source = ompFrameToSourceRecord({
+    type: "message_delta",
+    id: "omp-product-text",
+    run_id: "run-product-text",
+    session_id: "session-product-text",
+    task_id: "task-product-text",
+    worker_id: "codeworker",
+    request_id: "request-product-text",
+    sequence: 1,
+    payload: { stream_id: "answer-1", content: "你好 **world**" },
+  });
+  const mapped = mapper.map(source);
+  assert.equal(mapped.draft.eventType, "runtime.text.delta");
+  assert.equal(mapped.draft.inline?.assistant_message_id, "answer-1");
+  assert.equal(mapped.draft.inline?.presentation_text, "你好 **world**");
+  assert.equal(mapped.draft.inline?.delta_bytes, Buffer.byteLength("你好 **world**", "utf8"));
+  assert.equal(mapped.draft.inline?.content, undefined);
+
+  const large = mapper.map(ompFrameToSourceRecord({
+    type: "message_delta",
+    id: "omp-product-text-large",
+    run_id: "run-product-text",
+    session_id: "session-product-text",
+    task_id: "task-product-text",
+    worker_id: "codeworker",
+    request_id: "request-product-text",
+    sequence: 2,
+    payload: { stream_id: "answer-1", content: "x".repeat(1_025) },
+  }));
+  assert.equal(large.draft.inline?.presentation_text, undefined);
+  assert.equal(large.draft.inline?.delta_bytes, 0);
+});
+
+test("stream fold binds assistant identity and bounded presentation text", () => {
+  const fold = new StreamFold({
+    aggregateId: "run:run-fold:task:task-fold",
+    runId: "run-fold",
+    sessionId: "session-fold",
+    taskId: "task-fold",
+    workerId: "codeworker",
+    assistantMessageId: "message-fold",
+    streamId: "stream-fold",
+    kind: StreamKind.TEXT,
+    correlationId: "request-fold",
+  });
+  assert.equal(fold.start().inline?.assistant_message_id, "message-fold");
+  assert.equal(fold.delta("hello").inline?.presentation_text, "hello");
+  assert.equal(fold.delta("x".repeat(1_025)).inline?.presentation_text, undefined);
+  assert.equal(fold.end("hello world").inline?.presentation_text, "hello world");
 });
 
 test("malformed MCP result is folded to a typed fact without breaking causality", () => {

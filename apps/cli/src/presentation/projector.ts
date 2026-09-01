@@ -141,6 +141,23 @@ function productPresentationEvents(frame: IngressFrame): ZyraUiEvent[] | undefin
   return []
 }
 
+interface AssistantPresentation {
+  phase: "started" | "delta" | "completed"
+  messageId: string
+  text?: string
+}
+
+function assistantPresentation(frame: IngressFrame): AssistantPresentation | undefined {
+  const presentation = object(frame.presentation)
+  if (presentation.schema !== "zyra.product-presentation/v1" || presentation.kind !== "assistant") return undefined
+  const phase = presentation.phase === "started" || presentation.phase === "delta" || presentation.phase === "completed"
+    ? presentation.phase
+    : undefined
+  const messageId = text(presentation.identity, 256)
+  if (!phase || !messageId) return undefined
+  return { phase, messageId: `message:assistant:${messageId}`, text: content(presentation.text) }
+}
+
 function sortedFrames(frames: readonly IngressFrame[], taskId: string): IngressFrame[] {
   const seen = new Set<string>()
   return [...frames]
@@ -342,8 +359,30 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
   const canonicalPermissionIds = new Set(permissionSnapshots.map((item) => item.requestId))
   const streamBuffers = new Map<string, string>()
   const completedAssistantTexts: string[] = []
+  let lastCompletedAssistantMessageId: string | undefined
 
   for (const frame of sortedFrames(input.frames ?? [], task.taskId)) {
+    const assistant = assistantPresentation(frame)
+    if (assistant !== undefined) {
+      const base = { schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: occurredAt(frame) } as const
+      if (assistant.phase === "started") {
+        streamBuffers.set(assistant.messageId, "")
+        push({ ...base, type: "assistant.message.started", messageId: assistant.messageId })
+      } else if (assistant.phase === "delta") {
+        if (assistant.text) {
+          streamBuffers.set(assistant.messageId, `${streamBuffers.get(assistant.messageId) ?? ""}${assistant.text}`)
+          push({ ...base, type: "assistant.message.delta", messageId: assistant.messageId, text: assistant.text })
+        }
+      } else {
+        const completed = assistant.text ?? streamBuffers.get(assistant.messageId)
+        if (completed) {
+          completedAssistantTexts.push(completed)
+          lastCompletedAssistantMessageId = assistant.messageId
+          push({ ...base, type: "assistant.message.completed", messageId: assistant.messageId, text: completed, source: "stream" })
+        }
+      }
+      continue
+    }
     const presentationEvents = productPresentationEvents(frame)
     if (presentationEvents !== undefined) {
       for (const event of presentationEvents) push(event)
@@ -374,6 +413,7 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
         const completed = explicitAssistantText(frame) ?? streamBuffers.get(streamId)
         if (!completed) break
         completedAssistantTexts.push(completed)
+        lastCompletedAssistantMessageId = messageId
         push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: at, type: "assistant.message.completed", messageId, text: completed, source: "stream" })
         break
       }
@@ -471,7 +511,7 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
         eventId: `ui:assistant:${task.taskId}:canonical-final`,
         occurredAt: task.updatedAt,
         type: "assistant.message.completed",
-        messageId: `message:assistant:${task.taskId}:final`,
+        messageId: lastCompletedAssistantMessageId ?? `message:assistant:${task.taskId}:final`,
         text: finalAnswer,
         source: "canonical_final_answer",
       })

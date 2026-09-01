@@ -23,6 +23,7 @@
 
 - `zyra.task-execution-started/v1` → execution activity；
 - `zyra.task-execution-error/v1` → redacted user issue；
+- 具有稳定 stream/message identity 的 `runtime.text.*` → assistant started/delta/completed；正文只来自显式 `presentation_text`，缺失时不从 byte count、digest 或 summary 推断；
 - `runtime.backend.dispatch.requested` 和明确 worker-attempt 状态 → 聚合 worker；
 - 具有稳定 `tool_call_id` 的 `runtime.tool.*` → tool lifecycle；其中 source path 明确标注为 stdout/stderr 的 canonical artifact refs → 有界 output descriptors；
 - 其他事件保持 developer-only，后续必须通过契约、测试和本 ADR 的扩展才能准入。
@@ -31,4 +32,4 @@
 
 - 产品 TUI 不再按 `runtime.*` 名称猜测用户语义。
 - 新增 runtime 内部事件不会自动污染 transcript。
-- 当前仍缺少正式 assistant streaming text、完整 verification command 和所有 provider/tool 的细粒度 presentation；覆盖矩阵必须继续标记为部分实现，不能因 v2 契约存在而宣称 Phase D 完成。
+- runtime-event-spine 已有正式 assistant presentation 准入，但当前物理 CodeWorker 主路径仍不把私有 provider token delta 接入可重放 API ingress；因此真实 provider 运行仍以 canonical final answer 收敛。完整 verification command 和所有 provider/tool 的细粒度 presentation 也仍未完成；覆盖矩阵必须继续标记为部分实现，不能因 v2 契约存在而宣称 Phase D 完成。

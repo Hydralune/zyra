@@ -14,6 +14,8 @@ _ASSIGNMENT = re.compile(
 )
 _WINDOWS_PATH = re.compile(r"(?i)(?:[A-Z]:\\|\\\\)[^\r\n\t<>|\"]+")
 _OUTPUT_STREAM = re.compile(r"(?:^|[._/])(stdout|stderr)(?:$|[._/])", re.IGNORECASE)
+_ANSI = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))")
+_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
@@ -30,6 +32,18 @@ def _text(value: Any, maximum: int = 500) -> str:
     if not selected:
         return ""
     selected = " ".join(selected.split())
+    selected = _BEARER.sub("Bearer [REDACTED]", selected)
+    selected = _ASSIGNMENT.sub(lambda match: f"{match.group(1)}=[REDACTED]", selected)
+    selected = _WINDOWS_PATH.sub("<path>", selected)
+    return selected[:maximum]
+
+
+def _content(value: Any, maximum: int = 2_048) -> str:
+    selected = str(value or "")
+    if not selected:
+        return ""
+    selected = _ANSI.sub("", selected)
+    selected = _CONTROL.sub("�", selected)
     selected = _BEARER.sub("Bearer [REDACTED]", selected)
     selected = _ASSIGNMENT.sub(lambda match: f"{match.group(1)}=[REDACTED]", selected)
     selected = _WINDOWS_PATH.sub("<path>", selected)
@@ -86,6 +100,32 @@ def project_product_presentation(canonical: Mapping[str, Any]) -> dict[str, Any]
     event_id = _identity(canonical.get("eventId"))
     inline = _mapping(canonical.get("inline"))
     identity = _mapping(canonical.get("identity"))
+
+    if event_type in {
+        "runtime.text.started",
+        "runtime.text.delta",
+        "runtime.text.ended",
+    }:
+        phase = {
+            "runtime.text.started": "started",
+            "runtime.text.delta": "delta",
+            "runtime.text.ended": "completed",
+        }[event_type]
+        stream_id = _identity(inline.get("stream_id"))
+        message_id = _identity(inline.get("assistant_message_id")) or stream_id
+        if not stream_id or not message_id:
+            return None
+        result = _base(
+            kind="assistant",
+            phase=phase,
+            identity=message_id,
+            label="Assistant",
+        )
+        result["streamId"] = stream_id
+        presentation_text = _content(inline.get("presentation_text"))
+        if presentation_text:
+            result["text"] = presentation_text
+        return result
 
     if event_type == "runtime.backend.dispatch.requested":
         worker_id = (
