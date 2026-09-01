@@ -18,6 +18,7 @@ import { workspaceReferenceCandidates } from "../product/files/index.ts"
 import { openProductDiff } from "../product/diff/controller.ts"
 import { formatExecutionMode, formatModelStatus, formatRuntimeReadiness, type ProductExecutionMode } from "../product/diagnostics/status.ts"
 import { ProductDraftStore } from "../product/session/local-state.ts"
+import { copyLatestAssistantMessage, exportProductTranscript, rawTranscriptLines } from "../product/transcript/export.ts"
 import { ProductTuiShell } from "../tui/shell.ts"
 import { mutationTransportDetached, type CommandOutcome } from "../runner.ts"
 import { launchUi } from "../ui.ts"
@@ -230,6 +231,24 @@ async function runProductControlLoop(input: {
       }
       if (line === "/permissions") {
         input.shell.notice(await resolvePermissionFromPicker(input))
+        continue
+      }
+      if (line === "/copy") {
+        const copied = await copyLatestAssistantMessage(input.shell.view)
+        input.shell.notice(`已复制最近助手回答 · ${copied.byteCount} bytes`)
+        continue
+      }
+      if (line === "/export" || line.startsWith("/export ")) {
+        const exported = await exportProductTranscript({
+          view: input.shell.view,
+          workspace: input.shell.workspace,
+          requestedPath: line.slice("/export".length).trim() || undefined,
+        })
+        input.shell.notice(`Transcript 已导出 · ${exported.path} · ${exported.messageCount} messages${exported.truncated ? " · 已达到安全上限" : ""}`)
+        continue
+      }
+      if (line === "/raw") {
+        await input.shell.page("Raw transcript", rawTranscriptLines(input.shell.view))
         continue
       }
       if (line === "/diff") {
@@ -882,6 +901,31 @@ async function runProductSession(input: {
             input.shell.notice(permissions.length ? permissions.map((request) => `${request.requestId} · ${request.action}`).join("\n") : "当前没有待处理权限请求。")
             continue
           }
+          case "copy": {
+            try {
+              const copied = await copyLatestAssistantMessage(input.shell.view)
+              input.shell.notice(`已复制最近助手回答 · ${copied.byteCount} bytes`)
+            } catch (error) {
+              input.shell.notice(`复制失败 · ${controlError(error)}`)
+            }
+            continue
+          }
+          case "export": {
+            try {
+              const exported = await exportProductTranscript({
+                view: input.shell.view,
+                workspace: input.cwd,
+                requestedPath: command.args || undefined,
+              })
+              input.shell.notice(`Transcript 已导出 · ${exported.path} · ${exported.messageCount} messages${exported.truncated ? " · 已达到安全上限" : ""}`)
+            } catch (error) {
+              input.shell.notice(`导出失败 · ${controlError(error)}`)
+            }
+            continue
+          }
+          case "raw":
+            await input.shell.page("Raw transcript", rawTranscriptLines(input.shell.view))
+            continue
           case "diff": {
             if (!currentTask || !await openProductDiff({ api: input.api, shell: input.shell, task: currentTask, signal: input.signal })) {
               input.shell.notice("当前任务没有可审查的 canonical diff。")

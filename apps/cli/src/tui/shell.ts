@@ -90,6 +90,7 @@ export class ProductTuiShell {
 
   get alternateScreenUsed(): false { return this.#renderer.alternateScreenUsed }
   get interactive(): boolean { return this.#interactive }
+  get workspace(): string { return this.#workspace }
   get view(): ProductViewState { return this.#state.snapshot() }
 
   addCandidates(candidates: readonly string[]): void {
