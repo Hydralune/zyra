@@ -18,10 +18,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "zyra.product-entry-release-verification/v1"
 CLI_ENTRY = Path("apps/cli/src/index.ts")
 EXPECTED_COMMAND_LINES = (
-    "zyra                              interactive session",
-    'zyra "<goal>"                     interactive task with live events',
+    "zyra                              product TUI",
+    'zyra "<goal>"                     product TUI with an initial goal',
+    "zyra resume <task|session>        resume in the product TUI",
+    "zyra dev [<goal>]                 developer event interface",
+    "zyra events <task|session>        observe raw canonical events",
     "zyra run <goal | -f file | stdin> non-interactive JSONL execution",
-    "zyra resume <task|session>        resume from server snapshot/cursor",
     "zyra ls                           list canonical tasks and sessions",
     "zyra scenario <action> [...]      scenario lifecycle over the daemon API",
     "zyra ui [--task <id>]             ensure daemon, start Web, open product route",

@@ -76,14 +76,16 @@ event `type` 必须来自 `runtime-event-spine` catalog。CLI/Web 至少要原�
 上述竖线表示事件族枚举，不代表另造聚合 event。`runtime.text.delta`、reasoning delta、
 heartbeat 等 non-effective/live-only 事件不得被 UI 计为有效长程 step。
 
-## 3. 八个顶层命令的端到端矩阵
+## 3. 十个顶层命令的端到端矩阵
 
 图例：`REUSE` 直接复用；`ADAPT` 只新增 CLI/共享 adapter；`CREATE` 需要新增客户端本地 owner；`BLOCKED` 缺少已授权 contract；`NO-EXPOSE` 不应成为用户入口。
 
 | 用户旅程 / CLI 命令 | 精确 HTTP / event 路径 | TypeScript owner | 后端 owner | 幂等 / revision | cursor / recovery | permission | TTY / non-TTY | 失败语义 | 最低行为测试 | 暴露裁决 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 进入工作台：`zyra` | `GET /health`；`GET /runtime/readiness`；`GET /tasks?cursor&limit&status`；选中任务后使用 event-ingress 四件套 | 新建 `apps/cli` shell；HTTP 复用 `@zyra/typed-api-client` | API readiness、task store、event ingress | 只读；task projection 带服务端 revision | task list cursor；事件 signed cursor/generation；gap 后 snapshot | 展示 pending request；解决动作仍走 permission API | TTY 进入 line transcript；非 TTY 无 goal 时返回用法错误 | API 不可达显示 disconnected；readiness 503 显示 degraded，不伪装空任务 | 默认入口、空列表、readiness 503、cursor gap、非 TTY 空输入 | `ADAPT` |
-| 快速发起：`zyra "<goal>"` | `POST /tasks`（`auto_run=true`）；随后 event-ingress capabilities/snapshot/delta/SSE | CLI task adapter | task API + runtime | 客户端生成 idempotency key；服务端 receipt 为准 | 首次 snapshot 后 SSE；断线从最后确认 cursor 恢复 | 运行中出现权限请求时显式等待 | TTY 转交交互 transcript；非 TTY 等价 `run`，stdout JSONL | 创建失败不产生伪 task；409 显示 receipt/conflict；断线不取消 task | task create、duplicate replay、permission wait、reconnect | `ADAPT` |
+| 进入工作台：`zyra` | `GET /health`；提交后使用 task API 与 event-ingress 四件套 | `ProductTuiShell` + `ProductProjection`；HTTP 复用 `@zyra/typed-api-client` | API readiness、task store、event ingress | task projection 带服务端 revision；控制命令带 canonical revision | signed cursor/generation；gap 后 snapshot | 展示 custody snapshot；解决动作走 permission API | TTY 进入 inline 产品 TUI；非 TTY 无 goal 时返回用法错误 | API 不可达显示可执行错误；不伪装空任务 | 默认入口、输入/resize、cursor gap、非 TTY 空输入 | `ADAPT` |
+| 快速发起：`zyra "<goal>"` | `POST /tasks`；随后 event-ingress capabilities/snapshot/SSE 与 canonical terminal read | product task observer | task API + runtime | 客户端生成 idempotency key；服务端 receipt 为准 | 首次 snapshot 后 SSE；断线从最后确认 cursor 恢复 | 运行中显式展示并 fail closed | TTY 增量重绘；非 TTY 在完成时输出一次产品视图；两者都不输出 JSONL | 创建失败不产生伪 task；断线不取消 task | task create、final fallback、permission、reconnect、raw-event filtering | `ADAPT` |
+| 开发者执行：`zyra dev [<goal>]` | 与产品任务相同的 task/SSE/control API | 旧 `SessionProjection` + append-only renderer | task/event/control owners | 沿用 canonical receipt/revision | 沿用 snapshot/cursor recovery | 沿用 permission custody | 显式输出完整 sequence/event/artifact/revision | 仅显式开发者入口可见 raw event | 兼容旧事件终端与控制回归 | `REUSE` |
+| 只读事件：`zyra events <task-or-session>` | resolver + event-ingress；不调用 task run mutation | developer observer `observeOnly` | task/session/event owners | 只读 | heartbeat/cursor/snapshot 收敛 | 不取得裁决 custody | append-only raw canonical transcript | 不重新执行 pending/running task | terminal snapshot、active attach、missing identity | `REUSE + ADAPT` |
 | 自动化运行：`zyra run <goal 或 -f>` | `POST /tasks`；event-ingress；必要时读 `GET /tasks/{task_id}`、artifact endpoints | CLI non-interactive adapter | task/event/artifact APIs | 创建 idempotency；不重放未知结果写请求 | cursor journal 落客户端运行目录；gap 取 snapshot | 默认不可交互：需要人工的动作返回明确 pending/exit，不自动允许 | stdout 只允许 JSONL；人类诊断到 stderr；支持 pipe/tee/EPIPE | 固定退出码 0..5；协议污染、断线、权限等待分别可判定 | JSONL purity、pipe/tee、EPIPE、SIGINT、exit code、cursor resume | `ADAPT` |
 | 恢复：`zyra resume <task-or-session>` | task：`GET /tasks/{id}`、`POST /tasks/{id}/run`、event-ingress；session：`GET /sessions/{session_id}` | task resume 可复用；session 使用 typed resolver | task store；session 是只读 task projection，不是第二 owner | resolver 只读；run 请求需 idempotency；command 需 expected session revision | task 用 event cursor；session 仅在唯一候选时返回 `resume_task_id` | 保留后端 pending permission，不本地清空 | 两种模式均先输出 canonical task/session identity | task/session 不存在 404；多候选为 `ambiguous` 且不返回 resume target | task resume、重复 resume、session ambiguity/not-found/restart | `REUSE + ADAPT` |
 | 列表：`zyra ls` | `GET /tasks?cursor&limit&status`；`GET /sessions?cursor&limit&status` | typed client + CLI list projection | task store；session 为 task-backed projection | 只读 | task/session cursor 分域；cursor scope/字段异常 fail closed | 只显示摘要，不把 permission 变成本地状态 | TTY 表格/短列表；非 TTY JSONL | API 失败不输出空成功结果；不能由本地历史补 session | pagination、filters、JSONL、cursor mismatch | `REUSE + ADAPT` |
@@ -290,7 +292,7 @@ Web 与 CLI 必须共享 typed API 和 event recovery 语义。Web 降级不是�
 
 ## 11. FE-S06 自动化与发布收口
 
-最终产品命令面固定为第 3 节的八个入口。`zyra run` 的输入源是 goal 参数、`--file` 或
+当前产品命令面在原八入口上新增显式 `zyra dev` 与 `zyra events`，共十个入口。`zyra run` 的输入源是 goal 参数、`--file` 或
 non-TTY stdin 三选一；stdout 始终是 strict JSONL，human diagnostic 只进入 stderr。Bun 源码
 入口与 `bun build --target node` 产物必须通过同一 help/JSONL probe，Node 产物的依赖闭包只能
 到 `@zyra/commands` 和 `@zyra/typed-api-client`，不得包含 Web、React、DOM、TUI 或工作区外
@@ -299,7 +301,7 @@ source path。
 发布验收由 `scripts/verify_product_entry_release.py` 和 productization cleanroom 共同执行：
 
 - 连续两次构建 Node CLI 并比较字节 digest；
-- 分别执行 Bun direct 与 Node artifact，验证八命令面和 JSONL record schema；
+- 分别执行 Bun direct 与 Node artifact，验证十命令面和 JSONL record schema；
 - 固定记录退出码 0..5、当前 host 实测状态和未获得平台的 `unavailable`；
 - 审计 capability/token/credential/root/cwd 脱敏和依赖闭包；
 - 不发布 npm、不做 installer 或 code signing；

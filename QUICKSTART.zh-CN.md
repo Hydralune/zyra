@@ -58,6 +58,37 @@ Web 端口冲突时，可让系统选择临时端口：
 node .\apps\cli\dist\zyra.js ui --web-port 0
 ```
 
+### 2.1 给老师演示 CLI + Web
+
+先在第一个 PowerShell 窗口启动 daemon 和 Web：
+
+```powershell
+Set-Location G:\agent-zoo\zyra
+node .\apps\cli\dist\zyra.js ui
+```
+
+再在第二个 PowerShell 窗口启动产品 CLI。要让任务操作 Zyra 仓库本身：
+
+```powershell
+Set-Location G:\agent-zoo\zyra
+node .\apps\cli\dist\zyra.js
+```
+
+在 TUI 中输入任务；也可以直接提交：
+
+```powershell
+node .\apps\cli\dist\zyra.js "测试，收到请回复"
+```
+
+CLI 底部会显示 `task_...`。要让 Web 直接打开同一个任务：
+
+```powershell
+node .\apps\cli\dist\zyra.js ui --task task_替换为实际ID
+```
+
+这两个窗口不是两套 Agent：CLI 负责对话、控制和简洁结果，Web 负责完整拓扑、事件、
+artifact、audit、evidence 和大型 diff；关键终态与最终回答来自同一个 daemon。
+
 ## 3. 新机器首次准备
 
 ### 3.1 前置软件
@@ -249,22 +280,35 @@ node G:\agent-zoo\zyra\apps\cli\dist\zyra.js `
 常用交互命令：
 
 ```text
-/now              立即提交控制命令
-/next             放入下一执行位置
-/later            延后执行
-/interrupt        中断当前步骤
-/redirect         改变任务方向
+Enter             运行中立即重定向
+Tab               将当前输入排队
+Esc               中断当前步骤
+/queue            查看 canonical 队列
+/interrupt <说明> 中断并给出新说明
+/redirect <说明>  立即改变任务方向
 /continue         继续任务
-/approve          批准当前权限请求
-/deny             拒绝当前权限请求
+/approve <ID>     批准指定权限请求
+/deny <ID>        拒绝指定权限请求
 /cancel           取消任务
-/retry            重试可恢复失败
+/retry <ID>       重试可恢复队列命令
+/ui               打开当前 task 的 Web 看板
 /exit             仅退出当前 listener
 ```
 
 `/exit` 不会停止 daemon，也不会自动取消后台任务。之后可以用 `resume` 重新连接。
 
-### 6.3 非交互模式
+### 6.3 开发者事件模式
+
+默认产品 TUI 不显示原始 `runtime.*` 事件。排障时显式使用：
+
+```powershell
+node G:\agent-zoo\zyra\apps\cli\dist\zyra.js dev "测试，收到请回复"
+node G:\agent-zoo\zyra\apps\cli\dist\zyra.js events task_xxxxxxxxxxxx
+```
+
+`dev` 创建/执行任务并显示完整事件；`events` 只附着观察现有任务，不会主动重新执行它。
+
+### 6.4 非交互模式
 
 直接传入目标：
 
@@ -296,7 +340,7 @@ node G:\agent-zoo\zyra\apps\cli\dist\zyra.js run --file .\TASK.md |
 goal 参数、`--file` 和管道输入三者互斥。非 TTY stdout 的每一行都是独立 JSON object；
 诊断和警告写入 stderr。
 
-### 6.4 sealed 自主模式
+### 6.5 sealed 自主模式
 
 需要无人值守的比赛策略时：
 

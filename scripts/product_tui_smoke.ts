@@ -33,7 +33,6 @@ function runCli(root: string, workspace: string, input: SmokeOptions): Promise<{
     const cli = resolve(root, "apps/cli/dist/zyra.js")
     const child = spawn(process.env.ZYRA_NODE_BINARY ?? "node", [
       cli,
-      "run",
       `--base-url=${input.baseUrl}`,
       `--timeout=${input.timeout}`,
       input.goal,
@@ -49,28 +48,19 @@ function runCli(root: string, workspace: string, input: SmokeOptions): Promise<{
     child.once("error", reject)
     child.once("exit", (code) => {
       if (code === 0) resolvePromise({ stdout, stderr })
-      else reject(new Error(`zyra run exited with ${code ?? "no code"}${stderr.trim() ? `: ${stderr.trim()}` : ""}`))
+      else reject(new Error(`product zyra exited with ${code ?? "no code"}${stderr.trim() ? `: ${stderr.trim()}` : ""}`))
     })
   })
 }
 
-function resultRecord(stdout: string): Readonly<Record<string, unknown>> {
-  const records = stdout.split(/\r?\n/).flatMap((line) => {
-    if (!line.trim()) return []
-    try {
-      const value = JSON.parse(line)
-      return value && typeof value === "object" && !Array.isArray(value)
-        ? [value as Readonly<Record<string, unknown>>]
-        : []
-    } catch {
-      return []
-    }
-  })
-  const result = [...records].reverse().find((record) => record.schema === "zyra.cli-result.v1" && record.type === "result")
-  if (!result || result.ok !== true || typeof result.task_id !== "string") {
-    throw new Error("zyra run did not return a successful canonical CLI result")
-  }
-  return result
+function productTaskId(stdout: string): string {
+  const taskId = stdout.match(/\btask_[A-Za-z0-9_-]+\b/u)?.[0]
+  if (!taskId) throw new Error("product TUI did not render its canonical task identity")
+  return taskId
+}
+
+function compactText(value: string): string {
+  return value.replace(/\s+/gu, " ").trim()
 }
 
 async function main(): Promise<void> {
@@ -80,8 +70,10 @@ async function main(): Promise<void> {
   process.stderr.write(`product TUI smoke · ${input.baseUrl} · ${input.width} columns\n`)
   try {
     const child = await runCli(root, workspace, input)
-    const result = resultRecord(child.stdout)
-    const taskId = String(result.task_id)
+    const taskId = productTaskId(child.stdout)
+    if (child.stdout.includes("runtime.") || child.stdout.includes("\u001b[?1049")) {
+      throw new Error("product CLI leaked a raw runtime event or entered alternate-screen mode")
+    }
     const api = new CliApi({ baseUrl: input.baseUrl, timeoutMs: 30_000 })
     try {
       const task = await api.task(taskId)
@@ -99,9 +91,16 @@ async function main(): Promise<void> {
         workspace: root,
       })
       const finalAnswer = String(task.metadata.final_answer ?? "")
-      if (!view.messages.some((message) => message.role === "assistant" && message.text === finalAnswer) || rendered.includes("runtime.")) {
+      if (
+        !finalAnswer
+        || !compactText(child.stdout).includes(compactText(finalAnswer))
+        || !view.messages.some((message) => message.role === "assistant" && message.text === finalAnswer)
+        || rendered.includes("runtime.")
+      ) {
         throw new Error("product projection omitted the canonical final answer or leaked a raw runtime event")
       }
+      process.stdout.write(child.stdout)
+      process.stdout.write(`\n--- ${input.width}-column deterministic replay ---\n`)
       process.stdout.write(rendered)
     } finally {
       api.close()

@@ -9,6 +9,12 @@ Zyra is the project workspace for the competition system "智衍群策：动态�
 面向首次接手项目的环境准备、CLI/Web 启动、任务运行、恢复、停止和 T1 正式执行步骤，见
 [`QUICKSTART.zh-CN.md`](QUICKSTART.zh-CN.md)。
 
+课堂展示的最短双窗口流程见 [`DEMO.zh-CN.md`](DEMO.zh-CN.md)。
+
+构建后，默认 `node apps\cli\dist\zyra.js` 启动面向用户的产品 TUI；原始事件终端位于
+`zyra dev` / `zyra events`。CLI 与 `zyra ui` 打开的 Web Workbench 使用同一 canonical
+task、permission、artifact 和 workspace 事实。
+
 ## Current Phase
 
 Canonical status: the previous M0-M5 work is now consolidated into a single completed `M0: foundation and main-path bootstrap`. It is not treated as six completed heavyweight milestones.
