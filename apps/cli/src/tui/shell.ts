@@ -5,7 +5,7 @@ import type { ProductDraftStore } from "../product/session/local-state.ts"
 import type { ZyraUiEvent } from "../presentation/events.ts"
 import { renderProductState } from "../presentation/renderer.ts"
 import { ProductComposer, type ProductComposerResult } from "./composer.ts"
-import { LiveProductRenderer } from "./live-renderer.ts"
+import { LiveProductRenderer, type LiveRendererDiagnostics } from "./live-renderer.ts"
 import { PRODUCT_COMMAND_REGISTRY } from "../product/commands/registry.ts"
 import type { CompletionState } from "./overlay/completion.ts"
 import { pickProductItem } from "./overlay/list-picker.ts"
@@ -70,20 +70,20 @@ export class ProductTuiShell {
       onChange: (snapshot) => {
         this.#draft = snapshot
         this.#scrollOffset = 0
-        this.#renderer.render()
+        this.#renderer.renderNow()
       },
       onNotice: (notice) => {
         this.#notice = notice
-        this.#renderer.render()
+        this.#renderer.renderNow()
       },
       onPersistence: (snapshot) => input.draftStore?.schedule(snapshot),
       onScroll: (direction) => {
         this.#scrollOffset = Math.max(0, this.#scrollOffset + (direction === "up" ? 5 : -5))
-        this.#renderer.render()
+        this.#renderer.renderNow()
       },
       onCompletion: (completion) => {
         this.#overlay = this.#completionOverlay(completion)
-        this.#renderer.render()
+        this.#renderer.renderNow()
       },
     })
   }
@@ -92,6 +92,7 @@ export class ProductTuiShell {
   get interactive(): boolean { return this.#interactive }
   get workspace(): string { return this.#workspace }
   get view(): ProductViewState { return this.#state.snapshot() }
+  get renderDiagnostics(): LiveRendererDiagnostics { return this.#renderer.diagnostics }
 
   addCandidates(candidates: readonly string[]): void {
     this.#candidates = Object.freeze([...new Set([...this.#candidates, ...candidates])].sort())
@@ -119,7 +120,7 @@ export class ProductTuiShell {
     this.#events = this.#archivedEvents
     this.#state.reconcile(this.#events)
     this.#scrollOffset = 0
-    this.#renderer.render()
+    this.#renderer.renderNow()
   }
 
   clearTranscript(): void {
@@ -128,20 +129,20 @@ export class ProductTuiShell {
     this.#events = Object.freeze([])
     this.#state.reconcile(this.#events)
     this.#scrollOffset = 0
-    this.#renderer.render()
+    this.#renderer.renderNow()
   }
 
   notice(message?: string): void {
     this.#notice = message
-    this.#renderer.render()
+    this.#renderer.renderNow()
   }
 
   async read(running = false): Promise<ProductComposerResult> {
     this.#running = running
-    this.#renderer.render()
+    this.#renderer.renderNow()
     const result = await this.#composer.read()
     this.#running = false
-    this.#renderer.render()
+    this.#renderer.renderNow()
     return result
   }
 
@@ -155,7 +156,7 @@ export class ProductTuiShell {
       footer,
       onChange: (overlay) => {
         this.#overlay = overlay
-        this.#renderer.render()
+        this.#renderer.renderNow()
       },
     })
   }
@@ -169,7 +170,7 @@ export class ProductTuiShell {
       lines,
       onChange: (overlay) => {
         this.#overlay = overlay
-        this.#renderer.render()
+        this.#renderer.renderNow()
       },
     })
   }
@@ -177,7 +178,7 @@ export class ProductTuiShell {
   detachInput(): void {
     this.#running = false
     this.#composer.close()
-    this.#renderer.render()
+    this.#renderer.renderNow()
   }
 
   finish(events?: readonly ZyraUiEvent[]): void {

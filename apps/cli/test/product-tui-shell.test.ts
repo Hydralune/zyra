@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { PassThrough, Writable } from "node:stream"
 import { ZYRA_UI_EVENT_SCHEMA, type ZyraUiEvent } from "../src/presentation/events.ts"
+import { LiveProductRenderer } from "../src/tui/live-renderer.ts"
 import { ProductTuiShell } from "../src/tui/shell.ts"
 
 class TtyInput extends PassThrough {
@@ -18,6 +19,23 @@ class TtyOutput extends Writable {
     this.text += chunk.toString()
     callback()
   }
+}
+
+class BackpressuredTtyOutput extends Writable {
+  isTTY = true
+  columns = 80
+  rows = 24
+  text = ""
+  readonly callbacks: Array<(error?: Error | null) => void> = []
+
+  constructor() { super({ highWaterMark: 16 }) }
+
+  override _write(chunk: Buffer | string, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
+    this.text += chunk.toString()
+    this.callbacks.push(callback)
+  }
+
+  release(): void { this.callbacks.shift()?.() }
 }
 
 function events(): ZyraUiEvent[] {
@@ -177,5 +195,73 @@ describe("product TUI shell", () => {
     expect(stdin.raw).toBe(false)
     expect(stdin.isPaused()).toBe(true)
     shell.close()
+  })
+
+  test("preserves fragmented Unicode input during high-frequency event and resize redraws", async () => {
+    const stdin = new TtyInput()
+    const output = new TtyOutput()
+    const shell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    shell.start()
+    const reading = shell.read(false)
+    const expected = "中文输入 é 👨‍👩‍👧‍👦 — 异步重绘不丢字"
+    const bytes = Buffer.from(expected, "utf8")
+    const base = events()[0]!
+    let eventSequence = 0
+    for (let offset = 0; offset < bytes.length; offset += 1) {
+      for (let burst = 0; burst < 100; burst += 1) {
+        eventSequence += 1
+        shell.update([
+          base,
+          {
+            schema: ZYRA_UI_EVENT_SCHEMA,
+            eventId: `async-${eventSequence}`,
+            type: "activity.updated",
+            activityId: "async-redraw",
+            label: "高频后台事件",
+            summary: `event ${eventSequence}`,
+          },
+        ])
+        if (eventSequence % 37 === 0) {
+          output.columns = 60 + (eventSequence % 141)
+          output.rows = 18 + (eventSequence % 43)
+          output.emit("resize")
+        }
+      }
+      stdin.write(bytes.subarray(offset, offset + 1))
+    }
+    stdin.write("\r")
+
+    await expect(reading).resolves.toEqual({ kind: "submit", text: expected, queue: false })
+    await Promise.resolve()
+    expect(shell.renderDiagnostics.requested).toBeGreaterThan(5_000)
+    expect(shell.renderDiagnostics.coalesced).toBeGreaterThan(4_000)
+    expect(shell.renderDiagnostics.writes).toBeLessThan(500)
+    expect(output.text).not.toContain("�")
+    shell.close()
+  })
+
+  test("coalesces redraws while the terminal output applies backpressure", async () => {
+    const output = new BackpressuredTtyOutput()
+    let revision = 0
+    const renderer = new LiveProductRenderer(output, () => `frame ${revision}\n${"x".repeat(80)}\n`)
+    renderer.start()
+    for (revision = 1; revision <= 10_000; revision += 1) renderer.render()
+
+    expect(renderer.diagnostics).toMatchObject({
+      requested: 10_001,
+      snapshots: 1,
+      writes: 1,
+      backpressureCount: 1,
+    })
+    expect(renderer.diagnostics.coalesced).toBeGreaterThan(9_000)
+
+    revision = 10_001
+    output.release()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(renderer.diagnostics.snapshots).toBe(2)
+    expect(renderer.diagnostics.writes).toBe(2)
+    expect(output.text).toContain("frame 10001")
+    renderer.close()
+    output.release()
   })
 })
