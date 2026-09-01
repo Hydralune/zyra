@@ -4196,6 +4196,9 @@ function semanticVerificationScope(value: string): string {
   if (packageScript) {
     return `shell:${packageScript[1]}:${packageScript[2]}`;
   }
+  if (/\bnode(?:\.exe)?\s+[^;&|]*--test(?:\s|=|$)/iu.test(value)) {
+    return "shell:node:test";
+  }
   return "";
 }
 
@@ -4218,6 +4221,7 @@ function isClearlyVerificationDrivingShellCommand(value: string): boolean {
     if (/\b(?:npm|pnpm|yarn|bun)(?:\.cmd|\.exe)?\s+(?:test|check|lint|build|typecheck)\b/i.test(segment)) return true;
     if (/\b(?:npm|pnpm|yarn|bun)(?:\.cmd|\.exe)?\s+run\s+(?:test|check|lint|build|typecheck|verify|validate|smoke|e2e|integration)\b/i.test(segment)) return true;
     if (/\bnpx(?:\.cmd|\.exe)?\s+(?:tsc|eslint|jest|vitest|playwright|mocha|ava)\b/i.test(segment)) return true;
+    if (/\bnode(?:\.exe)?\s+[^;&|]*--test(?:\s|=|$)/i.test(segment)) return true;
     if (/\btsc\b(?:\s|$)/i.test(segment)) return true;
     if (/\bcargo\s+(?:test|check|clippy|build)\b/i.test(segment)) return true;
     if (/\bgo\s+test\b/i.test(segment)) return true;

@@ -6602,6 +6602,12 @@ test("missing selected verification runners are invocation failures but product 
   });
   assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, []);
 
+  observe("gateway-spawn-failure", {
+    stderr: "[WinError 2] The system cannot find the file specified.",
+    termination: "failed_to_start",
+  });
+  assert.deepEqual(progressive.snapshot().unresolvedVerificationScopes, []);
+
   observe("missing-product-import", {
     stderr: "ModuleNotFoundError: No module named 'release_domain'",
     return_code: 1,
@@ -7432,6 +7438,8 @@ test("pre-delivery inspection classifier blocks reads but permits delivery and v
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("npm.cmd", ["test"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("pnpm.cmd", ["run", "typecheck"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("npx.cmd", ["vitest", "run"])), true);
+  assert.equal(isClearlyVerificationDrivingTool(shell("node --test")), true);
+  assert.equal(isClearlyVerificationDrivingTool(structuredShell("node.exe", ["--test", "test"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["tools/afctl.py", "simulate"])), true);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["-c", "import json; print(json.load(open('submission/manifest.json')))"])), false);
   assert.equal(isClearlyVerificationDrivingTool(structuredShell("python", ["-c", "print('-m pytest')"])), false);
@@ -7471,6 +7479,7 @@ test("verification scopes remain stable across diagnostic wrappers", () => {
   assert.equal(scope("python tools/afctl.py simulate > /tmp/sim.log"), "shell:afctl:simulate");
   assert.equal(scope("npm run test -- --runInBand"), "shell:npm:test");
   assert.equal(scope("npm.cmd test"), "shell:npm:test");
+  assert.equal(scope("node --test"), "shell:node:test");
   assert.equal(
     verificationScopeForTool({
       tool_name: "shell",

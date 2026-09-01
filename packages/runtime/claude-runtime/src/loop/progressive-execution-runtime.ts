@@ -1350,7 +1350,9 @@ function isRetryableVerificationInvocationFailure(
   const terminationKind = String(
     response.metadata.termination_kind
     ?? response.metadata.process_termination_kind
+    ?? response.metadata.termination
     ?? response.output.termination_kind
+    ?? response.output.termination
     ?? response.output.status
     ?? response.output.code
     ?? "",
