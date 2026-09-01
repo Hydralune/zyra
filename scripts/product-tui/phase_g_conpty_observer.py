@@ -407,6 +407,10 @@ def _attach_cycle(
             # loop's explicit idle handoff so the read-only slash command is
             # never written while composer input is still detached.
             _wait_for(capture, "本轮已收敛。继续输入可在同一会话发起下一轮", timeout)
+            # The renderer can flush that notice just ahead of the asynchronous
+            # composer read binding. Give the input owner one bounded scheduling
+            # window before injecting the inspection command.
+            time.sleep(0.5)
             _type_command(process, inspection_command)
             if inspection_markers:
                 _wait_for(capture, inspection_markers[0], timeout)
