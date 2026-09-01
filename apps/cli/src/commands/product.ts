@@ -221,6 +221,42 @@ function agentLines(view: ProductTuiShell["view"]): string[] {
   return view.agents.map((agent, index) => `${index + 1}. ${agent.label} · ${agent.status}${agent.summary ? ` · ${agent.summary}` : ""} · ${agent.agentId}`)
 }
 
+export function agentContextLines(view: ProductTuiShell["view"], agentId: string): string[] {
+  const agent = view.agents.find((item) => item.agentId === agentId)
+  if (!agent) return [`未找到协作代理 ${agentId}。`]
+  const assigned = view.plan?.steps.filter((step) => step.assignedAgentId === agent.agentId) ?? []
+  const lines = [
+    `${agent.label} · ${agent.status}`,
+    `identity · ${agent.agentId}`,
+    ...(agent.summary ? [`summary · ${agent.summary}`] : []),
+    ...(agent.impact ? [`impact · ${agent.impact}`] : []),
+    ...(agent.code ? [`code · ${agent.code}`] : []),
+    ...(agent.retryable !== undefined ? [`retryable · ${agent.retryable ? "yes" : "no"}`] : []),
+    ...(agent.recovery ? [`recovery · ${agent.recovery}`] : []),
+    "",
+    `assigned plan steps · ${assigned.length}`,
+    ...assigned.map((step) => `${step.status === "completed" ? "✓" : step.status === "running" ? "◌" : step.status === "failed" ? "!" : "○"} ${step.label} · ${step.status} · ${step.stepId}`),
+  ]
+  return lines
+}
+
+async function openAgentBrowser(input: { shell: ProductTuiShell; requestedId?: string }): Promise<void> {
+  const agents = input.shell.view.agents
+  if (!agents.length) {
+    await input.shell.page("协作代理", agentLines(input.shell.view))
+    return
+  }
+  const direct = input.requestedId?.trim()
+  const selectedId = direct || (await input.shell.pick("协作代理", agents.map((agent) => ({
+    id: agent.agentId,
+    label: `${agent.status === "failed" ? "!" : ["completed", "succeeded"].includes(agent.status) ? "✓" : "◌"} ${agent.label}`,
+    detail: `${agent.status}${agent.summary ? ` · ${agent.summary}` : ""}`,
+    keywords: [agent.agentId, agent.label, agent.status, agent.summary ?? "", agent.code ?? ""],
+  })), "输入名称/identity 过滤 · Enter 查看上下文"))?.id
+  if (!selectedId) return
+  await input.shell.page("代理上下文", agentContextLines(input.shell.view, selectedId))
+}
+
 export function productWorkflowGoal(name: "review" | "init", focus = ""): string {
   const selected = focus.trim()
   if (name === "review") {
@@ -457,8 +493,9 @@ async function runProductControlLoop(input: {
         input.shell.notice(formatExecutionMode(await input.taskStatus()))
         continue
       }
-      if (line === "/agents") {
-        await input.shell.page("协作代理", agentLines(input.shell.view))
+      if (line === "/agents" || line.startsWith("/agents ") || line === "/subagents" || line.startsWith("/subagents ")) {
+        const prefix = line.startsWith("/subagents") ? "/subagents" : "/agents"
+        await openAgentBrowser({ shell: input.shell, requestedId: line.slice(prefix.length).trim() })
         continue
       }
       if (line === "/permissions mode") {
@@ -1314,7 +1351,7 @@ async function runProductSession(input: {
             input.shell.notice(formatExecutionMode(undefined, executionMode))
             continue
           case "agents": {
-            await input.shell.page("协作代理", agentLines(input.shell.view))
+            await openAgentBrowser({ shell: input.shell, requestedId: command.args })
             continue
           }
           case "permissions": {

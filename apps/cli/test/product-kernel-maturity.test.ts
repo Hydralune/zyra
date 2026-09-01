@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { TaskMutationProjection, TaskProjection } from "@zyra/typed-api-client"
 import type { CliApi, IngressPage } from "../src/api.ts"
-import { executeProductInteractive, productWorkflowGoal } from "../src/commands/product.ts"
+import { agentContextLines, executeProductInteractive, productWorkflowGoal } from "../src/commands/product.ts"
 import { CliExitCode } from "../src/contracts.ts"
 import { PromptDraft } from "../src/input/draft.ts"
 import { ProductSessionState } from "../src/product/state/session-state.ts"
@@ -165,6 +165,56 @@ describe("product state kernel", () => {
       permissions: [{ requestId: "permission" }],
     })
     expect(renderProductState(state.snapshot(), { width: 100, height: 40, workspace: "G:\\agent-zoo\\zyra" })).toContain("stdout 可查看")
+  })
+
+  test("aggregates 100 agents while preserving selectable agent context", () => {
+    const state = new ProductSessionState()
+    const events: ZyraUiEvent[] = [
+      { schema: ZYRA_UI_EVENT_SCHEMA, eventId: "session-agents", type: "session.started", sessionId: "session-agents", taskId: "task-agents" },
+      {
+        schema: ZYRA_UI_EVENT_SCHEMA,
+        eventId: "plan-agents",
+        type: "plan.updated",
+        plan: {
+          schema: "zyra.ui-plan/v1",
+          revision: 9,
+          revisionSource: "canonical_graph",
+          graphId: "graph:task-agents",
+          changes: [],
+          steps: [{
+            stepId: "node-agent-099",
+            label: "验证最终交付",
+            status: "running",
+            dependsOn: [],
+            assignedAgentId: "agent-099",
+          }],
+        },
+      },
+      ...Array.from({ length: 100 }, (_, index): ZyraUiEvent => ({
+        schema: ZYRA_UI_EVENT_SCHEMA,
+        eventId: `agent-${index}`,
+        type: "subagent.updated",
+        agentId: `agent-${String(index).padStart(3, "0")}`,
+        label: `Worker ${String(index).padStart(3, "0")}`,
+        status: index === 98 ? "failed" : index === 99 ? "running" : "completed",
+        summary: `bounded summary ${index}`,
+        ...(index === 98 ? { impact: "local" as const, code: "worker_timeout", retryable: true, recovery: "replacement dispatched" } : {}),
+      })),
+    ]
+    state.reconcile(events)
+    const view = state.snapshot()
+    expect(view.agents).toHaveLength(100)
+    expect(renderProductState(view, { width: 120, height: 60, workspace: "G:\\agent-zoo\\zyra" })).toContain("100 总计")
+    expect(agentContextLines(view, "agent-099")).toEqual(expect.arrayContaining([
+      "identity · agent-099",
+      "assigned plan steps · 1",
+      expect.stringContaining("验证最终交付 · running"),
+    ]))
+    expect(agentContextLines(view, "agent-098")).toEqual(expect.arrayContaining([
+      "impact · local",
+      "code · worker_timeout",
+      "recovery · replacement dispatched",
+    ]))
   })
 })
 
