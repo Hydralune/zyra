@@ -662,13 +662,14 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
       taskId: task.taskId,
       message: "任务已取消。",
     })
-  } else if (task.terminal || task.status === "failed") {
+  } else if (task.terminal || ["failed", "blocked", "killed"].includes(task.status)) {
     push({
       schema: ZYRA_UI_EVENT_SCHEMA,
       eventId: `ui:task:${task.taskId}:failed`,
       occurredAt: task.updatedAt,
       type: "task.failed",
       taskId: task.taskId,
+      status: task.status === "blocked" || task.status === "killed" ? task.status : "failed",
       message: taskFailure(task),
       recovery: `可运行 zyra resume ${task.taskId} 查看可恢复状态。`,
     })

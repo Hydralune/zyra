@@ -178,6 +178,16 @@ def main() -> int:
         try:
             _wait_for(capture, ">_ Zyra", arguments.timeout)
             composer_ready_ms = round((time.monotonic() - started) * 1_000, 3)
+            _type_command(process, "/model")
+            _wait_for(capture, "选择后续任务模型", arguments.timeout)
+            process.write(b"\r")  # type: ignore[attr-defined]
+            try:
+                _wait_for(capture, "选择推理强度", 2.0)
+            except TimeoutError:
+                pass
+            else:
+                process.write(b"\r")  # type: ignore[attr-defined]
+            _wait_for(capture, "作用域 · 后续新 task", arguments.timeout)
             submitted = time.monotonic()
             _type_command(process, goal)
             created = _wait_for_new_task(arguments.base_url, previous_tasks, arguments.timeout)
@@ -204,6 +214,7 @@ def main() -> int:
                 "goal_sha256": hashlib.sha256(goal_bytes).hexdigest(),
                 "canonical_before_detach": {"status": before.get("status"), "terminal": before.get("terminal")},
                 "canonical_after_detach": {"status": after.get("status"), "terminal": after.get("terminal")},
+                "explicit_model_selection": True,
                 "tui": {
                     "composer_ready_ms": composer_ready_ms,
                     "submit_to_canonical_ms": submit_to_canonical_ms,

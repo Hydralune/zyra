@@ -112,6 +112,8 @@ function localFailureStatus(taskStatus: ProductViewState["taskStatus"]): string 
   if (taskStatus === "running") return "局部失败 · 任务仍在运行"
   if (taskStatus === "completed") return "局部失败 · 任务已完成"
   if (taskStatus === "failed") return "局部失败 · 任务最终失败"
+  if (taskStatus === "blocked") return "局部失败 · 任务已阻塞"
+  if (taskStatus === "killed") return "局部失败 · 任务已终止"
   if (taskStatus === "cancelled") return "局部失败 · 任务已取消"
   return "局部失败"
 }
@@ -246,7 +248,7 @@ export function renderProductState(state: ProductViewState, options: ProductRend
 
   if (state.taskMessage) {
     lines.push("")
-    lines.push(...prefixed(state.taskMessage, state.taskStatus === "failed" ? "! " : "• ", width))
+    lines.push(...prefixed(state.taskMessage, ["failed", "blocked", "killed"].includes(state.taskStatus) ? "! " : "• ", width))
   }
   if (state.connection === "reconnecting") {
     lines.push("")
@@ -270,6 +272,10 @@ export function renderProductState(state: ProductViewState, options: ProductRend
       ? "任务已完成 · 可继续输入新任务"
       : state.taskStatus === "failed"
         ? "任务失败 · /resume 或输入新任务"
+        : state.taskStatus === "blocked"
+          ? "任务已阻塞 · /resume 或输入新任务"
+          : state.taskStatus === "killed"
+            ? "任务已终止 · 输入新任务"
         : "/help 查看命令"
   const status = `${leadingStatus} · ${connectionLabel(state)}${state.taskId ? ` · ${state.taskId}` : ""}`
   lines.push(clipDisplay(`  ${status}`, width))

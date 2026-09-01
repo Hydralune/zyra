@@ -519,6 +519,28 @@ describe("stateful product projection recovery", () => {
     expect(snapshot.events.some((event) => event.type === "task.failed")).toBe(false)
   })
 
+  test("preserves canonical blocked state when the API omits its terminal flag", () => {
+    const blocked: TaskProjection = {
+      ...runningTask,
+      status: "blocked",
+      terminal: false,
+      active: false,
+      metadata: { failure_reason: "No provider route satisfied the canonical constraints." },
+    }
+    const projection = new ProductProjection({ task: runningTask, generation: 1 })
+    projection.connected()
+    projection.refreshTask(blocked)
+    projection.complete()
+    const events = projection.snapshot().events
+    const state = reduceProductEvents(events)
+    const rendered = renderProductSnapshot(events, { width: 100, workspace: "G:\\agent-zoo\\zyra" })
+
+    expect(events).toContainEqual(expect.objectContaining({ type: "task.failed", status: "blocked" }))
+    expect(state.taskStatus).toBe("blocked")
+    expect(rendered).toContain("任务已阻塞 · /resume 或输入新任务")
+    expect(rendered).not.toContain("task_product · running")
+  })
+
   test("rebuilds canonical permission state without duplicating requests", () => {
     const projection = new ProductProjection({ task: runningTask, generation: 1 })
     projection.permissions([
