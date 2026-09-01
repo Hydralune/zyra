@@ -160,7 +160,7 @@ def _request_status_until(
                 capture,
                 _terminal_input_marker(expected_status),
                 position,
-                min(2.0, max(0.1, deadline - time.monotonic())),
+                max(0.1, deadline - time.monotonic()),
             )
             return
 
