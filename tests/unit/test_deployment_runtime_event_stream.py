@@ -195,6 +195,81 @@ def test_node_runtime_event_queue_rejects_cross_task_binding(tmp_path: Path) -> 
         )
 
 
+def test_node_runtime_event_queue_ignores_bound_child_presentation(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path)
+    workload = _workload()
+    payload = _presentation_payload(
+        workload,
+        phase="assistant_text_delta",
+        sequence=1,
+        content="child-private-stream",
+    )
+    payload.update(
+        {
+            "task_id": f"{workload.task_id}:skill:codebase-analysis:child",
+            "session_id": "skill-session-child",
+            "runtime_lineage": {
+                "schema": "zyra.runtime-lineage/v1",
+                "relation": "skill",
+                "relation_id": "skill-call-child",
+                "parent_run_id": workload.run_id,
+                "parent_task_id": workload.task_id,
+                "parent_session_id": "session-runtime-stream",
+                "parent_worker_request_id": "worker-request-runtime-stream",
+            },
+        }
+    )
+
+    runtime._append_runtime_event(
+        attempt_id="attempt-runtime-stream",
+        workload=workload,
+        payload=payload,
+        transport_sequence=1,
+    )
+
+    assert runtime.runtime_event_page(
+        attempt_id="attempt-runtime-stream",
+        after_ordinal=0,
+    )["events"] == []
+
+
+def test_node_runtime_event_queue_rejects_forged_child_lineage(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path)
+    workload = _workload()
+    payload = _presentation_payload(
+        workload,
+        phase="assistant_text_delta",
+        sequence=1,
+        content="forged-child",
+    )
+    payload.update(
+        {
+            "task_id": "task-foreign",
+            "runtime_lineage": {
+                "schema": "zyra.runtime-lineage/v1",
+                "relation": "skill",
+                "relation_id": "skill-call-forged",
+                "parent_run_id": workload.run_id,
+                "parent_task_id": "task-foreign-parent",
+                "parent_session_id": "session-runtime-stream",
+                "parent_worker_request_id": "worker-request-runtime-stream",
+            },
+        }
+    )
+
+    with pytest.raises(ValueError, match="binding is invalid"):
+        runtime._append_runtime_event(
+            attempt_id="attempt-runtime-stream",
+            workload=workload,
+            payload=payload,
+            transport_sequence=1,
+        )
+
+
 class _ConcurrentRuntimeEventClient:
     def __init__(self, workload: Workload) -> None:
         self.workload = workload

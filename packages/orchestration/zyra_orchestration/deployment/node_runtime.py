@@ -701,10 +701,33 @@ class DeploymentNodeRuntime:
         phase = str(payload.get("phase") or "")
         if phase not in _NODE_RUNTIME_EVENT_PHASES:
             return
+        payload_run_id = str(payload.get("run_id") or "")
+        payload_task_id = str(payload.get("task_id") or "")
+        if payload_run_id != workload.run_id or payload_task_id != workload.task_id:
+            lineage = payload.get("runtime_lineage")
+            bound_child = bool(
+                payload_run_id
+                and payload_task_id
+                and payload_task_id != workload.task_id
+                and isinstance(lineage, Mapping)
+                and lineage.get("schema") == "zyra.runtime-lineage/v1"
+                and lineage.get("relation") in {"agent", "skill"}
+                and str(lineage.get("relation_id") or "")
+                and str(lineage.get("parent_run_id") or "") == workload.run_id
+                and str(lineage.get("parent_task_id") or "") == workload.task_id
+                and str(lineage.get("parent_session_id") or "")
+                and str(lineage.get("parent_worker_request_id") or "")
+            )
+            if bound_child:
+                # A nested agent or skill owns its own assistant stream.  The
+                # parent product TUI must neither publish that child text as
+                # the parent's answer nor fail the whole physical execution.
+                # Its canonical agent/skill lifecycle remains available on
+                # the ordinary runtime-event path.
+                return
+            raise ValueError("node runtime assistant event binding is invalid")
         if (
-            str(payload.get("run_id") or "") != workload.run_id
-            or str(payload.get("task_id") or "") != workload.task_id
-            or payload.get("schema") != "zyra.provider-assistant-presentation/v1"
+            payload.get("schema") != "zyra.provider-assistant-presentation/v1"
             or payload.get("delta_kind") != "assistant_text"
         ):
             raise ValueError("node runtime assistant event binding is invalid")
