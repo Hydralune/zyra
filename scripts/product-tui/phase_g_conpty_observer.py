@@ -46,6 +46,16 @@ class RollingCapture:
         with self._lock:
             return bytes(self._tail)
 
+    def position(self) -> int:
+        with self._lock:
+            return self.total_bytes
+
+    def tail_since(self, position: int) -> bytes:
+        with self._lock:
+            first_retained_position = self.total_bytes - len(self._tail)
+            offset = max(0, position - first_retained_position)
+            return bytes(self._tail[offset:])
+
 
 @dataclass(frozen=True, slots=True)
 class AttachResult:
@@ -84,6 +94,10 @@ def _visible(capture: RollingCapture) -> str:
     return ANSI.sub(b"", capture.tail()).decode("utf-8", "replace")
 
 
+def _visible_since(capture: RollingCapture, position: int) -> str:
+    return ANSI.sub(b"", capture.tail_since(position)).decode("utf-8", "replace")
+
+
 def _wait_for(capture: RollingCapture, marker: str, timeout: float) -> None:
     deadline = time.monotonic() + timeout
     while marker not in _visible(capture):
@@ -92,17 +106,24 @@ def _wait_for(capture: RollingCapture, marker: str, timeout: float) -> None:
         time.sleep(0.02)
 
 
-def _wait_for_reported_status(capture: RollingCapture, task_id: str, timeout: float) -> str:
+def _wait_for_reported_status(
+    capture: RollingCapture,
+    task_id: str,
+    timeout: float,
+    *,
+    since: int | None = None,
+) -> str:
     pattern = re.compile(
         rf"task {re.escape(task_id)} · (pending|running|paused|completed|failed|blocked|cancelled|killed|interrupted)"
     )
     deadline = time.monotonic() + timeout
     while True:
-        matches = list(pattern.finditer(_visible(capture)))
+        visible = _visible(capture) if since is None else _visible_since(capture, since)
+        matches = list(pattern.finditer(visible))
         if matches:
             return matches[-1].group(1)
         if time.monotonic() >= deadline:
-            raise TimeoutError(f"missing canonical status notice:\n{_visible(capture)[-2_000:]}")
+            raise TimeoutError(f"missing fresh canonical status notice:\n{visible[-2_000:]}")
         time.sleep(0.02)
 
 
@@ -120,13 +141,34 @@ def _request_status_until(
         if time.monotonic() >= deadline:
             marker = f"task {task_id} · {expected_status}"
             raise TimeoutError(f"missing latest TUI marker {marker!r}:\n{_visible(capture)[-2_000:]}")
+        position = capture.position()
         _type_command(process, "/status")
         # A status notice is painted just before the next composer read.  Give
-        # that synchronous hand-off time to bind input, then inspect the latest
-        # status rather than accepting a matching line from an older repaint.
-        time.sleep(0.75)
-        if _wait_for_reported_status(capture, task_id, min(1.0, max(0.1, deadline - time.monotonic()))) == expected_status:
+        # that synchronous hand-off time to bind input, then require both the
+        # status and ready footer from bytes emitted after this request.  A
+        # matching line retained from startup must never authorize /exit.
+        remaining = max(0.1, deadline - time.monotonic())
+        if _wait_for_reported_status(
+            capture,
+            task_id,
+            min(2.0, remaining),
+            since=position,
+        ) == expected_status:
+            _wait_for_since(
+                capture,
+                _terminal_input_marker(expected_status),
+                position,
+                min(2.0, max(0.1, deadline - time.monotonic())),
+            )
             return
+
+
+def _wait_for_since(capture: RollingCapture, marker: str, position: int, timeout: float) -> None:
+    deadline = time.monotonic() + timeout
+    while marker not in _visible_since(capture, position):
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"missing fresh TUI marker {marker!r}:\n{_visible_since(capture, position)[-2_000:]}")
+        time.sleep(0.02)
 
 
 def _wait_for_control_receipt(capture: RollingCapture, command_name: str, timeout: float) -> str:
@@ -339,9 +381,14 @@ def _attach_cycle(
             command_name = _receipt_command_name(control_command)
             _type_command(process, control_command)
             control_receipt = _wait_for_control_receipt(capture, command_name, timeout)
+        status_position = capture.position()
         _type_command(process, "/status")
-        time.sleep(0.75)
-        reported_status = _wait_for_reported_status(capture, task_id, timeout)
+        reported_status = _wait_for_reported_status(
+            capture,
+            task_id,
+            timeout,
+            since=status_position,
+        )
         for index in range(resize_count):
             process.resize(18 + (index % 43), 60 + (index % 141))
             if index % 25 == 0:
@@ -351,9 +398,6 @@ def _attach_cycle(
         canonical_status = str(canonical.get("status") or "unknown")
         if canonical_status in TERMINAL_STATUSES:
             _request_status_until(process, capture, task_id, canonical_status, timeout)
-            # Product rendering exposes terminal input readiness only after
-            # the idle composer's listeners are actually bound.
-            _wait_for(capture, _terminal_input_marker(canonical_status), timeout)
         detach_started = time.monotonic()
         _type_command(process, "/exit")
         exit_code = process.wait(timeout=timeout)
