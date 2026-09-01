@@ -145,6 +145,21 @@ def _reader(process: object, capture: _Capture, completed: threading.Event) -> N
         completed.set()
 
 
+def _submit_command(process: object, command: str) -> None:
+    """Type through ConPTY without turning a command into a paste burst."""
+    for character in command:
+        process.write(character.encode("utf-8"))  # type: ignore[attr-defined]
+        time.sleep(0.02)
+    time.sleep(0.15)
+    # The first Enter may close the Windows paste-safety window and another
+    # may accept a completion. Empty Enters after submission are harmless.
+    for _attempt in range(3):
+        if process.poll() is not None:  # type: ignore[attr-defined]
+            return
+        process.write(b"\r")  # type: ignore[attr-defined]
+        time.sleep(0.15)
+
+
 def _wait_for(capture: _Capture, marker: bytes, timeout: float) -> None:
     deadline = time.monotonic() + timeout
     while marker not in capture.bytes():
@@ -229,7 +244,7 @@ def test_product_tui_recovers_across_real_managed_daemon_restart(tmp_path: Path)
         )
         reader.start()
         _wait_for(capture, b">_ Zyra", 30)
-        observer.write(b"/status\r")
+        _submit_command(observer, "/status")
         _wait_for(capture, b"connection connected", 10)
         time.sleep(1)
 
@@ -269,10 +284,10 @@ def test_product_tui_recovers_across_real_managed_daemon_restart(tmp_path: Path)
 
         status_deadline = time.monotonic() + 30
         while b"connection connected" not in capture.bytes()[reconnect_offset:] and time.monotonic() < status_deadline:
-            observer.write(b"/status\r")
+            _submit_command(observer, "/status")
             time.sleep(0.25)
         _wait_for_after(capture, b"connection connected", reconnect_offset, 2)
-        observer.write(b"/cancel daemon restart recovery gate\r")
+        _submit_command(observer, "/cancel daemon restart recovery gate")
         exit_code = observer.wait(timeout=30)
         reader_completed.wait(timeout=3)
         visible = ANSI.sub(b"", capture.bytes()).decode("utf-8", "replace")
@@ -284,7 +299,10 @@ def test_product_tui_recovers_across_real_managed_daemon_restart(tmp_path: Path)
         assert outcome["status"] == "cancelled"
         assert outcome["taskId"] == task_id
         assert outcome["result"]["revision"].startswith("2:")
-        assert b"\x1b[?2004h" in capture.bytes()
+        # Windows product mode deliberately uses bounded paste-burst
+        # detection so an uncatchable TerminateProcess cannot strand the
+        # caller's terminal in bracketed-paste mode.
+        assert b"\x1b[?2004h" not in capture.bytes()
         assert b"\x1b[?2004l" in capture.bytes()
     finally:
         if observer is not None:

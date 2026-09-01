@@ -9,6 +9,7 @@ from queue import Empty, Queue
 import subprocess
 import sys
 import threading
+import time
 from http.server import ThreadingHTTPServer
 from typing import Any, Iterator
 
@@ -94,6 +95,26 @@ def _next_line(lines: Queue[str], label: str, timeout: float) -> str:
         return lines.get(timeout=timeout)
     except Empty as error:
         raise AssertionError(f"Timed out waiting for {label}.") from error
+
+
+def _next_process_line(
+    lines: Queue[str],
+    process: subprocess.Popen[str],
+    label: str,
+    timeout: float,
+) -> str:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            return lines.get(timeout=min(0.1, max(0.0, deadline - time.monotonic())))
+        except Empty:
+            if process.poll() is not None:
+                assert process.stderr is not None
+                stderr = process.stderr.read()
+                raise AssertionError(
+                    f"Probe exited with code {process.returncode} before {label}:\n{stderr}"
+                )
+    raise AssertionError(f"Timed out waiting for {label}; probe is still running.")
 
 
 def test_web_consumes_live_product_text_and_reconciles_cli_canonical_final(
@@ -197,7 +218,7 @@ def test_web_consumes_live_product_text_and_reconciles_cli_canonical_final(
         )
         reader.start()
         try:
-            assert _next_line(lines, "Web ingress readiness", 30) == "READY"
+            assert _next_process_line(lines, process, "Web ingress readiness", 30) == "READY"
             ingress.admit_query(sequence=0)
             ingress.emit_payload(
                 {
@@ -254,7 +275,7 @@ def test_web_consumes_live_product_text_and_reconciles_cli_canonical_final(
                 }
             )
 
-            result = json.loads(_next_line(lines, "cross-view result", 60))
+            result = json.loads(_next_process_line(lines, process, "cross-view result", 60))
             return_code = process.wait(timeout=30)
             stderr = process.stderr.read()
             assert return_code == 0, stderr
