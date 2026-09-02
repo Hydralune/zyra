@@ -62,7 +62,21 @@ Smoke harness 同步完成产品化修正：不再要求从用户界面抓取内
 - 在实际 Zyra 源码仓库中让外部 provider 读取/修改源码：需要明确第三方数据共享授权；当前仅完成该目录的零上传和 executor 绑定证据。
 - Windows Terminal 人工 IME 候选窗验收。
 - 两名未参与实现者的 Codex/Zyra 同类任务盲测。
-- 当前提交的隔离 clean-install/release archive；必须在实现提交固定后用精确 commit 生成，不能沿用历史候选结果。
+- 当前提交的隔离 clean-install：精确归档已通过，依赖安装被外部 tarball 完整性错误阻断，详见下节。
 - 官方 Codex 登录后的实机参考序列，以及 Linux/macOS 实机兼容结果。
 
 以上项目不否定 Phase L 的机器实现，但在人工/发布门完成前仍不得宣称整份产品 TUI 达到 Codex 等价或最终发布状态。
+
+## 精确提交发布门
+
+实现提交为 `0bf913910a91f5f3fbb5da954a26677331b0048b`（`fix(cli): execute product tasks in the live workspace`）。发布流水线以该干净提交运行两次独立 Windows zip 构建：
+
+- release id：`product-tui-phase-l-20260902-0bf91391`
+- archive：`.tmp/product-tui-release-20260902-0bf91391/product-tui-phase-l-20260902-0bf91391.zip`
+- 两次归档字节完全一致；47,329,440 bytes / 4,908 files
+- archive SHA-256：`8264ebcb6b225da9abbd6f82302f8077444849f54c7940a5a6f2649a4eb72831`
+- pipeline digest：`ad73ed8eafc86d087341fabb0dcb3d79d4c5974764507038c45aa85530c96cef`
+- pipeline report SHA-256：`29bb3b6d77960335205b9c63a290c1a21912b73ece7cbf842194c24b61b2c308`
+- Python wheel：2,245 entries，SHA-256 `64cd3c8385fde5265530f09327808f1781c5fe187e1e02c3a2fb68b2ea941176`
+
+隔离 clean-install 使用上述同一归档和 commit，在新的系统临时 workspace、独立 Bun/Pip/UV cache 中运行。它在 300,733.816 ms 后于 `bun install --frozen-lockfile --ignore-scripts` 失败：`Integrity check failed for tarball: csstype`、`@types/react`，最终错误为 `IntegrityCheckFailed extracting tarball`。失败发生在源码 typecheck/build 和 daemon lifecycle 之前，没有 `ready=true` receipt；fallback 为 false。该结果与历史候选的外部 registry/cache 故障一致，不能记作源码通过，也不以无界重试或复用用户全局 cache 降低 cleanroom 门槛。

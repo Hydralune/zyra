@@ -2,9 +2,21 @@
 
 ## 判定
 
-当前产品体验审计修复提交 `e8db9b0cc5d2586de5bb2c9da292d8207eecbf74` 已通过实现级回归、真实 provider continuation、真实流式终态竞态复验和可重复 Windows 归档；当前源码的隔离 clean-install 尚未签字。它在全新 cleanroom 执行 `bun install --frozen-lockfile --ignore-scripts` 时被 registry/cache 返回的 `csstype` tarball 完整性错误阻断，发生在产品构建和生命周期启动之前。
+当前 Phase L 修复提交 `0bf913910a91f5f3fbb5da954a26677331b0048b` 已通过实现级回归、100,001 文件真实 provider 多轮本地执行、真实 daemon smoke、Windows ConPTY、性能门和可重复 Windows 归档；当前源码的隔离 clean-install 尚未签字。它在全新 cleanroom 执行 `bun install --frozen-lockfile --ignore-scripts` 时被 registry/cache 返回的 `csstype` 与 `@types/react` tarball 完整性错误阻断，发生在产品构建和生命周期启动之前。
 
-因此，本文下方 `fedd24e0` 和 `c0bde95b` 的 clean-install 成功记录只证明对应历史提交，不得外推到 `e8db9b0`。当前候选还需 clean-install、Windows Terminal 人工 IME 与两名外部用户盲测；Linux/macOS 与官方 Codex 认证后参考序列也继续明确标为未运行。
+因此，本文下方 `fedd24e0` 和 `c0bde95b` 的 clean-install 成功记录只证明对应历史提交，不得外推到 `0bf91391`。当前候选还需 clean-install、实际源码仓库在明确数据授权后的第三方 provider 复验、Windows Terminal 人工 IME 与两名外部用户盲测；Linux/macOS 与官方 Codex 认证后参考序列也继续明确标为未运行。
+
+## Phase L 本地执行候选（`0bf91391`）
+
+- CLI：200 pass / 959 expect；Python 定向契约与集成：70 passed；Web：320 pass / 1916 expect。
+- 全仓 typecheck、CodeWorker/CLI build、Web build 全部通过。
+- 真实 provider 多轮：`task_eeb8efc25302` / `run_fb8ed96468b1` 与 `task_217b05d1dbe8` / `run_691178310f5c` 在同一 canonical session、100,001 文件合成工作区中完成直接文件写入、回读与精确回答；两轮 workspace usage 均为 0 files / 0 bytes。
+- ConPTY：1,000 resize，startup 1473.784 ms，exit 268.944 ms；性能门：100,000 events / 10,000 messages，repaint P95 22.616 ms，RSS peak 165.516 MiB。
+- release id：`product-tui-phase-l-20260902-0bf91391`；两次独立 zip 字节一致，47,329,440 bytes / 4,908 files。
+- archive SHA-256：`8264ebcb6b225da9abbd6f82302f8077444849f54c7940a5a6f2649a4eb72831`；pipeline digest：`ad73ed8eafc86d087341fabb0dcb3d79d4c5974764507038c45aa85530c96cef`。
+- clean-install 在 300,733.816 ms 后失败于 fresh isolated cache 的 Bun tarball integrity；`csstype` 与 `@types/react` 均校验失败，没有执行后续 build/lifecycle，也没有 `ready=true` receipt。
+
+架构、真实 task 和完整测试命令见 `phase-l-local-executor-evidence-20260902.md`。
 
 ## 最终产品体验审计候选（`e8db9b0`）
 
