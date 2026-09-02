@@ -44,7 +44,7 @@
 1. 已实现的 `request_user_input` 需要由真实 provider 发起一次，并在真实 daemon restart 后完成同一请求回答与 tool continuation 归档。2026-09-02 的隔离实跑使用 built CLI 创建了 `task_336f783d2f79` / `run_2f25ced38810`，DeepSeek catalog、credential、route 与 dispatch 都真实建立；首个网络请求以 `provider_unavailable: Unable to connect. Is the computer able to access the url?` 失败，随后 circuit open，最终才表现为 `route_policy_rejected`。失败发生在模型响应/tool call 之前，属于当前执行环境外网限制，不能计为续跑通过，也不是本轮 user-input/TUI 路径失败。
 2. Windows Terminal 中文 IME 候选窗、组合态与 exact echo 需要人工执行现有 gate。
 3. 两名未参与实现者需要在没有开发者讲解的情况下完成 Codex/Zyra 同类任务。
-4. 本轮重构后的真实 daemon/provider 与 clean-install/release 门仍需重新归档。
+4. 本轮重构后的可重复 release 与隔离 clean-install 已重新归档通过；真实 daemon/provider continuation 仍受当前环境外网限制，不能由发布门代签。
 
 ## 本轮验证
 
@@ -59,3 +59,4 @@
 - 真实 built CLI：完成首次引导、`?` 帮助、`/status` 与 `/exit` 交互检查。由于代理沙箱不允许写用户 profile，首次引导持久化在该检查中显示了已脱敏的 EPERM；workspace-local state 的 ConPTY 门已通过，正常用户 PowerShell 不受这个代理沙箱限制。
 - `pytest tests -q` 全量尝试：使用 workspace-local `--basetemp` 后运行 75 分钟只到 68%，过程中已经出现失败，因套件未按 slow/long-run 隔离且 `-q` 重定向直到结束才给 traceback，本次主动中止；不计为通过，也不把这些无法归因的失败归到本功能。受改动路径的定向回归结果如上。
 - 真实 provider 外部回归：已启动隔离 daemon（不触碰用户的 8000 服务）和 built CLI，并确认真实 credential/catalog/route/dispatch；因当前环境不能连接 `api.deepseek.com`，未触发模型的 `request_user_input`，不计通过。隔离 CLI 与 daemon 已在审计结束后关闭。
+- 产品入口与发布：commit `c0bde95b005d656e0fe5f1c8d21eb317368ca243` 的 Node CLI 双构建一致（SHA-256 `ce630b5402b22b50e7e17b3da1d6e8acdd47de677fc0fc0032ca38aa48ab6365`）；Windows zip 双构建字节一致（47,303,323 bytes，SHA-256 `d075a5a6814dbc918c386b7519ac23bfe9018f707540743892897f525ceb8425`）。隔离 clean-install `ready=true`，完成 113 个哈希锁定 Python 依赖、frozen Bun install、typecheck/build、migration、产品生命周期、重启、卸载和端口释放；receipt 文件 SHA-256 `dfc8cb12c495e790c5ee771a855f41c28bffb620846a838a7212297103657b98`。

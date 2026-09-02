@@ -6,6 +6,19 @@
 
 这不等价于整份产品任务完成：Windows Terminal 人工 IME 候选窗仍未签字，因此 COMP-02、Phase F 和 Phase H 保持未完成。Linux/macOS 与官方 Codex 认证后参考序列也继续明确标为未运行。
 
+## 产品语法重构后复验（`c0bde95b`）
+
+Phase I/J 产品语法与结构化用户提问完成后，已在干净提交 `c0bde95b005d656e0fe5f1c8d21eb317368ca243` 上重新执行发布门，不沿用本页下方旧候选结果：
+
+- 产品入口双构建一致：`zyra.js` 988,282 bytes，SHA-256 `ce630b5402b22b50e7e17b3da1d6e8acdd47de677fc0fc0032ca38aa48ab6365`；Node shebang、命令面、JSONL、退出码、依赖闭包和 Windows entry probe 全部通过。
+- release id：`product-tui-candidate-20260902-c0bde95`；Windows zip 两次独立构建字节一致，47,303,323 bytes / 4,904 files，SHA-256 `d075a5a6814dbc918c386b7519ac23bfe9018f707540743892897f525ceb8425`，pipeline digest `3f964282d753ba346c077cca3d9e1ce90e058e89308f6023d1de9e46fb6ba862`。
+- 隔离 clean-install：`ready=true`，source commit 与 archive hash 精确匹配；安装 113 个哈希锁定 Python 依赖和 frozen Bun lockfile，完成全仓 typecheck、CodeWorker/CLI/Web build、v0→v1 migration、产品 lifecycle/restart、uninstall 与 5 个端口释放；workspace isolated，editable/link 与隐式用户 cache/state 依赖均为 0。
+- clean-install receipt：`.tmp/product-tui-clean-install-20260902-c0bde95.json`，duration 976,504.166 ms，文件 SHA-256 `dfc8cb12c495e790c5ee771a855f41c28bffb620846a838a7212297103657b98`。
+
+首次 clean-install 尝试被受限网络阻止访问 PyPI；获准联网重跑后，Bun 发现仓库本地 release cache 中两个 `csstype` 生成缓存项损坏。仅删除这两个已验证位于 `.tmp/bun-release-cache` 的可再生成目录后，第三次使用同一 commit 和同一 archive 成功。没有修改源码、lockfile 或用户全局缓存。
+
+此复验关闭了“重构后 release/clean-install”门，但不会替代真实 provider continuation、人工 Windows Terminal IME 或两名外部用户盲测。
+
 ## 当前源码回归
 
 | 门 | 结果 |

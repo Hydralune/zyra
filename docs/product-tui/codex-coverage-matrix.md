@@ -1,6 +1,6 @@
 # Codex → Zyra 产品 CLI / TUI 覆盖矩阵
 
-状态：工程 Foundation 与既有发布门已收口；Phase I/J 实现完成并处于最终回归，Phase K 外部验收尚未关闭
+状态：Phase I/J 实现与重构后发布回归已完成；Phase K 的真实 provider continuation、人工 IME 与外部用户验收尚未关闭
 参考源码：`G:\agent-zoo\codex`
 目标仓库：`G:\agent-zoo\zyra`
 审计日期：2026-09-01
@@ -100,9 +100,9 @@
 
 - Foundation 已演化出长期 session controller、有界增量产品状态、命令/overlay、Markdown、diff/tool/agent 浏览、权限范围、诊断和 PTY/性能 harness；组件、故障注入、8 小时性能门，以及 Phase G 真实失败/控制/恢复与 provider 成功文件工作流均已有证据。
 - Phase G 已关闭：真实 provider 产生 4 个 changed path、可见 diff、canonical 验证命令/退出码和 permission policy；daemon 重启后两次产品附着直接观察这些内容，并与稳定 canonical `completed` 对账。
-- “当前唯一 P0 阻塞是 Windows Terminal IME”的旧结论已经作废。现有发布归档只证明重构前候选版本的工程可安装性，不能覆盖重新打开后的 Phase I～K。
-- 当前工作树已经实现 Codex 产品语法重构：主界面不再是固定状态仪表盘，跨类型 history、真实 composer 光标、Codex 样式层、无框 picker/pager、自动权限与结构化问题抢占、原生 Markdown、canonical context footer、稳定命令结果历史、canonical `/rename`、回答 history cell 和同尺寸对照帧均已落地；仍需最终发布回归和外部用户验收。
-- 当前没有已知的静态 P0 功能缺口；尚未关闭的决定性门禁是已实现结构化问题的真实 provider/daemon-restart continuation、两名外部用户盲测、Windows Terminal 人工 IME，以及本轮重构后的 clean-install/release 回归。真实 provider 已进入 credential/catalog/route/dispatch，但当前环境连接 `api.deepseek.com` 失败，未到模型/tool call。因此当前仍不得称为 Codex 等价或最终成熟版本。
+- “当前唯一 P0 阻塞是 Windows Terminal IME”的旧结论已经作废。重构前候选的发布归档不能覆盖 Phase I～K，因此本轮已经在提交 `c0bde95b` 上重新完成可重复归档和隔离 clean-install。
+- 当前工作树已经实现 Codex 产品语法重构：主界面不再是固定状态仪表盘，跨类型 history、真实 composer 光标、Codex 样式层、无框 picker/pager、自动权限与结构化问题抢占、原生 Markdown、canonical context footer、稳定命令结果历史、canonical `/rename`、回答 history cell 和同尺寸对照帧均已落地；仍需真实 provider continuation、人工 IME 和外部用户验收。
+- 当前没有已知的静态 P0 功能缺口；本轮重构后的可重复归档和隔离 clean-install 已通过。尚未关闭的决定性门禁是已实现结构化问题的真实 provider/daemon-restart continuation、两名外部用户盲测和 Windows Terminal 人工 IME。真实 provider 已进入 credential/catalog/route/dispatch，但当前环境连接 `api.deepseek.com` 失败，未到模型/tool call。因此当前仍不得称为 Codex 等价或最终成熟版本。
 - typed API 已提供 session、task command、permission、diff、terminal、workspace、artifact 和版本化 event ingress。新增产品契约继续遵守 canonical owner，不从屏幕文本或 generic runtime summary 猜状态。
 - Codex 专属账户、插件、Apps、Pets 已在 ADR-019 逐项完成产品边界决定，不用一句批量排除代替审计。
 
