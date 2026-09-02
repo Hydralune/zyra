@@ -182,6 +182,85 @@ describe("product TUI shell", () => {
     shell.close()
   })
 
+  test("preempts a running composer for a structured question and preserves its draft", async () => {
+    const stdin = new TtyInput()
+    const output = new TtyOutput()
+    const shell = new ProductTuiShell({
+      stdin,
+      output,
+      workspace: "G:\\agent-zoo\\zyra",
+      bracketedPaste: false,
+    })
+    shell.start()
+    const reading = shell.read(true)
+    stdin.write("尚未提交的草稿")
+    shell.append([{
+      schema: ZYRA_UI_EVENT_SCHEMA,
+      eventId: "question-requested",
+      type: "user_input.requested",
+      request: {
+        requestId: "request_question_1",
+        status: "pending",
+        revision: 0,
+        questions: [{
+          id: "database",
+          header: "数据库",
+          question: "这个服务应该使用哪种数据库？",
+          options: [
+            { label: "SQLite", description: "保持零配置。" },
+            { label: "PostgreSQL", description: "支持共享部署。" },
+          ],
+        }],
+      },
+    }])
+    await expect(reading).resolves.toEqual({ kind: "question" })
+
+    const picking = shell.pick(
+      "数据库",
+      [
+        { id: "SQLite", label: "SQLite", detail: "保持零配置。" },
+        { id: "PostgreSQL", label: "PostgreSQL", detail: "支持共享部署。" },
+      ],
+      undefined,
+      "question",
+      ["这个服务应该使用哪种数据库？"],
+    )
+    stdin.write("\u001b[B\r")
+    await expect(picking).resolves.toMatchObject({ id: "PostgreSQL" })
+    shell.append([{
+      schema: ZYRA_UI_EVENT_SCHEMA,
+      eventId: "question-resolved",
+      type: "user_input.resolved",
+      request: {
+        requestId: "request_question_1",
+        status: "answered",
+        revision: 1,
+        questions: [{
+          id: "database",
+          header: "数据库",
+          question: "这个服务应该使用哪种数据库？",
+          options: [
+            { label: "SQLite", description: "保持零配置。" },
+            { label: "PostgreSQL", description: "支持共享部署。" },
+          ],
+        }],
+        answers: { database: { answers: ["PostgreSQL"] } },
+      },
+    }])
+
+    const resumed = shell.read(true)
+    stdin.write("\r")
+    await expect(resumed).resolves.toEqual({
+      kind: "submit",
+      text: "尚未提交的草稿",
+      queue: false,
+    })
+    expect(output.text).toContain("这个服务应该使用哪种数据库？")
+    expect(output.text).toContain("回答：PostgreSQL")
+    expect(output.text).toContain("尚未提交的草稿")
+    shell.close()
+  })
+
   test("keeps a bounded viewport and accepts PageUp/PageDown while editing", async () => {
     const stdin = new TtyInput()
     const output = new TtyOutput()

@@ -17,7 +17,7 @@ for package_path in [
         sys.path.insert(0, str(package_path))
 
 from zyra_core import EventRecord, EventType, PlanNodeStatus, create_task_state, now_iso
-from zyra_memory import SQLiteStore
+from zyra_memory import SQLiteStore, canonical_user_input_digest
 from zyra_orchestration import ensure_default_graph, run_task_graph
 
 
@@ -83,6 +83,73 @@ class SQLiteStoreTests(unittest.TestCase):
             self.assertEqual(tasks[0]["task_id"], state.task_id)
             self.assertEqual(tasks[0]["session_id"], "session:conversation-001")
             self.assertNotIn("checkpoint_json", tasks[0])
+
+    def test_user_input_request_survives_reopen_and_accepts_one_exact_answer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "zyra.sqlite3"
+            store = SQLiteStore(path)
+            state = create_task_state("Ask the user before continuing.")
+            store.save_checkpoint(state)
+            questions = [
+                {
+                    "header": "范围",
+                    "id": "scope",
+                    "question": "这次修改采用哪个范围？",
+                    "options": [
+                        {"label": "最小修改", "description": "只完成当前请求。"},
+                        {"label": "完整重构", "description": "同步整理相关模块。"},
+                    ],
+                }
+            ]
+            request = store.create_user_input_request(
+                request_id="request_exact",
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_call_id="toolcall_exact",
+                request_digest=canonical_user_input_digest(questions),
+                questions=questions,
+                created_at=now_iso(),
+            )
+
+            reopened = SQLiteStore(path)
+            pending = reopened.user_input_requests(
+                state.task_id,
+                include_terminal=False,
+            )
+            self.assertEqual([item["request_id"] for item in pending], ["request_exact"])
+            answers = {"scope": {"answers": ["完整重构"]}}
+            answered = reopened.answer_user_input_request(
+                task_id=state.task_id,
+                request_id=request["request_id"],
+                expected_revision=request["revision"],
+                answer_id="answer_exact",
+                answer_digest=canonical_user_input_digest(answers),
+                answers=answers,
+                responder="test",
+                answered_at=now_iso(),
+            )
+
+            self.assertEqual(answered["status"], "answered")
+            self.assertEqual(answered["revision"], 1)
+            self.assertEqual(answered["answers"], answers)
+            self.assertEqual(
+                reopened.answer_user_input_request(
+                    task_id=state.task_id,
+                    request_id=request["request_id"],
+                    expected_revision=request["revision"],
+                    answer_id="answer_exact",
+                    answer_digest=canonical_user_input_digest(answers),
+                    answers=answers,
+                    responder="test",
+                    answered_at=now_iso(),
+                ),
+                answered,
+            )
+            self.assertEqual(
+                [event["payload"]["phase"] for event in reopened.task_events(state.task_id)],
+                ["requested", "answered"],
+            )
 
 
 if __name__ == "__main__":

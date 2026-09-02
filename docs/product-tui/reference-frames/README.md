@@ -17,6 +17,7 @@ npx --yes bun@1.2.15 scripts/product-tui/generate_experience_frames.ts
 | 运行中工具 | `zyra/running-tool-*` | `chatwidget/*exec_and_status_layout*` | 单一当前活动、耗时、输出渐进披露 |
 | 计划更新 | `zyra/plan-update-*` | `history_cell/plans.rs` 与 plan snapshots | 完成/当前/待办层级，不显示 graph/revision 实现术语 |
 | 权限摘要与审批 | `zyra/permission-summary-*`; `zyra/permission-approval-*` | `bottom_pane/*approval_overlay_permissions_prompt.snap` | 问题—说明—选项结构；默认不显示 request identity |
+| 结构化问题与回答记录 | `zyra/structured-question-*`; `zyra/structured-question-answered-*` | `bottom_pane/request_user_input` snapshots；`history_cell/request_user_input.rs` | 自动抢占、问题—选项—自由回答、草稿保留；回答后形成 history cell，不显示 request identity |
 | 文件 diff | `zyra/diff-*` | `tui/src/snapshots/codex_tui__diff_render__tests__diff_gallery_80x24.snap` | 文件标题、hunk、增删色彩、滚动 footer |
 | 完成 | `zyra/completed-*` | `history_cell` final answer / exec snapshots | 最终回答为最后一级内容；文件和验证可审查但不喧宾夺主 |
 | 失败恢复 | `zyra/failed-recovery-*` | error history cells、status snapshots | 先说明影响和下一步，再在详情中展示技术信息 |
@@ -27,6 +28,6 @@ npx --yes bun@1.2.15 scripts/product-tui/generate_experience_frames.ts
 - 主界面已经采用 Codex 的“会话头 + 时间线 history cell + 单一当前活动 + composer/footer”结构，不再是固定状态仪表盘。
 - picker、pager、approval 使用统一的无框语法；权限会自动抢占输入并保留草稿；diff pager 对新增、删除和 hunk 使用语义颜色。
 - 仍需人工关闭的发布门：Windows Terminal 中文 IME 候选窗，以及两名未参与实现者的 Codex/Zyra 同任务盲测。
-- 尚不能伪称完成的后端产品契约只有 provider 主动发起的通用结构化用户问题。canonical session rename 已通过 revisioned SessionControl 事务接入 TaskStore，并由 session projection/resume picker 消费；MCP elicitation 已存在，但仍不等同于通用 Agent `request_user_input`。
+- provider 主动发起的通用结构化用户问题已通过独立 `request_user_input` provider tool、SQLite canonical request/revision/answer owner、typed API、presentation 与 CLI picker 形成闭环，不借用 MCP elicitation。真实 provider + daemon restart 的同一 tool continuation 仍属于发布回归未运行项，不能用确定性帧代替。
 
 对照时必须查看同一尺寸的一对帧，并记录视觉焦点、内部术语、完成动作所需按键与详情展开次数；不能只比较字符是否相同。

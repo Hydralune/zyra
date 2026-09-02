@@ -108,6 +108,8 @@ ZYRA_DYNAMIC_API_ROUTES = (
     ("GET", "/tasks/{task_id}/event-ingress/snapshot"),
     ("GET", "/tasks/{task_id}/event-ingress/delta"),
     ("GET", "/tasks/{task_id}/event-ingress/sse"),
+    ("GET", "/tasks/{task_id}/user-input"),
+    ("POST", "/tasks/{task_id}/user-input/{request_id}/answer"),
     ("GET", "/tasks/{task_id}/artifacts"),
     ("GET", "/tasks/{task_id}/artifacts/{artifact_id}"),
     ("GET", "/tasks/{task_id}/artifacts/{artifact_id}/content"),
@@ -221,6 +223,9 @@ from zyra_memory import (
     ReusableProcedureStore,
     RetrievalIntegrationRuntime,
     SQLiteStore,
+    UserInputContractError,
+    canonical_user_input_digest,
+    normalize_user_input_answers,
 )
 from zyra_code_index import (
     CodeIndexApiService,
@@ -10288,6 +10293,38 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         if self._handle_permission_get(parsed=parsed, parts=parts, store=store):
             return
 
+        if len(parts) == 3 and parts[0] == "tasks" and parts[2] == "user-input":
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            query = _flatten_query(parse_qs(parsed.query, keep_blank_values=True))
+            include_terminal = str(query.get("include_terminal") or "").casefold() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+            requests = store.user_input_requests(
+                state.task_id,
+                include_terminal=include_terminal,
+            )
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "schema": "zyra.user-input-list/v1",
+                    "task_id": state.task_id,
+                    "run_id": state.run_id,
+                    "requests": requests,
+                    "pending_count": sum(
+                        1 for request in requests if request["status"] == "pending"
+                    ),
+                    "canonical_owner": "SQLiteStore.user_input_requests",
+                },
+                headers={"Cache-Control": "no-store, max-age=0"},
+            )
+            return
+
         if (
             len(parts) == 4
             and parts[0] == "tasks"
@@ -12491,6 +12528,152 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if self._handle_permission_post(parts=parts, payload=payload, store=store):
+            return
+
+        if (
+            len(parts) == 5
+            and parts[0] == "tasks"
+            and parts[2] == "user-input"
+            and parts[4] == "answer"
+        ):
+            state = store.load_task(parts[1])
+            if state is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
+                return
+            request_id = parts[3]
+            request = store.user_input_request(state.task_id, request_id)
+            if request is None:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {
+                        "schema": "zyra.user-input-error/v1",
+                        "error": "user_input_request_not_found",
+                    },
+                )
+                return
+            reservation = self._begin_typed_receipt(
+                operation="task.user-input.answer",
+                path=parsed.path,
+                payload=payload,
+            )
+            if reservation is False:
+                return
+            try:
+                if str(payload.get("task_id") or state.task_id) != state.task_id:
+                    raise UserInputContractError(
+                        "user_input_task_binding_invalid",
+                        "answer changed the canonical task binding",
+                    )
+                if str(payload.get("run_id") or state.run_id) != state.run_id:
+                    raise UserInputContractError(
+                        "user_input_run_binding_invalid",
+                        "answer changed the canonical run binding",
+                    )
+                if str(payload.get("request_id") or request_id) != request_id:
+                    raise UserInputContractError(
+                        "user_input_request_binding_invalid",
+                        "answer changed the canonical request binding",
+                    )
+                answer_id = str(payload.get("answer_id") or "").strip()
+                if not answer_id or len(answer_id) > 256 or any(
+                    char in "\x00\r\n" for char in answer_id
+                ):
+                    raise UserInputContractError(
+                        "user_input_answer_id_invalid",
+                        "answer_id is required",
+                    )
+                expected_revision = int(payload.get("expected_revision"))
+                answers = normalize_user_input_answers(
+                    request["questions"],
+                    payload.get("answers"),
+                )
+                answer_digest = canonical_user_input_digest(answers)
+                answered_at = now_iso()
+                answered = store.answer_user_input_request(
+                    task_id=state.task_id,
+                    request_id=request_id,
+                    expected_revision=expected_revision,
+                    answer_id=answer_id,
+                    answer_digest=answer_digest,
+                    answers=answers,
+                    responder=str(payload.get("responder") or "zyra-cli")[:128],
+                    answered_at=answered_at,
+                )
+                event = EventRecord(
+                    event_id=f"event_{request_id}_{answer_id}",
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=request.get("node_id"),
+                    event_type=EventType.USER_INPUT,
+                    created_at=answered_at,
+                    payload={
+                        "schema": "zyra.user-input-event/v1",
+                        "phase": "answered",
+                        "request_id": request_id,
+                        "answer_digest": answer_digest,
+                        "responder": str(payload.get("responder") or "zyra-cli")[:128],
+                        "canonical_owner": "SQLiteStore.user_input_requests",
+                    },
+                )
+                try:
+                    # SQLite owns the atomic request+audit commit.  This legacy
+                    # JSONL trajectory is a compatibility mirror only.
+                    append_jsonl_event(event, event_log_path())
+                except OSError:
+                    pass
+                body = {
+                    "schema": "zyra.user-input-answer/v1",
+                    "ok": True,
+                    "task_id": state.task_id,
+                    "run_id": state.run_id,
+                    "request": answered,
+                    "canonical_owner": "SQLiteStore.user_input_requests",
+                }
+                committed = self._commit_typed_receipt(
+                    reservation,
+                    status=HTTPStatus.OK,
+                    body=body,
+                    binding={"task_id": state.task_id, "run_id": state.run_id},
+                )
+                if committed is None:
+                    return
+                committed_body, receipt_headers = committed
+                self._send_json(
+                    HTTPStatus.OK,
+                    committed_body,
+                    headers={
+                        "Cache-Control": "no-store, max-age=0",
+                        **receipt_headers,
+                    },
+                )
+            except KeyError:
+                if isinstance(reservation, ReceiptReservation):
+                    self._typed_receipts().abandon(reservation)
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {
+                        "schema": "zyra.user-input-error/v1",
+                        "error": "user_input_request_not_found",
+                    },
+                )
+            except (UserInputContractError, TypeError, ValueError) as error:
+                if isinstance(reservation, ReceiptReservation):
+                    self._typed_receipts().abandon(reservation)
+                code = getattr(error, "code", "user_input_answer_conflict")
+                status = (
+                    HTTPStatus.CONFLICT
+                    if "conflict" in str(error).casefold()
+                    or "already answered" in str(error).casefold()
+                    else HTTPStatus.BAD_REQUEST
+                )
+                self._send_json(
+                    status,
+                    {
+                        "schema": "zyra.user-input-error/v1",
+                        "error": code,
+                        "message": str(error),
+                    },
+                )
             return
 
         if len(parts) >= 5 and parts[0] == "tasks" and parts[2] == "diff-reviews":

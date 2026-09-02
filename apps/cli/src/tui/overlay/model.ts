@@ -6,7 +6,7 @@ export interface ProductOverlayRow {
 }
 
 export interface ProductOverlay {
-  kind?: "completion" | "picker" | "menu" | "approval" | "pager"
+  kind?: "completion" | "picker" | "menu" | "approval" | "question" | "pager"
   title: string
   description?: readonly string[]
   query?: string

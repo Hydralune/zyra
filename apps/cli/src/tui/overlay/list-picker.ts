@@ -18,7 +18,7 @@ export async function pickProductItem(input: {
   title: string
   items: readonly ProductPickerItem[]
   footer?: string
-  kind?: "picker" | "menu" | "approval"
+  kind?: "picker" | "menu" | "approval" | "question"
   description?: readonly string[]
   bracketedPaste?: boolean
   onChange: (overlay?: ProductOverlay) => void
@@ -109,6 +109,77 @@ export async function pickProductItem(input: {
       // Publishing the overlay is the observable readiness boundary.  Attach
       // input first so a user (or PTY automation) cannot press Enter in the
       // small window between the first paint and listener registration.
+      update()
+    })
+  } finally {
+    stdin.setRawMode?.(false)
+    stdin.pause()
+    input.output.write("\u001b[?2004l")
+    input.onChange(undefined)
+  }
+}
+
+export async function promptProductText(input: {
+  stdin: Readable
+  output: Writable
+  title: string
+  description?: readonly string[]
+  footer?: string
+  maximumCharacters?: number
+  bracketedPaste?: boolean
+  onChange: (overlay?: ProductOverlay) => void
+}): Promise<string | undefined> {
+  const stdin = input.stdin as RawInput
+  const decoder = new StringDecoder("utf8")
+  const draft = new PromptDraft()
+  const maximum = Math.max(1, Math.min(16_384, input.maximumCharacters ?? 4_096))
+  const update = () => input.onChange({
+    kind: "question",
+    title: input.title,
+    description: input.description,
+    query: draft.snapshot().text,
+    rows: [],
+    selected: -1,
+    footer: input.footer ?? "Enter 提交 · Esc 返回",
+  })
+  stdin.setRawMode?.(true)
+  stdin.resume()
+  if (input.bracketedPaste !== false) input.output.write("\u001b[?2004h")
+  try {
+    return await new Promise<string | undefined>((resolve, reject) => {
+      let pending = ""
+      const finish = (value?: string) => {
+        stdin.off("data", data)
+        stdin.off("end", end)
+        resolve(value)
+      }
+      const end = () => finish()
+      const data = (chunk: Buffer | string) => {
+        try {
+          pending += typeof chunk === "string" ? chunk : decoder.write(chunk)
+          while (pending) {
+            if (pending.startsWith("\u001b") || pending.startsWith("\u0003") || pending.startsWith("\u0004")) {
+              pending = pending.slice(1)
+              finish()
+              return
+            }
+            const char = [...pending][0]!
+            pending = pending.slice(char.length)
+            if (char === "\r" || char === "\n") {
+              const answer = draft.snapshot().text.trim()
+              if (answer) finish(answer)
+              return
+            }
+            if (char === "\u007f" || char === "\b") draft.deleteBackward()
+            else if (char >= " " && draft.snapshot().text.length + char.length <= maximum) draft.insert(char)
+            update()
+          }
+        } catch (error) {
+          reject(error)
+        }
+      }
+      stdin.on("data", data)
+      stdin.once("end", end)
       update()
     })
   } finally {

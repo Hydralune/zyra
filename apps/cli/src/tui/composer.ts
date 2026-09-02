@@ -15,6 +15,7 @@ export type ProductComposerResult =
   | { kind: "submit"; text: string; queue: boolean }
   | { kind: "interrupt" }
   | { kind: "permission" }
+  | { kind: "question" }
   | { kind: "shortcuts" }
   | { kind: "closed" }
   | { kind: "exit" }
@@ -125,6 +126,8 @@ export class ProductComposer {
   close(): void { this.#finish({ kind: "closed" }) }
 
   yieldForPermission(): void { this.#finish({ kind: "permission" }) }
+
+  yieldForUserInput(): void { this.#finish({ kind: "question" }) }
 
   async #consume(value: string): Promise<void> {
     this.#pending += value

@@ -142,6 +142,30 @@ export interface PermissionSessionClaim extends PermissionBinding {
   verified: boolean
 }
 
+export interface UserInputOptionProjection {
+  label: string
+  description: string
+}
+
+export interface UserInputQuestionProjection {
+  id: string
+  header: string
+  question: string
+  options: readonly UserInputOptionProjection[]
+}
+
+export interface UserInputRequestProjection {
+  requestId: string
+  taskId: string
+  runId: string
+  status: "pending" | "answered" | "cancelled" | "expired"
+  revision: number
+  questions: readonly UserInputQuestionProjection[]
+  answers: Readonly<Record<string, { answers: readonly string[] }>>
+  createdAt: string
+  updatedAt: string
+}
+
 function record(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new CliTaskError(`${label} must be an object.`, "contract_invalid")
@@ -168,6 +192,58 @@ function booleanValue(value: unknown, label: string): boolean {
     throw new CliTaskError(`${label} must be a boolean.`, "contract_invalid")
   }
   return value
+}
+
+function userInputRequest(value: unknown): UserInputRequestProjection {
+  const request = record(value, "user input request")
+  const status = stringValue(request.status, "user input status")
+  if (!["pending", "answered", "cancelled", "expired"].includes(status)) {
+    throw new CliTaskError("User input status is invalid.", "contract_invalid")
+  }
+  const rawQuestions = Array.isArray(request.questions) ? request.questions : []
+  if (rawQuestions.length < 1 || rawQuestions.length > 3) {
+    throw new CliTaskError("User input questions are incomplete.", "contract_invalid")
+  }
+  const questions = rawQuestions.map((rawQuestion) => {
+    const question = record(rawQuestion, "user input question")
+    const options = (Array.isArray(question.options) ? question.options : []).map((rawOption) => {
+      const option = record(rawOption, "user input option")
+      return Object.freeze({
+        label: stringValue(option.label, "user input option label"),
+        description: stringValue(option.description, "user input option description"),
+      })
+    })
+    if (options.length < 2 || options.length > 3) {
+      throw new CliTaskError("User input options are incomplete.", "contract_invalid")
+    }
+    return Object.freeze({
+      id: stringValue(question.id, "user input question id"),
+      header: stringValue(question.header, "user input question header"),
+      question: stringValue(question.question, "user input question text"),
+      options: Object.freeze(options),
+    })
+  })
+  const rawAnswers = request.answers && typeof request.answers === "object" && !Array.isArray(request.answers)
+    ? request.answers as Record<string, unknown>
+    : {}
+  const answers = Object.fromEntries(Object.entries(rawAnswers).map(([questionId, rawAnswer]) => {
+    const answer = record(rawAnswer, "user input answer")
+    const values = (Array.isArray(answer.answers) ? answer.answers : [])
+      .map((item) => String(item ?? "").trim())
+      .filter(Boolean)
+    return [questionId, Object.freeze({ answers: Object.freeze(values) })]
+  }))
+  return Object.freeze({
+    requestId: stringValue(request.request_id, "user input request id"),
+    taskId: stringValue(request.task_id, "user input task id"),
+    runId: stringValue(request.run_id, "user input run id"),
+    status: status as UserInputRequestProjection["status"],
+    revision: integerValue(request.revision, "user input revision"),
+    questions: Object.freeze(questions),
+    answers: Object.freeze(answers),
+    createdAt: stringValue(request.created_at, "user input created time"),
+    updatedAt: stringValue(request.updated_at, "user input updated time"),
+  })
 }
 
 function optionalString(value: unknown): string | undefined {
@@ -898,6 +974,84 @@ export class CliApi {
       },
     )
     return Object.freeze({ ...permissionOk(response.data, response.raw.status).raw })
+  }
+
+  async userInputRequests(
+    taskId: string,
+    input: { includeTerminal?: boolean; signal?: AbortSignal } = {},
+  ): Promise<readonly UserInputRequestProjection[]> {
+    const selected = normalizeIdentity("task", taskId)
+    const response = await this.client.endpoint<Record<string, unknown>>(
+      OPERATION_NAMES.taskUserInputRequests,
+      {
+        path: { task_id: selected },
+        query: { include_terminal: input.includeTerminal === true },
+        binding: { taskId: selected },
+        signal: input.signal,
+        timeoutMs: Math.min(this.timeoutMs, 30_000),
+        coordinationKey: `cli.user-input.list:${selected}:${input.includeTerminal === true}`,
+        latestWins: true,
+      },
+    )
+    const body = record(response.data, "user input list")
+    if (body.schema !== "zyra.user-input-list/v1" || body.task_id !== selected) {
+      throw new CliTaskError("User input list changed its task binding.", "contract_invalid")
+    }
+    const requests = (Array.isArray(body.requests) ? body.requests : []).map(userInputRequest)
+    if (requests.some((request) => request.taskId !== selected)) {
+      throw new CliTaskError("User input request changed its task binding.", "contract_invalid")
+    }
+    return Object.freeze(requests)
+  }
+
+  async answerUserInput(input: {
+    taskId: string
+    runId: string
+    requestId: string
+    expectedRevision: number
+    answers: Readonly<Record<string, string>>
+    signal?: AbortSignal
+  }): Promise<UserInputRequestProjection> {
+    const taskId = normalizeIdentity("task", input.taskId)
+    const runId = normalizeIdentity("run", input.runId)
+    const requestId = normalizeIdentity("request", input.requestId)
+    const answerId = `answer_${crypto.randomUUID().replaceAll("-", "")}`
+    const body = {
+      task_id: taskId,
+      run_id: runId,
+      request_id: requestId,
+      expected_revision: Math.max(0, Math.floor(input.expectedRevision)),
+      answer_id: answerId,
+      answers: { ...input.answers },
+      responder: "zyra-cli",
+    }
+    const idempotencyKey = createIdempotencyKey(
+      OPERATION_NAMES.taskUserInputAnswer,
+      { taskId, runId },
+      body,
+      answerId,
+    )
+    const response = await this.client.endpoint<Record<string, unknown>, typeof body>(
+      OPERATION_NAMES.taskUserInputAnswer,
+      {
+        path: { task_id: taskId, request_id: requestId },
+        body,
+        binding: { taskId, runId },
+        idempotencyKey,
+        signal: input.signal,
+        timeoutMs: Math.min(this.timeoutMs, 30_000),
+        coordinationKey: `cli.user-input.answer:${taskId}:${requestId}`,
+        deduplicate: true,
+      },
+    )
+    const responseBody = record(response.data, "user input answer")
+    if (response.raw.status !== 200 || responseBody.ok !== true) {
+      throw new CliTaskError(
+        optionalString(responseBody.message) ?? "用户回答未被接受。",
+        optionalString(responseBody.error) ?? "user_input_answer_rejected",
+      )
+    }
+    return userInputRequest(responseBody.request)
   }
 
   async task(taskId: string): Promise<TaskProjection> {

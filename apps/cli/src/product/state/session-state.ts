@@ -1,4 +1,4 @@
-import type { UiContextUsage, UiFailureImpact, UiFileChange, UiPermissionRequest, UiPlanSnapshot, UiSeverity, UiToolOutputRef, UiVerificationSummary, ZyraUiEvent } from "../../presentation/events.ts"
+import type { UiContextUsage, UiFailureImpact, UiFileChange, UiPermissionRequest, UiPlanSnapshot, UiSeverity, UiToolOutputRef, UiUserInputRequest, UiVerificationSummary, ZyraUiEvent } from "../../presentation/events.ts"
 
 export interface ProductMessageState {
   messageId: string
@@ -54,7 +54,7 @@ export interface ProductIssueState {
   impact?: UiFailureImpact
 }
 
-export type ProductTimelineKind = "message" | "activity" | "tool" | "issue" | "plan" | "workspace" | "verification"
+export type ProductTimelineKind = "message" | "activity" | "tool" | "issue" | "user_input" | "plan" | "workspace" | "verification"
 
 export interface ProductTimelineItem {
   kind: ProductTimelineKind
@@ -71,6 +71,8 @@ export interface ProductViewState {
   agents: readonly ProductAgentState[]
   issues: readonly ProductIssueState[]
   permissions: readonly UiPermissionRequest[]
+  userInputs: readonly UiUserInputRequest[]
+  userInputHistory: readonly UiUserInputRequest[]
   changes: readonly UiFileChange[]
   diff?: { lines: readonly string[]; truncated: boolean }
   verification?: UiVerificationSummary
@@ -81,7 +83,7 @@ export interface ProductViewState {
   reconnectAttempt?: number
   taskStatus: "idle" | "running" | "needs_revision" | "completed" | "failed" | "blocked" | "killed" | "cancelled"
   taskMessage?: string
-  evicted: Readonly<{ messages: number; activities: number; tools: number; agents: number; issues: number; changes: number }>
+  evicted: Readonly<{ messages: number; activities: number; tools: number; agents: number; issues: number; userInputs: number; changes: number }>
 }
 
 export interface ProductStateLimits {
@@ -90,6 +92,7 @@ export interface ProductStateLimits {
   tools: number
   agents: number
   issues: number
+  userInputs: number
   changes: number
   diffLines: number
   messageCharacters: number
@@ -101,6 +104,7 @@ const DEFAULT_LIMITS: ProductStateLimits = Object.freeze({
   tools: 2_000,
   agents: 512,
   issues: 512,
+  userInputs: 512,
   changes: 5_000,
   diffLines: 4_000,
   messageCharacters: 1_000_000,
@@ -140,6 +144,8 @@ export class ProductSessionState {
   readonly #agents = new Map<string, ProductAgentState>()
   readonly #issues = new Map<string, ProductIssueState>()
   readonly #permissions = new Map<string, UiPermissionRequest>()
+  readonly #userInputs = new Map<string, UiUserInputRequest>()
+  readonly #userInputHistory = new Map<string, UiUserInputRequest>()
   readonly #changes = new Map<string, UiFileChange>()
   #diff: ProductViewState["diff"]
   #verification: UiVerificationSummary | undefined
@@ -155,7 +161,7 @@ export class ProductSessionState {
   #sourceTail: string | undefined
   readonly #timelineOrder = new Map<string, number>()
   #nextTimelineOrder = 0
-  #evicted = { messages: 0, activities: 0, tools: 0, agents: 0, issues: 0, changes: 0 }
+  #evicted = { messages: 0, activities: 0, tools: 0, agents: 0, issues: 0, userInputs: 0, changes: 0 }
 
   constructor(limits: Partial<ProductStateLimits> = {}) {
     this.#limits = Object.freeze({
@@ -164,6 +170,7 @@ export class ProductSessionState {
       tools: boundedLimit(limits.tools, DEFAULT_LIMITS.tools),
       agents: boundedLimit(limits.agents, DEFAULT_LIMITS.agents),
       issues: boundedLimit(limits.issues, DEFAULT_LIMITS.issues),
+      userInputs: boundedLimit(limits.userInputs, DEFAULT_LIMITS.userInputs),
       changes: boundedLimit(limits.changes, DEFAULT_LIMITS.changes),
       diffLines: boundedLimit(limits.diffLines, DEFAULT_LIMITS.diffLines),
       messageCharacters: boundedLimit(limits.messageCharacters, DEFAULT_LIMITS.messageCharacters),
@@ -284,6 +291,20 @@ export class ProductSessionState {
       case "permission.resolved":
         this.#permissions.delete(event.requestId)
         break
+      case "user_input.requested":
+        this.#userInputs.set(event.request.requestId, event.request)
+        break
+      case "user_input.resolved":
+        this.#userInputs.delete(event.request.requestId)
+        this.#remember("user_input", event.request.requestId)
+        this.#evicted.userInputs += putBounded(
+          this.#userInputHistory,
+          event.request.requestId,
+          event.request,
+          this.#limits.userInputs,
+          (key) => this.#forget("user_input", key),
+        )
+        break
       case "workspace.changed":
         this.#rememberLatest("workspace", "workspace")
         for (const change of event.changes) this.#evicted.changes += putBounded(this.#changes, `${change.kind}:${change.path}`, change, this.#limits.changes)
@@ -342,6 +363,8 @@ export class ProductSessionState {
       agents: Object.freeze([...this.#agents.values()].map((value) => Object.freeze({ ...value }))),
       issues: Object.freeze([...this.#issues.values()].map((value) => Object.freeze({ ...value }))),
       permissions: Object.freeze([...this.#permissions.values()]),
+      userInputs: Object.freeze([...this.#userInputs.values()]),
+      userInputHistory: Object.freeze([...this.#userInputHistory.values()]),
       changes: Object.freeze([...this.#changes.values()]),
       diff: this.#diff,
       verification: this.#verification,
@@ -372,6 +395,8 @@ export class ProductSessionState {
     this.#agents.clear()
     this.#issues.clear()
     this.#permissions.clear()
+    this.#userInputs.clear()
+    this.#userInputHistory.clear()
     this.#changes.clear()
     this.#diff = undefined
     this.#verification = undefined
@@ -387,7 +412,7 @@ export class ProductSessionState {
     this.#taskMessage = undefined
     this.#sourceLength = 0
     this.#sourceTail = undefined
-    this.#evicted = { messages: 0, activities: 0, tools: 0, agents: 0, issues: 0, changes: 0 }
+    this.#evicted = { messages: 0, activities: 0, tools: 0, agents: 0, issues: 0, userInputs: 0, changes: 0 }
   }
 
   #remember(kind: ProductTimelineKind, id: string): void {

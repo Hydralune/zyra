@@ -25,6 +25,28 @@ export interface UiPermissionRequest {
   decisions: readonly UiPermissionDecision[]
 }
 
+export interface UiUserInputOption {
+  label: string
+  description: string
+}
+
+export interface UiUserInputQuestion {
+  id: string
+  header: string
+  question: string
+  options: readonly UiUserInputOption[]
+}
+
+export interface UiUserInputRequest {
+  requestId: string
+  status: "pending" | "answered" | "cancelled" | "expired"
+  revision: number
+  questions: readonly UiUserInputQuestion[]
+  answers?: Readonly<Record<string, { answers: readonly string[] }>>
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface UiFileChange {
   path: string
   kind: UiFileChangeKind
@@ -113,6 +135,8 @@ export type ZyraUiEvent =
   | (UiEventBase & { type: "tool.failed"; toolCallId: string; name?: string; message: string; durationMs?: number; artifactIds?: readonly string[]; outputRefs?: readonly UiToolOutputRef[]; impact: UiFailureImpact; code?: string; retryable?: boolean; recovery?: string })
   | (UiEventBase & { type: "permission.requested"; request: UiPermissionRequest })
   | (UiEventBase & { type: "permission.resolved"; requestId: string; decision: string })
+  | (UiEventBase & { type: "user_input.requested"; request: UiUserInputRequest })
+  | (UiEventBase & { type: "user_input.resolved"; request: UiUserInputRequest })
   | (UiEventBase & { type: "workspace.changed"; changes: readonly UiFileChange[] })
   | (UiEventBase & { type: "workspace.diff"; lines: readonly string[]; truncated: boolean; source: "local_workspace" })
   | (UiEventBase & { type: "verification.updated"; verification: UiVerificationSummary })

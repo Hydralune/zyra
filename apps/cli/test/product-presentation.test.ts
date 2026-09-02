@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import type { TaskProjection } from "@zyra/typed-api-client"
 import type { IngressFrame } from "../src/api.ts"
-import { ZYRA_UI_EVENT_SCHEMA, type UiPermissionSnapshot } from "../src/presentation/events.ts"
+import { ZYRA_UI_EVENT_SCHEMA, type UiPermissionSnapshot, type UiUserInputRequest } from "../src/presentation/events.ts"
 import { projectProductEvents } from "../src/presentation/projector.ts"
 import { ProductProjection } from "../src/presentation/projection.ts"
 import { displayWidth, reduceProductEvents, renderProductSnapshot, renderProductState } from "../src/presentation/renderer.ts"
@@ -25,7 +25,7 @@ function snapshot(name: string): string {
   return readFileSync(new URL(`./snapshots/${name}`, import.meta.url), "utf8").replaceAll("\r\n", "\n")
 }
 
-function frame(sequence: number, eventType: string, inline: Readonly<Record<string, unknown>>): IngressFrame {
+function frame(sequence: number, eventType: string, inline: Readonly<Record<string, unknown>>, createdAt?: string): IngressFrame {
   return {
     schema: "zyra.event-ingress-frame/v1",
     kind: "event",
@@ -36,7 +36,7 @@ function frame(sequence: number, eventType: string, inline: Readonly<Record<stri
     previousSequence: sequence - 1,
     eventId: `event_contract_${sequence}`,
     eventType,
-    event: { inline, artifactRefs: [], identity: { taskId: fixture.task.taskId, runId: fixture.task.runId } },
+    event: { inline, artifactRefs: [], identity: { taskId: fixture.task.taskId, runId: fixture.task.runId }, createdAt },
     raw: {},
   }
 }
@@ -447,6 +447,37 @@ describe("ZyraUiEvent/v2 product projection", () => {
       expect.objectContaining({ request: expect.objectContaining({ requestId: permission.requestId, action: "写入项目文件", decisions: ["allow", "deny"] }) }),
     ])
     expect(JSON.stringify(projected)).not.toContain("must-not-render")
+  })
+
+  test("places a resolved structured question at its canonical time before later tool work", () => {
+    const request: UiUserInputRequest = {
+      requestId: "request_timeline",
+      status: "answered",
+      revision: 1,
+      createdAt: "2026-09-02T10:00:00.000Z",
+      updatedAt: "2026-09-02T10:02:00.000Z",
+      questions: [{
+        id: "database",
+        header: "数据库",
+        question: "请选择数据库。",
+        options: [
+          { label: "SQLite", description: "单机。" },
+          { label: "PostgreSQL", description: "共享部署。" },
+        ],
+      }],
+      answers: { database: { answers: ["PostgreSQL"] } },
+    }
+    const projected = projectProductEvents({
+      task: { ...fixture.task, status: "running", terminal: false, active: true, metadata: {} },
+      frames: [
+        frame(1, "runtime.tool.called", { tool_call_id: "tool_question", tool_name: "request_user_input" }, "2026-09-02T10:01:00.000Z"),
+        frame(2, "runtime.tool.succeeded", { tool_call_id: "tool_question", tool_name: "request_user_input" }, "2026-09-02T10:03:00.000Z"),
+      ],
+      userInputs: [request],
+    })
+    const types = projected.map((event) => event.type)
+    expect(types.indexOf("tool.started")).toBeLessThan(types.indexOf("user_input.resolved"))
+    expect(types.indexOf("user_input.resolved")).toBeLessThan(types.indexOf("tool.completed"))
   })
 })
 

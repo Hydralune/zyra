@@ -205,6 +205,25 @@ function renderIssue(issue: ProductIssueState, width: number): RenderLine[] {
   return lines
 }
 
+function renderUserInput(request: ProductViewState["userInputHistory"][number], width: number): RenderLine[] {
+  const answered = request.questions.filter((question) => (request.answers?.[question.id]?.answers.length ?? 0) > 0).length
+  const interrupted = request.status !== "answered"
+  const lines: RenderLine[] = [
+    line(),
+    line(`• 问题 · ${answered}/${request.questions.length} 已回答${interrupted ? " · 已中断" : ""}`, interrupted ? "secondary" : "default"),
+  ]
+  for (const question of request.questions) {
+    pushWrapped(lines, question.question, "  • ", width, "default", "    ")
+    const answers = request.answers?.[question.id]?.answers ?? []
+    if (!answers.length) {
+      pushWrapped(lines, "未回答", "    └ ", width, "secondary", "      ")
+      continue
+    }
+    for (const answer of answers) pushWrapped(lines, answer, "    回答：", width, "accent", "          ")
+  }
+  return lines
+}
+
 function changeLabel(kind: ProductViewState["changes"][number]["kind"]): string {
   if (kind === "created") return "A"
   if (kind === "deleted") return "D"
@@ -248,6 +267,7 @@ function renderTimelineItem(
     activities: ReadonlyMap<string, ProductActivityState>
     tools: ReadonlyMap<string, ProductToolState>
     issues: ReadonlyMap<string, ProductIssueState>
+    userInputs: ReadonlyMap<string, ProductViewState["userInputHistory"][number]>
   },
   width: number,
 ): RenderLine[] {
@@ -255,6 +275,7 @@ function renderTimelineItem(
   if (item.kind === "activity") return maps.activities.has(item.id) ? renderActivity(maps.activities.get(item.id)!, width, Boolean(state.plan)) : []
   if (item.kind === "tool") return maps.tools.has(item.id) ? renderTool(maps.tools.get(item.id)!, width) : []
   if (item.kind === "issue") return maps.issues.has(item.id) ? renderIssue(maps.issues.get(item.id)!, width) : []
+  if (item.kind === "user_input") return maps.userInputs.has(item.id) ? renderUserInput(maps.userInputs.get(item.id)!, width) : []
   if (item.kind === "plan") return renderPlan(state, width)
   if (item.kind === "workspace") return renderWorkspace(state, width)
   if (item.kind === "verification") return renderVerification(state, width)
@@ -272,29 +293,39 @@ function renderTimelineWindow(
     activities: new Map(state.activities.map((item) => [item.activityId, item])),
     tools: new Map(state.tools.map((item) => [item.toolCallId, item])),
     issues: new Map(state.issues.map((item) => [item.issueId, item])),
+    userInputs: new Map(state.userInputHistory.map((item) => [item.requestId, item])),
   }
   const timeline = state.timeline?.length
     ? state.timeline
     : state.messages.map((message, order): ProductTimelineItem => ({ kind: "message", id: message.messageId, order }))
-  const entries = [
+  const entries: Array<
+    | { kind: "timeline"; afterOrder: number; sequence: number; item: ProductTimelineItem }
+    | { kind: "notice"; afterOrder: number; sequence: number; text: string }
+  > = [
     ...timeline.map((item) => ({
+      kind: "timeline" as const,
       afterOrder: item.order,
       sequence: 0,
-      segment: renderTimelineItem(item, state, maps, width),
+      item,
     })),
     ...localHistory.map((item) => ({
+      kind: "notice" as const,
       afterOrder: item.afterOrder,
       sequence: item.sequence,
-      segment: renderNotice(item.text, width),
+      text: item.text,
     })),
-  ].filter((entry) => entry.segment.length).sort((left, right) =>
+  ].sort((left, right) =>
     left.afterOrder - right.afterOrder || left.sequence - right.sequence,
   )
   const segments: RenderLine[][] = []
   let renderedLines = 0
   let firstIncluded = entries.length
   for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const segment = entries[index]!.segment
+    const entry = entries[index]!
+    const segment = entry.kind === "timeline"
+      ? renderTimelineItem(entry.item, state, maps, width)
+      : renderNotice(entry.text, width)
+    if (!segment.length) continue
     segments.unshift(segment)
     renderedLines += segment.length
     firstIncluded = index
@@ -378,13 +409,18 @@ function renderOverlay(overlay: ProductOverlay, width: number): RenderLine[] {
     for (const description of overlay.description) pushWrapped(lines, description, "  ", width, "secondary")
     lines.push(line())
   }
-  if (overlay.query !== undefined && overlay.kind !== "completion") lines.push(line(`  搜索：${overlay.query || "输入以筛选"}`, "secondary"))
-  if (!overlay.rows.length) lines.push(line("  没有匹配项", "secondary"))
+  if (overlay.query !== undefined && overlay.kind !== "completion") lines.push(line(
+    overlay.kind === "question"
+      ? `› ${overlay.query || "输入你的回答"}`
+      : `  搜索：${overlay.query || "输入以筛选"}`,
+    overlay.kind === "question" ? "user" : "secondary",
+  ))
+  if (!overlay.rows.length && overlay.kind !== "question") lines.push(line("  没有匹配项", "secondary"))
   for (const [index, row] of overlay.rows.entries()) {
     const selected = index === overlay.selected
     const marker = overlay.kind === "pager" ? "  " : selected ? "› " : "  "
     const detail = row.detail ? `  ${row.detail}` : ""
-    const label = overlay.kind === "picker" || overlay.kind === "menu" || overlay.kind === "approval" ? `${index + 1}. ${row.label}` : row.label
+    const label = overlay.kind === "picker" || overlay.kind === "menu" || overlay.kind === "approval" || overlay.kind === "question" ? `${index + 1}. ${row.label}` : row.label
     const tone = selected
       ? "selected"
       : overlay.kind === "pager"

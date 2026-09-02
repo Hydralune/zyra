@@ -166,6 +166,7 @@ function overlayTitle(receipt: CommandReceipt): string {
     "/agents": "Agents and subagents",
     "/tasks": "Subagent tasks",
     "/resume": "Session resume receipt",
+    "/rename": "Session rename receipt",
     "/rewind": "Session rewind receipt",
     "/export": "Session export receipt",
     "/btw": "Side question",

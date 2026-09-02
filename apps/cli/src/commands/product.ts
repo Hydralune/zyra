@@ -1,7 +1,7 @@
 import type { Readable, Writable } from "node:stream"
 import { buildCommandResultModel, type CommandQueueSnapshot, type CommandReceipt } from "@zyra/commands"
 import { createSessionId, ZyraApiError, type SessionProjection, type TaskProjection } from "@zyra/typed-api-client"
-import { CliApi, type IngressCapabilities, type IngressPage, type ProductExecutionConfig } from "../api.ts"
+import { CliApi, type IngressCapabilities, type IngressPage, type ProductExecutionConfig, type UserInputRequestProjection } from "../api.ts"
 import { CliExitCode, CliTaskError, type InteractiveCommand, type ResumeCommand } from "../contracts.ts"
 import {
   CliControlSession,
@@ -16,7 +16,7 @@ import {
   type PermissionRequestView,
   type UserSelectablePermissionMode,
 } from "../control/permission.ts"
-import type { UiPermissionSnapshot } from "../presentation/events.ts"
+import type { UiPermissionSnapshot, UiUserInputRequest } from "../presentation/events.ts"
 import { ProductProjection } from "../presentation/projection.ts"
 import { buildBoundedWorkspaceDiff } from "../presentation/workspace-diff.ts"
 import { parseProductCommand, productCommandCandidates, productCommandHelp } from "../product/commands/registry.ts"
@@ -175,6 +175,18 @@ function permissionSnapshot(view: PermissionRequestView): UiPermissionSnapshot {
     expiresAt: view.expiresAt,
     scope: typeof raw.scope === "string" ? raw.scope : undefined,
     selectable: view.selectable,
+  })
+}
+
+function userInputSnapshot(request: UserInputRequestProjection): UiUserInputRequest {
+  return Object.freeze({
+    requestId: request.requestId,
+    status: request.status,
+    revision: request.revision,
+    questions: request.questions,
+    answers: request.answers,
+    createdAt: request.createdAt,
+    updatedAt: request.updatedAt,
   })
 }
 
@@ -630,6 +642,67 @@ async function resolvePermissionFromPicker(input: {
   return resolvePermissionRequest(input, request, effect, decisionScope)
 }
 
+async function resolveUserInputFromPicker(input: {
+  shell: ProductTuiShell
+  signal: AbortSignal
+  pendingUserInputs: () => Promise<readonly UserInputRequestProjection[]>
+  answerUserInput: (
+    request: UserInputRequestProjection,
+    answers: Readonly<Record<string, string>>,
+  ) => Promise<UserInputRequestProjection>
+  refreshUserInputs: () => Promise<void>
+}): Promise<string> {
+  const pending = (await input.pendingUserInputs()).filter((request) => request.status === "pending")
+  if (!pending.length) throw new CliTaskError("当前没有等待回答的问题。", "user_input_unavailable")
+  let request = pending.length === 1 ? pending[0] : undefined
+  if (!request) {
+    const selected = await input.shell.pick(
+      "选择要回答的问题",
+      pending.map((candidate) => ({
+        id: candidate.requestId,
+        label: candidate.questions[0]?.header ?? "Zyra 的问题",
+        detail: candidate.questions[0]?.question,
+      })),
+      "Enter 回答 · Esc 稍后处理",
+      "question",
+    )
+    request = selected ? pending.find((candidate) => candidate.requestId === selected.id) : undefined
+  }
+  if (!request) return "问题仍在等待回答；输入 /questions 可再次打开。"
+
+  const answers: Record<string, string> = {}
+  for (const [questionIndex, question] of request.questions.entries()) {
+    const progress = request.questions.length > 1
+      ? ` · ${questionIndex + 1}/${request.questions.length}`
+      : ""
+    const selected = await input.shell.pick(
+      `${question.header}${progress}`,
+      [
+        ...question.options.map((option) => ({
+          id: `option:${option.label}`,
+          label: option.label,
+          detail: option.description,
+        })),
+        { id: "other", label: "其他", detail: "输入自定义回答" },
+      ],
+      "↑↓ 选择 · Enter 确认 · Esc 稍后处理",
+      "question",
+      [question.question],
+    )
+    if (!selected) return "问题仍在等待回答；输入 /questions 可再次打开。"
+    if (selected.id === "other") {
+      const answer = await input.shell.prompt(`${question.header}${progress}`, [question.question])
+      if (!answer) return "问题仍在等待回答；输入 /questions 可再次打开。"
+      answers[question.id] = answer
+    } else {
+      answers[question.id] = selected.id.slice("option:".length)
+    }
+  }
+  await input.answerUserInput(request, answers)
+  await input.refreshUserInputs()
+  return "回答已提交，Zyra 正在继续执行。"
+}
+
 async function runProductControlLoop(input: {
   shell: ProductTuiShell
   controls: CliControlSession
@@ -637,6 +710,12 @@ async function runProductControlLoop(input: {
   permissionReady: Promise<void>
   signal: AbortSignal
   refreshPermissions: () => Promise<void>
+  pendingUserInputs: () => Promise<readonly UserInputRequestProjection[]>
+  answerUserInput: (
+    request: UserInputRequestProjection,
+    answers: Readonly<Record<string, string>>,
+  ) => Promise<UserInputRequestProjection>
+  refreshUserInputs: () => Promise<void>
   openWeb: () => Promise<string>
   openDiff: () => Promise<boolean>
   openArtifact: (artifactId: string) => Promise<void>
@@ -656,6 +735,14 @@ async function runProductControlLoop(input: {
         input.shell.notice(await resolvePermissionFromPicker(input))
       } catch (error) {
         input.shell.notice(`权限决定未提交 · ${controlError(error)}`)
+      }
+      continue
+    }
+    if (result.kind === "question") {
+      try {
+        input.shell.notice(await resolveUserInputFromPicker(input))
+      } catch (error) {
+        input.shell.notice(`回答未提交 · ${controlError(error)}`)
       }
       continue
     }
@@ -731,6 +818,11 @@ async function runProductControlLoop(input: {
       if (line === "/permissions") {
         await input.permissionReady
         input.shell.notice(await resolvePermissionFromPicker(input))
+        continue
+      }
+      if (line === "/questions") {
+        input.shell.rearmUserInput()
+        input.shell.notice(await resolveUserInputFromPicker(input))
         continue
       }
       if (line === "/compact" || line.startsWith("/compact ")) {
@@ -1025,6 +1117,28 @@ export async function observeProductTask(input: {
     projection.permissions(pending.map(permissionSnapshot))
     renderProjection(true)
   }
+  const pendingUserInputs = async (): Promise<readonly UserInputRequestProjection[]> => (
+    input.api.userInputRequests(task.taskId, { includeTerminal: false, signal: observationSignal })
+  )
+  const refreshUserInputs = async (): Promise<void> => {
+    const requests = await input.api.userInputRequests(task.taskId, {
+      includeTerminal: true,
+      signal: observationSignal,
+    })
+    projection.userInputs(requests.map(userInputSnapshot))
+    renderProjection(true)
+  }
+  const answerUserInput = async (
+    request: UserInputRequestProjection,
+    answers: Readonly<Record<string, string>>,
+  ): Promise<UserInputRequestProjection> => input.api.answerUserInput({
+    taskId: request.taskId,
+    runId: request.runId,
+    requestId: request.requestId,
+    expectedRevision: request.revision,
+    answers,
+    signal: observationSignal,
+  })
   if (input.shell.interactive) {
     controlSession = new CliControlSession({ api: input.api, task })
     permissionSession ??= new CliPermissionSession({
@@ -1038,6 +1152,9 @@ export async function observeProductTask(input: {
     }).catch((error) => {
       input.shell.notice("权限控制当前不可用；为安全起见，新权限请求会被拒绝。使用 /doctor 查看详情。")
     })
+    void refreshUserInputs().catch((error) => {
+      input.shell.notice(`用户问题暂时无法同步 · ${controlError(error)}`)
+    })
     controlLoop = runProductControlLoop({
       shell: input.shell,
       controls: controlSession,
@@ -1045,6 +1162,9 @@ export async function observeProductTask(input: {
       permissionReady,
       signal: observationSignal,
       refreshPermissions,
+      pendingUserInputs,
+      answerUserInput,
+      refreshUserInputs,
       openWeb: input.openWeb ?? (async () => {
         throw new CliTaskError("当前入口无法启动 Web 看板。", "product_web_launcher_unavailable")
       }),
@@ -1105,6 +1225,9 @@ export async function observeProductTask(input: {
               input.shell.notice("权限状态暂时无法刷新，当前保持关闭。使用 /doctor 查看详情。")
             })
           }
+          if (message.frame.eventType.startsWith("runtime.tool.")) {
+            await refreshUserInputs().catch(() => undefined)
+          }
           if (["runtime.task.completed", "runtime.task.failed", "runtime.task.cancelled"].includes(message.frame.eventType)) {
             task = await input.api.task(task.taskId)
             projection.refreshTask(task)
@@ -1128,6 +1251,7 @@ export async function observeProductTask(input: {
           await refreshPermissions().catch((error) => {
             input.shell.notice("权限状态暂时无法刷新，当前保持关闭。使用 /doctor 查看详情。")
           })
+          await refreshUserInputs().catch(() => undefined)
           if (observationHasSettled(task) || (message.kind === "heartbeat" && (input.resume || runSettled))) {
             task = observationHasSettled(task) ? task : await input.api.task(task.taskId)
             projection.refreshTask(task)
@@ -1213,6 +1337,7 @@ export async function observeProductTask(input: {
       await refreshPermissions().catch((permissionError) => {
         input.shell.notice("权限状态暂时无法刷新，当前保持关闭。使用 /doctor 查看详情。")
       })
+      await refreshUserInputs().catch(() => undefined)
       renderProjection(true)
       if (observationHasSettled(task)) settled = true
     }
@@ -1631,7 +1756,7 @@ async function runProductSession(input: {
         await showProductHelp(input.shell, false)
         continue
       }
-      if (entry.kind === "permission") continue
+      if (entry.kind === "permission" || entry.kind === "question") continue
       const line = entry.text.trim()
       const command = parseProductCommand(line)
       if (command) {

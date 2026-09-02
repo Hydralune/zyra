@@ -112,6 +112,7 @@ class EventType(StrEnum):
     COMMAND_REGISTRY_REFRESHED = "command_registry_refreshed"
     PROMPT_QUEUE_UPDATED = "prompt_queue_updated"
     SIDE_QUESTION = "side_question"
+    USER_INPUT = "user_input"
     SYSTEM_NOTICE = "system_notice"
     BROWSER_SESSION_LIFECYCLE = "browser_session_lifecycle"
     BROWSER_TARGET_LIFECYCLE = "browser_target_lifecycle"

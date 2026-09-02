@@ -22,6 +22,7 @@ from zyra_runtime.permission.custody import (
 from zyra_runtime.permission.store import PermissionStateStore
 from zyra_runtime.typescript_runtime_host import ClaudeQueryEngineConfig
 from zyra_runtime.workers import WorkerRequest, WorkerResult
+from zyra_runtime.tools import default_tool_registry
 
 from zyra_runtime.sandbox_gateway.integration_factory import (
     install_gateway_runtime_services,
@@ -34,6 +35,7 @@ from .typescript_claude_runtime import (
     _verification_command_receipts,
 )
 from .retrieval_context_runtime import WorkerRetrievalContext, WorkerRetrievalContextRuntime
+from .user_input import user_input_tool_spec
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +134,9 @@ class CodeWorkerRuntime:
             worker_id="CodeWorkerRuntime",
             workspace_edit_port=supplied_services.get("workspace_edit_port"),
         )
+        registry = tool_registry or default_tool_registry()
+        if callable(services.get("user_input_bridge")):
+            registry = registry.merged([user_input_tool_spec()])
         bundle = services.get("sandbox_gateway_bundle")
         if bundle is not None:
             services.setdefault(
@@ -146,7 +151,7 @@ class CodeWorkerRuntime:
             workspace_root=workspace_root,
             artifact_root=artifact_root,
             permission_store=permission_store,
-            registry=tool_registry,
+            registry=registry,
             event_reader=event_reader,
             checkpoint_reader=checkpoint_reader,
             dynamic_handlers=dynamic_handlers,

@@ -339,6 +339,19 @@ class ToolExecutor:
             if call.tool_name == "checkpoint":
                 result = self._checkpoint(call, authorized=authorized)
                 return self._stamp_grant(result, permission_grant, call) if authorized else result
+            if call.tool_name == "request_user_input":
+                bridge = self.context.runtime_services.get("user_input_bridge")
+                if not callable(bridge):
+                    return ToolResult(
+                        tool_call_id=call.tool_call_id,
+                        ok=False,
+                        summary="Interactive user input is unavailable for this run.",
+                        error="user_input_bridge_unavailable",
+                    )
+                result = bridge(call)
+                if not isinstance(result, ToolResult) or result.tool_call_id != call.tool_call_id:
+                    raise TypeError("user input bridge returned an invalid tool result")
+                return result
             if call.tool_name == "trace":
                 result = self._trace(call, authorized=authorized)
                 return self._stamp_grant(result, permission_grant, call) if authorized else result

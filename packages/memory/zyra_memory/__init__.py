@@ -1,6 +1,12 @@
 from .fabric import MemoryFabric, approx_tokens, search_memory_records
 from .models import CompactPolicy, CompactResult, MemoryLayer, MemoryRecord, MemorySnapshot, TrajectoryFrame
 from .sqlite_store import SQLiteStore
+from .user_input import (
+    UserInputContractError,
+    canonical_user_input_digest,
+    normalize_user_input_answers,
+    normalize_user_input_questions,
+)
 from .incremental_index import (
     ChangeDisposition,
     IncrementalIndexUpdater,
@@ -230,6 +236,10 @@ __all__ = [
     "MemoryRecord",
     "MemorySnapshot",
     "SQLiteStore",
+    "UserInputContractError",
+    "canonical_user_input_digest",
+    "normalize_user_input_answers",
+    "normalize_user_input_questions",
     "TrajectoryFrame",
     "CallableEmbeddingProvider",
     "ChangeDisposition",

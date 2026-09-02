@@ -1,7 +1,7 @@
 import type { TaskProjection } from "@zyra/typed-api-client"
 import type { IngressFrame } from "../api.ts"
 import { CliTaskError } from "../contracts.ts"
-import type { UiPermissionSnapshot, UiTransportSnapshot, ZyraUiEvent } from "./events.ts"
+import type { UiPermissionSnapshot, UiTransportSnapshot, UiUserInputRequest, ZyraUiEvent } from "./events.ts"
 import { projectProductEvents } from "./projector.ts"
 
 export interface ProductProjectionSnapshot {
@@ -78,6 +78,7 @@ export class ProductProjection {
   #frameCount = 0
   #lastSequence = 0
   #permissions: readonly UiPermissionSnapshot[] = Object.freeze([])
+  #userInputs: readonly UiUserInputRequest[] = Object.freeze([])
   #transport: UiTransportSnapshot | undefined
   #connection: ProductProjectionSnapshot["connection"] = "connecting"
   #cursor: string | undefined
@@ -88,6 +89,7 @@ export class ProductProjection {
     frames?: readonly IngressFrame[]
     cursor?: string
     permissions?: readonly UiPermissionSnapshot[]
+    userInputs?: readonly UiUserInputRequest[]
   }) {
     this.#task = input.task
     this.#generation = input.generation
@@ -97,6 +99,7 @@ export class ProductProjection {
       frames: input.frames ?? [],
       cursor: input.cursor,
       permissions: input.permissions,
+      userInputs: input.userInputs,
     })
   }
 
@@ -160,6 +163,7 @@ export class ProductProjection {
     frames: readonly IngressFrame[]
     cursor?: string
     permissions?: readonly UiPermissionSnapshot[]
+    userInputs?: readonly UiUserInputRequest[]
   }): void {
     validateTask(this.#task, input.task)
     const frames = orderedSnapshotFrames(input.frames, input.task.taskId, input.generation)
@@ -177,6 +181,7 @@ export class ProductProjection {
     }
     this.#cursor = input.cursor ?? frames.at(-1)?.cursor
     if (input.permissions) this.permissions(input.permissions)
+    if (input.userInputs) this.userInputs(input.userInputs)
     this.#connection = terminal(input.task) ? "complete" : "connecting"
     this.#transport = undefined
   }
@@ -197,6 +202,18 @@ export class ProductProjection {
         return true
       })
       .map((permission) => Object.freeze({ ...permission })))
+  }
+
+  userInputs(requests: readonly UiUserInputRequest[]): void {
+    const seen = new Set<string>()
+    this.#userInputs = Object.freeze([...requests]
+      .sort((left, right) => left.requestId.localeCompare(right.requestId))
+      .filter((request) => {
+        if (seen.has(request.requestId)) return false
+        seen.add(request.requestId)
+        return true
+      })
+      .map((request) => Object.freeze({ ...request })))
   }
 
   connected(): void {
@@ -244,6 +261,7 @@ export class ProductProjection {
         task: this.#task,
         frames: [...this.#frames, ...this.#liveFrames],
         permissions: this.#permissions,
+        userInputs: this.#userInputs,
         transport: this.#transport,
       }),
     })

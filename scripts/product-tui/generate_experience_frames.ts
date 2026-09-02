@@ -166,6 +166,54 @@ const permissionOverlay: ProductOverlay = {
   footer: "Enter 确认 · Esc 拒绝",
 }
 
+const questionEvents: readonly ZyraUiEvent[] = [...running, {
+  schema: ZYRA_UI_EVENT_SCHEMA,
+  eventId: "user-input",
+  type: "user_input.requested",
+  request: {
+    requestId: "request_user_input_reference",
+    status: "pending",
+    revision: 0,
+    questions: [{
+      id: "database",
+      header: "数据库",
+      question: "这个服务应该采用哪种数据库？",
+      options: [
+        { label: "SQLite", description: "保持单机部署和零配置。" },
+        { label: "PostgreSQL", description: "支持共享服务和并发写入。" },
+      ],
+    }],
+  },
+}]
+
+const questionOverlay: ProductOverlay = {
+  kind: "question",
+  title: "数据库",
+  description: ["这个服务应该采用哪种数据库？"],
+  rows: [
+    { id: "SQLite", label: "SQLite", detail: "保持单机部署和零配置。" },
+    { id: "PostgreSQL", label: "PostgreSQL", detail: "支持共享服务和并发写入。" },
+    { id: "__freeform", label: "其他", detail: "输入不同的回答" },
+  ],
+  selected: 0,
+  footer: "↑↓ 选择 · Enter 回答 · Esc 稍后处理",
+}
+
+const answeredQuestionEvents: readonly ZyraUiEvent[] = [...running, {
+  schema: ZYRA_UI_EVENT_SCHEMA,
+  eventId: "user-input-resolved",
+  type: "user_input.resolved",
+  request: {
+    requestId: "request_user_input_reference",
+    status: "answered",
+    revision: 1,
+    questions: questionEvents.at(-1)!.type === "user_input.requested"
+      ? questionEvents.at(-1)!.request.questions
+      : [],
+    answers: { database: { answers: ["PostgreSQL"] } },
+  },
+}]
+
 const diffOverlay: ProductOverlay = {
   kind: "pager",
   title: "apps/cli/src/tui/shell.ts · +4 -2",
@@ -207,6 +255,8 @@ const scenarios: ReadonlyArray<{
   { name: "plan-update", events: [session, user, context, plan], options: { running: true } },
   { name: "permission-summary", events: permission, options: { running: true } },
   { name: "permission-approval", events: permission, options: { running: true, overlay: permissionOverlay } },
+  { name: "structured-question", events: questionEvents, options: { running: true, overlay: questionOverlay } },
+  { name: "structured-question-answered", events: answeredQuestionEvents, options: { running: true } },
   { name: "diff", events: completed, options: { overlay: diffOverlay } },
   { name: "completed", events: completed },
   { name: "failed-recovery", events: failed },

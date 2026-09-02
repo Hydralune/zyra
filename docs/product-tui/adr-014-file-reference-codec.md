@@ -15,6 +15,7 @@ Codex 的 composer 使用 `@` 启动 workspace file search，但选中后以路�
 - 选中普通路径后直接插入相对路径；包含空白或引号时使用 JSON string 规则引用和转义，并自动补一个参数分隔空格。
 - 文件匹配按前缀、basename 前缀和有边界加权的 subsequence 排序，只保留前 50 个结果；候选正规化索引按 immutable candidate set 缓存。
 - 本地索引仍拒绝 symlink/junction、credential 名称、依赖/构建目录，并保持 64 层、20,000 条硬上限。
+- Codex 的 arbitrary additional-directory UI 不直接移植。Zyra 的 physical worker 只信任 canonical managed workspace；workspace 外输入必须先通过已有的 transfer/attestation 边界进入该 workspace。允许 TUI 临时追加本地根会绕过 custody，因此在当前产品边界中记为 N/A，而不是一个待补的弱化文件搜索入口。
 
 ## 验证
 

@@ -11,6 +11,7 @@ import {
   type UiPermissionSnapshot,
   type UiToolOutputRef,
   type UiTransportSnapshot,
+  type UiUserInputRequest,
   type UiVerificationCheck,
   type ZyraUiEvent,
 } from "./events.ts"
@@ -19,6 +20,7 @@ export interface ProductProjectionInput {
   task: TaskProjection
   frames?: readonly IngressFrame[]
   permissions?: readonly UiPermissionSnapshot[]
+  userInputs?: readonly UiUserInputRequest[]
   transport?: UiTransportSnapshot
 }
 
@@ -38,6 +40,18 @@ function content(value: unknown, maximum = 1_000_000): string | undefined {
 
 function productText(value: unknown, maximum: number): string | undefined {
   return text(value, maximum)?.replaceAll("runtime.", "runtime")
+}
+
+function productToolName(value: unknown): string {
+  const raw = text(value, 256) ?? "工具"
+  const normalized = raw.toLocaleLowerCase().replaceAll("-", "_")
+  if (normalized === "request_user_input") return "等待你的回答"
+  if (normalized.includes("file_read") || normalized === "read") return "读取文件"
+  if (normalized.includes("search") || normalized.includes("grep")) return "搜索"
+  if (normalized.includes("file_write") || normalized.includes("file_edit") || normalized.includes("patch")) return "编辑文件"
+  if (normalized.includes("shell") || normalized.includes("command") || normalized.includes("terminal")) return "运行命令"
+  if (normalized.includes("browser") || normalized.includes("web")) return "联网浏览"
+  return raw.replaceAll("_", " ")
 }
 
 function stringList(value: unknown): string[] {
@@ -75,6 +89,36 @@ function displayPath(value: string): string {
 
 function occurredAt(frame: IngressFrame): string | undefined {
   return text(frame.event.createdAt) ?? text(frame.event.committedAt)
+}
+
+function chronologicalUserInputEvents(events: readonly ZyraUiEvent[]): ZyraUiEvent[] {
+  const ordered: ZyraUiEvent[] = []
+  for (const event of events) {
+    if (event.type !== "user_input.requested" && event.type !== "user_input.resolved") ordered.push(event)
+  }
+  const userInputs = events
+    .map((event, sourceOrder) => ({ event, sourceOrder, timestamp: event.occurredAt ? Date.parse(event.occurredAt) : Number.NaN }))
+    .filter(({ event }) => event.type === "user_input.requested" || event.type === "user_input.resolved")
+    .sort((left, right) => {
+      const leftValid = Number.isFinite(left.timestamp)
+      const rightValid = Number.isFinite(right.timestamp)
+      if (leftValid && rightValid && left.timestamp !== right.timestamp) return left.timestamp - right.timestamp
+      if (leftValid !== rightValid) return leftValid ? -1 : 1
+      return left.sourceOrder - right.sourceOrder
+    })
+
+  for (const item of userInputs) {
+    if (!Number.isFinite(item.timestamp)) {
+      ordered.push(item.event)
+      continue
+    }
+    const insertion = ordered.findIndex((event) => {
+      const timestamp = event.occurredAt ? Date.parse(event.occurredAt) : Number.NaN
+      return Number.isFinite(timestamp) && timestamp > item.timestamp
+    })
+    ordered.splice(insertion < 0 ? ordered.length : insertion, 0, item.event)
+  }
+  return ordered
 }
 
 function severity(value: unknown): "info" | "warning" | "error" {
@@ -563,7 +607,7 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
     const toolCallId = text(inline.tool_call_id)
       ?? text(object(frame.event.identity).toolCallId)
       ?? frame.eventId
-    const toolName = text(inline.tool_name) ?? "工具"
+    const toolName = productToolName(inline.tool_name)
 
     switch (frame.eventType) {
       case "runtime.text.started":
@@ -654,6 +698,26 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
     }
   }
 
+  for (const request of input.userInputs ?? []) {
+    if (request.status === "pending") {
+      push({
+        schema: ZYRA_UI_EVENT_SCHEMA,
+        eventId: `ui:user-input:${request.requestId}:requested:${request.revision}`,
+        occurredAt: request.updatedAt ?? request.createdAt,
+        type: "user_input.requested",
+        request,
+      })
+    } else {
+      push({
+        schema: ZYRA_UI_EVENT_SCHEMA,
+        eventId: `ui:user-input:${request.requestId}:resolved:${request.revision}`,
+        occurredAt: request.updatedAt,
+        type: "user_input.resolved",
+        request,
+      })
+    }
+  }
+
   const changes = workspaceChanges(task)
   if (changes.length) {
     push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:workspace:${task.taskId}:${task.updatedAt}`, occurredAt: task.updatedAt, type: "workspace.changed", changes })
@@ -730,5 +794,5 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
     push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: "ui:transport:recovered", type: "transport.recovered" })
   }
 
-  return Object.freeze(events)
+  return Object.freeze(chronologicalUserInputEvents(events))
 }

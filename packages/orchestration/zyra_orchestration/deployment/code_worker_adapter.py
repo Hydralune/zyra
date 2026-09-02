@@ -29,6 +29,7 @@ from zyra_runtime.sandbox_gateway import (
 )
 from zyra_workers import (
     BrowserWorkerActionDispatchPort,
+    CanonicalUserInputBridge,
     CodeWorkerRuntime,
     load_task_handoff_projection,
 )
@@ -818,6 +819,17 @@ def execute_code_worker_operator(
         # tools and shell share one coherent view. Docker benchmark bindings
         # already provide this coherence through their dedicated mirror.
         "sandbox_gateway_stage_workspace_snapshot": benchmark_binding is None,
+        "user_input_bridge": CanonicalUserInputBridge(
+            _required_path(
+                context.get("canonical_state_database_path"),
+                "canonical_state_database_path",
+            ),
+            maximum_wait_seconds=(
+                max(1.0, float(runtime_timeout_seconds))
+                if runtime_timeout_seconds is not None
+                else 86_400.0
+            ),
+        ),
     }
     if runtime_event_sink is not None:
         if not callable(runtime_event_sink):

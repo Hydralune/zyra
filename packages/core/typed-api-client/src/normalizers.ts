@@ -717,6 +717,10 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
     (value) => ({ ...responseRecord(value, "browser control response") }),
   )
   registry.register(
+    CONTRACT_NAMES.taskUserInput,
+    (value) => ({ ...responseRecord(value, "user input response") }),
+  )
+  registry.register(
     CONTRACT_NAMES.workspaceFiles,
     (value) => ({ ...responseRecord(value, "workspace files response") }),
   )

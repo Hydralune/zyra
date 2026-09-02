@@ -31,10 +31,12 @@ function view(messages: ProductViewState["messages"], evicted = 0): ProductViewS
     agents: [],
     issues: [],
     permissions: [],
+    userInputs: [],
+    userInputHistory: [],
     changes: [],
     connection: "connected",
     taskStatus: "completed",
-    evicted: { messages: evicted, activities: 0, tools: 0, agents: 0, issues: 0, changes: 0 },
+    evicted: { messages: evicted, activities: 0, tools: 0, agents: 0, issues: 0, userInputs: 0, changes: 0 },
   }
 }
 

@@ -8,7 +8,7 @@ import { ProductComposer, type ProductComposerResult } from "./composer.ts"
 import { LiveProductRenderer, type LiveRendererDiagnostics } from "./live-renderer.ts"
 import { PRODUCT_COMMAND_REGISTRY } from "../product/commands/registry.ts"
 import type { CompletionState } from "./overlay/completion.ts"
-import { pickProductItem } from "./overlay/list-picker.ts"
+import { pickProductItem, promptProductText } from "./overlay/list-picker.ts"
 import type { ProductOverlay, ProductPickerItem } from "./overlay/model.ts"
 import { pageProductText } from "./overlay/pager.ts"
 import { probeTerminalCapabilities, type TerminalCapabilities } from "./terminal-capabilities.ts"
@@ -41,6 +41,7 @@ export class ProductTuiShell {
   #overlay: ProductOverlay | undefined
   #chrome: ProductChromeState = Object.freeze({ model: "自动选择", mode: "标准" })
   #permissionDispatchKey: string | undefined
+  #userInputDispatchKey: string | undefined
 
   constructor(input: {
     stdin: Readable
@@ -133,7 +134,7 @@ export class ProductTuiShell {
     this.#taskEvents = events
     this.#events = Object.freeze([...this.#archivedEvents, ...events])
     this.#state.reconcile(this.#events)
-    this.#dispatchPermissionPrompt()
+    this.#dispatchBlockingPrompt()
     this.#renderer.render()
   }
 
@@ -142,7 +143,7 @@ export class ProductTuiShell {
     this.#taskEvents = Object.freeze([...this.#taskEvents, ...events])
     this.#events = Object.freeze([...this.#archivedEvents, ...this.#taskEvents])
     this.#state.reconcile(this.#events)
-    this.#dispatchPermissionPrompt()
+    this.#dispatchBlockingPrompt()
     this.#renderer.render()
   }
 
@@ -153,6 +154,7 @@ export class ProductTuiShell {
     this.#events = this.#archivedEvents
     this.#state.reconcile(this.#events)
     this.#permissionDispatchKey = undefined
+    this.#userInputDispatchKey = undefined
     this.#scrollOffset = 0
     this.#renderer.renderNow()
   }
@@ -164,6 +166,7 @@ export class ProductTuiShell {
     this.#state.reconcile(this.#events)
     this.#localHistory = []
     this.#permissionDispatchKey = undefined
+    this.#userInputDispatchKey = undefined
     this.#scrollOffset = 0
     this.#renderer.renderNow()
   }
@@ -201,6 +204,12 @@ export class ProductTuiShell {
         this.#renderer.renderNow()
         return { kind: "permission" }
       }
+      const userInputKey = this.#userInputKey()
+      if (running && userInputKey && userInputKey !== this.#userInputDispatchKey) {
+        this.#userInputDispatchKey = userInputKey
+        this.#renderer.renderNow()
+        return { kind: "question" }
+      }
       return await this.#composer.read()
     } finally {
       this.#acceptingInput = false
@@ -213,7 +222,7 @@ export class ProductTuiShell {
     title: string,
     items: readonly ProductPickerItem[],
     footer?: string,
-    kind: "picker" | "menu" | "approval" = "picker",
+    kind: "picker" | "menu" | "approval" | "question" = "picker",
     description?: readonly string[],
   ): Promise<ProductPickerItem | undefined> {
     if (!this.#interactive) return undefined
@@ -231,6 +240,25 @@ export class ProductTuiShell {
         this.#renderer.renderNow()
       },
     })
+  }
+
+  async prompt(title: string, description?: readonly string[]): Promise<string | undefined> {
+    if (!this.#interactive) return undefined
+    return promptProductText({
+      stdin: this.#input,
+      output: this.#output,
+      title,
+      description,
+      bracketedPaste: this.#bracketedPaste,
+      onChange: (overlay) => {
+        this.#overlay = overlay
+        this.#renderer.renderNow()
+      },
+    })
+  }
+
+  rearmUserInput(): void {
+    this.#userInputDispatchKey = undefined
   }
 
   async page(title: string, lines: readonly string[]): Promise<void> {
@@ -316,14 +344,29 @@ export class ProductTuiShell {
     return requests.length ? requests.map((request) => request.requestId).sort().join("|") : undefined
   }
 
-  #dispatchPermissionPrompt(): void {
-    const key = this.#permissionKey()
-    if (!key) {
+  #userInputKey(): string | undefined {
+    const requests = this.#state.snapshot().userInputs
+    return requests.length
+      ? requests.map((request) => `${request.requestId}:${request.revision}`).sort().join("|")
+      : undefined
+  }
+
+  #dispatchBlockingPrompt(): void {
+    const permissionKey = this.#permissionKey()
+    if (!permissionKey) {
       this.#permissionDispatchKey = undefined
+    } else if (this.#running && this.#acceptingInput && permissionKey !== this.#permissionDispatchKey) {
+      this.#permissionDispatchKey = permissionKey
+      this.#composer.yieldForPermission()
       return
     }
-    if (!this.#running || !this.#acceptingInput || key === this.#permissionDispatchKey) return
-    this.#permissionDispatchKey = key
-    this.#composer.yieldForPermission()
+    const userInputKey = this.#userInputKey()
+    if (!userInputKey) {
+      this.#userInputDispatchKey = undefined
+      return
+    }
+    if (!this.#running || !this.#acceptingInput || userInputKey === this.#userInputDispatchKey) return
+    this.#userInputDispatchKey = userInputKey
+    this.#composer.yieldForUserInput()
   }
 }
