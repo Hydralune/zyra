@@ -160,6 +160,10 @@ export class ProductTuiShell {
     this.#renderer.renderNow()
   }
 
+  restoreDraft(text: string): void {
+    this.#composer.restoreDraft(text)
+  }
+
   clearTranscript(): void {
     this.#archivedEvents = Object.freeze([])
     this.#taskEvents = Object.freeze([])

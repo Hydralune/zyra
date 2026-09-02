@@ -2007,13 +2007,33 @@ async function runProductSession(input: {
         )).task
     if (next.kind === "goal") {
       input.shell.status("正在同步当前工作区到隔离任务环境…")
-      const staged = await input.workspaceTransfer.stage(
-        input.api,
-        task,
-        input.cwd,
-        input.signal,
-      )
-      input.shell.notice(`工作区已同步 · ${staged.fileCount} 个文件 · ${staged.bytes} bytes`)
+      try {
+        const staged = await input.workspaceTransfer.stage(
+          input.api,
+          task,
+          input.cwd,
+          input.signal,
+        )
+        input.shell.notice(`工作区已同步 · ${staged.fileCount} 个文件 · ${staged.bytes} bytes`)
+      } catch (error) {
+        input.shell.status(undefined)
+        if (!input.tty) throw error
+        const goal = next.goal
+        input.shell.restoreDraft(goal)
+        const cancellation = await input.api.cancelTask(
+          task,
+          "Workspace synchronization failed before task execution.",
+        ).then(() => true).catch(() => false)
+        input.shell.notice([
+          "任务尚未开始执行；你的输入已恢复到编辑框。",
+          `工作区同步失败 · ${controlError(error)}`,
+          cancellation
+            ? "请处理上述路径后再次按 Enter。"
+            : "远端待处理任务的取消状态未能确认；可先运行 /doctor，再重试。",
+        ].join("\n"))
+        next = undefined
+        continue
+      }
     }
     currentTaskId = task.taskId
     currentTask = task

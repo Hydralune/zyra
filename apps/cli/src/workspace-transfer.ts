@@ -26,13 +26,32 @@ const MAX_STAGED_BYTES = 256 * 1024 * 1024
 // 2 MiB. Keep enough room for encoding and request metadata.
 const MAX_STAGED_FILE_BYTES = 1_400_000
 const EXCLUDED_DIRECTORIES = new Set([
+  ".cache",
   ".git",
   ".hg",
+  ".idea",
+  ".mypy_cache",
+  ".next",
+  ".nox",
+  ".nuxt",
+  ".pytest_cache",
+  ".ruff_cache",
   ".svn",
+  ".tmp",
+  ".tox",
+  ".turbo",
   ".venv",
+  ".vscode",
   ".zyra",
   "__pycache__",
+  "build",
+  "coverage",
+  "dist",
+  "env",
   "node_modules",
+  "out",
+  "target",
+  "tmp",
   "venv",
 ])
 
@@ -106,12 +125,27 @@ function assertRelativeWorkspacePath(path: string): string {
   return normalized
 }
 
+function workspaceReadFailure(error: unknown, logicalPath: string): never {
+  const code = error && typeof error === "object" && "code" in error
+    ? String((error as NodeJS.ErrnoException).code ?? "")
+    : ""
+  if (code === "EACCES" || code === "EPERM") {
+    throw new CliTaskError(
+      `无法读取工作区路径 ${logicalPath || "."}；请修复该路径权限，或将生成目录移出工作区后重试。`,
+      "workspace_seed_path_unreadable",
+      { path: logicalPath || ".", filesystem_code: code },
+    )
+  }
+  throw error
+}
+
 async function collectWorkspaceFiles(root: string): Promise<WorkspaceFile[]> {
   const rootPath = await realpath(root)
   const files: WorkspaceFile[] = []
   let bytes = 0
   const visit = async (directory: string, prefix: string): Promise<void> => {
     const entries = await readdir(directory, { withFileTypes: true })
+      .catch((error: unknown) => workspaceReadFailure(error, prefix))
     entries.sort((left, right) => left.name.localeCompare(right.name))
     for (const entry of entries) {
       if (entry.isSymbolicLink()) continue
@@ -120,6 +154,7 @@ async function collectWorkspaceFiles(root: string): Promise<WorkspaceFile[]> {
       const logicalPath = prefix ? `${prefix}/${entry.name}` : entry.name
       const absolutePath = resolve(directory, entry.name)
       const status = await lstat(absolutePath)
+        .catch((error: unknown) => workspaceReadFailure(error, logicalPath))
       if (status.isSymbolicLink()) continue
       if (status.isDirectory()) {
         await visit(absolutePath, logicalPath)
@@ -161,6 +196,7 @@ export async function stageWorkspace(
   for (const file of files) {
     if (signal.aborted) throw signal.reason
     const content = await readFile(file.absolutePath)
+      .catch((error: unknown) => workspaceReadFailure(error, file.path))
     await api.writeWorkspaceFile(selectedWorkspaceId, file.path, content, signal)
     bytes += content.byteLength
   }

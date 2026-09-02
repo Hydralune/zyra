@@ -33,10 +33,14 @@ describe("CLI managed-workspace transfer", () => {
     try {
       await mkdir(join(root, "inputs"), { recursive: true })
       await mkdir(join(root, "node_modules", "ignored"), { recursive: true })
+      await mkdir(join(root, ".tmp", ".zyra-workspace-manager", "ignored"), { recursive: true })
+      await mkdir(join(root, "dist"), { recursive: true })
       await writeFile(join(root, "TASK.md"), "task")
       await writeFile(join(root, "inputs", "data.json"), '{"ok":true}')
       await writeFile(join(root, ".env.deepseek.local"), "DEEPSEEK_API_KEY=never-stage")
       await writeFile(join(root, "node_modules", "ignored", "index.js"), "ignored")
+      await writeFile(join(root, ".tmp", ".zyra-workspace-manager", "ignored", "state.json"), "ignored")
+      await writeFile(join(root, "dist", "zyra.js"), "ignored")
       const writes: Array<{ path: string; content: string }> = []
       const api = {
         async writeWorkspaceFile(_workspaceId: string, path: string, content: Uint8Array) {

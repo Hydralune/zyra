@@ -86,6 +86,12 @@ export class ProductComposer {
 
   get snapshot(): DraftSnapshot { return this.draft.snapshot() }
 
+  restoreDraft(text: string): void {
+    this.draft.set(text, text.length, false)
+    this.#onNotice(undefined)
+    this.#changed()
+  }
+
   async read(): Promise<ProductComposerResult> {
     if (this.#settle) throw new TypeError("ProductComposer already has an active read.")
     this.#terminalSession.enter()

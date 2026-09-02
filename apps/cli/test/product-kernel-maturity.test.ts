@@ -644,6 +644,69 @@ describe("product commands and continuous session", () => {
     expect(stdout.text).not.toContain("工作区交付已落盘")
   })
 
+  test("restores the submitted draft and stays interactive when workspace staging fails", async () => {
+    let latest: TaskProjection | undefined
+    let cancelled = 0
+    let observed = 0
+    const api = {
+      async createPendingTask(goal: string, _sealed: boolean, sessionId?: string) {
+        latest = {
+          ...completedTask(1, goal, sessionId ?? "missing"),
+          status: "pending",
+          terminal: false,
+          active: true,
+        }
+        return mutation(latest)
+      },
+      async cancelTask() {
+        cancelled += 1
+        latest = { ...latest!, status: "cancelled", terminal: true, active: false }
+        return mutation(latest)
+      },
+      async ingressCapabilities() {
+        observed += 1
+        throw new Error("staging failure must not enter task observation")
+      },
+    } as unknown as CliApi
+    const transfer: ProductWorkspaceTransfer = {
+      async stage() {
+        throw new Error("simulated unreadable generated directory")
+      },
+      async materialize(_api, _task, root) {
+        return { workspaceId: "unused", root, fileCount: 0, bytes: 0, paths: [], deletedPaths: [] }
+      },
+    }
+    const stdin = new TtyInput()
+    const stdout = new Capture()
+    const executing = executeProductInteractive({
+      command: {
+        kind: "interactive",
+        baseUrl: "http://127.0.0.1:8000",
+        autoStart: false,
+        startupTimeoutMs: 1_000,
+        timeoutMs: 10_000,
+      },
+      api,
+      stdin,
+      stdout,
+      signal: new AbortController().signal,
+      cwd: "G:\\agent-zoo\\zyra",
+      draftStore: null,
+      onboardingStore: null,
+      workspaceTransfer: transfer,
+    })
+
+    await waitUntil(() => stdin.raw)
+    stdin.write("不要丢失这段输入\r")
+    await waitUntil(() => cancelled === 1 && stdin.raw && stdout.text.includes("你的输入已恢复到编辑框"))
+    expect(stdout.text).toContain("不要丢失这段输入")
+    expect(observed).toBe(0)
+    stdin.write("\u0003")
+    stdin.write("\u0003")
+    const outcome = await executing
+    expect(outcome).toMatchObject({ status: "exited", exitCode: CliExitCode.SUCCESS })
+  })
+
   test("keeps a completed historical task inspectable when its workspace payload expired", async () => {
     const historical: TaskProjection = {
       ...completedTask(1, "检查历史交付", "session_historical"),
