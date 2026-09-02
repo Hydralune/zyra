@@ -166,6 +166,17 @@ const permissionOverlay: ProductOverlay = {
   footer: "Enter 确认 · Esc 拒绝",
 }
 
+const completionOverlay: ProductOverlay = {
+  kind: "completion",
+  title: "命令",
+  rows: [
+    { id: "/status", label: "/status", detail: "查看当前会话、模型和上下文" },
+    { id: "/stop", label: "/stop", detail: "中断当前任务" },
+  ],
+  selected: 0,
+  footer: "↑↓ 选择 · Tab/Enter 接受",
+}
+
 const questionEvents: readonly ZyraUiEvent[] = [...running, {
   schema: ZYRA_UI_EVENT_SCHEMA,
   eventId: "user-input",
@@ -251,6 +262,7 @@ const scenarios: ReadonlyArray<{
 }> = [
   { name: "cold-start", events: [] },
   { name: "composer-input", events: [], options: { composerText: "请检查 @apps/cli/src/tui/shell.ts", composerCursor: 34 } },
+  { name: "command-completion", events: [], options: { composerText: "/st", composerCursor: 3, overlay: completionOverlay } },
   { name: "running-tool", events: running, options: { running: true } },
   { name: "plan-update", events: [session, user, context, plan], options: { running: true } },
   { name: "permission-summary", events: permission, options: { running: true } },

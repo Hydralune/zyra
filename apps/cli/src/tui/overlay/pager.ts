@@ -10,6 +10,7 @@ export async function pageProductText(input: {
   title: string
   lines: readonly string[]
   pageSize?: number
+  signal?: AbortSignal
   onChange: (overlay?: ProductOverlay) => void
 }): Promise<void> {
   const stdin = input.stdin as RawInput
@@ -45,11 +46,16 @@ export async function pageProductText(input: {
   try {
     await new Promise<void>((resolve, reject) => {
       let pending = ""
+      let settled = false
       const finish = () => {
+        if (settled) return
+        settled = true
         stdin.off("data", data)
         stdin.off("end", end)
+        input.signal?.removeEventListener("abort", abort)
         resolve()
       }
+      const abort = () => finish()
       const end = () => finish()
       const data = (chunk: Buffer | string) => {
         try {
@@ -90,6 +96,8 @@ export async function pageProductText(input: {
       }
       stdin.on("data", data)
       stdin.once("end", end)
+      input.signal?.addEventListener("abort", abort, { once: true })
+      if (input.signal?.aborted) finish()
     })
   } finally {
     stdin.setRawMode?.(false)

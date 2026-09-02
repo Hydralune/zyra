@@ -26,9 +26,19 @@ function terminal(task: TaskProjection): boolean {
 
 function assistantIdentity(frame: IngressFrame): string | undefined {
   const value = frame.presentation
-  if (!value || value.schema !== "zyra.product-presentation/v1" || value.kind !== "assistant") return undefined
-  return typeof value.identity === "string" && value.identity.trim()
-    ? value.identity.trim().slice(0, 256)
+  if (value?.schema === "zyra.product-presentation/v1" && value.kind === "assistant") {
+    if (typeof value.identity === "string" && value.identity.trim()) {
+      return value.identity.trim().slice(0, 256)
+    }
+  }
+  const event = frame.event
+  const inline = event && typeof event === "object" && !Array.isArray(event)
+    ? (event.inline && typeof event.inline === "object" && !Array.isArray(event.inline)
+        ? event.inline as Readonly<Record<string, unknown>>
+        : undefined)
+    : undefined
+  return typeof inline?.assistant_message_id === "string" && inline.assistant_message_id.trim()
+    ? inline.assistant_message_id.trim().slice(0, 256)
     : undefined
 }
 
@@ -74,6 +84,7 @@ export class ProductProjection {
   #frames: IngressFrame[] = []
   #liveFrames: IngressFrame[] = []
   #liveEventIds = new Set<string>()
+  #settledAssistantIdentities = new Set<string>()
   #bySequence = new Map<number, string>()
   #frameCount = 0
   #lastSequence = 0
@@ -135,6 +146,7 @@ export class ProductProjection {
     if (frame.eventType === "runtime.text.ended") {
       const identity = assistantIdentity(frame)
       if (identity) {
+        this.#settledAssistantIdentities.add(identity)
         this.#liveFrames = this.#liveFrames.filter((item) => assistantIdentity(item) !== identity)
         this.#liveEventIds = new Set(this.#liveFrames.map((item) => item.eventId))
       }
@@ -146,7 +158,12 @@ export class ProductProjection {
     if (frame.taskId !== this.#task.taskId || frame.generation !== this.#generation) {
       throw new CliTaskError("Live product event does not match the active task generation.", "contract_projection_binding_invalid")
     }
-    if (frame.liveSequence === undefined || this.#liveEventIds.has(frame.eventId)) return false
+    const identity = assistantIdentity(frame)
+    if (
+      frame.liveSequence === undefined
+      || this.#liveEventIds.has(frame.eventId)
+      || (identity !== undefined && this.#settledAssistantIdentities.has(identity))
+    ) return false
     this.#liveFrames.push(frame)
     this.#liveEventIds.add(frame.eventId)
     this.#frameCount += 1
@@ -172,6 +189,12 @@ export class ProductProjection {
     this.#frames = frames
     this.#liveFrames = []
     this.#liveEventIds.clear()
+    this.#settledAssistantIdentities = new Set(
+      frames
+        .filter((frame) => frame.eventType === "runtime.text.ended")
+        .map(assistantIdentity)
+        .filter((identity): identity is string => identity !== undefined),
+    )
     this.#bySequence = new Map(frames.map((frame) => [frame.sequence, frame.eventId]))
     this.#frameCount = frames.length
     this.#lastSequence = frames.at(-1)?.sequence ?? 0

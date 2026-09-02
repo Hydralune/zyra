@@ -619,6 +619,27 @@ def execute_code_worker_operator(
         task_id,
         layer_index,
     )
+    recovery_identity = str(
+        payload.get("recovery_session_id")
+        or payload.get("recovery_plan_id")
+        or ""
+    )
+    continuation_request_ids: tuple[str, ...] = ()
+    if recovery_identity or int(payload.get("physical_recovery_pass") or 0) > 0:
+        canonical_store = SQLiteStore(
+            _required_path(
+                context.get("canonical_state_database_path"),
+                "canonical_state_database_path",
+            )
+        )
+        continuation_request_ids = tuple(
+            str(request["request_id"])
+            for request in canonical_store.user_input_requests(
+                task_id,
+                include_terminal=False,
+            )
+            if str(request.get("run_id") or "") == run_id
+        )
     max_turns, runtime_timeout_seconds = _code_worker_reasoning_budget(
         context,
         benchmark_execution=benchmark_binding is not None,
@@ -829,6 +850,7 @@ def execute_code_worker_operator(
                 if runtime_timeout_seconds is not None
                 else 86_400.0
             ),
+            continuation_request_ids=continuation_request_ids,
         ),
     }
     if runtime_event_sink is not None:

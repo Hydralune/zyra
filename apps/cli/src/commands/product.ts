@@ -2050,17 +2050,15 @@ async function runProductSession(input: {
     trace("canonical refresh complete")
     if (currentTask) {
       try {
-        const materialized = await input.workspaceTransfer.materialize(
+        await input.workspaceTransfer.materialize(
           input.api,
           currentTask,
           input.cwd,
           input.signal,
         )
-        if (materialized.fileCount > 0 || materialized.deletedPaths.length > 0) {
-          input.shell.notice(
-            `工作区交付已落盘 · ${materialized.fileCount} 个写入 · ${materialized.deletedPaths.length} 个删除`,
-          )
-        }
+        // Canonical workspace changes are already rendered before the final
+        // answer.  A second local success notice would move operational
+        // bookkeeping behind the answer and break the conversation hierarchy.
       } catch (error) {
         if (currentTask.status === "completed" && !resumedTask) throw error
         input.shell.notice(currentTask.status === "completed"
@@ -2076,7 +2074,6 @@ async function runProductSession(input: {
       input.shell.finish()
       return lastOutcome
     }
-    input.shell.notice("本轮已收敛。继续输入可在同一会话发起下一轮；/new 开始新会话，/exit 退出。")
     trace("idle composer next")
   }
   trace("session loop complete")

@@ -345,6 +345,27 @@ describe("product TUI shell", () => {
     expect(stdin.isPaused()).toBe(true)
   })
 
+  test("cancels an active question overlay when the canonical task settles", async () => {
+    const stdin = new TtyInput()
+    const output = new TtyOutput()
+    const shell = new ProductTuiShell({ stdin, output, workspace: "G:\\agent-zoo\\zyra" })
+    shell.start()
+    const picking = shell.pick(
+      "数据库选择",
+      [{ id: "SQLite", label: "SQLite", detail: "使用嵌入式数据库。" }],
+      undefined,
+      "question",
+    )
+    expect(output.text).toContain("数据库选择")
+
+    shell.detachInput()
+
+    await expect(picking).resolves.toBeUndefined()
+    expect(stdin.raw).toBe(false)
+    expect(output.text.slice(-600)).not.toContain("数据库选择")
+    shell.close()
+  })
+
   test("accepts input at the first observable composer paint", async () => {
     const stdin = new TtyInput()
     const output = new TtyOutput()

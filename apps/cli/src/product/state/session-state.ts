@@ -159,6 +159,7 @@ export class ProductSessionState {
   #taskMessage: string | undefined
   #sourceLength = 0
   #sourceTail: string | undefined
+  #sourceEventIds: string[] = []
   readonly #timelineOrder = new Map<string, number>()
   #nextTimelineOrder = 0
   #evicted = { messages: 0, activities: 0, tools: 0, agents: 0, issues: 0, userInputs: 0, changes: 0 }
@@ -179,11 +180,16 @@ export class ProductSessionState {
 
   reconcile(events: readonly ZyraUiEvent[]): void {
     const extendsPrior = this.#sourceLength === 0
-      || (events.length >= this.#sourceLength && events[this.#sourceLength - 1]?.eventId === this.#sourceTail)
+      || (
+        events.length >= this.#sourceLength
+        && events[this.#sourceLength - 1]?.eventId === this.#sourceTail
+        && this.#sourceEventIds.every((eventId, index) => events[index]?.eventId === eventId)
+      )
     if (!extendsPrior) this.#reset()
     for (const event of events.slice(this.#sourceLength)) this.apply(event)
     this.#sourceLength = events.length
     this.#sourceTail = events.at(-1)?.eventId
+    this.#sourceEventIds = events.map((event) => event.eventId)
   }
 
   apply(event: ZyraUiEvent): void {
@@ -211,7 +217,8 @@ export class ProductSessionState {
         break
       }
       case "assistant.message.completed":
-        this.#remember("message", event.messageId)
+        if (event.source === "canonical_final_answer") this.#rememberLatest("message", event.messageId)
+        else this.#remember("message", event.messageId)
         this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "assistant", ...boundedMessage(event.text, this.#limits.messageCharacters), streaming: false }, this.#limits.messages, (key) => this.#forget("message", key))
         break
       case "activity.started":
@@ -412,6 +419,7 @@ export class ProductSessionState {
     this.#taskMessage = undefined
     this.#sourceLength = 0
     this.#sourceTail = undefined
+    this.#sourceEventIds = []
     this.#evicted = { messages: 0, activities: 0, tools: 0, agents: 0, issues: 0, userInputs: 0, changes: 0 }
   }
 

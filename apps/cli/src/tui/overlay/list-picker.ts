@@ -21,6 +21,7 @@ export async function pickProductItem(input: {
   kind?: "picker" | "menu" | "approval" | "question"
   description?: readonly string[]
   bracketedPaste?: boolean
+  signal?: AbortSignal
   onChange: (overlay?: ProductOverlay) => void
 }): Promise<ProductPickerItem | undefined> {
   const stdin = input.stdin as RawInput
@@ -50,11 +51,16 @@ export async function pickProductItem(input: {
   try {
     return await new Promise<ProductPickerItem | undefined>((resolve, reject) => {
       let pending = ""
+      let settled = false
       const finish = (value?: ProductPickerItem) => {
+        if (settled) return
+        settled = true
         stdin.off("data", data)
         stdin.off("end", end)
+        input.signal?.removeEventListener("abort", abort)
         resolve(value)
       }
+      const abort = () => finish()
       const end = () => finish()
       const data = (chunk: Buffer | string) => {
         try {
@@ -106,6 +112,11 @@ export async function pickProductItem(input: {
       }
       stdin.on("data", data)
       stdin.once("end", end)
+      input.signal?.addEventListener("abort", abort, { once: true })
+      if (input.signal?.aborted) {
+        finish()
+        return
+      }
       // Publishing the overlay is the observable readiness boundary.  Attach
       // input first so a user (or PTY automation) cannot press Enter in the
       // small window between the first paint and listener registration.
@@ -127,6 +138,7 @@ export async function promptProductText(input: {
   footer?: string
   maximumCharacters?: number
   bracketedPaste?: boolean
+  signal?: AbortSignal
   onChange: (overlay?: ProductOverlay) => void
 }): Promise<string | undefined> {
   const stdin = input.stdin as RawInput
@@ -148,11 +160,16 @@ export async function promptProductText(input: {
   try {
     return await new Promise<string | undefined>((resolve, reject) => {
       let pending = ""
+      let settled = false
       const finish = (value?: string) => {
+        if (settled) return
+        settled = true
         stdin.off("data", data)
         stdin.off("end", end)
+        input.signal?.removeEventListener("abort", abort)
         resolve(value)
       }
+      const abort = () => finish()
       const end = () => finish()
       const data = (chunk: Buffer | string) => {
         try {
@@ -180,6 +197,11 @@ export async function promptProductText(input: {
       }
       stdin.on("data", data)
       stdin.once("end", end)
+      input.signal?.addEventListener("abort", abort, { once: true })
+      if (input.signal?.aborted) {
+        finish()
+        return
+      }
       update()
     })
   } finally {

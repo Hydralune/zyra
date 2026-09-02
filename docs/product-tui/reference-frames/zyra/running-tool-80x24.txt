@@ -15,5 +15,10 @@
 • 正在运行：bun test apps/cli/test/product-presentation.test.ts（4s · esc 中断）
   └ 输出正在记录，可用 /tools 查看
 
+
+
+
+
+
 › 让 Zyra 处理任何任务
   tab 排队消息 · esc 中断                        62% 上下文 · deepseek-v4 · 标准

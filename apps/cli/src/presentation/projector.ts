@@ -39,7 +39,26 @@ function content(value: unknown, maximum = 1_000_000): string | undefined {
 }
 
 function productText(value: unknown, maximum: number): string | undefined {
-  return text(value, maximum)?.replaceAll("runtime.", "runtime")
+  const selected = text(value, maximum)?.replaceAll("runtime.", "runtime")
+  if (!selected) return undefined
+  const canonicalLabels: Readonly<Record<string, string>> = {
+    "Assistant": "Zyra",
+    "Execution worker": "执行代理",
+    "Local failure recovery": "局部故障恢复",
+    "Task execution": "任务执行",
+    "Task execution could not continue.": "任务执行无法继续。",
+    "Plan": "规划",
+    "Route": "路由",
+    "Execute": "执行",
+    "Verify": "验证",
+    "Finalize": "交付",
+    "Decompose the user goal into an executable task graph.": "将用户目标拆解为可执行任务计划。",
+    "Select the worker and control route for the executable node.": "选择执行代理与控制路径。",
+    "Run the current node through the selected worker runtime.": "通过选定的代理运行当前任务。",
+    "Check node outputs, event coverage, and checkpoint readiness.": "检查任务输出、事件覆盖与检查点状态。",
+    "Finalize the trace and mark the task ready for inspection.": "收敛执行记录并准备交付。",
+  }
+  return canonicalLabels[selected] ?? selected
 }
 
 function productToolName(value: unknown): string {
@@ -239,7 +258,7 @@ function productPresentationEvents(frame: IngressFrame): ZyraUiEvent[] | undefin
   const kind = text(presentation.kind, 64)
   const phase = text(presentation.phase, 64) ?? "updated"
   const identity = text(presentation.identity, 256)
-  const label = text(presentation.label, 256)
+  const label = productText(presentation.label, 256)
   if (!kind || !identity || !label) return []
   const at = occurredAt(frame)
   const summary = text(presentation.summary, 2_000)
@@ -335,9 +354,10 @@ function assistantPresentation(frame: IngressFrame): AssistantPresentation | und
   const phase = presentation.phase === "started" || presentation.phase === "delta" || presentation.phase === "completed"
     ? presentation.phase
     : undefined
-  const messageId = text(presentation.identity, 256)
-  if (!phase || !messageId) return undefined
-  return { phase, messageId: `message:assistant:${messageId}`, text: content(presentation.text) }
+  const identity = text(presentation.identity, 256)
+  if (!phase || !identity) return undefined
+  const messageId = identity.startsWith("message:") ? identity : `message:assistant:${identity}`
+  return { phase, messageId, text: content(presentation.text) }
 }
 
 function sortedFrames(frames: readonly IngressFrame[], taskId: string): IngressFrame[] {
@@ -548,7 +568,7 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
 
   for (const node of [...task.planNodes].sort((left, right) => left.nodeId.localeCompare(right.nodeId))) {
     if (node.nodeId === task.rootNodeId) continue
-    const label = node.title.trim() || node.description.trim() || "执行任务"
+    const label = productText(node.title, 256) ?? productText(node.description, 2_000) ?? "执行任务"
     const base = {
       schema: ZYRA_UI_EVENT_SCHEMA,
       eventId: `ui:activity:${node.nodeId}:${node.status}`,
@@ -570,12 +590,13 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
     .sort((left, right) => left.requestId.localeCompare(right.requestId))
   const canonicalPermissionIds = new Set(permissionSnapshots.map((item) => item.requestId))
   const streamBuffers = new Map<string, string>()
-  const completedAssistantTexts: string[] = []
+  let lastAssistantMessageId: string | undefined
   let lastCompletedAssistantMessageId: string | undefined
 
   for (const frame of sortedFrames(input.frames ?? [], task.taskId)) {
     const assistant = assistantPresentation(frame)
     if (assistant !== undefined) {
+      lastAssistantMessageId = assistant.messageId
       const base = { schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: occurredAt(frame) } as const
       if (assistant.phase === "started") {
         streamBuffers.set(assistant.messageId, "")
@@ -588,7 +609,6 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
       } else {
         const completed = assistant.text ?? streamBuffers.get(assistant.messageId)
         if (completed) {
-          completedAssistantTexts.push(completed)
           lastCompletedAssistantMessageId = assistant.messageId
           push({ ...base, type: "assistant.message.completed", messageId: assistant.messageId, text: completed, source: "stream" })
         }
@@ -611,12 +631,14 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
 
     switch (frame.eventType) {
       case "runtime.text.started":
+        lastAssistantMessageId = messageId
         streamBuffers.set(streamId, "")
         push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: at, type: "assistant.message.started", messageId })
         break
       case "runtime.text.delta": { // Current physical runs expose only byte count/digest; absent text is intentionally ignored.
         const delta = explicitAssistantText(frame)
         if (!delta) break
+        lastAssistantMessageId = messageId
         streamBuffers.set(streamId, `${streamBuffers.get(streamId) ?? ""}${delta}`)
         push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: at, type: "assistant.message.delta", messageId, text: delta })
         break
@@ -624,7 +646,7 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
       case "runtime.text.ended": { // Never reconstruct text from a digest or summary.
         const completed = explicitAssistantText(frame) ?? streamBuffers.get(streamId)
         if (!completed) break
-        completedAssistantTexts.push(completed)
+        lastAssistantMessageId = messageId
         lastCompletedAssistantMessageId = messageId
         push({ schema: ZYRA_UI_EVENT_SCHEMA, eventId: `ui:${frame.eventId}`, occurredAt: at, type: "assistant.message.completed", messageId, text: completed, source: "stream" })
         break
@@ -737,13 +759,13 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
 
   const finalAnswer = content(task.metadata.final_answer)
   if (task.status === "completed") {
-    if (finalAnswer && !completedAssistantTexts.includes(finalAnswer)) {
+    if (finalAnswer) {
       push({
         schema: ZYRA_UI_EVENT_SCHEMA,
         eventId: `ui:assistant:${task.taskId}:canonical-final`,
         occurredAt: task.updatedAt,
         type: "assistant.message.completed",
-        messageId: lastCompletedAssistantMessageId ?? `message:assistant:${task.taskId}:final`,
+        messageId: lastCompletedAssistantMessageId ?? lastAssistantMessageId ?? `message:assistant:${task.taskId}:final`,
         text: finalAnswer,
         source: "canonical_final_answer",
       })

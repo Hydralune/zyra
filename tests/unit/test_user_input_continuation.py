@@ -146,6 +146,86 @@ class UserInputContinuationTests(unittest.TestCase):
                 ["requested", "cancelled"],
             )
 
+    def test_recovery_rebinds_a_replayed_tool_call_to_the_pending_request(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            database = root / "canonical.sqlite3"
+            store = SQLiteStore(database)
+            state = create_task_state("Ask for a database, survive restart, then continue.")
+            store.save_checkpoint(state)
+            original_questions = [{
+                "header": "数据库选择",
+                "id": "db_choice",
+                "question": "请选择要使用的数据库类型：",
+                "options": [
+                    {"label": "SQLite", "description": "使用嵌入式数据库。"},
+                    {"label": "PostgreSQL", "description": "使用服务端数据库。"},
+                ],
+            }]
+            original = store.create_user_input_request(
+                request_id="request_before_daemon_restart",
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id="node_before_restart",
+                tool_call_id="toolcall_before_restart",
+                request_digest=canonical_user_input_digest(original_questions),
+                questions=original_questions,
+                created_at=now_iso(),
+            )
+            replayed_questions = [{
+                "header": "数据库选择",
+                "id": "database_choice",
+                "question": "请选择使用 SQLite 还是 PostgreSQL？",
+                "options": [
+                    {"label": "SQLite", "description": "选择 SQLite。"},
+                    {"label": "PostgreSQL", "description": "选择 PostgreSQL。"},
+                ],
+            }]
+            bridge = CanonicalUserInputBridge(
+                database,
+                poll_seconds=0.01,
+                maximum_wait_seconds=5,
+                continuation_request_ids=[original["request_id"]],
+            )
+            call = ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id="node_after_restart",
+                tool_name="request_user_input",
+                tool_call_id="toolcall_after_restart",
+                arguments={"questions": replayed_questions},
+            )
+
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(bridge, call)
+                time.sleep(0.05)
+                self.assertFalse(future.done())
+                self.assertEqual(
+                    [item["request_id"] for item in store.user_input_requests(state.task_id)],
+                    [original["request_id"]],
+                )
+                answers = {"db_choice": {"answers": ["SQLite"]}}
+                store.answer_user_input_request(
+                    task_id=state.task_id,
+                    request_id=original["request_id"],
+                    expected_revision=0,
+                    answer_id="answer_after_daemon_restart",
+                    answer_digest=canonical_user_input_digest(answers),
+                    answers=answers,
+                    responder="test",
+                    answered_at=now_iso(),
+                )
+                result = future.result(timeout=2)
+
+            self.assertTrue(result.ok)
+            self.assertEqual(result.output["request_id"], original["request_id"])
+            self.assertEqual(
+                result.output["answers"],
+                {"database_choice": {"answers": ["SQLite"]}},
+            )
+            self.assertEqual(result.metadata["continuation_rebound"], "true")
+            self.assertEqual(len(store.user_input_requests(state.task_id)), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -17,8 +17,8 @@
 
 
 
+› /status  查看当前会话、模型和上下文
+  /stop  中断当前任务
 
-
-
-› 请检查 @apps/cli/src/tui/shell.ts
-  ? 查看快捷键                                                deepseek-v4 · 标准
+› /st
+  ↑↓ 选择 · Tab/Enter 接受                                    deepseek-v4 · 标准

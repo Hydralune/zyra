@@ -42,6 +42,7 @@ export class ProductTuiShell {
   #chrome: ProductChromeState = Object.freeze({ model: "自动选择", mode: "标准" })
   #permissionDispatchKey: string | undefined
   #userInputDispatchKey: string | undefined
+  #overlayAbort: AbortController | undefined
 
   constructor(input: {
     stdin: Readable
@@ -226,35 +227,47 @@ export class ProductTuiShell {
     description?: readonly string[],
   ): Promise<ProductPickerItem | undefined> {
     if (!this.#interactive) return undefined
-    return pickProductItem({
-      stdin: this.#input,
-      output: this.#output,
-      title,
-      items,
-      footer,
-      kind,
-      description,
-      bracketedPaste: this.#bracketedPaste,
-      onChange: (overlay) => {
-        this.#overlay = overlay
-        this.#renderer.renderNow()
-      },
-    })
+    const controller = this.#beginOverlay()
+    try {
+      return await pickProductItem({
+        stdin: this.#input,
+        output: this.#output,
+        title,
+        items,
+        footer,
+        kind,
+        description,
+        bracketedPaste: this.#bracketedPaste,
+        signal: controller.signal,
+        onChange: (overlay) => {
+          this.#overlay = overlay
+          this.#renderer.renderNow()
+        },
+      })
+    } finally {
+      this.#endOverlay(controller)
+    }
   }
 
   async prompt(title: string, description?: readonly string[]): Promise<string | undefined> {
     if (!this.#interactive) return undefined
-    return promptProductText({
-      stdin: this.#input,
-      output: this.#output,
-      title,
-      description,
-      bracketedPaste: this.#bracketedPaste,
-      onChange: (overlay) => {
-        this.#overlay = overlay
-        this.#renderer.renderNow()
-      },
-    })
+    const controller = this.#beginOverlay()
+    try {
+      return await promptProductText({
+        stdin: this.#input,
+        output: this.#output,
+        title,
+        description,
+        bracketedPaste: this.#bracketedPaste,
+        signal: controller.signal,
+        onChange: (overlay) => {
+          this.#overlay = overlay
+          this.#renderer.renderNow()
+        },
+      })
+    } finally {
+      this.#endOverlay(controller)
+    }
   }
 
   rearmUserInput(): void {
@@ -263,20 +276,29 @@ export class ProductTuiShell {
 
   async page(title: string, lines: readonly string[]): Promise<void> {
     if (!this.#interactive) return
-    await pageProductText({
-      stdin: this.#input,
-      output: this.#output,
-      title,
-      lines,
-      pageSize: Math.max(8, this.#renderer.height - 8),
-      onChange: (overlay) => {
-        this.#overlay = overlay
-        this.#renderer.renderNow()
-      },
-    })
+    const controller = this.#beginOverlay()
+    try {
+      await pageProductText({
+        stdin: this.#input,
+        output: this.#output,
+        title,
+        lines,
+        pageSize: Math.max(8, this.#renderer.height - 8),
+        signal: controller.signal,
+        onChange: (overlay) => {
+          this.#overlay = overlay
+          this.#renderer.renderNow()
+        },
+      })
+    } finally {
+      this.#endOverlay(controller)
+    }
   }
 
   detachInput(): void {
+    this.#overlayAbort?.abort()
+    this.#overlayAbort = undefined
+    this.#overlay = undefined
     this.#acceptingInput = false
     this.#running = false
     this.#showCurrentActivity = false
@@ -290,6 +312,9 @@ export class ProductTuiShell {
       this.#events = Object.freeze([...this.#archivedEvents, ...events])
       this.#state.reconcile(this.#events)
     }
+    this.#overlayAbort?.abort()
+    this.#overlayAbort = undefined
+    this.#overlay = undefined
     this.#acceptingInput = false
     this.#running = false
     this.#showCurrentActivity = false
@@ -300,6 +325,9 @@ export class ProductTuiShell {
 
   close(): void {
     if (this.#closed) return
+    this.#overlayAbort?.abort()
+    this.#overlayAbort = undefined
+    this.#overlay = undefined
     this.#acceptingInput = false
     this.#composer.close()
     this.#renderer.close()
@@ -308,6 +336,19 @@ export class ProductTuiShell {
 
   async flushLocalState(): Promise<void> {
     await this.#draftStore?.flush()
+  }
+
+  #beginOverlay(): AbortController {
+    this.#overlayAbort?.abort()
+    const controller = new AbortController()
+    this.#overlayAbort = controller
+    return controller
+  }
+
+  #endOverlay(controller: AbortController): void {
+    if (this.#overlayAbort === controller) this.#overlayAbort = undefined
+    this.#overlay = undefined
+    this.#renderer.renderNow()
   }
 
   #completionOverlay(completion?: CompletionState): ProductOverlay | undefined {

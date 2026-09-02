@@ -6,6 +6,7 @@ import { ZYRA_UI_EVENT_SCHEMA, type UiPermissionSnapshot, type UiUserInputReques
 import { projectProductEvents } from "../src/presentation/projector.ts"
 import { ProductProjection } from "../src/presentation/projection.ts"
 import { displayWidth, reduceProductEvents, renderProductSnapshot, renderProductState } from "../src/presentation/renderer.ts"
+import { ProductSessionState } from "../src/product/state/session-state.ts"
 
 interface RealTaskFixture {
   capture: {
@@ -114,11 +115,43 @@ describe("ZyraUiEvent/v2 product projection", () => {
     if (event?.type !== "plan.updated") throw new Error("plan event missing")
     expect(event.plan.steps[0]).toMatchObject({ stepId: second!.nodeId, status: "running", assignedAgentId: "worker-review" })
     expect(event.plan.steps[1]).toMatchObject({ stepId: first!.nodeId, status: "superseded" })
+    expect(event.plan.steps.map((step) => step.label)).toEqual(["规划", "路由", "交付", "验证", "执行"])
+    expect(event.plan.steps[0]?.description).toBe("将用户目标拆解为可执行任务计划。")
     const state = reduceProductEvents(projectProductEvents({ task }))
     expect(state.plan?.revision).toBe(7)
     const rendered = renderProductSnapshot(projectProductEvents({ task }), { width: 120, workspace: "G:\agent-zoo\zyra" })
     expect(rendered).toContain("已更新计划")
     expect(rendered).not.toContain("计划 v7")
+  })
+
+  test("localizes canonical execution labels without rewriting user-authored text", () => {
+    const task: TaskProjection = {
+      ...fixture.task,
+      status: "running",
+      terminal: false,
+      active: true,
+    }
+    const canonical = frame(91, "runtime.agent.message", {})
+    canonical.presentation = {
+      schema: "zyra.product-presentation/v1",
+      kind: "activity",
+      phase: "started",
+      identity: "task-execution:fixture",
+      label: "Task execution",
+      category: "execution",
+    }
+    const authored = frame(92, "runtime.agent.message", {})
+    authored.presentation = {
+      schema: "zyra.product-presentation/v1",
+      kind: "activity",
+      phase: "started",
+      identity: "user-authored",
+      label: "Plan the release in English",
+      category: "execution",
+    }
+    const events = projectProductEvents({ task, frames: [canonical, authored] })
+    expect(events.find((event) => event.type === "activity.started" && event.activityId.endsWith("fixture"))).toMatchObject({ label: "任务执行" })
+    expect(events.find((event) => event.type === "activity.started" && event.activityId.endsWith("user-authored"))).toMatchObject({ label: "Plan the release in English" })
   })
 
   test("projects real context capacity into the footer without inventing usage", () => {
@@ -224,8 +257,11 @@ describe("ZyraUiEvent/v2 product projection", () => {
     ]
     const projected = projectProductEvents({ task: runningTask, frames })
     const assistant = projected.filter((event) => event.type.startsWith("assistant.message"))
-    expect(assistant.at(-1)).toMatchObject({ type: "assistant.message.completed", text: finalAnswer, source: "stream" })
-    expect(assistant.filter((event) => event.type === "assistant.message.completed")).toHaveLength(1)
+    expect(assistant.at(-1)).toMatchObject({ type: "assistant.message.completed", text: finalAnswer, source: "canonical_final_answer" })
+    expect(assistant.filter((event) => event.type === "assistant.message.completed")).toHaveLength(2)
+    expect(reduceProductEvents(projected).messages.filter((message) => message.role === "assistant")).toEqual([
+      expect.objectContaining({ text: finalAnswer, streaming: false }),
+    ])
     expect(JSON.stringify(projected)).not.toContain("raw-must-not-win")
   })
 
@@ -385,7 +421,7 @@ describe("ZyraUiEvent/v2 product projection", () => {
     expect(projected.some((event) => event.type === "task.failed")).toBe(false)
     expect(rendered).toContain("本次工具调用失败，但任务仍可继续")
     expect(rendered).toContain("局部问题已隔离，任务整体状态不受影响")
-    expect(rendered).toContain("Local failure recovery")
+    expect(rendered).toContain("局部故障恢复")
     expect(rendered).toContain("Recovered and completed.")
     expect(rendered).not.toContain("task_fixture_simple")
   })
@@ -538,6 +574,131 @@ describe("stateful product projection recovery", () => {
     ])
   })
 
+  test("rejects a live delta that arrives after the same assistant stream durably ended", () => {
+    const presentation = (phase: "started" | "delta" | "completed", text?: string) => ({
+      schema: "zyra.product-presentation/v1",
+      kind: "assistant",
+      phase,
+      identity: "message:assistant:provider:late-live",
+      label: "Assistant",
+      streamId: "provider:late-live",
+      ...(text ? { text } : {}),
+    })
+    const projection = new ProductProjection({ task: runningTask, generation: 1 })
+    projection.apply({ ...frame(1, "runtime.text.started", {}), presentation: presentation("started") })
+    projection.applyLive({
+      ...frame(1, "runtime.text.delta", { presentation_text: "SQL" }),
+      previousSequence: 1,
+      liveSequence: 1,
+      eventId: "late-live-sql",
+      presentation: presentation("delta", "SQL"),
+    })
+    projection.apply({
+      ...frame(2, "runtime.text.ended", { presentation_text: "SQLite" }),
+      presentation: presentation("completed", "SQLite"),
+    })
+    expect(projection.applyLive({
+      ...frame(2, "runtime.text.delta", { presentation_text: "ite" }),
+      previousSequence: 2,
+      liveSequence: 2,
+      eventId: "late-live-ite",
+      presentation: presentation("delta", "ite"),
+    })).toBe(false)
+
+    const state = new ProductSessionState()
+    state.reconcile(projection.snapshot().events)
+    expect(state.snapshot().messages.filter((message) => message.role === "assistant")).toEqual([
+      expect.objectContaining({
+        messageId: "message:assistant:provider:late-live",
+        text: "SQLite",
+        streaming: false,
+      }),
+    ])
+  })
+
+  test("rejects stale live deltas when the durable end was restored from a snapshot", () => {
+    const identity = "message:assistant:provider:restored-end"
+    const ended = {
+      ...frame(1, "runtime.text.ended", { assistant_message_id: identity, presentation_text: "done" }),
+      presentation: {
+        schema: "zyra.product-presentation/v1",
+        kind: "assistant",
+        phase: "completed",
+        identity,
+        label: "Assistant",
+        streamId: "provider:restored-end",
+        text: "done",
+      },
+    }
+    const projection = new ProductProjection({ task: runningTask, generation: 1, frames: [ended] })
+    expect(projection.applyLive({
+      ...frame(1, "runtime.text.delta", { assistant_message_id: identity, presentation_text: "done" }),
+      previousSequence: 1,
+      liveSequence: 9,
+      eventId: "restored-stale-live",
+      presentation: {
+        schema: "zyra.product-presentation/v1",
+        kind: "assistant",
+        phase: "delta",
+        identity,
+        label: "Assistant",
+        streamId: "provider:restored-end",
+        text: "done",
+      },
+    })).toBe(false)
+  })
+
+  test("binds a canonical completion to the active stream before its durable end arrives", () => {
+    const completedTask: TaskProjection = {
+      ...runningTask,
+      status: "completed",
+      terminal: true,
+      active: false,
+      metadata: { final_answer: "SQLite" },
+    }
+    const presentation = (phase: "started" | "delta" | "completed", text?: string) => ({
+      schema: "zyra.product-presentation/v1",
+      kind: "assistant",
+      phase,
+      identity: "message:assistant:provider:real-round",
+      label: "Assistant",
+      streamId: "provider:real-round",
+      ...(text ? { text } : {}),
+    })
+    const started = { ...frame(1, "runtime.text.started", {}), presentation: presentation("started") }
+    const live = {
+      ...frame(1, "runtime.text.delta", { presentation_text: "SQLite" }),
+      previousSequence: 1,
+      liveSequence: 2,
+      eventId: "live_real_delta",
+      presentation: presentation("delta", "SQLite"),
+    }
+    const ended = {
+      ...frame(2, "runtime.text.ended", { presentation_text: "SQLite" }),
+      presentation: presentation("completed", "SQLite"),
+    }
+    const projection = new ProductProjection({ task: completedTask, generation: 1 })
+
+    projection.apply(started)
+    projection.applyLive(live)
+    const stateful = new ProductSessionState()
+    const liveEvents = projection.snapshot().events
+    stateful.reconcile(liveEvents)
+    const liveState = stateful.snapshot()
+    expect(liveState.messages.filter((message) => message.role === "assistant")).toEqual([
+      expect.objectContaining({ messageId: "message:assistant:provider:real-round", text: "SQLite", streaming: false }),
+    ])
+
+    projection.apply(ended)
+    const durableEvents = projection.snapshot().events
+    expect(durableEvents.at(-1)!.eventId).toBe(liveEvents.at(-1)!.eventId)
+    stateful.reconcile(durableEvents)
+    const durableState = stateful.snapshot()
+    expect(durableState.messages.filter((message) => message.role === "assistant")).toEqual([
+      expect.objectContaining({ messageId: "message:assistant:provider:real-round", text: "SQLite", streaming: false }),
+    ])
+  })
+
   test("retains a bounded raw-frame recovery window across 100,000 live events", () => {
     const projection = new ProductProjection({ task: runningTask, generation: 1 })
     for (let sequence = 1; sequence <= 100_000; sequence += 1) {
@@ -636,6 +797,40 @@ describe("product TUI render prototype", () => {
     const rendered = renderProductSnapshot(projected, { width: 120, workspace: "G:\\agent-zoo\\zyra" })
     expect(rendered).toBe(snapshot("product-tui-120.snap"))
     expect(rendered.split("\n").every((line) => displayWidth(line) <= 120)).toBe(true)
+  })
+
+  test("keeps a short transcript at the top and anchors the composer to the viewport bottom", () => {
+    const rendered = renderProductState(reduceProductEvents([]), {
+      width: 80,
+      height: 24,
+      workspace: "G:\\agent-zoo\\zyra",
+    })
+    const lines = rendered.split("\n").slice(0, -1)
+    expect(lines).toHaveLength(24)
+    expect(lines[0]).toStartWith("╭")
+    expect(lines[22]).toBe("› 让 Zyra 处理任何任务")
+    expect(lines[23]).toContain("? 查看快捷键")
+  })
+
+  test("keeps an oversized active choice and its footer inside the physical viewport", () => {
+    const rendered = renderProductState(reduceProductEvents([]), {
+      width: 40,
+      height: 8,
+      workspace: "G:\\agent-zoo\\zyra",
+      overlay: {
+        kind: "approval",
+        title: "允许执行吗？",
+        description: ["很长的原因说明。".repeat(30)],
+        rows: Array.from({ length: 12 }, (_, index) => ({ id: String(index), label: `选项 ${index + 1}` })),
+        selected: 7,
+        footer: "↑↓ 选择 · enter 确认 · esc 拒绝",
+      },
+    })
+    const lines = rendered.split("\n").slice(0, -1)
+    expect(lines).toHaveLength(8)
+    expect(rendered).toContain("允许执行吗？")
+    expect(rendered).toContain("› 8. 选项 8")
+    expect(lines[7]).toContain("enter 确认")
   })
 
   test("renders Chinese, emoji, code blocks, and reconnection within a narrow terminal", () => {

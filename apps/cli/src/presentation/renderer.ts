@@ -431,6 +431,25 @@ function renderOverlay(overlay: ProductOverlay, width: number): RenderLine[] {
   return lines
 }
 
+function fitOverlay(lines: readonly RenderLine[], maximum: number): RenderLine[] {
+  if (lines.length <= maximum) return [...lines]
+  if (maximum <= 0) return []
+  const focus = Math.max(0, lines.findIndex((item) => item.tone === "selected" || item.tone === "user"))
+  const title = lines.find((item) => item.tone === "header")
+  if (maximum === 1) return [lines[focus] ?? title ?? line("… 更多内容已隐藏", "secondary")]
+  const prefix = title ? [title] : []
+  const windowSize = Math.max(1, maximum - prefix.length - 1)
+  const start = Math.max(0, Math.min(lines.length - windowSize, focus - Math.floor(windowSize / 2)))
+  const window = lines.slice(start, start + windowSize).filter((item) => item !== title)
+  while (window.length < windowSize && start + window.length < lines.length) {
+    const candidate = lines[start + window.length]
+    if (candidate && candidate !== title) window.push(candidate)
+    else break
+  }
+  return [...prefix, line(`  … ${lines.length - prefix.length - window.length} 行已隐藏`, "secondary"), ...window]
+    .slice(0, maximum)
+}
+
 function composerLayout(value: string, cursor: number, width: number, placeholder: string): ComposerLayout {
   const available = Math.max(1, width - 2)
   const safe = sanitizeTerminalText(value)
@@ -523,7 +542,6 @@ export function renderProductFrame(state: ProductViewState, options: ProductRend
     ...renderTaskOutcome(state, width),
     ...(options.overlay ? [] : renderPermissionPrompt(state, width)),
     ...renderNotice(options.notice, width),
-    ...(options.overlay ? renderOverlay(options.overlay, width) : []),
   ]
   const acceptingInput = options.acceptingInput ?? true
   const composer = composerLayout(
@@ -548,11 +566,18 @@ export function renderProductFrame(state: ProductViewState, options: ProductRend
   const footer: RenderLine[] = modalOverlay
     ? [line(), line(twoColumnFooter(left, right, width), "secondary")]
     : [line(), ...composer.lines, line(twoColumnFooter(left, right, width), "secondary")]
+  const rawOverlay = options.overlay ? renderOverlay(options.overlay, width) : []
+  const overlay = height === undefined
+    ? rawOverlay
+    : fitOverlay(rawOverlay, Math.max(0, height - footer.length))
+  const bottomPane = [...overlay, ...footer]
 
   let visibleBody = body
   if (height !== undefined) {
-    const bodyBudget = Math.max(0, height - footer.length)
-    if (body.length > bodyBudget) {
+    const bodyBudget = Math.max(0, height - bottomPane.length)
+    if (bodyBudget === 0) {
+      visibleBody = []
+    } else if (body.length > bodyBudget) {
       const usable = Math.max(0, bodyBudget - 1)
       const end = Math.max(0, body.length - Math.min(scrollOffset, body.length))
       const start = Math.max(0, end - usable)
@@ -561,7 +586,13 @@ export function renderProductFrame(state: ProductViewState, options: ProductRend
       visibleBody = [line(`… ${hidden} 行已隐藏${virtualization} · PageUp/PageDown 滚动`, "secondary"), ...body.slice(start, end)]
     }
   }
-  const visible = [...visibleBody, ...footer].map((item) => ({ ...item, text: clipDisplay(item.text, width) }))
+  const spacer = height === undefined
+    ? []
+    : Array.from(
+        { length: Math.max(0, height - visibleBody.length - bottomPane.length) },
+        () => line(),
+      )
+  const visible = [...visibleBody, ...spacer, ...bottomPane].map((item) => ({ ...item, text: clipDisplay(item.text, width) }))
   const composerStart = visible.length - footer.length + 1
   const cursor = acceptingInput && !modalOverlay
     ? {

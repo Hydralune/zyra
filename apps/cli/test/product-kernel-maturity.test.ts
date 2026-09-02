@@ -641,7 +641,7 @@ describe("product commands and continuous session", () => {
     expect(order.indexOf("stage:task_product_1")).toBeLessThan(order.indexOf("observe"))
     expect(order.indexOf("observe")).toBeLessThan(order.indexOf("materialize:task_product_1"))
     expect(stdout.text).toContain("工作区已同步 · 3 个文件 · 42 bytes")
-    expect(stdout.text).toContain("工作区交付已落盘 · 1 个写入 · 0 个删除")
+    expect(stdout.text).not.toContain("工作区交付已落盘")
   })
 
   test("keeps a completed historical task inspectable when its workspace payload expired", async () => {

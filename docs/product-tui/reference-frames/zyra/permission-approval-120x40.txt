@@ -15,6 +15,19 @@
 • 正在运行：bun test apps/cli/test/product-presentation.test.ts（4s · esc 中断）
   └ 输出正在记录，可用 /tools 查看
 
+
+
+
+
+
+
+
+
+
+
+
+
+
   允许 Zyra 运行这个命令吗？
 
   bun test apps/cli/test
