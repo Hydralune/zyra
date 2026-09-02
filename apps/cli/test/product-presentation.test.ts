@@ -5,7 +5,7 @@ import type { IngressFrame } from "../src/api.ts"
 import { ZYRA_UI_EVENT_SCHEMA, type UiPermissionSnapshot } from "../src/presentation/events.ts"
 import { projectProductEvents } from "../src/presentation/projector.ts"
 import { ProductProjection } from "../src/presentation/projection.ts"
-import { displayWidth, reduceProductEvents, renderProductSnapshot } from "../src/presentation/renderer.ts"
+import { displayWidth, reduceProductEvents, renderProductSnapshot, renderProductState } from "../src/presentation/renderer.ts"
 
 interface RealTaskFixture {
   capture: {
@@ -116,7 +116,42 @@ describe("ZyraUiEvent/v2 product projection", () => {
     expect(event.plan.steps[1]).toMatchObject({ stepId: first!.nodeId, status: "superseded" })
     const state = reduceProductEvents(projectProductEvents({ task }))
     expect(state.plan?.revision).toBe(7)
-    expect(renderProductSnapshot(projectProductEvents({ task }), { width: 120, workspace: "G:\agent-zoo\zyra" })).toContain("计划 v7")
+    const rendered = renderProductSnapshot(projectProductEvents({ task }), { width: 120, workspace: "G:\agent-zoo\zyra" })
+    expect(rendered).toContain("已更新计划")
+    expect(rendered).not.toContain("计划 v7")
+  })
+
+  test("projects real context capacity into the footer without inventing usage", () => {
+    const task: TaskProjection = {
+      ...fixture.task,
+      metadata: {
+        ...fixture.task.metadata,
+        last_code_worker_api_projection: {
+          compact_state: {
+            compact_needed: false,
+            context_usage: {
+              active_chars: 30_000,
+              active_limit_chars: 100_000,
+              ratio: 0.3,
+              pressure: "normal",
+            },
+          },
+          model_api: { input_tokens: 7_500, output_tokens: 1_250 },
+        },
+      },
+    }
+    const state = reduceProductEvents(projectProductEvents({ task }))
+    expect(state.context).toEqual({
+      activeChars: 30_000,
+      activeLimitChars: 100_000,
+      usedPercent: 30,
+      remainingPercent: 70,
+      compactNeeded: false,
+      pressure: "normal",
+      inputTokens: 7_500,
+      outputTokens: 1_250,
+    })
+    expect(renderProductState(state, { width: 100, workspace: "G:\\agent-zoo\\zyra" })).toContain("70% 上下文")
   })
 
   test("projects explicit assistant text but never invents text from byte counts or digests", () => {
@@ -348,9 +383,11 @@ describe("ZyraUiEvent/v2 product projection", () => {
     expect(state.agents).toContainEqual(expect.objectContaining({ status: "failed", impact: "local" }))
     expect(state.activities).toContainEqual(expect.objectContaining({ category: "recovery", impact: "local", status: "completed" }))
     expect(projected.some((event) => event.type === "task.failed")).toBe(false)
-    expect(rendered).toContain("局部失败 · 任务已完成")
+    expect(rendered).toContain("本次工具调用失败，但任务仍可继续")
+    expect(rendered).toContain("局部问题已隔离，任务整体状态不受影响")
     expect(rendered).toContain("Local failure recovery")
-    expect(rendered).toContain("任务已完成 · 可继续输入新任务")
+    expect(rendered).toContain("Recovered and completed.")
+    expect(rendered).not.toContain("task_fixture_simple")
   })
 
   test("bounds hostile presentation labels, summaries, and artifact identities before state admission", () => {
@@ -537,7 +574,8 @@ describe("stateful product projection recovery", () => {
 
     expect(events).toContainEqual(expect.objectContaining({ type: "task.failed", status: "blocked" }))
     expect(state.taskStatus).toBe("blocked")
-    expect(rendered).toContain("任务已阻塞 · /resume 或输入新任务")
+    expect(rendered).toContain("使用 /resume 选择并恢复该会话")
+    expect(rendered).not.toContain(blocked.taskId)
     expect(rendered).not.toContain("task_product · running")
   })
 

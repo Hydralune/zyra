@@ -18,11 +18,17 @@ export interface LiveRendererDiagnostics {
   backpressureCount: number
 }
 
+export interface LiveRenderFrame {
+  text: string
+  cursor?: { row: number; column: number }
+}
+
 export class LiveProductRenderer {
   readonly #output: TerminalOutput
   readonly #tty: boolean
-  readonly #renderSnapshot: () => string
+  readonly #renderSnapshot: () => string | LiveRenderFrame
   #renderedLines = 0
+  #cursorRowFromTop: number | undefined
   #latest = ""
   #closed = false
   #dirty = false
@@ -40,7 +46,7 @@ export class LiveProductRenderer {
     this.#flush()
   }
 
-  constructor(output: Writable, renderSnapshot: () => string) {
+  constructor(output: Writable, renderSnapshot: () => string | LiveRenderFrame) {
     this.#output = output as TerminalOutput
     this.#tty = this.#output.isTTY === true
     this.#renderSnapshot = renderSnapshot
@@ -105,15 +111,22 @@ export class LiveProductRenderer {
     this.#rendering = true
     this.#dirty = false
     try {
-      this.#latest = this.#renderSnapshot()
+      const rendered = this.#renderSnapshot()
+      const frame = typeof rendered === "string" ? { text: rendered } : rendered
+      this.#latest = frame.text
       this.#snapshots += 1
       if (!this.#tty && !force) return
       const clear = this.#tty && this.#renderedLines > 0
-        ? `\r\u001b[${this.#renderedLines}A\u001b[J`
+        ? `\r${(this.#cursorRowFromTop ?? this.#renderedLines) > 0 ? `\u001b[${this.#cursorRowFromTop ?? this.#renderedLines}A` : ""}\u001b[J`
         : ""
-      const writable = this.#output.write(`${clear}${this.#latest}`)
+      const renderedLines = Math.max(1, this.#latest.split("\n").length - 1)
+      const cursor = frame.cursor && this.#tty
+        ? `\u001b[${Math.max(0, renderedLines - frame.cursor.row)}A\r${frame.cursor.column > 0 ? `\u001b[${frame.cursor.column}C` : ""}`
+        : ""
+      const writable = this.#output.write(`${clear}${this.#latest}${cursor}`)
       this.#writes += 1
-      this.#renderedLines = Math.max(1, this.#latest.split("\n").length - 1)
+      this.#renderedLines = renderedLines
+      this.#cursorRowFromTop = frame.cursor?.row
       if (!writable && !force) {
         this.#backpressured = true
         this.#backpressureCount += 1

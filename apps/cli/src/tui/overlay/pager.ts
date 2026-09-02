@@ -9,17 +9,32 @@ export async function pageProductText(input: {
   output: Writable
   title: string
   lines: readonly string[]
+  pageSize?: number
   onChange: (overlay?: ProductOverlay) => void
 }): Promise<void> {
   const stdin = input.stdin as RawInput
   const lines = input.lines.slice(0, 20_000).map((line) => sanitizeTerminalText(line).slice(0, 2_000))
-  const pageSize = 16
+  const pageSize = Math.max(8, Math.min(200, Math.floor(input.pageSize ?? 16)))
+  const row = (label: string, index: number) => ({
+    id: String(index),
+    label,
+    tone: label.startsWith("+") && !label.startsWith("+++")
+      ? "success" as const
+      : label.startsWith("-") && !label.startsWith("---")
+        ? "error" as const
+        : label.startsWith("@@")
+          ? "accent" as const
+          : label.startsWith("+++") || label.startsWith("---") || label.startsWith("diff --git")
+            ? "secondary" as const
+            : "default" as const,
+  })
   let offset = 0
   const update = () => {
     offset = Math.max(0, Math.min(Math.max(0, lines.length - pageSize), offset))
     input.onChange({
+      kind: "pager",
       title: input.title,
-      rows: lines.slice(offset, offset + pageSize).map((label, index) => ({ id: String(offset + index), label })),
+      rows: lines.slice(offset, offset + pageSize).map((label, index) => row(label, offset + index)),
       selected: -1,
       footer: `${lines.length ? offset + 1 : 0}–${Math.min(lines.length, offset + pageSize)} / ${lines.length} · ↑↓/PgUp/PgDn · Home/End · Esc 返回`,
     })

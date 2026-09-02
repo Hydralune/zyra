@@ -505,7 +505,7 @@ describe("product task observer", () => {
     expect(cancelledFromEpoch).toBe(2)
     expect(streamCalls).toBe(4)
     expect(output.text).toContain("正在重连")
-    expect(output.text).toContain("connection connected")
+    expect(output.text).toContain("连接 · 已连接")
     expect(output.text).toContain("任务取消已提交")
     expect(stdin.raw).toBeFalse()
   }, 10_000)
@@ -569,7 +569,7 @@ describe("product task observer", () => {
     productShell.finish()
 
     expect(result.status).toBe("completed")
-    expect(output.text).toContain("权限控制保持关闭")
+    expect(output.text).toContain("权限控制当前不可用")
     expect(output.text).toContain("安全完成。")
     expect(stdin.raw).toBeFalse()
   })
@@ -609,8 +609,8 @@ describe("product task observer", () => {
     expect(stdin.raw).toBeTrue()
     stdin.write("/status\r")
     const statusDeadline = Date.now() + 500
-    while (!output.text.includes("connection connected") && Date.now() < statusDeadline) await Bun.sleep(5)
-    expect(output.text).toContain("task task_product · running")
+    while (!output.text.includes("连接 · 已连接") && Date.now() < statusDeadline) await Bun.sleep(5)
+    expect(output.text).toContain("任务 · 运行中")
     stdin.write("/exit\r")
     const result = await observation
     productShell.finish()
@@ -669,7 +669,8 @@ describe("product task observer", () => {
     expect(performance.now() - startedAt).toBeLessThan(1_000)
     expect(cancelled).toBe(0)
     expect(runTransportAborted).toBeTrue()
-    expect(output.text).toContain(`zyra resume ${running.taskId}`)
+    expect(output.text).toContain("使用 zyra resume 或 /resume 选择并恢复")
+    expect(output.text).not.toContain(`zyra resume ${running.taskId}`)
     expect(stdin.raw).toBeFalse()
   })
 })

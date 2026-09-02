@@ -48,6 +48,17 @@ export interface UiVerificationCheck {
   exitCode?: number
 }
 
+export interface UiContextUsage {
+  activeChars: number
+  activeLimitChars: number
+  usedPercent: number
+  remainingPercent: number
+  compactNeeded: boolean
+  pressure?: string
+  inputTokens?: number
+  outputTokens?: number
+}
+
 export type UiPlanStepStatus = "pending" | "running" | "completed" | "failed" | "cancelled" | "superseded"
 
 export interface UiPlanStep {
@@ -105,6 +116,7 @@ export type ZyraUiEvent =
   | (UiEventBase & { type: "workspace.changed"; changes: readonly UiFileChange[] })
   | (UiEventBase & { type: "workspace.diff"; lines: readonly string[]; truncated: boolean; source: "local_workspace" })
   | (UiEventBase & { type: "verification.updated"; verification: UiVerificationSummary })
+  | (UiEventBase & { type: "context.updated"; context: UiContextUsage })
   | (UiEventBase & { type: "plan.updated"; plan: UiPlanSnapshot })
   | (UiEventBase & { type: "subagent.updated"; agentId: string; label: string; status: string; summary?: string; impact?: UiFailureImpact; code?: string; retryable?: boolean; recovery?: string })
   | (UiEventBase & { type: "task.issue"; issueId: string; severity: UiSeverity; message: string; code?: string; retryable?: boolean; recovery?: string; impact?: UiFailureImpact })

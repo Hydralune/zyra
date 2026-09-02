@@ -76,7 +76,7 @@ describe("product TUI shell", () => {
     expect(shell.alternateScreenUsed).toBe(false)
     expect(output.text).toContain(">_ Zyra")
     expect(output.text).toContain("请检查这个项目")
-    expect(output.text).toContain("正在检查项目")
+    expect(output.text).not.toContain("task_tui")
     expect(output.text).toContain("\u001b[J")
     expect(output.text).not.toContain("\u001b[?1049")
     expect(output.text).toContain("输入暂不可用")
@@ -90,7 +90,7 @@ describe("product TUI shell", () => {
     expect(output.text).toContain("输入暂不可用")
 
     const reading = shell.read(false)
-    expect(output.text).toContain("/help 查看命令")
+    expect(output.text).toContain("? 查看快捷键")
     stdin.write("ready\r")
     await reading
 
@@ -219,7 +219,7 @@ describe("product TUI shell", () => {
     shell.start()
     const reading = shell.read(false)
     stdin.write("/res")
-    expect(output.text).toContain("恢复 task 或 session")
+    expect(output.text).toContain("选择并恢复历史会话")
     stdin.write("\t\r")
     await expect(reading).resolves.toEqual({ kind: "submit", text: "/resume", queue: false })
     shell.close()
@@ -297,7 +297,7 @@ describe("product TUI shell", () => {
     const paging = shell.page("大型 Diff", Array.from({ length: 40 }, (_, index) => `line ${index + 1}`))
     stdin.write("\u001b[6~\u001b")
     await paging
-    expect(output.text).toContain("17–32 / 40")
+    expect(output.text).toContain("16–30 / 40")
     expect(stdin.raw).toBe(false)
     expect(stdin.isPaused()).toBe(true)
     shell.close()

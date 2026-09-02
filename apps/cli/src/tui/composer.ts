@@ -14,6 +14,8 @@ type RawInput = Readable & { isTTY?: boolean; setRawMode?: (enabled: boolean) =>
 export type ProductComposerResult =
   | { kind: "submit"; text: string; queue: boolean }
   | { kind: "interrupt" }
+  | { kind: "permission" }
+  | { kind: "shortcuts" }
   | { kind: "closed" }
   | { kind: "exit" }
 
@@ -121,6 +123,8 @@ export class ProductComposer {
   }
 
   close(): void { this.#finish({ kind: "closed" }) }
+
+  yieldForPermission(): void { this.#finish({ kind: "permission" }) }
 
   async #consume(value: string): Promise<void> {
     this.#pending += value
@@ -312,6 +316,10 @@ export class ProductComposer {
           this.#changed()
         }
         continue
+      }
+      if (char === "?" && this.draft.empty) {
+        this.#finish({ kind: "shortcuts" })
+        return
       }
       if (char >= " ") {
         if (!this.#pasteBurst) {

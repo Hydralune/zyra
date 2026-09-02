@@ -11,6 +11,7 @@ const SESSION = "session_000000000000001_0123456789abcdefabcd"
 function session(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     session_id: SESSION,
+    title: "Fix CLI session state",
     task_ids: [TASK_A],
     active_task_ids: [TASK_A],
     latest_task_id: TASK_A,
@@ -46,6 +47,7 @@ describe("task-backed session contract", () => {
       session: session(),
     })
     expect(resolved.resumeTaskId).toBe(TASK_A)
+    expect(resolved.title).toBe("Fix CLI session state")
 
     const list = normalizeSessionList({
       schema: CONTRACT_NAMES.sessionList,

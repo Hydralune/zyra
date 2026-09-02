@@ -46,6 +46,7 @@ class SessionAction(StrEnum):
     BRANCH = "branch"
     REWIND = "rewind"
     RESUME = "resume"
+    RENAME = "rename"
     SET_MODEL = "set_model"
     SET_EFFORT = "set_effort"
     SET_THINKING = "set_thinking"
@@ -604,6 +605,10 @@ class SessionControlRuntime:
             target = str(request.arguments.get("checkpoint_ref") or request.arguments.get("target") or "")
             if target and target != after.checkpoint_ref and target != str(effect.result.get("rewound_to") or ""):
                 raise SessionControlConflict("rewind did not restore requested checkpoint")
+        elif request.action is SessionAction.RENAME:
+            title = str(request.arguments.get("title") or "").strip()
+            if title and str(after.metadata.get("title") or "") != title:
+                raise SessionControlConflict("rename did not update the canonical session title")
         elif request.action is SessionAction.SET_MODEL:
             model = str(request.arguments.get("model") or "")
             if model and after.model != model:

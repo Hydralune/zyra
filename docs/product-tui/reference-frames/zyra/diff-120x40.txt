@@ -1,0 +1,40 @@
+╭──────────────────────────────────╮
+│ >_ Zyra (v0.1.0)                 │
+│                                  │
+│ 模型: deepseek-v4                │
+│ 目录: G:\agent-zoo\zyra          │
+╰──────────────────────────────────╯
+
+› 检查当前项目，修复测试失败并说明改动。
+
+• 已更新计划
+    ✔ 定位失败测试
+    ✔ 修复会话状态更新
+    ✔ 运行验证并总结
+
+• 已运行 · 8.4s
+  └ 测试通过：187 passed
+
+• 已编辑 2 个文件
+  └ M apps/cli/src/tui/shell.ts
+  └ M apps/cli/src/presentation/renderer.ts
+
+• 验证通过
+  └ bun test apps/cli/test (passed · exit 0)
+
+• 已修复会话状态更新。
+
+    - 保留了草稿与光标
+    - 全量 CLI 测试通过
+
+  apps/cli/src/tui/shell.ts · +4 -2
+  --- a/apps/cli/src/tui/shell.ts
+  +++ b/apps/cli/src/tui/shell.ts
+  @@ -112,6 +112,8 @@
+     this.#acceptingInput = true
+  +  this.#showCurrentActivity = true
+  +  this.#renderer.renderNow()
+  -  this.#notice = message
+     return await this.#composer.read()
+
+  1–8 / 8 · ↑↓/PgUp/PgDn · Esc 返回                                                      62% 上下文 · deepseek-v4 · 标准

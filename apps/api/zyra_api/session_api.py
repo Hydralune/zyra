@@ -53,6 +53,14 @@ def session_projection(tasks: Sequence[Mapping[str, Any]], session_id: str) -> d
     terminal = bool(selected) and all(
         _task_status(task) in TERMINAL_TASK_STATUSES for task in selected
     )
+    title = next(
+        (
+            str(task.get("session_title") or "").strip()
+            for task in selected
+            if str(task.get("session_title") or "").strip()
+        ),
+        "",
+    )
     return {
         "session_id": session_id,
         "task_ids": task_ids,
@@ -64,6 +72,7 @@ def session_projection(tasks: Sequence[Mapping[str, Any]], session_id: str) -> d
         "statuses": statuses,
         "active": bool(active_task_ids),
         "terminal": terminal,
+        "title": title or None,
         "created_at": created_values[0] if created_values else None,
         "updated_at": updated_values[-1] if updated_values else None,
     }

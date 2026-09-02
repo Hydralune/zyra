@@ -170,6 +170,7 @@ def test_default_task_session_alias_is_resolvable() -> None:
                 "status": "completed",
                 "created_at": "2026-08-04T00:00:00.000Z",
                 "updated_at": "2026-08-04T00:00:01.000Z",
+                "session_title": "Readable session",
                 "metadata": {"query_session_id": f"task:{task_id}"},
             }
         ],
@@ -177,3 +178,4 @@ def test_default_task_session_alias_is_resolvable() -> None:
     )
     assert detail["session"]["resume_task_id"] == task_id
     assert detail["session"]["terminal"] is True
+    assert detail["session"]["title"] == "Readable session"

@@ -18,6 +18,8 @@ export async function pickProductItem(input: {
   title: string
   items: readonly ProductPickerItem[]
   footer?: string
+  kind?: "picker" | "menu" | "approval"
+  description?: readonly string[]
   bracketedPaste?: boolean
   onChange: (overlay?: ProductOverlay) => void
 }): Promise<ProductPickerItem | undefined> {
@@ -26,12 +28,15 @@ export async function pickProductItem(input: {
   const query = new PromptDraft()
   let selected = 0
   const update = () => {
-    const matches = filterItems(input.items, query.snapshot().text)
+    const searchable = (input.kind ?? "picker") === "picker"
+    const matches = filterItems(input.items, searchable ? query.snapshot().text : "")
     selected = Math.max(0, Math.min(matches.length - 1, selected))
     const start = Math.max(0, selected - 11)
     input.onChange({
+      kind: input.kind ?? "picker",
       title: input.title,
-      query: query.snapshot().text,
+      description: input.description,
+      query: searchable ? query.snapshot().text : undefined,
       rows: matches.slice(start, start + 12),
       selected: selected - start,
       footer: input.footer ?? "↑↓ 选择 · Enter 确认 · Esc 返回",
@@ -70,12 +75,28 @@ export async function pickProductItem(input: {
             }
             const char = [...pending][0]!
             pending = pending.slice(char.length)
+            if (/^[1-9]$/u.test(char) && query.empty) {
+              const matches = update()
+              finish(matches[Number(char) - 1])
+              return
+            }
+            if (input.kind === "approval" && query.empty && /^[yYaAdD]$/u.test(char)) {
+              const matches = update()
+              const shortcut = char.toLocaleLowerCase()
+              const choice = shortcut === "d"
+                ? matches.find((item) => item.id.startsWith("deny:"))
+                : shortcut === "a"
+                  ? matches.find((item) => item.id === "allow:session") ?? matches.find((item) => item.id.startsWith("allow:"))
+                  : matches.find((item) => item.id === "allow:once") ?? matches.find((item) => item.id.startsWith("allow:"))
+              finish(choice)
+              return
+            }
             if (char === "\r" || char === "\n") {
               finish(update()[selected])
               return
             }
             if (char === "\u007f" || char === "\b") query.deleteBackward()
-            else if (char >= " ") query.insert(char)
+            else if (char >= " " && (input.kind ?? "picker") === "picker") query.insert(char)
             selected = 0
             update()
           }

@@ -34,61 +34,78 @@ export async function openProductDiff(input: {
   if (!artifacts.length) {
     const preview = input.shell.view.diff
     if (preview?.lines.length) {
-      await input.shell.page("Diff 预览（canonical artifact 不可用）", preview.lines)
+      await input.shell.page("文件变更预览", preview.lines)
       return true
     }
     return false
   }
   let artifact = artifacts.length === 1 ? artifacts[0] : undefined
   if (!artifact) {
-    const selected = await input.shell.pick("选择 Patch artifact", artifacts.map((item) => ({
+    const selected = await input.shell.pick("选择变更记录", artifacts.map((item) => ({
       id: item.artifactId,
       label: item.title ?? item.path ?? item.artifactId,
-      detail: `${item.kind}${item.sizeBytes ? ` · ${item.sizeBytes} bytes` : ""}`,
+      detail: `${item.kind}${item.sizeBytes ? ` · ${item.sizeBytes} 字节` : ""}`,
       keywords: [item.artifactId, item.mediaType ?? ""],
-    })))
+    })), "一个任务可能包含多份独立的文件变更记录")
     artifact = selected ? artifacts.find((item) => item.artifactId === selected.id) : undefined
   }
   if (!artifact) return false
   const manifest = parseProductDiffManifest(await input.api.diffReviewManifest(task.taskId, artifact.artifactId, input.signal))
-  const selectedFile = await input.shell.pick("选择变更文件", manifest.files.map((file) => ({
-    id: file.fileId,
-    label: file.previousPath ? `${file.previousPath} → ${file.path}` : file.path,
-    detail: `${file.kind}${file.binary ? " · binary" : ""} · +${file.additions} -${file.deletions}`,
-    keywords: [file.previousPath ?? "", file.kind],
-  })))
-  const file = selectedFile ? manifest.files.find((item) => item.fileId === selectedFile.id) : undefined
-  if (!file) return false
-  if (file.binary) {
-    await input.shell.page(
-      file.previousPath ? `${file.previousPath} → ${file.path}` : file.path,
-      [
-        "[二进制文件：终端不显示内容]",
-        `变更类型：${file.kind}`,
-        ...(file.previousPath ? [`重命名：${file.previousPath} → ${file.path}`] : []),
-      ],
-    )
-    return true
+  const choices = [
+    ...(manifest.files.length > 1 ? [{
+      id: "__all",
+      label: `查看全部 ${manifest.files.length} 个文件`,
+      detail: `+${manifest.files.reduce((sum, file) => sum + file.additions, 0)} -${manifest.files.reduce((sum, file) => sum + file.deletions, 0)}`,
+      keywords: ["all", "全部"],
+    }] : []),
+    ...manifest.files.map((file) => ({
+      id: file.fileId,
+      label: file.previousPath ? `${file.previousPath} → ${file.path}` : file.path,
+      detail: `${file.kind}${file.binary ? " · 二进制" : ""} · +${file.additions} -${file.deletions}`,
+      keywords: [file.previousPath ?? "", file.kind],
+    })),
+  ]
+  const selectedFile = await input.shell.pick("查看文件变更", choices, "选择一个文件，或合并查看本次任务的全部变更")
+  if (!selectedFile) return false
+  const selectedFiles = selectedFile.id === "__all"
+    ? manifest.files
+    : manifest.files.filter((item) => item.fileId === selectedFile.id)
+  if (!selectedFiles.length) return false
+
+  const lines: string[] = []
+  for (const file of selectedFiles) {
+    const prior = file.previousPath ?? file.path
+    if (selectedFiles.length > 1) lines.push(`diff --git a/${prior} b/${file.path}`)
+    lines.push(`--- ${file.kind === "added" ? "/dev/null" : `a/${prior}`}`)
+    lines.push(`+++ ${file.kind === "deleted" ? "/dev/null" : `b/${file.path}`}`)
+    if (file.binary) {
+      lines.push("[二进制文件：终端不显示内容]", "")
+      continue
+    }
+    const pageBudget = Math.min(file.pageCount, 1_000)
+    for (let pageIndex = 0; pageIndex < pageBudget && lines.length < 20_000; pageIndex += 1) {
+      const page = parseProductDiffPage(await input.api.diffReviewPage({
+        taskId: task.taskId,
+        artifactId: artifact.artifactId,
+        fileId: file.fileId,
+        revision: manifest.artifactRevision,
+        page: pageIndex,
+        maximumBytes: 512 * 1024,
+        maximumLines: 2_000,
+        signal: input.signal,
+      }))
+      lines.push(...page.lines.slice(0, 20_000 - lines.length))
+      if (pageIndex + 1 >= page.pageCount) break
+    }
+    if (file.truncated || file.oversized || file.pageCount > pageBudget || lines.length >= 20_000) {
+      lines.push("… 变更内容超出终端安全上限；使用 /ui 查看完整记录。")
+    }
+    if (selectedFiles.length > 1) lines.push("")
+    if (lines.length >= 20_000) break
   }
-  const lines: string[] = [`--- ${file.previousPath ?? file.path}`, `+++ ${file.path}`]
-  const pageBudget = Math.min(file.pageCount, 1_000)
-  for (let pageIndex = 0; pageIndex < pageBudget && lines.length < 20_000; pageIndex += 1) {
-    const page = parseProductDiffPage(await input.api.diffReviewPage({
-      taskId: task.taskId,
-      artifactId: artifact.artifactId,
-      fileId: file.fileId,
-      revision: manifest.artifactRevision,
-      page: pageIndex,
-      maximumBytes: 512 * 1024,
-      maximumLines: 2_000,
-      signal: input.signal,
-    }))
-    lines.push(...page.lines.slice(0, 20_000 - lines.length))
-    if (pageIndex + 1 >= page.pageCount) break
-  }
-  if (file.truncated || file.oversized || file.pageCount > pageBudget || lines.length >= 20_000) {
-    lines.push("… diff 超出终端安全预算；使用 /ui 查看完整审查。")
-  }
-  await input.shell.page(`${file.previousPath ? `${file.previousPath} → ` : ""}${file.path} · ${file.kind} · +${file.additions} -${file.deletions}`, lines)
+  const title = selectedFiles.length > 1
+    ? `${selectedFiles.length} 个文件 · +${selectedFiles.reduce((sum, file) => sum + file.additions, 0)} -${selectedFiles.reduce((sum, file) => sum + file.deletions, 0)}`
+    : `${selectedFiles[0]!.previousPath ? `${selectedFiles[0]!.previousPath} → ` : ""}${selectedFiles[0]!.path} · +${selectedFiles[0]!.additions} -${selectedFiles[0]!.deletions}`
+  await input.shell.page(title, lines)
   return true
 }

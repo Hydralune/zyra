@@ -1,4 +1,4 @@
-import type { UiFailureImpact, UiFileChange, UiPermissionRequest, UiPlanSnapshot, UiSeverity, UiToolOutputRef, UiVerificationSummary, ZyraUiEvent } from "../../presentation/events.ts"
+import type { UiContextUsage, UiFailureImpact, UiFileChange, UiPermissionRequest, UiPlanSnapshot, UiSeverity, UiToolOutputRef, UiVerificationSummary, ZyraUiEvent } from "../../presentation/events.ts"
 
 export interface ProductMessageState {
   messageId: string
@@ -54,6 +54,14 @@ export interface ProductIssueState {
   impact?: UiFailureImpact
 }
 
+export type ProductTimelineKind = "message" | "activity" | "tool" | "issue" | "plan" | "workspace" | "verification"
+
+export interface ProductTimelineItem {
+  kind: ProductTimelineKind
+  id: string
+  order: number
+}
+
 export interface ProductViewState {
   sessionId?: string
   taskId?: string
@@ -66,7 +74,9 @@ export interface ProductViewState {
   changes: readonly UiFileChange[]
   diff?: { lines: readonly string[]; truncated: boolean }
   verification?: UiVerificationSummary
+  context?: UiContextUsage
   plan?: UiPlanSnapshot
+  timeline?: readonly ProductTimelineItem[]
   connection: "connected" | "reconnecting" | "disconnected"
   reconnectAttempt?: number
   taskStatus: "idle" | "running" | "needs_revision" | "completed" | "failed" | "blocked" | "killed" | "cancelled"
@@ -108,7 +118,7 @@ function boundedLimit(value: number | undefined, fallback: number): number {
   return Math.max(1, Math.floor(value ?? fallback))
 }
 
-function putBounded<K, V>(map: Map<K, V>, key: K, value: V, limit: number): number {
+function putBounded<K, V>(map: Map<K, V>, key: K, value: V, limit: number, onEvict?: (key: K) => void): number {
   if (map.has(key)) map.delete(key)
   map.set(key, value)
   let evicted = 0
@@ -116,6 +126,7 @@ function putBounded<K, V>(map: Map<K, V>, key: K, value: V, limit: number): numb
     const first = map.keys().next().value as K | undefined
     if (first === undefined) break
     map.delete(first)
+    onEvict?.(first)
     evicted += 1
   }
   return evicted
@@ -132,6 +143,7 @@ export class ProductSessionState {
   readonly #changes = new Map<string, UiFileChange>()
   #diff: ProductViewState["diff"]
   #verification: UiVerificationSummary | undefined
+  #context: UiContextUsage | undefined
   #plan: UiPlanSnapshot | undefined
   #sessionId: string | undefined
   #taskId: string | undefined
@@ -141,6 +153,8 @@ export class ProductSessionState {
   #taskMessage: string | undefined
   #sourceLength = 0
   #sourceTail: string | undefined
+  readonly #timelineOrder = new Map<string, number>()
+  #nextTimelineOrder = 0
   #evicted = { messages: 0, activities: 0, tools: 0, agents: 0, issues: 0, changes: 0 }
 
   constructor(limits: Partial<ProductStateLimits> = {}) {
@@ -173,25 +187,30 @@ export class ProductSessionState {
         this.#taskStatus = event.taskId ? "running" : "idle"
         break
       case "user.message":
-        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "user", ...boundedMessage(event.text, this.#limits.messageCharacters), streaming: false }, this.#limits.messages)
+        this.#remember("message", event.messageId)
+        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "user", ...boundedMessage(event.text, this.#limits.messageCharacters), streaming: false }, this.#limits.messages, (key) => this.#forget("message", key))
         break
       case "assistant.message.started":
-        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "assistant", text: "", streaming: true }, this.#limits.messages)
+        this.#remember("message", event.messageId)
+        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "assistant", text: "", streaming: true }, this.#limits.messages, (key) => this.#forget("message", key))
         break
       case "assistant.message.delta": { // Duplicate delivery is removed by the projection contract.
+        this.#remember("message", event.messageId)
         const prior = this.#messages.get(event.messageId)
         const message = prior?.truncated
           ? { text: prior.text, truncated: true as const }
           : boundedMessage(`${prior?.text ?? ""}${event.text}`, this.#limits.messageCharacters)
-        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "assistant", ...message, streaming: true }, this.#limits.messages)
+        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "assistant", ...message, streaming: true }, this.#limits.messages, (key) => this.#forget("message", key))
         break
       }
       case "assistant.message.completed":
-        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "assistant", ...boundedMessage(event.text, this.#limits.messageCharacters), streaming: false }, this.#limits.messages)
+        this.#remember("message", event.messageId)
+        this.#evicted.messages += putBounded(this.#messages, event.messageId, { messageId: event.messageId, role: "assistant", ...boundedMessage(event.text, this.#limits.messageCharacters), streaming: false }, this.#limits.messages, (key) => this.#forget("message", key))
         break
       case "activity.started":
       case "activity.updated":
       case "activity.completed":
+        this.#remember("activity", event.activityId)
         this.#evicted.activities += putBounded(this.#activities, event.activityId, {
           activityId: event.activityId,
           label: event.label,
@@ -201,14 +220,16 @@ export class ProductSessionState {
           summary: event.summary,
           severity: event.severity,
           ...(event.impact === undefined ? {} : { impact: event.impact }),
-        }, this.#limits.activities)
+        }, this.#limits.activities, (key) => this.#forget("activity", key))
         break
       case "tool.started":
-        this.#evicted.tools += putBounded(this.#tools, event.toolCallId, { toolCallId: event.toolCallId, name: event.name, summary: event.summary, status: "running", durationMs: event.durationMs, artifactIds: event.artifactIds, outputRefs: event.outputRefs }, this.#limits.tools)
+        this.#remember("tool", event.toolCallId)
+        this.#evicted.tools += putBounded(this.#tools, event.toolCallId, { toolCallId: event.toolCallId, name: event.name, summary: event.summary, status: "running", durationMs: event.durationMs, artifactIds: event.artifactIds, outputRefs: event.outputRefs }, this.#limits.tools, (key) => this.#forget("tool", key))
         break
       case "tool.updated":
       case "tool.completed":
       case "tool.failed": { // Preserve the stable name across lifecycle updates.
+        this.#remember("tool", event.toolCallId)
         const prior = this.#tools.get(event.toolCallId)
         const impact = event.type === "tool.failed" ? event.impact : prior?.impact
         const code = event.type === "tool.failed" ? event.code : prior?.code
@@ -226,7 +247,7 @@ export class ProductSessionState {
           ...(code === undefined ? {} : { code }),
           ...(retryable === undefined ? {} : { retryable }),
           ...(recovery === undefined ? {} : { recovery }),
-        }, this.#limits.tools)
+        }, this.#limits.tools, (key) => this.#forget("tool", key))
         break
       }
       case "subagent.updated":
@@ -246,6 +267,7 @@ export class ProductSessionState {
         }
         break
       case "task.issue":
+        this.#remember("issue", event.issueId)
         this.#evicted.issues += putBounded(this.#issues, event.issueId, {
           issueId: event.issueId,
           severity: event.severity,
@@ -254,7 +276,7 @@ export class ProductSessionState {
           retryable: event.retryable,
           recovery: event.recovery,
           ...(event.impact === undefined ? {} : { impact: event.impact }),
-        }, this.#limits.issues)
+        }, this.#limits.issues, (key) => this.#forget("issue", key))
         break
       case "permission.requested":
         this.#permissions.set(event.request.requestId, event.request)
@@ -263,6 +285,7 @@ export class ProductSessionState {
         this.#permissions.delete(event.requestId)
         break
       case "workspace.changed":
+        this.#rememberLatest("workspace", "workspace")
         for (const change of event.changes) this.#evicted.changes += putBounded(this.#changes, `${change.kind}:${change.path}`, change, this.#limits.changes)
         break
       case "workspace.diff":
@@ -270,9 +293,14 @@ export class ProductSessionState {
         break
       case "verification.updated":
         this.#verification = event.verification
+        this.#rememberLatest("verification", "verification")
+        break
+      case "context.updated":
+        this.#context = event.context
         break
       case "plan.updated":
         this.#plan = event.plan
+        this.#rememberLatest("plan", "plan")
         break
       case "task.completed":
         this.#taskId = event.taskId
@@ -317,7 +345,18 @@ export class ProductSessionState {
       changes: Object.freeze([...this.#changes.values()]),
       diff: this.#diff,
       verification: this.#verification,
+      context: this.#context,
       plan: this.#plan,
+      timeline: Object.freeze([...this.#timelineOrder.entries()]
+        .map(([identity, order]) => {
+          const separator = identity.indexOf(":")
+          return Object.freeze({
+            kind: identity.slice(0, separator) as ProductTimelineKind,
+            id: identity.slice(separator + 1),
+            order,
+          })
+        })
+        .sort((left, right) => left.order - right.order)),
       connection: this.#connection,
       reconnectAttempt: this.#reconnectAttempt,
       taskStatus: this.#taskStatus,
@@ -336,7 +375,10 @@ export class ProductSessionState {
     this.#changes.clear()
     this.#diff = undefined
     this.#verification = undefined
+    this.#context = undefined
     this.#plan = undefined
+    this.#timelineOrder.clear()
+    this.#nextTimelineOrder = 0
     this.#sessionId = undefined
     this.#taskId = undefined
     this.#connection = "connected"
@@ -346,5 +388,18 @@ export class ProductSessionState {
     this.#sourceLength = 0
     this.#sourceTail = undefined
     this.#evicted = { messages: 0, activities: 0, tools: 0, agents: 0, issues: 0, changes: 0 }
+  }
+
+  #remember(kind: ProductTimelineKind, id: string): void {
+    const identity = `${kind}:${id}`
+    if (!this.#timelineOrder.has(identity)) this.#timelineOrder.set(identity, ++this.#nextTimelineOrder)
+  }
+
+  #rememberLatest(kind: ProductTimelineKind, id: string): void {
+    this.#timelineOrder.set(`${kind}:${id}`, ++this.#nextTimelineOrder)
+  }
+
+  #forget(kind: ProductTimelineKind, id: string): void {
+    this.#timelineOrder.delete(`${kind}:${id}`)
   }
 }

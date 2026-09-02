@@ -68,6 +68,7 @@ const exactCommands = [
   "/agents",
   "/tasks",
   "/resume",
+  "/rename",
   "/rewind",
   "/export",
   "/btw",

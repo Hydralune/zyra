@@ -3,6 +3,7 @@ import type { IngressFrame } from "../api.ts"
 import {
   ZYRA_UI_EVENT_SCHEMA,
   type UiFileChange,
+  type UiContextUsage,
   type UiPlanChange,
   type UiPlanSnapshot,
   type UiPlanStepStatus,
@@ -91,6 +92,33 @@ function safeInteger(value: unknown): number | undefined {
 function artifactSize(value: unknown): number | undefined {
   const selected = safeInteger(value)
   return selected !== undefined && selected <= 1_000_000_000_000 ? selected : undefined
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
+function contextUsage(task: TaskProjection): UiContextUsage | undefined {
+  const projection = object(task.metadata.last_code_worker_api_projection)
+  const compact = object(projection.compact_state)
+  const usage = object(compact.context_usage)
+  const activeChars = safeInteger(usage.active_chars)
+  const activeLimitChars = safeInteger(usage.active_limit_chars)
+  if (activeChars === undefined || activeLimitChars === undefined || activeLimitChars <= 0) return undefined
+  const reportedRatio = finiteNumber(usage.ratio)
+  const ratio = Math.max(0, Math.min(1, reportedRatio ?? activeChars / activeLimitChars))
+  const usedPercent = Math.max(0, Math.min(100, Math.round(ratio * 100)))
+  const model = object(projection.model_api)
+  return Object.freeze({
+    activeChars,
+    activeLimitChars,
+    usedPercent,
+    remainingPercent: 100 - usedPercent,
+    compactNeeded: compact.compact_needed === true || usage.compact_needed === true,
+    pressure: text(usage.pressure, 64),
+    inputTokens: safeInteger(model.input_tokens),
+    outputTokens: safeInteger(model.output_tokens),
+  })
 }
 
 function planStepStatus(value: string): UiPlanStepStatus {
@@ -453,6 +481,17 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
     })
   }
 
+  const context = contextUsage(task)
+  if (context) {
+    push({
+      schema: ZYRA_UI_EVENT_SCHEMA,
+      eventId: `ui:context:${task.taskId}:${task.updatedAt}`,
+      occurredAt: task.updatedAt,
+      type: "context.updated",
+      context,
+    })
+  }
+
   if (task.planNodes.some((node) => node.nodeId !== task.rootNodeId)) {
     push({
       schema: ZYRA_UI_EVENT_SCHEMA,
@@ -681,7 +720,7 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
       taskId: task.taskId,
       status: task.status === "blocked" || task.status === "killed" ? task.status : "failed",
       message: taskFailure(task),
-      recovery: `可运行 zyra resume ${task.taskId} 查看可恢复状态。`,
+      recovery: "使用 /resume 选择并恢复该会话；也可以用 /status 查看技术详情。",
     })
   }
 

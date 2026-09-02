@@ -3,7 +3,7 @@ import type { DraftSnapshot } from "../input/draft.ts"
 import { ProductSessionState, type ProductViewState } from "../product/state/session-state.ts"
 import type { ProductDraftStore } from "../product/session/local-state.ts"
 import type { ZyraUiEvent } from "../presentation/events.ts"
-import { renderProductState } from "../presentation/renderer.ts"
+import { renderProductFrame, type ProductChromeState, type ProductLocalHistoryItem } from "../presentation/renderer.ts"
 import { ProductComposer, type ProductComposerResult } from "./composer.ts"
 import { LiveProductRenderer, type LiveRendererDiagnostics } from "./live-renderer.ts"
 import { PRODUCT_COMMAND_REGISTRY } from "../product/commands/registry.ts"
@@ -31,11 +31,16 @@ export class ProductTuiShell {
   #events: readonly ZyraUiEvent[] = Object.freeze([])
   #draft: DraftSnapshot = Object.freeze({ text: "", cursor: 0, display: "", pasteRefs: Object.freeze([]) })
   #notice: string | undefined
+  #localHistory: ProductLocalHistoryItem[] = []
+  #localHistorySequence = 0
   #running = false
+  #showCurrentActivity = true
   #acceptingInput = false
   #scrollOffset = 0
   #closed = false
   #overlay: ProductOverlay | undefined
+  #chrome: ProductChromeState = Object.freeze({ model: "自动选择", mode: "标准" })
+  #permissionDispatchKey: string | undefined
 
   constructor(input: {
     stdin: Readable
@@ -59,16 +64,21 @@ export class ProductTuiShell {
     }
     this.#notice = input.draftStore?.warning
     this.#interactive = (input.stdin as Readable & { isTTY?: boolean }).isTTY === true
-    this.#renderer = new LiveProductRenderer(input.output, () => renderProductState(this.#state.snapshot(), {
+    this.#renderer = new LiveProductRenderer(input.output, () => renderProductFrame(this.#state.snapshot(), {
       width: this.#renderer.width,
       height: this.#renderer.height,
       workspace: this.#workspace,
       composerText: this.#draft.display,
+      composerCursor: Math.min(this.#draft.cursor, this.#draft.display.length),
       notice: this.#notice,
+      localHistory: this.#localHistory,
       running: this.#running,
+      showCurrentActivity: this.#showCurrentActivity,
       acceptingInput: this.#acceptingInput,
       scrollOffset: this.#scrollOffset,
       overlay: this.#overlay,
+      chrome: this.#chrome,
+      color: this.#terminalCapabilities.colorLevel > 0,
     }))
     this.#composer = new ProductComposer({
       stdin: input.stdin,
@@ -111,27 +121,38 @@ export class ProductTuiShell {
     this.#availableCandidateCache = undefined
   }
 
+  setChrome(chrome: ProductChromeState): void {
+    this.#chrome = Object.freeze({ ...this.#chrome, ...chrome })
+    this.#renderer.renderNow()
+  }
+
   start(): void { this.#renderer.start() }
 
   update(events: readonly ZyraUiEvent[]): void {
+    this.#showCurrentActivity = true
     this.#taskEvents = events
     this.#events = Object.freeze([...this.#archivedEvents, ...events])
     this.#state.reconcile(this.#events)
+    this.#dispatchPermissionPrompt()
     this.#renderer.render()
   }
 
   append(events: readonly ZyraUiEvent[]): void {
+    this.#showCurrentActivity = true
     this.#taskEvents = Object.freeze([...this.#taskEvents, ...events])
     this.#events = Object.freeze([...this.#archivedEvents, ...this.#taskEvents])
     this.#state.reconcile(this.#events)
+    this.#dispatchPermissionPrompt()
     this.#renderer.render()
   }
 
   beginTask(): void {
+    this.#showCurrentActivity = true
     this.#archivedEvents = Object.freeze([...this.#archivedEvents, ...this.#taskEvents].slice(-20_000))
     this.#taskEvents = Object.freeze([])
     this.#events = this.#archivedEvents
     this.#state.reconcile(this.#events)
+    this.#permissionDispatchKey = undefined
     this.#scrollOffset = 0
     this.#renderer.renderNow()
   }
@@ -141,11 +162,31 @@ export class ProductTuiShell {
     this.#taskEvents = Object.freeze([])
     this.#events = Object.freeze([])
     this.#state.reconcile(this.#events)
+    this.#localHistory = []
+    this.#permissionDispatchKey = undefined
     this.#scrollOffset = 0
     this.#renderer.renderNow()
   }
 
   notice(message?: string): void {
+    this.#notice = undefined
+    if (message) {
+      const text = message.length > 16_384 ? `${message.slice(0, 16_384)}\n…[本地结果已截断]` : message
+      if (this.#localHistory.at(-1)?.text !== text) {
+        const afterOrder = this.#state.snapshot().timeline?.at(-1)?.order ?? 0
+        this.#localHistory.push(Object.freeze({
+          id: `local:${++this.#localHistorySequence}`,
+          text,
+          afterOrder,
+          sequence: this.#localHistorySequence,
+        }))
+        this.#localHistory = this.#localHistory.slice(-64)
+      }
+    }
+    this.#renderer.renderNow()
+  }
+
+  status(message?: string): void {
     this.#notice = message
     this.#renderer.renderNow()
   }
@@ -154,6 +195,12 @@ export class ProductTuiShell {
     this.#running = running
     this.#acceptingInput = true
     try {
+      const permissionKey = this.#permissionKey()
+      if (running && permissionKey && permissionKey !== this.#permissionDispatchKey) {
+        this.#permissionDispatchKey = permissionKey
+        this.#renderer.renderNow()
+        return { kind: "permission" }
+      }
       return await this.#composer.read()
     } finally {
       this.#acceptingInput = false
@@ -162,7 +209,13 @@ export class ProductTuiShell {
     }
   }
 
-  async pick(title: string, items: readonly ProductPickerItem[], footer?: string): Promise<ProductPickerItem | undefined> {
+  async pick(
+    title: string,
+    items: readonly ProductPickerItem[],
+    footer?: string,
+    kind: "picker" | "menu" | "approval" = "picker",
+    description?: readonly string[],
+  ): Promise<ProductPickerItem | undefined> {
     if (!this.#interactive) return undefined
     return pickProductItem({
       stdin: this.#input,
@@ -170,6 +223,8 @@ export class ProductTuiShell {
       title,
       items,
       footer,
+      kind,
+      description,
       bracketedPaste: this.#bracketedPaste,
       onChange: (overlay) => {
         this.#overlay = overlay
@@ -185,6 +240,7 @@ export class ProductTuiShell {
       output: this.#output,
       title,
       lines,
+      pageSize: Math.max(8, this.#renderer.height - 8),
       onChange: (overlay) => {
         this.#overlay = overlay
         this.#renderer.renderNow()
@@ -195,6 +251,7 @@ export class ProductTuiShell {
   detachInput(): void {
     this.#acceptingInput = false
     this.#running = false
+    this.#showCurrentActivity = false
     this.#composer.close()
     this.#renderer.renderNow()
   }
@@ -207,6 +264,7 @@ export class ProductTuiShell {
     }
     this.#acceptingInput = false
     this.#running = false
+    this.#showCurrentActivity = false
     this.#composer.close()
     this.#renderer.finish()
     this.#closed = true
@@ -230,9 +288,10 @@ export class ProductTuiShell {
       const command = value.startsWith("/")
         ? PRODUCT_COMMAND_REGISTRY.find((item) => `/${item.name}` === value)
         : undefined
-      return { id: value, label: value, detail: command?.description }
+      return { id: value, label: value, detail: command ? `${command.description}${command.usage ? ` · ${command.usage}` : ""}` : undefined }
     })
     return {
+      kind: "completion",
       title: completion.token.startsWith("/") ? "命令" : "工作区引用",
       rows,
       selected: Math.min(completion.selected, rows.length - 1),
@@ -250,5 +309,21 @@ export class ProductTuiShell {
     }))
     this.#availableCandidateCache = { running: this.#running, source: this.#candidates, values }
     return values
+  }
+
+  #permissionKey(): string | undefined {
+    const requests = this.#state.snapshot().permissions
+    return requests.length ? requests.map((request) => request.requestId).sort().join("|") : undefined
+  }
+
+  #dispatchPermissionPrompt(): void {
+    const key = this.#permissionKey()
+    if (!key) {
+      this.#permissionDispatchKey = undefined
+      return
+    }
+    if (!this.#running || !this.#acceptingInput || key === this.#permissionDispatchKey) return
+    this.#permissionDispatchKey = key
+    this.#composer.yieldForPermission()
   }
 }

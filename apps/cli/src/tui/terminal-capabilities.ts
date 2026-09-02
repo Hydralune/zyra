@@ -88,8 +88,8 @@ export function probeTerminalCapabilities(input: {
 
 export function formatTerminalCapabilities(value: TerminalCapabilities): string {
   return [
-    `terminal · ${value.terminalFamily} · ${value.columns}×${value.rows}`,
-    `render · inline · color ${value.colorLevel} · unicode ${value.unicode ? "yes" : "fallback"}`,
-    `paste · ${value.bracketedPaste ? "bracketed" : "bounded burst detector"} · alternate screen off`,
+    `终端 · ${value.terminalFamily} · ${value.columns}×${value.rows}`,
+    `显示 · 行内模式 · 色彩级别 ${value.colorLevel} · Unicode ${value.unicode ? "完整" : "兼容模式"}`,
+    `粘贴 · ${value.bracketedPaste ? "括号粘贴" : "有界批量检测"} · 未使用备用屏幕`,
   ].join("\n")
 }

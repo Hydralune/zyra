@@ -16700,6 +16700,7 @@ def _control_context_for_task(
             "session.clear",
             "session.rewind",
             "session.resume",
+            "session.rename",
             "artifact.write",
             "task.change",
             "task.inject",
@@ -17517,6 +17518,7 @@ def _control_context_for_task(
             "compact_boundary_id": str(state.metadata.get("compact_boundary_id") or ""),
             "active": True,
             "message_count": len(state.metadata.get("main_messages") or ()),
+            "title": str(state.metadata.get("session_title") or ""),
         }
         return snapshot_from_state(
             run_id=run_id,
@@ -17530,7 +17532,11 @@ def _control_context_for_task(
                 or f"sqlite-session:{task_id}:{session_revision}:{epoch}"
             ),
             transcript=tuple(state.metadata.get("main_messages") or ()),
-            metadata={"owner": "SQLiteStore", "owner_unit": "M1-S03D-02"},
+            metadata={
+                "owner": "SQLiteStore",
+                "owner_unit": "M1-S03D-02",
+                "title": str(state.metadata.get("session_title") or ""),
+            },
         )
 
     def session_mutation(request: Any, before: Any) -> dict[str, Any]:
@@ -17577,6 +17583,51 @@ def _control_context_for_task(
                 "result": {"cleared_messages": len(messages), "checkpoint": checkpoint},
                 "event_ids": [event.event_id],
                 "metadata": {"same_session_new_epoch": True, "state_owner": "SQLiteStore"},
+            }
+        if request.action is SessionAction.RENAME:
+            title = " ".join(str(request.arguments.get("title") or "").split()).strip()
+            if not title:
+                raise RuntimeError("rename requires a non-empty session title")
+            if len(title.encode("utf-8")) > 256:
+                raise RuntimeError("session title exceeds 256 bytes")
+            if any(ord(character) < 32 or ord(character) == 127 for character in title):
+                raise RuntimeError("session title contains terminal control characters")
+            changed = title != str(state.metadata.get("session_title") or "")
+            next_revision = before.revision + (1 if changed else 0)
+            if changed:
+                state.metadata["session_title"] = title
+                state.metadata["session_control_revision"] = next_revision
+                state.updated_at = now_iso()
+                state.metadata["session_checkpoint_ref"] = (
+                    f"sqlite-session:{state.task_id}:{next_revision}:{before.epoch}"
+                )
+                event = EventRecord(
+                    run_id=state.run_id,
+                    task_id=state.task_id,
+                    node_id=state.root_node_id,
+                    event_type=EventType.COMMAND_SUCCEEDED,
+                    payload={
+                        "schema": "zyra.session-renamed/v1",
+                        "request_id": request.request_id,
+                        "session_id": before.session_id,
+                        "title": title,
+                    },
+                )
+                persist_events(store, [event])
+                store.save_checkpoint(state)
+                event_ids = [event.event_id]
+            else:
+                event_ids = []
+            return {
+                "changed": changed,
+                "session_id": before.session_id,
+                "revision": next_revision,
+                "checkpoint_ref": str(
+                    state.metadata.get("session_checkpoint_ref") or before.checkpoint_ref
+                ),
+                "result": {"title": title},
+                "event_ids": event_ids,
+                "metadata": {"state_owner": "SQLiteStore", "title": title},
             }
         if request.action not in {SessionAction.REWIND, SessionAction.RESUME}:
             raise RuntimeError(f"session action is not connected to this canonical owner: {request.action.value}")
@@ -17686,6 +17737,7 @@ def _control_context_for_task(
             SessionAction.CLEAR.value: "/clear",
             SessionAction.REWIND.value: "/rewind",
             SessionAction.RESUME.value: "/resume",
+            SessionAction.RENAME.value: "/rename",
         }.get(action)
         subagent_grant = (
             owner == "SubagentTaskStore"
@@ -17705,7 +17757,10 @@ def _control_context_for_task(
         granted = subagent_grant or (
             owner == "CanonicalSessionStore"
             and expected_command == request.canonical_name
-            and not bool(request.metadata.get("sealed", False))
+            and (
+                not bool(request.metadata.get("sealed", False))
+                or action == SessionAction.RENAME.value
+            )
         )
         permission_action = (
             f"subagent.{action}"
@@ -17759,6 +17814,7 @@ def _control_context_for_task(
         "session.clear",
         "session.rewind",
         "session.resume",
+        "session.rename",
         "mcp.control",
         "permission.control",
         "provider.model",

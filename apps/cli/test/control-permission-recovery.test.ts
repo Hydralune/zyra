@@ -452,7 +452,7 @@ describe("FE-S03 permission proof and projection", () => {
       permissions: session,
       signal: new AbortController().signal,
       refreshPermissions: async () => { refreshes += 1 },
-    }, "allow")).toContain("permission-shortcut")
+    }, "allow")).toBe("权限已允许 · 仅本次")
     expect(resolved).toMatchObject({ requestId: "permission-shortcut", effect: "allow", decisionScope: "once" })
     expect(refreshes).toBe(1)
 

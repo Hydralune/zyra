@@ -1,0 +1,24 @@
+… 8 行已隐藏 · PageUp/PageDown 滚动
+
+• 已更新计划
+    ✔ 定位失败测试
+    ✔ 修复会话状态更新
+    ✔ 运行验证并总结
+
+• 已运行 · 8.4s
+  └ 测试通过：187 passed
+
+• 已编辑 2 个文件
+  └ M apps/cli/src/tui/shell.ts
+  └ M apps/cli/src/presentation/renderer.ts
+
+• 验证通过
+  └ bun test apps/cli/test (passed · exit 0)
+
+• 已修复会话状态更新。
+
+    - 保留了草稿与光标
+    - 全量 CLI 测试通过
+
+› 让 Zyra 处理任何任务
+  ? 查看快捷键                                   62% 上下文 · deepseek-v4 · 标准

@@ -153,7 +153,7 @@ describe("product state kernel", () => {
       workspace: "G:\\agent-zoo\\zyra",
     })
     expect(rendered).toContain("history 9999 with markdown")
-    expect(rendered).toContain("条更早消息虚拟化")
+    expect(rendered).toContain("个较早记录已虚拟化")
     expect(rendered).not.toContain("history 0 with markdown")
     expect(rendered.split("\n").length).toBeLessThanOrEqual(41)
   })
@@ -186,7 +186,9 @@ describe("product state kernel", () => {
       agents: [{ status: "running" }],
       permissions: [{ requestId: "permission" }],
     })
-    expect(renderProductState(state.snapshot(), { width: 100, height: 40, workspace: "G:\\agent-zoo\\zyra" })).toContain("stdout 可查看")
+    const rendered = renderProductState(state.snapshot(), { width: 100, height: 40, workspace: "G:\\agent-zoo\\zyra" })
+    expect(rendered).toContain("需要你的许可")
+    expect(rendered).not.toContain("artifact_stdout")
   })
 
   test("aggregates 100 agents while preserving selectable agent context", () => {
@@ -226,7 +228,7 @@ describe("product state kernel", () => {
     state.reconcile(events)
     const view = state.snapshot()
     expect(view.agents).toHaveLength(100)
-    expect(renderProductState(view, { width: 120, height: 60, workspace: "G:\\agent-zoo\\zyra" })).toContain("100 总计")
+    expect(renderProductState(view, { width: 120, height: 60, workspace: "G:\\agent-zoo\\zyra" })).toContain("100 个协作代理")
     expect(agentContextLines(view, "agent-099")).toEqual(expect.arrayContaining([
       "identity · agent-099",
       "assigned plan steps · 1",
@@ -251,28 +253,28 @@ describe("terminal text and composer state", () => {
 
   test("renders Markdown structure without leaking terminal controls", () => {
     const rendered = renderMarkdown("# 标题\n\n- item\n\n> quote\n\n```ts\nconst x = 1\u001b[2J\n```\n\n[a](https://example.com)", 60).join("\n")
-    expect(rendered).toContain("◆ 标题")
-    expect(rendered).toContain("• item")
-    expect(rendered).toContain("│ quote")
+    expect(rendered).toContain("# 标题")
+    expect(rendered).toContain("- item")
+    expect(rendered).toContain("> quote")
     expect(rendered).toContain("const x = 1")
-    expect(rendered).toContain("a <https://example.com>")
+    expect(rendered).toContain("a (https://example.com)")
     expect(rendered).not.toContain("\u001b")
   })
 
   test("holds incomplete inline Markdown while rendering fenced code incrementally", () => {
     expect(renderMarkdown("Use [documentation](https://exa", 60, { streaming: true }).join("\n")).toBe("Use")
-    expect(renderMarkdown("Use [documentation](https://example.test)", 60, { streaming: false }).join("\n")).toContain("documentation <https://example.test>")
+    expect(renderMarkdown("Use [documentation](https://example.test)", 60, { streaming: false }).join("\n")).toContain("documentation (https://example.test)")
     expect(renderMarkdown("Value is `part", 60, { streaming: true }).join("\n")).toBe("Value is")
     const code = renderMarkdown("~~~ts\nconst value = 1", 60, { streaming: true }).join("\n")
-    expect(code).toContain("┌─ ts")
-    expect(code).toContain("│ const value = 1")
+    expect(code).toContain("    const value = 1")
+    expect(code).not.toContain("┌")
   })
 
   test("renders nested lists, task items, horizontal rules, and tables readably", () => {
     const rendered = renderMarkdown("- parent\n  - child\n- [x] done\n---\n| A | B |\n|---|---|\n| 1 | 2 |", 60).join("\n")
-    expect(rendered).toContain("• parent")
-    expect(rendered).toContain("  • child")
-    expect(rendered).toContain("☑ done")
+    expect(rendered).toContain("- parent")
+    expect(rendered).toContain("  - child")
+    expect(rendered).toContain("- [x] done")
     expect(rendered).toContain("A │ B")
     expect(rendered).toContain("1 │ 2")
   })
@@ -294,13 +296,13 @@ describe("terminal text and composer state", () => {
       const lines = renderMarkdown(source, width)
       const rendered = lines.join("\n")
       expect(lines.filter((line) => displayWidth(line) > width)).toEqual([])
-      expect(rendered).toContain("◆ Release 标题 ✅")
-      expect(rendered).toContain("│ quoted decision")
-      expect(rendered).toContain("1. ordered item with ‹inline code›")
-      expect(rendered).toContain("☐ pending item")
+      expect(rendered).toContain("# Release 标题 ✅")
+      expect(rendered).toContain("> quoted decision")
+      expect(rendered).toContain("1. ordered item with inline code")
+      expect(rendered).toContain("- [ ] pending item")
       expect(rendered).toContain("Key │ Value")
-      expect(rendered).toContain("docs │ link <https://example.test/a/very/long/path>")
-      expect(rendered).toContain("│     const family = '👨‍👩‍👧‍👦'")
+      expect(rendered).toContain("docs │ link (https://example.test/a/very/long/path)")
+      expect(rendered).toContain("    const family = '👨‍👩‍👧‍👦'")
     }
   })
 
@@ -489,8 +491,8 @@ describe("product commands and continuous session", () => {
     await waitUntil(() => stdout.text.includes("首次使用设置完成"))
     stdin.write("/exit\r")
     expect(await executing).toMatchObject({ status: "exited", exitCode: CliExitCode.SUCCESS })
-    expect(stdout.text).toContain("3/3 ready")
-    expect(stdout.text).toContain("1 providers · 1 available models")
+    expect(stdout.text).toContain("本地执行环境已就绪")
+    expect(stdout.text).toContain("已发现 1 个可用模型")
     expect(await onboardingStore.load()).toMatchObject({
       status: "complete",
       state: { choice: "automatic" },
@@ -524,14 +526,15 @@ describe("product commands and continuous session", () => {
 
   test("discovers commands with explicit availability", () => {
     expect(parseProductCommand("/resume session_1")).toMatchObject({ definition: { name: "resume", availability: "idle" }, args: "session_1" })
+    expect(parseProductCommand("/rename 修复 CLI 状态")).toMatchObject({ definition: { name: "rename", availability: "always" }, args: "修复 CLI 状态" })
     expect(parseProductCommand("/subagents")).toMatchObject({ definition: { name: "agents" } })
     expect(productCommandHelp(false)).toContain("/new")
     expect(productCommandHelp(true)).toContain("/redirect")
     expect(productCommandHelp(true)).toContain("/plan")
     expect(productCommandHelp(true)).toContain("/tools")
-    expect(productCommandHelp(true)).toContain("/compact [focus]")
-    expect(productCommandHelp(false)).toContain("/review [focus]")
-    expect(productCommandHelp(false)).toContain("/init [focus]")
+    expect(productCommandHelp(true)).toContain("/compact [说明]")
+    expect(productCommandHelp(false)).toContain("/review [关注点]")
+    expect(productCommandHelp(false)).toContain("/init [关注点]")
     expect(productWorkflowGoal("review", "authentication")).toContain("Do not modify files")
     expect(productWorkflowGoal("init")).toContain("preserve existing user rules")
   })
@@ -937,7 +940,7 @@ describe("product commands and continuous session", () => {
     stdin.write("\r")
     await waitUntil(() => stdout.text.includes("选择推理强度"))
     stdin.write("\u001b[B\u001b[B\u001b[B\r")
-    await waitUntil(() => stdout.text.includes("后续新 task"))
+    await waitUntil(() => stdout.text.includes("之后创建的新任务"))
     stdin.write("使用选择的模型执行\r")
     await waitUntil(() => calls.length === 1 && stdin.raw)
     stdin.write("/exit\r")
@@ -946,8 +949,8 @@ describe("product commands and continuous session", () => {
       goal: "使用选择的模型执行",
       execution: { providerId: "deepseek", modelId: "deepseek-v4-flash", reasoningEffort: "max" },
     })
-    expect(stdout.text).toContain("reasoning · 已选择 max")
-    expect(stdout.text).toContain("可选 low/high/max")
+    expect(stdout.text).toContain("推理强度 · max")
+    expect(stdout.text).toContain("可选强度 · low/high/max")
   })
 
   test("selects sealed autonomous mode and binds it to the next task creation", async () => {
@@ -988,7 +991,7 @@ describe("product commands and continuous session", () => {
     stdin.write("/mode\r")
     await waitUntil(() => stdout.text.includes("选择后续任务执行模式"))
     stdin.write("\u001b[B\r")
-    await waitUntil(() => stdout.text.includes("execution · sealed_autonomous"))
+    await waitUntil(() => stdout.text.includes("执行模式 · 封闭自治"))
     stdin.write("执行封闭任务\r")
     await waitUntil(() => calls.length === 1 && stdin.raw)
     stdin.write("/exit\r")

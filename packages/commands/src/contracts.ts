@@ -17,6 +17,7 @@ export type CommandName =
   | "/agents"
   | "/tasks"
   | "/resume"
+  | "/rename"
   | "/rewind"
   | "/export"
   | "/btw"

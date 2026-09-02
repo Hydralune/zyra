@@ -799,6 +799,7 @@ function title(receipt: CommandReceipt): string {
     "/agents": "Agents and subagents",
     "/tasks": "Subagent tasks",
     "/resume": "Session resume",
+    "/rename": "Session rename",
     "/rewind": "Session rewind",
     "/export": "Session export",
     "/btw": "Side question",

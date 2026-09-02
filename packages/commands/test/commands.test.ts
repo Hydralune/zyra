@@ -115,8 +115,8 @@ describe("command registry and parser", () => {
     const registry = createCommandRegistry()
     expect(registry.audit()).toEqual({
       valid: true,
-      commandCount: 22,
-      triggerCount: 63,
+      commandCount: 23,
+      triggerCount: 65,
       errors: [],
     })
     expect(registry.names()).toEqual([
@@ -137,6 +137,7 @@ describe("command registry and parser", () => {
       "/model",
       "/compact",
       "/context",
+      "/rename",
       "/resume",
       "/rewind",
       "/btw",

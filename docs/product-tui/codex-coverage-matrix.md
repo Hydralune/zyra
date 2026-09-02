@@ -1,6 +1,6 @@
 # Codex → Zyra 产品 CLI / TUI 覆盖矩阵
 
-状态：Phase B～G 与最终归档已收口；Phase F/H 仅受人工 Windows IME 阻塞
+状态：工程 Foundation 与既有发布门已收口；Phase I 实现完成并处于最终回归，Phase J/K 尚未关闭
 参考源码：`G:\agent-zoo\codex`
 目标仓库：`G:\agent-zoo\zyra`
 审计日期：2026-09-01
@@ -11,6 +11,25 @@
 - `已实现` 表示已有稳定产品路径和相称测试；`部分` 表示仅覆盖基本路径；`缺失` 表示没有用户闭环；`N/A` 只用于明确不属于 Zyra 产品边界的能力。
 - `完成证据` 在对应实现和验证提交落地前保持 `—`，不得用计划替代完成。
 - P0/P1 必须实现或逐项批准例外。P2 不是批量排除项，仍记录理由。
+
+## 2026-09-02 Codex 产品体验复审
+
+旧矩阵主要回答“能力是否存在”，不足以回答“默认界面是否像 Codex、用户是否无需理解 Zyra 内部实现”。以下体验门与能力矩阵同时生效；没有关闭这里的 P0/P1，不得用下方旧完成证据宣称产品 TUI 已完成。
+
+| 产品语法/工作流 | Codex 证据 | 当前状态 | 默认信息预算 | 操作成本与结论 |
+|---|---|---|---|---|
+| 会话头与主信息架构 | `history_cell` session-header snapshots；`chatwidget` VT100 snapshots | 已实现：紧凑会话头、时间线、单一当前活动和 composer；旧常驻仪表盘已从 renderer 移除；80×24/120×40 参考帧和真实 built CLI 已审查 | 默认不再显示 task/run/request/revision/backend 名 | 结构对齐；1,000 resize ConPTY 通过 |
+| user/assistant/tool/plan history cell | `history_cell/*`; plan/tool snapshots | 已实现：state 保留跨类型事件顺序；工具映射为检查/运行/编辑/联网；compat 完成计划默认折叠；运行/计划/完成/失败参考帧已审查 | 一级只显示用户可理解摘要，详情进入 `/tools`、`/plan` | P0 产品语法已实现 |
+| composer、footer 与真实光标 | `bottom_pane/chat_composer` snapshots；`textarea.rs` | 已实现：渲染帧携带 grapheme 光标；Live renderer 将真实终端光标移回草稿；footer 已移除连接和 task ID；1,000 resize ConPTY 通过 | 左侧只保留当前快捷键，右侧显示真实上下文/模型/模式 | P0 实现关闭；人工 IME 仍是发布门 |
+| Markdown 产品语法 | `markdown_render` 与 code-block VT100 snapshots | 进行中：标题、引用、列表和代码块已改用 Codex 的原生 Markdown 语法，移除自创代码框/菱形标题 | 正文优先，结构靠缩进与终端样式表达 | P0；span 级 inline-code/link 样式仍需审查 |
+| completion/picker/pager | `command_popup`; `resume_picker`; bottom-pane snapshots | 已实现核心路径：completion 贴近 composer；picker/pager 统一无框语法、数字快捷键、滚动与 footer；resume/approval/diff 同尺寸帧已审查 | 内部 identity 只作 controller 绑定，不作默认 label | P0 核心对齐；复杂命令的全部参数 schema 属持续增强 |
+| 权限审批 | `approval_overlay_permissions_prompt.snap`; permission popup tests | 进行中：请求会自动抢占输入并保留草稿；approval 使用问题—说明—编号选项—确认结构；Esc fail-closed | 默认不显示 request ID/revision/custody | P0；多请求和真实断线恢复仍需 frame/ConPTY 复验 |
+| diff/验证/工具详情 | `diff_render` snapshots；exec history cells | 已实现：主时间线有编辑/验证摘要；统一 picker/pager 支持整份与按文件 diff、语义增删/hunk 色彩；80×24/120×40 diff 帧已审查 | 默认不倾倒 stdout、artifact ID 或完整 diff | P0 产品语法已实现 |
+| 上下文与预算 | `/status`、composer context footer、status snapshots | 已实现：presentation 从 canonical CodeWorker context usage/token facts 投影真实剩余比例；footer、`/status`、`/context` 分层显示；无数据时不伪造 | footer 只在有真实数据时显示百分比 | P1 已关闭 |
+| agent 主动提问/结构化选项 | Codex `request_user_input` tool 与 bottom-pane selection | 缺失：Zyra 当前没有由 provider 到 canonical task 再到 CLI 的结构化用户问题契约 | 不允许从 assistant 文本猜测选项 | P0 后端缺口，Phase J 未关闭 |
+| 会话命名与恢复可读性 | Codex `/rename`、resume picker | 已实现：canonical SessionControl `rename` 事务写入同一 TaskStore checkpoint；session list/detail 投影标题；resume picker 标题优先、goal 回退 | picker 默认标题/goal、状态、更新时间；ID 仅作隐藏绑定 | P1 已关闭；没有本地第二真相 |
+| 命令输出的历史连续性 | Codex slash-command history cells/status overlays | 已实现：本地命令 receipt/notice 进入有界 `localHistory`，与 canonical timeline 按发生次序合并；复杂结果进入统一 pager | 技术 ID 仅进入显式详情 | P1 已关闭 |
+| 真实用户与发布体验 | Codex/Zyra 同任务双人盲测 | 未开始 | 不以开发者讲解补足可发现性 | Phase K 外部验收项 |
 
 ## 覆盖矩阵
 
@@ -51,7 +70,7 @@
 | TOOL-01 | 工具生命周期、耗时、结果 | `tool_lifecycle.rs`; `history_cell/exec.rs`; core tool lifecycle tests | started/update/completed/failed，摘要与耗时 | 已实现 versioned lifecycle、耗时、artifact refs、折叠主视图和 `/tools` browser；Phase G 真实 provider 执行 23 次 tool call、3 次 workspace mutation，并保留一次局部 node failure 而不误报 task failure | P0 | stable tool call IDs/timestamps/artifact | presentation v2; state; `/tools` | reducer、snapshot、长 stdout、真实 provider | `3e023ed8`, `1b78438f`；Phase G evidence 20260902 |
 | TOOL-02 | stdout/stderr 有界与展开 | `history_cell/exec.rs`; `unified_exec_footer.rs`; truncation core tests | 有界预览、状态和详情 | 已实现：版本化 presentation 只投影最多 16 个 output descriptor；主视图仅显示可查看状态，`/tools` 按需打开 server-redacted 64 KiB artifact range；原始输出不进入 transcript | P0 | canonical output artifacts/ranges（已存在） | `product_presentation.py`; `presentation/projector.ts`; tool browser; artifact controller | 10 MiB descriptor/response、ANSI/OSC、跨 task identity、secret/quarantine | 当前提交；ADR-002 |
 | AGENT-01 | 多代理聚合与上下文选择 | `multi_agents.rs`; `app/agent_navigation.rs`; app agent picker tests | 主/子代理状态可聚合，并可选择具体上下文 | 已实现 Zyra 等价路径：主视图聚合 active/failed/total；`/agents`/`/subagents` 可搜索并按 identity 直接定位；详情绑定状态、summary、impact/code/retry/recovery 与 assigned canonical plan steps；选择只读检查上下文，不伪造 Zyra 不存在的 user-addressable worker thread | P0 | stable agent identity + plan assignment aggregation | presentation v2; state/renderer；agent picker/context pager | 100 agents、失败/等待、identity selection、bounded render | `3e023ed8`, `1b78438f`；当前提交；ADR-016；100-agent product gate |
-| PERM-01 | 高可见单权限请求 | `approval_overlay.rs`; `history_cell/approvals.rs`; approval snapshots | 动作、命令/patch、风险、选择清楚 | 已实现：权限卡固定在 diff/verification 之后、composer 之前，以边框显示动作/目标/原因/风险/scope/expiry/request identity；24 行+200 diff 压力仍可见；A/D+Enter 只在精确单请求时提交 once，多请求 fail closed 到 picker | P0 | canonical permission request | `control/permission.ts`; renderer/controller | snapshot、viewport pressure、shortcut binding、真实 custody | 当前提交；ADR-017 |
+| PERM-01 | 高可见单权限请求 | `approval_overlay.rs`; `history_cell/approvals.rs`; approval snapshots | 动作、命令/patch、风险、选择清楚 | 已实现：权限自动抢占并保留草稿；问题—说明—编号选项无框呈现；默认隐藏 request identity；Esc fail closed；多请求进入精确 picker | P0 | canonical permission request | `control/permission.ts`; renderer/controller | snapshot、viewport pressure、shortcut binding、真实 custody | 当前提交；ADR-017；reference frames |
 | PERM-02 | 多请求选择和正确绑定 | app pending approvals; inactive-thread approval tests | 多线程/多请求不串单 | 已实现 canonical pending picker、精确 identity 绑定和决定 picker | P0 | list/get/resolve + binding | permissions overlay/controller | 并发、错误选择、PTY | `0e416db0` |
 | PERM-03 | expiry/custody/conflict fail closed | permission tests; core approval contracts | 过期、冲突、丢失上下文不允许 | 已实现：custody/expiry/revision/proof/scope 均 fail closed；daemon restart 后 resume custody，强杀遗留锁只在 OS owner 已退出时接管；resolution receipt 必须匹配 request/effect/scope，真实 daemon 两 CLI 并发相反决定只接受 canonical winner，loser 将 replay mismatch 报为 conflict 且不重放 | P0 | receipt/custody/revision | `control/permission.ts`; `api.ts`; permission state lock | 故障注入、真实 daemon restart、并发 allow/deny CLI clients | 当前提交；ADR-005/017；real permission race pass |
 | PERM-04 | 一次/会话/持久范围 | permissions menu/profile tests | 用户选择生效范围 | 已实现：后端逐请求声明 once/session/workspace；v2 proof 绑定范围；会话隔离、工作区重启持久和参数精确 digest 均已验证 | P1 | TypeScript atomic respond+rule commit | permissions controller；E02 permission owner | scope E2E、安全审计 | 当前提交；ADR-003 |
@@ -59,7 +78,7 @@
 | DIFF-02 | 新增/删除/重命名/二进制 | diff model/render tests | 类型语义稳定 | 已实现：manifest 分离 change kind 与 binary 属性，路径 fail closed；picker/page 明示旧→新、added/deleted/renamed/binary，二进制不进入文本 hunk | P0 | canonical diff metadata（已存在） | `diff_review_api.py`; `product/diff/` | 四类 fixture、路径逃逸、18 项真实 workspace integration | 当前提交 |
 | VERIFY-01 | 验证命令、结果、跳过/未运行 | history cells/tool/turn lifecycle | 失败不伪装成功，结果可审查 | 已实现：progressive 判定形成 terminal receipt，后台 spawn 不算通过，wait 绑定原命令；命令脱敏且最多 64 条；Phase G canonical outcome 同时保留 failed `npm test` 与三条 passed `node --test / exit 0`，最终 TUI `/verification` 物理翻页观察到命令和退出码 | P0 | runtime obligation evidence + canonical task outcome | progressive runtime；CodeWorker safe projection；task outcome；`/verification` | 运行时、Python、CLI contract、真实 provider/ConPTY | `f2e383d9`, `0babe345`；Phase G evidence 20260902；ADR-002 |
 | SESS-01 | 连续多轮会话 | `chatwidget/session_flow.rs`; `input_submission.rs`; app turn tests | 一个进程连续提交 turn | 已实现同进程多 task、同 session 延续、new/clear；controller 自动化覆盖两轮 task 与同一 canonical session，Phase G 真实 daemon/provider 覆盖成功任务完成后的 idle handoff、两次退出/恢复附着和继续输入状态；前端状态机不以第二次模型解题质量判定 | P0 | append/new task semantics | `commands/product.ts` product loop | controller、真实 daemon/PTY、恢复 | `25344dc1`, `675d6da4`；Phase G evidence 20260902 |
-| SESS-02 | 最近会话 picker | `resume_picker.rs`; preview tests; `named_session_lookup.rs` | 按时间/cwd/标题选择 | 已实现 canonical session list、task title lookup 与键盘 picker | P0 | session list/detail 已有 | picker overlay + session controller | snapshot、真实 API | `0e416db0` |
+| SESS-02 | 最近会话 picker 与命名 | `resume_picker.rs`; preview tests; `named_session_lookup.rs`; Codex `/rename` | 按时间/cwd/标题选择并可命名 | 已实现 canonical session list/detail、task goal 回退、`/rename` revisioned transaction 与标题优先 picker | P0 | session list/detail + SessionControl rename | picker overlay + session controller + canonical task store | snapshot、typed contract、真实 API mutation | `0e416db0`；当前提交 |
 | SESS-03 | detach/cancel/exit 区分 | `interrupts.rs`; `session_flow.rs`; composer submission snapshots | Ctrl+C/退出/中断语义分开 | 已实现 detach/exit 不 cancel、cancel/interrupt 独立；cancel lost-ack 只读对账且不重放；Phase G 失败/成功集合和最终标记门共 12 次恢复附着均以真实 `/exit` 退出且不取消 task，task/run identity 与 canonical terminal 对账稳定 | P0 | task/turn controls | session controller + command registry | PTY、退出码、lost-ack、resume | `80f03d11`, `f1623d89`, `0babe345`；Phase G evidence 20260902 |
 | SESS-04 | 历史 replay 与损坏降级 | `chatwidget/replay.rs`; app replay tests; session resume | 顺序回放、草稿/队列恢复、错误明确 | 已实现：projection replay、单条损坏历史隔离、丢失 Diff 明示；草稿 crash 恢复、v0→v1 迁移；未知/损坏 state 保留原件并警告；canonical queue snapshot 恢复 | P0 | versioned snapshot/history | typed client；`product/session/local-state.ts`；session UI | old schema、corrupt fixture、queue recovery | `51c78b2f`, `c236ade2`, `b5855f8e` |
 | CTRL-01 | queue/redirect/interrupt/cancel/continue | `input_queue.rs`; `interrupts.rs`; turn submission tests | 运行中 steer/queue，冲突可解释 | 已实现产品命令、快捷输入、canonical queue、独立 task/command cancel 和 continue；Phase G 三次真实运行分别提交 `/redirect`、`/review`、`/interrupt`，均观察到绑定 request identity 的 `applied /change` 回执并进入 `needs_revision`；成功 provider 文件执行路径另行完成 | P0 | revisioned control API 已有 | `control/commands.ts`; session controller | mutation/revision、API queue/receipt、CLI contract、真实任务 | `324040ed`, `f2e383d9`；Phase G evidence 20260902；ADR-004 |
@@ -80,7 +99,9 @@
 
 - Foundation 已演化出长期 session controller、有界增量产品状态、命令/overlay、Markdown、diff/tool/agent 浏览、权限范围、诊断和 PTY/性能 harness；组件、故障注入、8 小时性能门，以及 Phase G 真实失败/控制/恢复与 provider 成功文件工作流均已有证据。
 - Phase G 已关闭：真实 provider 产生 4 个 changed path、可见 diff、canonical 验证命令/退出码和 permission policy；daemon 重启后两次产品附着直接观察这些内容，并与稳定 canonical `completed` 对账。
-- 当前唯一 P0 人工阻塞项是 Windows Terminal IME 候选窗。最终 release pipeline 已以 `fedd24e0` 生成字节一致归档，隔离 clean-install 的安装、迁移、restart、停止、卸载和端口释放全部通过。CLI crash、异步重绘、daemon restart/generation replacement、Web cross-view 对账、局部 failure impact、真实长程控制回执和 provider 成功路径均已关闭。
+- “当前唯一 P0 阻塞是 Windows Terminal IME”的旧结论已经作废。现有发布归档只证明重构前候选版本的工程可安装性，不能覆盖重新打开后的 Phase I～K。
+- 当前工作树已经实现 Codex 产品语法重构：主界面不再是固定状态仪表盘，跨类型 history、真实 composer 光标、Codex 样式层、无框 picker/pager、自动权限抢占、原生 Markdown、canonical context footer、稳定命令结果历史、canonical `/rename` 和 diff 对照帧均已落地；仍需完整回归和外部用户验收。
+- 尚未关闭的决定性差距是 provider 主动结构化用户问题契约、两名外部用户盲测和 Windows Terminal 人工 IME，以及本轮重构后的最终发布回归。因此当前仍不得称为 Codex 等价或最终成熟版本。
 - typed API 已提供 session、task command、permission、diff、terminal、workspace、artifact 和版本化 event ingress。新增产品契约继续遵守 canonical owner，不从屏幕文本或 generic runtime summary 猜状态。
 - Codex 专属账户、插件、Apps、Pets 已在 ADR-019 逐项完成产品边界决定，不用一句批量排除代替审计。
 

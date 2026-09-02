@@ -196,6 +196,9 @@ class SQLiteStore:
                     session_id = str(metadata.get("query_session_id") or "").strip()
                     if session_id:
                         value["session_id"] = session_id
+                    session_title = str(metadata.get("session_title") or "").strip()
+                    if session_title:
+                        value["session_title"] = session_title
             values.append(value)
         return values
 

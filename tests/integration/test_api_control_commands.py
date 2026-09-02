@@ -518,9 +518,22 @@ class ApiControlCommandTests(unittest.TestCase):
             try:
                 created = _post(base_url, "/tasks", {"goal": "Exercise session commands.", "auto_run": False})
                 task_id = created["task"]["task_id"]
+                rename_status, renamed = _post_with_status(
+                    base_url,
+                    f"/tasks/{task_id}/commands",
+                    {"text": "/rename Fix CLI session state"},
+                )
+                sessions = _get(base_url, "/sessions")
                 clear_status, cleared = _post_with_status(base_url, f"/tasks/{task_id}/commands", {"text": "/clear start focused session"})
                 rewind_status, rewound = _post_with_status(base_url, f"/tasks/{task_id}/commands", {"text": "/rewind latest"})
 
+                self.assertEqual(rename_status, 201)
+                self.assertTrue(renamed["command_result"]["ok"])
+                self.assertEqual(
+                    renamed["command_result"]["data"]["transaction"]["effect"]["result"]["title"],
+                    "Fix CLI session state",
+                )
+                self.assertEqual(sessions["sessions"][0]["title"], "Fix CLI session state")
                 self.assertEqual(clear_status, 201)
                 self.assertEqual(rewind_status, 409)
                 self.assertTrue(cleared["command_result"]["ok"])

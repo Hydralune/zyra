@@ -132,9 +132,10 @@ describe("product file, verification, and failure results", () => {
     expect(state.verification?.commandEvidence).toBe("not_recorded")
     expect(state.changes).toContainEqual(expect.objectContaining({ path: "src/example.ts", kind: "modified" }))
     expect(rendered).toContain("最终验证未通过")
-    expect(rendered).toContain("测试失败，修改未通过验收")
-    expect(rendered).toContain(`zyra resume ${failed.taskId}`)
-    expect(rendered).not.toContain("runtime.")
+   expect(rendered).toContain("测试失败，修改未通过验收")
+    expect(rendered).toContain("使用 /resume 选择并恢复该会话")
+    expect(rendered).not.toContain(failed.taskId)
+   expect(rendered).not.toContain("runtime.")
   })
 
   test("preserves canonical command, status, and exit code receipts", () => {
@@ -177,7 +178,7 @@ describe("product file, verification, and failure results", () => {
     })
   })
 
-  test("renders permission risk, expiry, and an unambiguous request identity", () => {
+  test("renders permission risk and expiry while keeping its internal request identity out of the main frame", () => {
     const running = { ...task("completed", {}), status: "running", terminal: false, active: true }
     const events = projectProductEvents({
       task: running,
@@ -193,17 +194,17 @@ describe("product file, verification, and failure results", () => {
       }],
     })
     const rendered = renderProductSnapshot(events, { width: 100, workspace: "workspace" })
-    expect(rendered).toContain("风险：medium")
-    expect(rendered).toContain("作用域：once")
-    expect(rendered).toContain("有效期至：2099-01-01")
-    expect(rendered).toContain("permission_visible")
-    expect(rendered).toContain("[A]+Enter 允许本次")
+   expect(rendered).toContain("风险：medium")
+    expect(rendered).toContain("范围：once")
+    expect(rendered).toContain("到期：2099-01-01")
+    expect(rendered).not.toContain("permission_visible")
+    expect(rendered).toContain("按 Enter 查看允许范围")
     const pressured = renderProductSnapshot([
       ...events,
       { schema: ZYRA_UI_EVENT_SCHEMA, eventId: "diff-pressure", type: "workspace.diff", lines: Array.from({ length: 200 }, (_, index) => `+line ${index}`), truncated: true, source: "local_workspace" },
     ], { width: 100, height: 24, workspace: "workspace" })
-    expect(pressured).toContain("权限请求 1/1")
-    expect(pressured).toContain("写入受保护文件")
-    expect(pressured).toContain("[D]+Enter 拒绝")
+    expect(pressured).toContain("需要你的许可")
+   expect(pressured).toContain("写入受保护文件")
+    expect(pressured).toContain("按 Esc 拒绝")
   })
 })

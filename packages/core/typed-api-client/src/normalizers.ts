@@ -107,6 +107,7 @@ export interface TaskListProjection {
 
 export interface SessionProjection {
   sessionId: string
+  title?: string
   taskIds: string[]
   activeTaskIds: string[]
   latestTaskId: string
@@ -480,6 +481,7 @@ export function normalizeSession(value: unknown, index = 0): SessionProjection {
   }
   return {
     sessionId,
+    title: optionalResponseString(item.title, `session[${index}].title`),
     taskIds,
     activeTaskIds,
     latestTaskId,

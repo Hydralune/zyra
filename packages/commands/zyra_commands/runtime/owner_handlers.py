@@ -134,6 +134,7 @@ class CanonicalOwnerHandlerSet:
             "session.branch": self.session_branch,
             "session.rewind": self.session_rewind,
             "session.resume": self.session_resume,
+            "session.rename": self.session_rename,
             "mcp.control": self.mcp_control,
             "mcp.prompt": self.mcp_prompt,
             "permission.control": self.permission_control,
@@ -175,6 +176,13 @@ class CanonicalOwnerHandlerSet:
                 **({"checkpoint_ref": checkpoint_ref} if checkpoint_ref else {}),
             },
         )
+
+    def session_rename(self, request: ControlCommandRequest, _descriptor: ControlCommandDescriptor, _context: RuntimeControlContext) -> ControlResult:
+        parsed = self._arguments(request)
+        title = str(parsed.get("title") or parsed.get("raw") or "").strip()
+        if not title:
+            raise OwnerHandlerError("/rename requires a session title")
+        return self._session(request, SessionAction.RENAME, {"title": title})
 
     def mcp_control(self, request: ControlCommandRequest, _descriptor: ControlCommandDescriptor, _context: RuntimeControlContext) -> ControlResult:
         parsed = self._arguments(request)
