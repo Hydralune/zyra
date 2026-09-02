@@ -417,6 +417,7 @@ describe("FE-S03 permission proof and projection", () => {
     } as unknown as CliApi
     const session = new CliPermissionSession({ api, task: task() })
     expect(await session.open()).toBe(true)
+    expect(session.custodyToken).toBe("custody-token")
     const pending = await session.pending()
     expect(pending[0]?.supportedDecisionScopes).toEqual(["once", "session", "workspace"])
     await session.resolve({

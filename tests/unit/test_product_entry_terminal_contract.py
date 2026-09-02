@@ -8,6 +8,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -23,6 +24,35 @@ from zyra_scheduler.backend_registry import (
 )
 from zyra_scheduler.backend_registry.models import checksum
 from zyra_scheduler.backend_registry.transport import BackendTransportFrame, _redact_url
+
+
+def test_delivery_observer_reads_the_attested_live_cli_root() -> None:
+    from apps.api.zyra_api.main import _observe_delivery_contract_paths
+
+    with TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir).resolve()
+        (root / "proof.txt").write_text("live-terminal\n", encoding="utf-8")
+        state = SimpleNamespace(
+            metadata={
+                "executor_environment": {
+                    "schema": "zyra.local-executor-environment/v1",
+                    "kind": "local_terminal",
+                    "backend_id": "terminal_test",
+                    "generation": "generation-test",
+                    "cwd": str(root),
+                    "workspace_roots": [str(root)],
+                }
+            }
+        )
+
+        observed = _observe_delivery_contract_paths(
+            state,
+            ("proof.txt", "missing.txt", "../outside.txt"),
+        )
+
+        assert observed["proof.txt"] != "absent"
+        assert observed["missing.txt"] == "absent"
+        assert observed["../outside.txt"] == "absent"
 
 
 def _frame_wire(**overrides: Any) -> dict[str, Any]:

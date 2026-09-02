@@ -24,6 +24,7 @@ import {
 } from "@zyra/typed-api-client"
 import { CliTaskError, CliVerifierError } from "./contracts.ts"
 import { parseProductModels, type ProductModelOption } from "./product/config/model.ts"
+import type { LocalExecutorEnvironment } from "./terminal/lifecycle.ts"
 
 const INGRESS_PROTOCOL = "zyra.event-ingress/v1"
 const CAPABILITIES_SCHEMA = "zyra.event-ingress-capabilities/v1"
@@ -54,7 +55,27 @@ export interface ProductExecutionConfig {
   reasoningEffort?: string
 }
 
-function taskCreateBody(goal: string, sealed: boolean, sessionId?: string, execution?: ProductExecutionConfig) {
+function localExecutorBody(environment?: LocalExecutorEnvironment) {
+  return environment ? {
+    executor_environment: {
+      schema: environment.schema,
+      kind: environment.kind,
+      backend_id: environment.backendId,
+      generation: environment.generation,
+      cwd: environment.cwd,
+      workspace_roots: [...environment.workspaceRoots],
+      capability_proof: environment.capabilityProof,
+    },
+  } : {}
+}
+
+function taskCreateBody(
+  goal: string,
+  sealed: boolean,
+  sessionId?: string,
+  execution?: ProductExecutionConfig,
+  environment?: LocalExecutorEnvironment,
+) {
   const session = sessionId?.trim() ? { session_id: sessionId.trim() } : {}
   const productExecution = execution ? {
     execution_config: {
@@ -63,6 +84,7 @@ function taskCreateBody(goal: string, sealed: boolean, sessionId?: string, execu
       ...(execution.reasoningEffort ? { reasoning_effort: execution.reasoningEffort } : {}),
     },
   } : {}
+  const executorEnvironment = localExecutorBody(environment)
   return sealed
     ? {
         goal,
@@ -72,8 +94,9 @@ function taskCreateBody(goal: string, sealed: boolean, sessionId?: string, execu
         competition_mode: "sealed_autonomous",
         ...session,
         ...productExecution,
+        ...executorEnvironment,
       } as const
-    : { goal, auto_run: false, ...session, ...productExecution } as const
+    : { goal, auto_run: false, ...session, ...productExecution, ...executorEnvironment } as const
 }
 
 export function taskSubmissionIdempotencyKey(
@@ -82,11 +105,12 @@ export function taskSubmissionIdempotencyKey(
   submissionGeneration: string,
   sessionId?: string,
   execution?: ProductExecutionConfig,
+  environment?: LocalExecutorEnvironment,
 ): string {
   return createIdempotencyKey(
     OPERATION_NAMES.taskCreate,
     {},
-    taskCreateBody(goal, sealed, sessionId, execution),
+    taskCreateBody(goal, sealed, sessionId, execution, environment),
     submissionGeneration,
   )
 }
@@ -494,11 +518,17 @@ export class CliApi {
     this.client.close(reason)
   }
 
-  async createPendingTask(goal: string, sealed: boolean, sessionId?: string, execution?: ProductExecutionConfig): Promise<TaskMutationProjection> {
-    const body = taskCreateBody(goal, sealed, sessionId, execution)
+  async createPendingTask(
+    goal: string,
+    sealed: boolean,
+    sessionId?: string,
+    execution?: ProductExecutionConfig,
+    environment?: LocalExecutorEnvironment,
+  ): Promise<TaskMutationProjection> {
+    const body = taskCreateBody(goal, sealed, sessionId, execution, environment)
     // Idempotency owns transport retries for one explicit submission. It must
     // not collapse a later `zyra run` with the same goal into an old task.
-    const idempotencyKey = taskSubmissionIdempotencyKey(goal, sealed, crypto.randomUUID(), sessionId, execution)
+    const idempotencyKey = taskSubmissionIdempotencyKey(goal, sealed, crypto.randomUUID(), sessionId, execution, environment)
     const response = await this.client.endpoint<TaskMutationProjection, typeof body>(OPERATION_NAMES.taskCreate, {
       body,
       idempotencyKey,
@@ -590,7 +620,11 @@ export class CliApi {
     return Object.freeze({ ...response.data })
   }
 
-  async runTask(task: TaskProjection, signal?: AbortSignal): Promise<TaskMutationProjection> {
+  async runTask(
+    task: TaskProjection,
+    signal?: AbortSignal,
+    environment?: LocalExecutorEnvironment,
+  ): Promise<TaskMutationProjection> {
     // One invocation keeps one key across transport retries, while a later
     // explicit `zyra resume` receives a fresh generation.  Reusing a key
     // across CLI invocations would replay a previously committed 503 forever
@@ -598,6 +632,7 @@ export class CliApi {
     const body = {
       requested_by: "zyra-cli",
       resume_invocation_id: `resume_${crypto.randomUUID().replaceAll("-", "")}`,
+      ...localExecutorBody(environment),
     }
     const idempotencyKey = createIdempotencyKey(OPERATION_NAMES.taskResume, task.binding, body)
     const response = await this.client.endpoint<TaskMutationProjection, typeof body>(OPERATION_NAMES.taskResume, {

@@ -8,7 +8,10 @@ function inline(value: string): string {
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/__([^_]+)__/g, "$1")
     .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "$1")
-    .replace(/(?<!_)_([^_]+)_(?!_)/g, "$1")
+    // CommonMark does not treat underscores inside an identifier as emphasis.
+    // Keeping the word-boundary constraints here prevents values such as
+    // ZYRA_SYNTHETIC_100K_OK from losing meaningful characters in the TUI.
+    .replace(/(?<![\p{L}\p{N}_])_([^_\r\n]+)_(?![\p{L}\p{N}_])/gu, "$1")
 }
 
 function prefixed(value: string, prefix: string, width: number, continuation = ""): string[] {

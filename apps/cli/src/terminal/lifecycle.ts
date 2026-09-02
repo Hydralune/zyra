@@ -6,6 +6,16 @@ export interface TerminalLifecycleOptions extends TerminalRegistrationOptions, T
   shutdownTimeoutMs?: number
 }
 
+export interface LocalExecutorEnvironment {
+  schema: "zyra.local-executor-environment/v1"
+  kind: "local_terminal"
+  backendId: string
+  generation: string
+  cwd: string
+  workspaceRoots: readonly string[]
+  capabilityProof: string
+}
+
 export class TerminalNodeLifecycle {
   readonly server: TerminalNodeServer
   readonly registration: TerminalNodeRegistration
@@ -39,6 +49,21 @@ export class TerminalNodeLifecycle {
 
   status(): TerminalNodeStatus {
     return this.server.status()
+  }
+
+  executorEnvironment(): LocalExecutorEnvironment {
+    if (!this.#started || this.#stopped) {
+      throw new Error("Terminal node is not available as a local executor environment.")
+    }
+    return Object.freeze({
+      schema: "zyra.local-executor-environment/v1",
+      kind: "local_terminal",
+      backendId: this.server.backendId,
+      generation: this.server.generation,
+      cwd: this.server.startupRoot,
+      workspaceRoots: Object.freeze([this.server.startupRoot]),
+      capabilityProof: this.server.capabilityToken,
+    })
   }
 
   async stop(reason = "Zyra CLI session complete"): Promise<TerminalRegistrationReceipt | undefined> {

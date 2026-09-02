@@ -130,6 +130,8 @@ class PermissionSessionCustodyStore:
         *,
         presented_token: str = "",
         external_session_exists: bool = False,
+        allow_binding_handoff: bool = False,
+        expected_handoff_fingerprint: str = "",
     ) -> PermissionSessionCustodyReceipt:
         candidate_token = secrets.token_urlsafe(48)
         candidate_salt = secrets.token_hex(24)
@@ -154,7 +156,64 @@ class PermissionSessionCustodyStore:
                 raise PermissionSessionCustodyInvalid("permission custody records are corrupt")
             existing = records.get(binding.session_id)
             if isinstance(existing, Mapping):
-                holder.append(self._verify_record(existing, binding, presented_token))
+                stored_binding = PermissionSessionCustodyBinding(
+                    **dict(existing.get("binding") or {})
+                )
+                if stored_binding == binding:
+                    holder.append(
+                        self._verify_record(existing, binding, presented_token)
+                    )
+                    return
+                if (
+                    not allow_binding_handoff
+                    or not expected_handoff_fingerprint
+                    or not secrets.compare_digest(
+                        stored_binding.fingerprint,
+                        expected_handoff_fingerprint,
+                    )
+                ):
+                    # Preserve the historical exact-scope failure for every
+                    # caller that has not passed the API's terminal-task gate.
+                    holder.append(
+                        self._verify_record(existing, binding, presented_token)
+                    )
+                    return
+
+                verified = self._verify_record(
+                    existing,
+                    stored_binding,
+                    presented_token,
+                )
+                next_epoch = verified.epoch + 1
+                token_hash = str(existing.get("token_hash") or "")
+                next_fingerprint = _custody_fingerprint(
+                    verified.custody_id,
+                    binding,
+                    token_hash,
+                    epoch=next_epoch,
+                )
+                # A product conversation owns several sequential task/run
+                # identities.  Once the prior task is terminal, the API may
+                # atomically move the same in-memory bearer to the next task.
+                # Old task bindings immediately become invalid; plaintext is
+                # never persisted or re-issued.
+                existing["binding"] = binding.to_dict()
+                existing["binding_fingerprint"] = binding.fingerprint
+                existing["custody_fingerprint"] = next_fingerprint
+                existing["last_verified_at"] = _now_iso()
+                existing["epoch"] = next_epoch
+                holder.append(
+                    PermissionSessionCustodyReceipt(
+                        binding=binding,
+                        custody_id=verified.custody_id,
+                        custody_fingerprint=next_fingerprint,
+                        created=False,
+                        verified=True,
+                        issued_at=verified.issued_at,
+                        epoch=next_epoch,
+                        token="",
+                    )
+                )
                 return
 
             has_permission_state = _state_has_session_material(state, binding.session_id)

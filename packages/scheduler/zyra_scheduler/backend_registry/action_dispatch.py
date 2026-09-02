@@ -43,13 +43,34 @@ class BackendActionRoute:
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "BackendActionRoute":
         return cls(
-            route_id=str(value.get("route_id") or ""),
-            route_checksum=str(value.get("route_checksum") or value.get("checksum") or ""),
-            catalog_revision=int(value.get("catalog_revision") or 0),
-            credential_version=int(value.get("credential_version") or 0),
-            credential_fingerprint=str(value.get("credential_fingerprint") or ""),
-            transport_id=str(value.get("transport_id") or ""),
-            turn_id=str(value.get("turn_id") or ""),
+            route_id=str(value.get("route_id") or value.get("provider_route_id") or ""),
+            route_checksum=str(
+                value.get("route_checksum")
+                or value.get("provider_route_checksum")
+                or value.get("checksum")
+                or ""
+            ),
+            catalog_revision=int(
+                value.get("catalog_revision")
+                or value.get("provider_catalog_revision")
+                or 0
+            ),
+            credential_version=int(
+                value.get("credential_version")
+                or value.get("provider_credential_version")
+                or 0
+            ),
+            credential_fingerprint=str(
+                value.get("credential_fingerprint")
+                or value.get("provider_credential_fingerprint")
+                or ""
+            ),
+            transport_id=str(
+                value.get("transport_id")
+                or value.get("provider_transport_id")
+                or ""
+            ),
+            turn_id=str(value.get("turn_id") or value.get("provider_route_turn_id") or ""),
         )
 
     @property
@@ -84,6 +105,8 @@ class BackendRegistryActionDispatchPort:
         terminal_dispatch_enabled: Callable[[], bool] | None = None,
         runtime_worker: str = "CodeWorkerRuntime",
         excluded_backend_ids: Sequence[str] = (),
+        required_backend_id: str = "",
+        required_generation: str = "",
     ) -> None:
         self.registry_path = Path(registry_path).expanduser().resolve()
         self.workspace_root = Path(workspace_root).expanduser().resolve()
@@ -92,6 +115,27 @@ class BackendRegistryActionDispatchPort:
         self.terminal_dispatch_enabled = terminal_dispatch_enabled or (lambda: True)
         self.runtime_worker = str(runtime_worker)
         self.excluded_backend_ids = tuple(sorted({str(item) for item in excluded_backend_ids}))
+        self.required_backend_id = str(required_backend_id)
+        self.required_generation = str(required_generation)
+
+    def _definition_is_bound_terminal(self, definition: Any) -> bool:
+        metadata = dict(definition.metadata)
+        return bool(
+            definition.enabled
+            and definition.runtime_worker == self.runtime_worker
+            and definition.kind is BackendKind.EDGE_HTTP
+            and definition.location is BackendLocation.LOCAL
+            and definition.backend_id not in self.excluded_backend_ids
+            and (
+                not self.required_backend_id
+                or definition.backend_id == self.required_backend_id
+            )
+            and (
+                not self.required_generation
+                or str(metadata.get("terminal_generation") or "")
+                == self.required_generation
+            )
+        )
 
     def handles(self, tool_name: str) -> bool:
         return str(tool_name) in TERMINAL_ACTION_CAPABILITIES
@@ -110,11 +154,7 @@ class BackendRegistryActionDispatchPort:
                 capability
                 for definition in registry.definitions(runtime_worker=self.runtime_worker)
                 if definition.backend_id in terminal_ids
-                and definition.enabled
-                and definition.runtime_worker == self.runtime_worker
-                and definition.kind is BackendKind.EDGE_HTTP
-                and definition.location is BackendLocation.LOCAL
-                and definition.backend_id not in self.excluded_backend_ids
+                and self._definition_is_bound_terminal(definition)
                 for capability in definition.capabilities
             }
             return tuple(
@@ -159,11 +199,8 @@ class BackendRegistryActionDispatchPort:
                 definition.backend_id
                 for definition in definitions
                 if definition.backend_id in terminal_ids
-                and definition.enabled
-                and definition.kind is BackendKind.EDGE_HTTP
-                and definition.location is BackendLocation.LOCAL
+                and self._definition_is_bound_terminal(definition)
                 and capability in definition.capabilities
-                and definition.backend_id not in self.excluded_backend_ids
             }
             if not eligible_terminal_ids:
                 raise BackendDispatchError(
@@ -183,7 +220,7 @@ class BackendRegistryActionDispatchPort:
                 task_id=str(task_id),
                 node_id=(str(node_id) if node_id else None),
                 runtime_worker=self.runtime_worker,
-                preferred_backend_id=None,
+                preferred_backend_id=self.required_backend_id or None,
                 required_capabilities=(capability,),
                 allowed_locations=(BackendLocation.LOCAL,),
                 excluded_backend_ids=tuple(sorted(excluded)),

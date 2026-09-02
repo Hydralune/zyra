@@ -156,7 +156,19 @@ class WorkspaceAttestationRuntime:
         workspace = Path(envelope.workspace_root).expanduser().resolve()
         artifact = Path(envelope.artifact_root).expanduser().resolve()
         self._validate_roots(workspace, artifact, lease, definition, envelope)
-        entries, total_bytes, truncated = self._scan(workspace)
+        # A registered CLI terminal executes against the user's live working
+        # tree.  Walking that tree before and after every typed action is both
+        # semantically wrong (the user may edit it concurrently) and makes a
+        # single file read/write scale with the size of the whole repository.
+        # The terminal transport already fences every target beneath the
+        # attested startup root and returns an action receipt.  At this layer we
+        # therefore attest the stable root identities only.  Managed local
+        # process and container workspaces retain the full entry scan.
+        root_only = self._uses_live_terminal_root(definition)
+        if root_only:
+            entries, total_bytes, truncated = (), 0, False
+        else:
+            entries, total_bytes, truncated = self._scan(workspace)
         writable = os.access(workspace, os.W_OK) and os.access(artifact, os.W_OK)
         if self.policy.require_workspace_write and not os.access(workspace, os.W_OK):
             raise self._corrupt(
@@ -185,13 +197,21 @@ class WorkspaceAttestationRuntime:
             entry_count=len(entries),
             total_bytes=total_bytes,
             truncated=truncated,
-            entries_digest=checksum(entry_values),
+            entries_digest=checksum(
+                {
+                    "mode": "root_identity_only" if root_only else "entry_manifest",
+                    "entries": entry_values,
+                }
+            ),
             writable=writable,
             metadata={
                 "maximum_entries": self.policy.maximum_entries,
                 "maximum_stat_bytes": self.policy.maximum_stat_bytes,
                 "maximum_depth": self.policy.maximum_depth,
                 "reject_symlinks": self.policy.reject_symlinks,
+                "entry_attestation_mode": (
+                    "root_identity_only" if root_only else "entry_manifest"
+                ),
                 "workspace_policy": {
                     "scope": definition.workspace_policy.scope,
                     "isolation": definition.workspace_policy.isolation,
@@ -201,6 +221,16 @@ class WorkspaceAttestationRuntime:
                     "require_writable": definition.workspace_policy.require_writable,
                 },
             },
+        )
+
+    @staticmethod
+    def _uses_live_terminal_root(definition: BackendDefinition) -> bool:
+        metadata = dict(definition.metadata)
+        return bool(
+            metadata.get("terminal_registration") is True
+            and str(getattr(definition.kind, "value", definition.kind)) == "edge_http"
+            and str(getattr(definition.location, "value", definition.location)) == "local"
+            and str(metadata.get("execution_mode") or "") == "terminal_http"
         )
 
     def compare(

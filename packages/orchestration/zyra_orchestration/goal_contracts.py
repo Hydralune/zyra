@@ -48,6 +48,14 @@ _NON_LITERAL_BARE_PREFIXES = (
     "完整",
     "这个",
     "上述",
+    # Deictic phrases refer to material that must be read or computed.  They
+    # are not literal response values.  Treating "只回复其中的内容" as an
+    # exact response contract causes the verifier to replace a correct file
+    # read with the words "其中的内容" and then approve that wrong answer.
+    "其中",
+    "其内容",
+    "它的",
+    "文件内容",
 )
 
 _WORKSPACE_CHANGE = re.compile(
@@ -86,6 +94,12 @@ _DIRECTORY_SCOPE_PATTERNS = (
     ),
 )
 _FILE_CONTENT_PATTERNS = (
+    re.compile(
+        r"(?:文件)?\s*内容\s*(?:必须|应当|需要|需)?\s*(?:严格|精确|准确)?\s*"
+        r"(?:是|为|等于|：|:)\s*"
+        r"([A-Za-z0-9_+./-]{1,500})(?=\s*(?:[（(，,。.!！?？]|$))",
+        re.IGNORECASE,
+    ),
     re.compile(
         r"(?:文件)?\s*内容\s*(?:是|为|：|:)\s*(?:一行\s*)?"
         r"[`\"'“‘]([^`\"'”’\r\n]{1,4000})[`\"'”’]",
@@ -206,6 +220,7 @@ class GoalDeliveryContract:
     goal_digest: str
     interaction_kind: str
     workspace_mutation_required: bool
+    verification_required: bool
     required_paths: tuple[str, ...]
     expected_file_contents: tuple[tuple[str, str], ...]
     required_skills: tuple[str, ...] = ()
@@ -223,6 +238,7 @@ class GoalDeliveryContract:
             "schema": self.schema,
             "interaction_kind": self.interaction_kind,
             "workspace_mutation_required": self.workspace_mutation_required,
+            "verification_required": self.verification_required,
             "required_paths": list(self.required_paths),
             "expected_file_contents": {
                 path: {
@@ -389,6 +405,11 @@ def goal_delivery_contract(user_goal: str) -> GoalDeliveryContract:
         if paths and expected_content
         else ()
     )
+    deterministic_content_only = bool(expected_file_contents) and all(
+        PurePosixPath(path).suffix.casefold()
+        in {".txt", ".md", ".markdown", ".rst", ".csv", ".tsv"}
+        for path, _content in expected_file_contents
+    )
     required_skills = _required_skills(goal, paths)
     executable_paths = tuple(
         path
@@ -417,6 +438,14 @@ def goal_delivery_contract(user_goal: str) -> GoalDeliveryContract:
             else "answer"
         ),
         workspace_mutation_required=workspace_mutation_required,
+        # Exact, bounded text deliverables are fully validated by an in-place
+        # content read at the Python completion boundary.  Requiring a shell
+        # test for those tasks makes a correct one-file delivery loop forever.
+        # Source code, scripts, structured data, and open-ended changes retain
+        # the fail-closed behavioral-verification requirement.
+        verification_required=(
+            workspace_mutation_required and not deterministic_content_only
+        ),
         required_paths=tuple(paths),
         expected_file_contents=expected_file_contents,
         required_skills=required_skills,

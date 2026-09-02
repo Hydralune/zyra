@@ -178,6 +178,28 @@ describe("product file, verification, and failure results", () => {
     })
   })
 
+  test("does not render missing command evidence as a warning after successful verification", () => {
+    const completed = task("completed", {
+      canonical_task_outcome: {
+        schema: "zyra.task-outcome/v1",
+        verification: {
+          final_verifier: { passed: true, checks: [] },
+          delivery_verifier: { passed: true, checks: [] },
+          completion_gate: { hard_conditions_passed: true, failed_conditions: [] },
+          command_evidence: { status: "not_recorded", receipts: [] },
+        },
+      },
+    })
+
+    const rendered = renderProductSnapshot(projectProductEvents({ task: completed }), {
+      width: 100,
+      workspace: "workspace",
+    })
+
+    expect(rendered).toContain("最终验证通过")
+    expect(rendered).not.toContain("未记录命令级验证收据")
+  })
+
   test("renders permission risk and expiry while keeping its internal request identity out of the main frame", () => {
     const running = { ...task("completed", {}), status: "running", terminal: false, active: true }
     const events = projectProductEvents({

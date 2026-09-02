@@ -105,6 +105,153 @@ def _console_proof(
 
 
 class PermissionConsoleApiTests(unittest.TestCase):
+    def test_custody_handoff_is_fenced_to_the_exact_previous_binding(self) -> None:
+        from zyra_runtime.permission import (
+            PermissionSessionCustodyBinding,
+            PermissionSessionCustodyScopeMismatch,
+            PermissionSessionCustodyStore,
+            PermissionStateStore,
+        )
+
+        with tempfile.TemporaryDirectory(
+            prefix="zyra-permission-handoff-fence-",
+        ) as directory:
+            root = Path(directory).resolve()
+            custody = PermissionSessionCustodyStore(
+                PermissionStateStore(root / "permission-state.json")
+            )
+            first = PermissionSessionCustodyBinding(
+                session_id="session_handoff_fence",
+                run_id="run_first",
+                task_id="task_first",
+                workspace_root=str(root),
+            )
+            second = PermissionSessionCustodyBinding(
+                session_id=first.session_id,
+                run_id="run_second",
+                task_id="task_second",
+                workspace_root=str(root),
+            )
+            opened = custody.claim(first)
+
+            with self.assertRaises(PermissionSessionCustodyScopeMismatch):
+                custody.claim(
+                    second,
+                    presented_token=opened.token,
+                    allow_binding_handoff=True,
+                    expected_handoff_fingerprint="sha256:" + "0" * 64,
+                )
+
+            handed_off = custody.claim(
+                second,
+                presented_token=opened.token,
+                allow_binding_handoff=True,
+                expected_handoff_fingerprint=first.fingerprint,
+            )
+            self.assertEqual(handed_off.binding, second)
+            self.assertEqual(handed_off.epoch, opened.epoch + 1)
+
+    def test_terminal_task_hands_permission_custody_to_next_conversation_turn(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="zyra-permission-continuation-api-",
+        ) as directory:
+            root = Path(directory)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            os.environ["ZYRA_SQLITE_PATH"] = str(root / "api.sqlite3")
+            os.environ["ZYRA_EVENT_LOG"] = str(root / "events.jsonl")
+            os.environ["ZYRA_TOOL_WORKSPACE"] = str(workspace)
+            os.environ["ZYRA_ARTIFACT_ROOT"] = str(root / "artifacts")
+            os.environ["ZYRA_MCP_STATE"] = str(root / "e02-state.json")
+            os.environ["ZYRA_E02_API_PERMISSION_MODE"] = "default"
+
+            api = _fresh_api()
+            conversation_id = "session_product_continuation"
+            first = api.create_task_state(user_goal="first turn")
+            first.metadata["query_session_id"] = conversation_id
+            first.status = api.PlanNodeStatus.COMPLETED
+            api.get_store().save_checkpoint(first)
+            second = api.create_task_state(user_goal="second turn")
+            second.metadata["query_session_id"] = conversation_id
+            api.get_store().save_checkpoint(second)
+
+            server = ThreadingHTTPServer(("127.0.0.1", 0), api.ZyraRequestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                first_status, opened, _ = _request(
+                    base_url,
+                    "/permissions/sessions/open",
+                    method="POST",
+                    payload={
+                        "session_id": conversation_id,
+                        "run_id": first.run_id,
+                        "task_id": first.task_id,
+                        "external_session_exists": False,
+                    },
+                )
+                self.assertEqual(first_status, 201, opened)
+                token = opened["session"]["bearer_token"]
+                auth = {"Authorization": f"Bearer {token}"}
+
+                next_status, handed_off, _ = _request(
+                    base_url,
+                    "/permissions/sessions/open",
+                    method="POST",
+                    payload={
+                        "session_id": conversation_id,
+                        "run_id": second.run_id,
+                        "task_id": second.task_id,
+                        "external_session_exists": False,
+                    },
+                    headers=auth,
+                )
+                self.assertEqual(next_status, 200, handed_off)
+                self.assertTrue(handed_off["session"]["verified"])
+                self.assertEqual(
+                    handed_off["session"]["task_id"],
+                    second.task_id,
+                )
+
+                second_query = urlencode(
+                    {
+                        "session_id": conversation_id,
+                        "run_id": second.run_id,
+                        "task_id": second.task_id,
+                    }
+                )
+                query_status, visible, _ = _request(
+                    base_url,
+                    f"/permissions/requests?{second_query}",
+                    method="GET",
+                    headers=auth,
+                )
+                self.assertEqual(query_status, 200, visible)
+
+                first_query = urlencode(
+                    {
+                        "session_id": conversation_id,
+                        "run_id": first.run_id,
+                        "task_id": first.task_id,
+                    }
+                )
+                stale_status, stale, _ = _request(
+                    base_url,
+                    f"/permissions/requests?{first_query}",
+                    method="GET",
+                    headers=auth,
+                )
+                self.assertEqual(stale_status, 401, stale)
+                self.assertEqual(stale["error"], "session_custody_scope_mismatch")
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+                api.reset_mcp_runtime()
+                api.reset_experiment_api(wait=True)
+                api.reset_scenario_runner_api(wait=True)
+
     def test_http_console_proof_is_forwarded_to_typescript_exact_resume(self) -> None:
         with tempfile.TemporaryDirectory(
             prefix="zyra-permission-console-api-",

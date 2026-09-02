@@ -6,6 +6,7 @@ import ipaddress
 import json
 import os
 import re
+import secrets
 import sqlite3
 import threading
 import sys
@@ -2178,6 +2179,59 @@ def _prepare_task_for_explicit_resume(
     return receipt
 
 
+def _state_local_executor_root(state: Any) -> Path | None:
+    """Return the already-attested live CLI root stored on a task.
+
+    The bearer proof is consumed at task create/run time and is deliberately
+    never persisted.  Later verifier and recovery reads use only the bounded
+    canonical projection that survived that attestation.
+    """
+
+    raw = getattr(state, "metadata", {}).get("executor_environment")
+    if not isinstance(raw, Mapping):
+        return None
+    if (
+        str(raw.get("schema") or "") != _LOCAL_EXECUTOR_SCHEMA
+        or str(raw.get("kind") or "") != "local_terminal"
+    ):
+        return None
+    raw_roots = raw.get("workspace_roots")
+    if not isinstance(raw_roots, Sequence) or isinstance(
+        raw_roots, (str, bytes, bytearray)
+    ):
+        return None
+    try:
+        cwd = Path(str(raw.get("cwd") or "")).expanduser().resolve(strict=True)
+        roots = tuple(
+            Path(str(item)).expanduser().resolve(strict=True)
+            for item in raw_roots
+        )
+    except (OSError, RuntimeError):
+        return None
+    if not cwd.is_dir() or cwd not in roots or any(not root.is_dir() for root in roots):
+        return None
+    return cwd
+
+
+def _local_executor_path_digest(root: Path, raw_path: str) -> str:
+    selected = str(raw_path).strip().replace("\\", "/")
+    parts = Path(selected).parts
+    if not selected or Path(selected).is_absolute() or ".." in parts:
+        return "absent"
+    try:
+        candidate = (root / selected).resolve(strict=True)
+        candidate.relative_to(root)
+        if not candidate.is_file():
+            return "absent"
+        digest = hashlib.sha256()
+        with candidate.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except (OSError, RuntimeError, ValueError):
+        return "absent"
+
+
 def _observe_delivery_contract_paths(
     state: Any,
     paths: Sequence[str],
@@ -2189,6 +2243,14 @@ def _observe_delivery_contract_paths(
     operator never wrote and one re-dispatch is safe.  Absent files are a
     stable observation, not an error.
     """
+
+    local_root = _state_local_executor_root(state)
+    if local_root is not None:
+        return {
+            selected: _local_executor_path_digest(local_root, selected)
+            for selected in (str(path).strip() for path in paths)
+            if selected
+        }
 
     workspace_ref = dict(getattr(state, "metadata", {}).get("workspace_ref") or {})
     workspace_id = str(workspace_ref.get("workspace_id") or "")
@@ -6511,22 +6573,23 @@ class _CanonicalFinalVerifierOwner:
             state.user_goal,
             final_answer,
         )
-        workspace_root: Path | None = None
-        try:
-            workspace_manager = get_workspace_manager()
-            verifier_access = workspace_manager.acquire_for_worker(
-                task_id=state.task_id,
-                session_id=str(
-                    state.metadata.get("query_session_id")
-                    or f"task:{state.task_id}"
-                ),
-                worker_id=f"final-verifier:{state.task_id}",
-            )
-            workspace_root = workspace_manager.internal_task_root(
-                verifier_access
-            )
-        except WorkspaceError:
-            workspace_root = None
+        workspace_root: Path | None = _state_local_executor_root(state)
+        if workspace_root is None:
+            try:
+                workspace_manager = get_workspace_manager()
+                verifier_access = workspace_manager.acquire_for_worker(
+                    task_id=state.task_id,
+                    session_id=str(
+                        state.metadata.get("query_session_id")
+                        or f"task:{state.task_id}"
+                    ),
+                    worker_id=f"final-verifier:{state.task_id}",
+                )
+                workspace_root = workspace_manager.internal_task_root(
+                    verifier_access
+                )
+            except WorkspaceError:
+                workspace_root = None
         delivery_verification = validate_goal_delivery(
             state.user_goal,
             projection=(
@@ -7509,6 +7572,9 @@ def _production_physical_dispatch_port(
         payload["code_worker_context"] = {
             "project_root": str(PROJECT_ROOT),
             "artifact_root": str(artifact_root_path()),
+            "backend_registry_path": str(
+                backend_registry_path(artifact_root_path())
+            ),
             "canonical_state_database_path": str(sqlite_path()),
             "workspace_manager": {
                 "state_root": str(workspace.state_root),
@@ -7551,6 +7617,9 @@ def _production_physical_dispatch_port(
                 else None
             ),
             "benchmark_long_horizon": benchmark_long_horizon,
+            "executor_environment": dict(
+                state.metadata.get("executor_environment") or {}
+            ),
         }
         execution_budget_ms = reasoning_transport_budget_ms
     task = PhysicalDispatchTask(
@@ -7847,6 +7916,81 @@ def _preferred_configured_provider() -> tuple[str, str] | None:
 _PRODUCT_EXECUTION_IDENTITY = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$"
 )
+_LOCAL_EXECUTOR_SCHEMA = "zyra.local-executor-environment/v1"
+
+
+def _task_local_executor_environment(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Attest one CLI-owned local terminal without persisting its bearer proof."""
+
+    raw = payload.get("executor_environment")
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise TypeError("executor_environment must be an object")
+    if str(raw.get("schema") or "") != _LOCAL_EXECUTOR_SCHEMA:
+        raise ValueError("executor_environment.schema is unsupported")
+    if str(raw.get("kind") or "") != "local_terminal":
+        raise ValueError("executor_environment.kind must be local_terminal")
+    backend_id = str(raw.get("backend_id") or "").strip()
+    generation = str(raw.get("generation") or "").strip()
+    capability_proof = str(raw.get("capability_proof") or "")
+    if not _PRODUCT_EXECUTION_IDENTITY.fullmatch(backend_id):
+        raise ValueError("executor_environment.backend_id is invalid")
+    if not generation or len(generation.encode("utf-8")) > 256:
+        raise ValueError("executor_environment.generation is invalid")
+    if len(capability_proof) < 32 or len(capability_proof.encode("utf-8")) > 512:
+        raise ValueError("executor_environment.capability_proof is invalid")
+
+    cwd = Path(str(raw.get("cwd") or "")).expanduser().resolve(strict=True)
+    if not cwd.is_dir():
+        raise ValueError("executor_environment.cwd must be an existing directory")
+    raw_roots = raw.get("workspace_roots")
+    if not isinstance(raw_roots, Sequence) or isinstance(raw_roots, (str, bytes)):
+        raise TypeError("executor_environment.workspace_roots must be an array")
+    roots = tuple(
+        Path(str(item)).expanduser().resolve(strict=True)
+        for item in raw_roots
+    )
+    if not roots or any(not item.is_dir() for item in roots):
+        raise ValueError("executor_environment.workspace_roots must contain existing directories")
+    if cwd not in roots:
+        raise ValueError("executor_environment.cwd must be one of workspace_roots")
+
+    registry_store = BackendRegistryStore(backend_registry_path(artifact_root_path()))
+    try:
+        definition = BackendRegistry(registry_store).definition(backend_id)
+        metadata = dict(definition.metadata)
+        expected_digest = f"sha256:{hashlib.sha256(capability_proof.encode('utf-8')).hexdigest()}"
+        if (
+            not definition.enabled
+            or definition.kind is not BackendKind.EDGE_HTTP
+            or definition.location is not BackendLocation.LOCAL
+            or definition.runtime_worker != "CodeWorkerRuntime"
+            or metadata.get("terminal_registration") is not True
+        ):
+            raise ValueError("executor_environment backend is not an active CLI terminal")
+        if str(metadata.get("terminal_generation") or "") != generation:
+            raise ValueError("executor_environment generation does not match the registered terminal")
+        if not secrets.compare_digest(
+            str(metadata.get("terminal_capability_digest") or ""),
+            expected_digest,
+        ):
+            raise ValueError("executor_environment capability proof is invalid")
+    finally:
+        registry_store.close()
+
+    return {
+        "schema": _LOCAL_EXECUTOR_SCHEMA,
+        "kind": "local_terminal",
+        "backend_id": backend_id,
+        "generation": generation,
+        "cwd": str(cwd),
+        "workspace_roots": [str(item) for item in roots],
+        "binding_digest": hashlib.sha256(
+            f"{backend_id}\0{generation}\0{cwd}".encode("utf-8")
+        ).hexdigest(),
+        "attested_at": now_iso(),
+    }
 
 
 def _task_product_execution_config(payload: Mapping[str, Any]) -> dict[str, str]:
@@ -9900,13 +10044,79 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
         try:
             if parts == ["permissions", "sessions", "open"]:
                 operation = PermissionApiOperation.SESSION_OPEN
-                self._require_permission_task_identity(
+                permission_task = self._require_permission_task_identity(
                     store,
                     task_id=str(payload.get("task_id") or ""),
                     run_id=str(payload.get("run_id") or ""),
                 )
+                session_id = str(payload.get("session_id") or "")
+                allow_binding_handoff = False
+                expected_handoff_fingerprint = ""
+                custody_state = get_permission_control_plane().state_store.read_state()
+                custody_metadata = (
+                    custody_state.get("metadata")
+                    if isinstance(custody_state, Mapping)
+                    else None
+                )
+                custody = (
+                    custody_metadata.get("session_custody")
+                    if isinstance(custody_metadata, Mapping)
+                    else None
+                )
+                records = custody.get("records") if isinstance(custody, Mapping) else None
+                existing = records.get(session_id) if isinstance(records, Mapping) else None
+                existing_binding = (
+                    existing.get("binding") if isinstance(existing, Mapping) else None
+                )
+                previous_task_id = str(
+                    existing_binding.get("task_id")
+                    if isinstance(existing_binding, Mapping)
+                    else ""
+                )
+                previous_run_id = str(
+                    existing_binding.get("run_id")
+                    if isinstance(existing_binding, Mapping)
+                    else ""
+                )
+                bound_session_id = str(
+                    existing_binding.get("session_id")
+                    if isinstance(existing_binding, Mapping)
+                    else ""
+                )
+                if previous_task_id and previous_task_id != permission_task.task_id:
+                    previous_task = store.load_task(previous_task_id)
+                    terminal_statuses = {
+                        PlanNodeStatus.BLOCKED,
+                        PlanNodeStatus.CANCELLED,
+                        PlanNodeStatus.COMPLETED,
+                        PlanNodeStatus.FAILED,
+                        PlanNodeStatus.NEEDS_REVISION,
+                    }
+                    previous_session_id = str(
+                        previous_task.metadata.get("query_session_id")
+                        if previous_task is not None
+                        else ""
+                    )
+                    current_session_id = str(
+                        permission_task.metadata.get("query_session_id") or ""
+                    )
+                    allow_binding_handoff = bool(
+                        previous_task is not None
+                        and previous_task.status in terminal_statuses
+                        and session_id
+                        and bound_session_id == session_id
+                        and previous_run_id == previous_task.run_id
+                        and previous_session_id == session_id
+                        and current_session_id == session_id
+                    )
+                    if allow_binding_handoff:
+                        expected_handoff_fingerprint = str(
+                            existing.get("binding_fingerprint")
+                            if isinstance(existing, Mapping)
+                            else ""
+                        )
                 response = facade.open_session(
-                    session_id=str(payload.get("session_id") or ""),
+                    session_id=session_id,
                     run_id=str(payload.get("run_id") or ""),
                     task_id=str(payload.get("task_id") or ""),
                     presented_token=extract_bearer_token(self.headers, payload),
@@ -9914,6 +10124,8 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         payload.get("external_session_exists"),
                         default=False,
                     ),
+                    allow_binding_handoff=allow_binding_handoff,
+                    expected_handoff_fingerprint=expected_handoff_fingerprint,
                 )
             elif (
                 len(parts) == 4
@@ -12905,6 +13117,17 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     },
                 )
                 return
+            try:
+                executor_environment = _task_local_executor_environment(payload)
+            except (TypeError, ValueError, RuntimeError) as error:
+                self._send_json(
+                    HTTPStatus.UNPROCESSABLE_ENTITY,
+                    {
+                        "error": "task_execution_environment_invalid",
+                        "message": str(error),
+                    },
+                )
+                return
             receipt_reservation = self._begin_typed_receipt(
                 operation="task.create",
                 path=parsed.path,
@@ -12957,9 +13180,23 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 or "sealed" in requested_mode.casefold()
             )
             if requested_sealed:
+                if executor_environment:
+                    self._typed_receipts().abandon(receipt_reservation)
+                    self._send_json(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        {
+                            "error": "sealed_local_executor_forbidden",
+                            "message": (
+                                "sealed autonomous tasks cannot bind a CLI local executor"
+                            ),
+                        },
+                    )
+                    return
                 state.metadata["sealed"] = True
                 state.metadata["sealed_autonomous"] = True
                 state.metadata["competition_mode"] = "sealed_autonomous"
+            if executor_environment:
+                state.metadata["executor_environment"] = executor_environment
             try:
                 workspace_result = get_workspace_manager().create_for_task(
                     run_id=state.run_id,
@@ -13156,6 +13393,32 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             if state is None:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "task_not_found"})
                 return
+            try:
+                executor_environment = _task_local_executor_environment(payload)
+            except (TypeError, ValueError, RuntimeError) as error:
+                self._send_json(
+                    HTTPStatus.UNPROCESSABLE_ENTITY,
+                    {
+                        "error": "task_execution_environment_invalid",
+                        "message": str(error),
+                    },
+                )
+                return
+            if executor_environment:
+                if _task_is_sealed_control(state, payload):
+                    self._send_json(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        {
+                            "error": "sealed_local_executor_forbidden",
+                            "message": (
+                                "sealed autonomous tasks cannot bind a CLI local executor"
+                            ),
+                        },
+                    )
+                    return
+                state.metadata["executor_environment"] = executor_environment
+                state.updated_at = now_iso()
+                store.save_checkpoint(state)
             receipt_reservation = self._begin_typed_receipt(
                 operation="task.resume",
                 path=parsed.path,

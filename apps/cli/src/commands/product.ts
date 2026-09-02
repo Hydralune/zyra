@@ -32,32 +32,7 @@ import { formatTerminalCapabilities } from "../tui/terminal-capabilities.ts"
 import { sanitizeForOutput } from "../output.ts"
 import { mutationTransportDetached, type CommandOutcome } from "../runner.ts"
 import { launchUi } from "../ui.ts"
-import {
-  materializeWorkspaceDelivery,
-  stageWorkspace,
-  type WorkspaceMaterializationReport,
-  type WorkspaceStageReport,
-} from "../workspace-transfer.ts"
-
-export interface ProductWorkspaceTransfer {
-  stage(
-    api: CliApi,
-    task: TaskProjection,
-    root: string,
-    signal: AbortSignal,
-  ): Promise<WorkspaceStageReport>
-  materialize(
-    api: CliApi,
-    task: TaskProjection,
-    root: string,
-    signal: AbortSignal,
-  ): Promise<WorkspaceMaterializationReport>
-}
-
-const DEFAULT_PRODUCT_WORKSPACE_TRANSFER: ProductWorkspaceTransfer = {
-  stage: stageWorkspace,
-  materialize: materializeWorkspaceDelivery,
-}
+import type { LocalExecutorEnvironment } from "../terminal/lifecycle.ts"
 
 function terminalTask(task: TaskProjection): boolean {
   return task.terminal || ["completed", "failed", "blocked", "cancelled", "killed"].includes(task.status)
@@ -1030,6 +1005,7 @@ export async function observeProductTask(input: {
   openWeb?: () => Promise<string>
   permissionSession?: CliPermissionSession
   bootstrap?: ResumeBootstrap
+  executorEnvironment?: LocalExecutorEnvironment
 }): Promise<CommandOutcome> {
   let task = input.task
   let capabilities = input.bootstrap?.capabilities ?? await input.api.ingressCapabilities(task.taskId)
@@ -1185,7 +1161,7 @@ export async function observeProductTask(input: {
   let runSettled = false
   const shouldRun = input.resume || ["pending", "paused", "interrupted"].includes(task.status)
   const runResult = shouldRun
-    ? input.api.runTask(task, observationSignal)
+    ? input.api.runTask(task, observationSignal, input.executorEnvironment)
         .then(
           (value): RunOutcome => ({ ok: true, value }),
           (error: unknown): RunOutcome => ({ ok: false, error }),
@@ -1428,10 +1404,9 @@ export async function executeProductInteractive(input: {
   stdout: Writable
   signal: AbortSignal
   cwd?: string
-  ensureTerminal?: () => Promise<void>
+  ensureTerminal?: () => Promise<LocalExecutorEnvironment>
   draftStore?: ProductDraftStore | null
   onboardingStore?: ProductOnboardingStore | null
-  workspaceTransfer?: ProductWorkspaceTransfer
 }): Promise<CommandOutcome> {
   const cwd = input.cwd ?? process.cwd()
   const tty = Boolean((input.stdin as Readable & { isTTY?: boolean }).isTTY)
@@ -1466,7 +1441,6 @@ export async function executeProductInteractive(input: {
       baseUrl: input.command.baseUrl,
       startupTimeoutMs: input.command.startupTimeoutMs,
       ensureTerminal: input.ensureTerminal,
-      workspaceTransfer: input.workspaceTransfer ?? DEFAULT_PRODUCT_WORKSPACE_TRANSFER,
       initialExecutionConfig,
       initial: input.command.goal ? { kind: "goal", goal: input.command.goal } : undefined,
     })
@@ -1484,9 +1458,8 @@ export async function executeProductResume(input: {
   stdout: Writable
   signal: AbortSignal
   cwd?: string
-  ensureTerminal?: () => Promise<void>
+  ensureTerminal?: () => Promise<LocalExecutorEnvironment>
   draftStore?: ProductDraftStore | null
-  workspaceTransfer?: ProductWorkspaceTransfer
 }): Promise<CommandOutcome> {
   const cwd = input.cwd ?? process.cwd()
   const bootstrapPromise = prefetchResumeBootstrap(input.api, input.command.identity).catch(() => undefined)
@@ -1515,7 +1488,6 @@ export async function executeProductResume(input: {
       baseUrl: input.command.baseUrl,
       startupTimeoutMs: input.command.startupTimeoutMs,
       ensureTerminal: input.ensureTerminal,
-      workspaceTransfer: input.workspaceTransfer ?? DEFAULT_PRODUCT_WORKSPACE_TRANSFER,
       initial: { kind: "resume", task: resolved.task, bootstrap },
     })
   } finally {
@@ -1633,7 +1605,7 @@ async function pickProductExecutionMode(shell: ProductTuiShell): Promise<Product
     {
       id: "sealed_autonomous",
       label: "封闭自治",
-      detail: "用于正式自治任务；运行后不可由普通终端降低权限边界",
+      detail: "用于正式自治任务；不挂载 CLI 当前目录，运行后不可降低权限边界",
       keywords: ["sealed", "autonomous", "competition", "封闭", "自治"],
     },
   ], "选择只影响之后创建的任务，不会改写已创建或运行中的任务", "menu")
@@ -1725,8 +1697,7 @@ async function runProductSession(input: {
   startupTimeoutMs: number
   initial?: ProductSessionInput
   initialExecutionConfig?: ProductModelSelection
-  ensureTerminal?: () => Promise<void>
-  workspaceTransfer: ProductWorkspaceTransfer
+  ensureTerminal?: () => Promise<LocalExecutorEnvironment>
 }): Promise<CommandOutcome> {
   const trace = (stage: string): void => {
     if (process.env.ZYRA_CLI_TRACE_SHUTDOWN === "1") process.stderr.write(`[zyra session] ${stage}\n`)
@@ -1741,6 +1712,7 @@ async function runProductSession(input: {
   let executionMode: ProductExecutionMode = "standard"
   let lastOutcome: CommandOutcome | undefined
   let terminalReady = false
+  let executorEnvironment: LocalExecutorEnvironment | undefined
   let currentPermissionSession: CliPermissionSession | undefined
   const refreshChrome = () => input.shell.setChrome({
     model: executionConfig?.modelId ?? "自动选择",
@@ -1986,107 +1958,94 @@ async function runProductSession(input: {
     // Terminal history remains observation-only and does not pay this cost.
     const resumesExecution = next.kind === "resume"
       && (!terminalTask(next.task) || ["failed", "blocked"].includes(next.task.status))
-    if (!terminalReady && input.ensureTerminal && (next.kind === "goal" || resumesExecution)) {
+    if (
+      executionMode === "standard"
+      && !terminalReady
+      && input.ensureTerminal
+      && (next.kind === "goal" || resumesExecution)
+    ) {
       input.shell.status("正在连接本地执行环境…")
-      await input.ensureTerminal()
+      try {
+        executorEnvironment = await input.ensureTerminal()
+      } catch (error) {
+        input.shell.status(undefined)
+        if (!input.tty) throw error
+        if (next.kind === "goal") input.shell.restoreDraft(next.goal)
+        input.shell.notice(`本地执行环境连接失败；输入已保留 · ${controlError(error)}`)
+        next = undefined
+        continue
+      }
       terminalReady = true
       input.shell.status(undefined)
     }
     input.shell.beginTask()
     const submittedId = next.kind === "goal" ? input.shell.submitted(next.goal) : undefined
-    const task = next.kind === "resume"
-      ? next.task
-      : (await input.api.createPendingTask(
-          next.goal,
-          executionMode === "sealed_autonomous",
-          sessionId,
-          executionConfig ? {
-            providerId: executionConfig.providerId,
-            modelId: executionConfig.modelId,
-            ...(executionConfig.reasoningEffort ? { reasoningEffort: executionConfig.reasoningEffort } : {}),
-          } : undefined,
-        )).task
-    if (next.kind === "goal") {
-      input.shell.status("正在同步当前工作区到隔离任务环境…")
-      try {
-        const staged = await input.workspaceTransfer.stage(
-          input.api,
-          task,
-          input.cwd,
-          input.signal,
-        )
-        input.shell.notice(`工作区已同步 · ${staged.fileCount} 个文件 · ${staged.bytes} bytes`)
-      } catch (error) {
-        input.shell.status(undefined)
-        if (!input.tty) throw error
-        const goal = next.goal
-        input.shell.restoreDraft(goal, submittedId)
-        const cancellation = await input.api.cancelTask(
-          task,
-          "Workspace synchronization failed before task execution.",
-        ).then(() => true).catch(() => false)
-        input.shell.notice([
-          "任务尚未开始执行；你的输入已恢复到编辑框。",
-          `工作区同步失败 · ${controlError(error)}`,
-          cancellation
-            ? "请处理上述路径后再次按 Enter。"
-            : "远端待处理任务的取消状态未能确认；可先运行 /doctor，再重试。",
-        ].join("\n"))
-        next = undefined
-        continue
-      }
+    let task: TaskProjection
+    try {
+      task = next.kind === "resume"
+        ? next.task
+        : (await input.api.createPendingTask(
+            next.goal,
+            executionMode === "sealed_autonomous",
+            sessionId,
+            executionConfig ? {
+              providerId: executionConfig.providerId,
+              modelId: executionConfig.modelId,
+              ...(executionConfig.reasoningEffort ? { reasoningEffort: executionConfig.reasoningEffort } : {}),
+            } : undefined,
+            executionMode === "standard" ? executorEnvironment : undefined,
+          )).task
+    } catch (error) {
+      if (!input.tty) throw error
+      if (next.kind === "goal") input.shell.restoreDraft(next.goal, submittedId)
+      input.shell.notice(`任务未启动；输入已恢复到编辑框 · ${controlError(error)}`)
+      next = undefined
+      continue
     }
     currentTaskId = task.taskId
     currentTask = task
     executionConfig = executionConfigFromTask(task) ?? executionConfig
     refreshChrome()
     if (task.sessionId) sessionId = task.sessionId
+    const continuingPermissionCustody = currentPermissionSession?.custodyToken
+      ?? process.env.ZYRA_PERMISSION_CUSTODY_TOKEN
     currentPermissionSession = input.shell.interactive
       ? new CliPermissionSession({
           api: input.api,
           task,
-          custodyToken: process.env.ZYRA_PERMISSION_CUSTODY_TOKEN,
+          custodyToken: continuingPermissionCustody,
         })
       : undefined
-    const resumedTask = next.kind === "resume"
-    lastOutcome = await observeProductTask({
-      api: input.api,
-      task,
-      shell: input.shell,
-      signal: input.signal,
-      resume: next.kind === "resume",
-      openWeb: async () => (await launchUi({
-        baseUrl: input.baseUrl,
-        webPort: 5173,
-        startupTimeoutMs: input.startupTimeoutMs,
-        open: true,
-        taskId: currentTaskId,
-      })).url,
-      permissionSession: currentPermissionSession,
-      bootstrap: next.kind === "resume" ? next.bootstrap : undefined,
-    })
+    try {
+      lastOutcome = await observeProductTask({
+        api: input.api,
+        task,
+        shell: input.shell,
+        signal: input.signal,
+        resume: next.kind === "resume",
+        openWeb: async () => (await launchUi({
+          baseUrl: input.baseUrl,
+          webPort: 5173,
+          startupTimeoutMs: input.startupTimeoutMs,
+          open: true,
+          taskId: currentTaskId,
+        })).url,
+        permissionSession: currentPermissionSession,
+        bootstrap: next.kind === "resume" ? next.bootstrap : undefined,
+        executorEnvironment: executionMode === "standard" ? executorEnvironment : undefined,
+      })
+    } catch (error) {
+      if (!input.tty) throw error
+      input.shell.status(undefined)
+      input.shell.notice(`任务执行连接中断；会话仍可继续 · ${controlError(error)}`)
+      currentTask = await input.api.task(currentTaskId).catch(() => currentTask)
+      next = undefined
+      continue
+    }
     trace(`observation complete · ${lastOutcome.status}`)
     if (lastOutcome.status === "detached") break
     currentTask = await input.api.task(currentTaskId).catch(() => currentTask)
     trace("canonical refresh complete")
-    if (currentTask) {
-      try {
-        await input.workspaceTransfer.materialize(
-          input.api,
-          currentTask,
-          input.cwd,
-          input.signal,
-        )
-        // Canonical workspace changes are already rendered before the final
-        // answer.  A second local success notice would move operational
-        // bookkeeping behind the answer and break the conversation hierarchy.
-      } catch (error) {
-        if (currentTask.status === "completed" && !resumedTask) throw error
-        input.shell.notice(currentTask.status === "completed"
-          ? `历史任务已完成，但 canonical 工作区交付无法重新落盘；当前本地文件未由本次恢复验证 · ${controlError(error)}`
-          : `任务已${currentTask.status}；部分工作区交付未能落盘 · ${controlError(error)}`)
-      }
-    }
     trace("final diff start")
     await appendFinalDiff({ api: input.api, shell: input.shell, taskId: currentTaskId, cwd: input.cwd })
     trace("final diff complete")

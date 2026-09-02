@@ -54,6 +54,8 @@ def test_extracts_bounded_explicit_reply_contracts() -> None:
     assert english is not None and english.expected_response == "OK"
     assert direct_response_contract("请回复一份完整报告") is None
     assert direct_response_contract("分析仓库并修复测试") is None
+    assert direct_response_contract("请读取 proof.txt，并只回复其中的内容。") is None
+    assert direct_response_contract("读取结果后只回复文件内容") is None
 
 
 def test_verification_is_exact_and_projection_bound() -> None:
@@ -406,8 +408,26 @@ def test_delivery_contract_recognizes_plain_chinese_create_file_wording() -> Non
         "建一个 smoke.txt 文件，内容是一行指定文字。"
     )
     assert contract.workspace_mutation_required is True
+    assert contract.verification_required is False
     assert contract.required_paths == ("smoke.txt",)
     assert contract.expected_file_contents == (("smoke.txt", "指定文字"),)
+
+    strict = goal_delivery_contract(
+        "在当前目录创建 proof.txt，文件内容必须严格为 "
+        "ZYRA_LOCAL_EXECUTOR_OK（末尾可以有一个换行），完成后简短说明。"
+    )
+    assert strict.expected_file_contents == (
+        ("proof.txt", "ZYRA_LOCAL_EXECUTOR_OK"),
+    )
+    assert strict.verification_required is False
+
+
+def test_delivery_contract_keeps_behavioral_verification_for_source_changes() -> None:
+    contract = goal_delivery_contract(
+        "创建 app.py，文件内容严格为 print('ok')。"
+    )
+    assert contract.workspace_mutation_required is True
+    assert contract.verification_required is True
 
 
 def test_delivery_contract_preserves_declared_directory_scope_for_file_list() -> None:

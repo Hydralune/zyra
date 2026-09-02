@@ -27,6 +27,7 @@ from zyra_runtime.sandbox_gateway import (
     ProcessTermination,
     canonical_logical_path,
 )
+from zyra_scheduler.backend_registry import BackendRegistryActionDispatchPort
 from zyra_workers import (
     BrowserWorkerActionDispatchPort,
     CanonicalUserInputBridge,
@@ -54,6 +55,126 @@ from .task_mutation_policy import (
 
 DEFAULT_PHYSICAL_QUERY_CONTEXT_BUDGET_CHARS = 400_000
 DEFAULT_LONG_HORIZON_MODEL_API_TIMEOUT_SECONDS = 300.0
+
+
+class _BackendActionDispatchMux:
+    """Route each tool to its single physical owner without a local fallback."""
+
+    def __init__(self, *ports: Any) -> None:
+        self._ports = tuple(ports)
+
+    def handles(self, tool_name: str) -> bool:
+        return any(port.handles(tool_name) for port in self._ports)
+
+    def available(self, tool_name: str) -> bool:
+        # Once a physical owner claims a tool, unavailability must surface as
+        # an execution error; silently falling back would target the managed
+        # mirror instead of the CLI's live cwd.
+        return self.handles(tool_name)
+
+    def available_actions(self) -> tuple[str, ...]:
+        return tuple(
+            sorted({
+                action
+                for port in self._ports
+                for action in port.available_actions()
+            })
+        )
+
+    def dispatch_action(self, **request: Any) -> dict[str, Any]:
+        tool_name = str(request.get("tool_name") or "")
+        for port in self._ports:
+            if port.handles(tool_name):
+                return port.dispatch_action(**request)
+        raise RuntimeError(f"no physical action owner handles {tool_name}")
+
+
+def _bound_local_executor_environment(
+    context: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    raw = context.get("executor_environment")
+    if not isinstance(raw, Mapping) or not raw:
+        return None
+    if (
+        str(raw.get("schema") or "") != "zyra.local-executor-environment/v1"
+        or str(raw.get("kind") or "") != "local_terminal"
+    ):
+        raise ValueError("local executor environment schema is invalid")
+    backend_id = str(raw.get("backend_id") or "").strip()
+    generation = str(raw.get("generation") or "").strip()
+    cwd = _required_path(raw.get("cwd"), "local executor cwd")
+    roots = raw.get("workspace_roots")
+    if not isinstance(roots, list) or not roots:
+        raise ValueError("local executor workspace roots are required")
+    resolved_roots = tuple(
+        _required_path(item, "local executor workspace root") for item in roots
+    )
+    if not backend_id or not generation or cwd not in resolved_roots:
+        raise ValueError("local executor binding is incomplete")
+    registry_path = _required_path(
+        context.get("backend_registry_path"),
+        "backend_registry_path",
+    )
+    return {
+        "backend_id": backend_id,
+        "generation": generation,
+        "cwd": cwd,
+        "workspace_roots": resolved_roots,
+        "registry_path": registry_path,
+    }
+
+
+def _terminal_workspace_delta(
+    runtime_events: list[Mapping[str, Any]],
+) -> dict[str, list[str]]:
+    changed: dict[str, set[str]] = {
+        "created": set(),
+        "modified": set(),
+        "deleted": set(),
+    }
+    mutation_bucket = {
+        "file_write": "modified",
+        "file_edit": "modified",
+        "file_delete": "deleted",
+    }
+    for event in runtime_events:
+        payload = event.get("payload")
+        if not isinstance(payload, Mapping):
+            continue
+        call = payload.get("tool_call")
+        session = payload.get("query_session")
+        if not isinstance(session, Mapping):
+            session = payload.get("agent_child_query_session")
+        result = payload.get("tool_result")
+        if not isinstance(result, Mapping):
+            result = payload.get("agent_child_tool_result")
+        tool_name = str(
+            (call.get("tool_name") if isinstance(call, Mapping) else "")
+            or (session.get("tool_name") if isinstance(session, Mapping) else "")
+            or ""
+        )
+        if not isinstance(result, Mapping):
+            continue
+        bucket = mutation_bucket.get(tool_name)
+        output = result.get("output")
+        if (
+            bucket is None
+            or result.get("ok") is not True
+            or not isinstance(output, Mapping)
+        ):
+            continue
+        if tool_name == "file_write" and str(
+            output.get("workspace_path_disposition") or ""
+        ) == "created":
+            bucket = "created"
+        relative_path = str(output.get("relative_path") or "").replace("\\", "/")
+        if relative_path:
+            changed[bucket].add(relative_path)
+    result = {name: sorted(paths) for name, paths in changed.items()}
+    result["changed"] = sorted(
+        changed["created"] | changed["modified"] | changed["deleted"]
+    )
+    return result
 
 
 class _WorkspaceLeaseHeartbeat:
@@ -563,6 +684,12 @@ def execute_code_worker_operator(
         worker_id=worker_id,
     )
     workspace_root = manager.internal_task_root(access)
+    local_executor = _bound_local_executor_environment(context)
+    execution_workspace_root = (
+        Path(local_executor["cwd"])
+        if local_executor is not None
+        else workspace_root
+    )
     # The direct API path materializes the same packaged skills before a
     # TypeScript E02 session starts. Physical provider dispatch must bind the
     # identical task-scoped snapshot instead of silently exposing an empty
@@ -577,6 +704,10 @@ def execute_code_worker_operator(
     )
     benchmark_mirror: _BenchmarkWorkspaceMirror | None = None
     if benchmark_binding is not None:
+        if local_executor is not None:
+            raise ValueError(
+                "benchmark container execution cannot bind a CLI local executor"
+            )
         _pull_benchmark_workspace(benchmark_binding, workspace_root)
     before = _workspace_manifest(
         workspace_root,
@@ -754,6 +885,17 @@ def execute_code_worker_operator(
             "Complete the task in the environment; do not merely describe what should "
             "be done."
         )
+    elif local_executor is not None:
+        execution_prompt = (
+            f"{execution_prompt}\n\n"
+            "LOCAL CLI ENVIRONMENT: This session is directly bound to the user's "
+            f"current working directory ({execution_workspace_root}). File and shell "
+            "tools operate on that live directory; there is no uploaded copy and no "
+            "later materialization step. Use workspace-relative paths, inspect before "
+            "editing, preserve unrelated user changes, and verify the actual files in "
+            "place. Do not claim that the workspace is empty merely because the managed "
+            "task record has an isolated metadata workspace."
+        )
     request = WorkerRequest(
         run_id=run_id,
         task_id=task_id,
@@ -859,7 +1001,7 @@ def execute_code_worker_operator(
         runtime_services["runtime_event_payload_sink"] = runtime_event_sink
     browser_dispatch_port = BrowserWorkerActionDispatchPort(
         project_root=project_root,
-        workspace_root=workspace_root,
+        workspace_root=execution_workspace_root,
         artifact_root=artifact_root,
         state_root=(
             Path(node_data_root).resolve()
@@ -868,12 +1010,33 @@ def execute_code_worker_operator(
         ),
         workspace_edit_port=edit_port,
     )
-    runtime_services["backend_action_dispatch_port"] = browser_dispatch_port
+    if local_executor is not None:
+        terminal_dispatch_port = BackendRegistryActionDispatchPort(
+            registry_path=local_executor["registry_path"],
+            workspace_root=execution_workspace_root,
+            artifact_root=execution_workspace_root,
+            route_resolver=lambda: provider_constraints,
+            required_backend_id=str(local_executor["backend_id"]),
+            required_generation=str(local_executor["generation"]),
+        )
+        runtime_services["backend_action_dispatch_port"] = (
+            _BackendActionDispatchMux(
+                terminal_dispatch_port,
+                browser_dispatch_port,
+            )
+        )
+        runtime_services["sandbox_gateway_stage_workspace_snapshot"] = False
+    else:
+        runtime_services["backend_action_dispatch_port"] = browser_dispatch_port
 
     def completion_gate(request_payload: Mapping[str, Any]) -> dict[str, Any]:
         if benchmark_mirror is not None:
             benchmark_mirror.pull_from_container()
-        current_root = manager.internal_task_root(edit_port.current_access())
+        current_root = (
+            execution_workspace_root
+            if local_executor is not None
+            else manager.internal_task_root(edit_port.current_access())
+        )
         return _evaluate_delivery_completion(
             request_payload,
             delivery_contract=delivery_contract,
@@ -913,7 +1076,7 @@ def execute_code_worker_operator(
         )
     runtime = CodeWorkerRuntime(
         project_root=project_root,
-        workspace_root=workspace_root,
+        workspace_root=execution_workspace_root,
         artifact_root=artifact_root,
         permission_store=JsonPermissionStore(
             Path(node_data_root).resolve()
@@ -963,7 +1126,11 @@ def execute_code_worker_operator(
             else ()
         ),
     )
-    workspace_delta = _workspace_delta(before, after)
+    workspace_delta = (
+        _terminal_workspace_delta(runtime_events)
+        if local_executor is not None
+        else _workspace_delta(before, after)
+    )
     evidence = dict(run.execution_evidence)
     if benchmark_binding is not None:
         evidence["benchmark_environment"] = {
@@ -1069,6 +1236,12 @@ def execute_code_worker_operator(
             "lease_id": current_access.lease_id,
             "physical_location_redacted": True,
             "external_benchmark_bound": benchmark_binding is not None,
+            "local_executor_bound": local_executor is not None,
+            "local_executor_backend_id": (
+                str(local_executor["backend_id"])
+                if local_executor is not None
+                else ""
+            ),
             "external_container_ref_digest": (
                 str(benchmark_binding["container_ref_digest"])
                 if benchmark_binding is not None

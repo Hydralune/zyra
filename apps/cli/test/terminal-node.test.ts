@@ -166,7 +166,12 @@ describe("FE-S04 terminal node", () => {
     expect(write.response.status).toBe(200)
     expectFrames(write.frames)
     expect(write.frames.map((frame) => frame.kind)).toEqual(["accepted", "progress", "result"])
-    expect((write.frames.at(-1)?.payload as Record<string, unknown>).ok).toBe(true)
+    const writeResult = write.frames.at(-1)?.payload as Record<string, any>
+    expect(writeResult.ok).toBe(true)
+    expect(writeResult.metadata.workspace_mutation_committed).toBe("true")
+    expect(writeResult.metadata.workspace_path_disposition).toBe("created")
+    expect(writeResult.metadata.workspace_path_created).toBe("true")
+    expect(writeResult.output.path).toBe("src/proof.txt")
     expect(await readFile(join(workspace, "src", "proof.txt"), "utf8")).toBe("terminal-dispatch-proof")
     const replay = await dispatch(server, writeSource)
     expect(replay.response.headers.get("x-zyra-replayed")).toBe("true")
@@ -194,7 +199,10 @@ describe("FE-S04 terminal node", () => {
       toolName: "file_edit",
       arguments: { path: "src/proof.txt", old: "terminal-dispatch", new: "terminal-search" },
     }))
-    expect((edit.frames.at(-1)?.payload as Record<string, unknown>).ok).toBe(true)
+    const editResult = edit.frames.at(-1)?.payload as Record<string, any>
+    expect(editResult.ok).toBe(true)
+    expect(editResult.metadata.workspace_mutation_committed).toBe("true")
+    expect(editResult.metadata.workspace_path_disposition).toBe("modified")
     const search = await dispatch(server, request(server, {
       workspace,
       artifacts,
@@ -209,7 +217,10 @@ describe("FE-S04 terminal node", () => {
       toolName: "file_delete",
       arguments: { path: "src/proof.txt" },
     }))
-    expect((deleted.frames.at(-1)?.payload as Record<string, unknown>).ok).toBe(true)
+    const deleteResult = deleted.frames.at(-1)?.payload as Record<string, any>
+    expect(deleteResult.ok).toBe(true)
+    expect(deleteResult.metadata.workspace_mutation_committed).toBe("true")
+    expect(deleteResult.metadata.workspace_path_disposition).toBe("deleted")
     await expect(readFile(join(workspace, "src", "proof.txt"), "utf8")).rejects.toThrow()
 
     const artifact = await dispatch(server, request(server, {

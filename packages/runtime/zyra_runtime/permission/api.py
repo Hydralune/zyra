@@ -234,6 +234,8 @@ class PermissionApiFacade:
         task_id: str,
         presented_token: str = "",
         external_session_exists: bool = False,
+        allow_binding_handoff: bool = False,
+        expected_handoff_fingerprint: str = "",
     ) -> PermissionApiResponse:
         binding = PermissionSessionCustodyBinding(
             session_id=session_id,
@@ -245,6 +247,8 @@ class PermissionApiFacade:
             binding,
             presented_token=presented_token,
             external_session_exists=external_session_exists,
+            allow_binding_handoff=allow_binding_handoff,
+            expected_handoff_fingerprint=expected_handoff_fingerprint,
         )
         envelope = PermissionCustodyEnvelope.from_receipt(receipt)
         body = {

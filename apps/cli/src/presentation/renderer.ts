@@ -256,7 +256,11 @@ function renderVerification(state: ProductViewState, width: number): RenderLine[
   if (!commands.length) {
     for (const detail of verification.details.slice(0, 3)) pushWrapped(lines, detail, "  └ ", width, passed ? "secondary" : "error", "    ")
   }
-  if (verification.commandEvidence === "not_recorded") pushWrapped(lines, "未记录命令级验证收据", "  └ ", width, "secondary", "    ")
+  // A successful verifier can legitimately require no shell command (for
+  // example, an exact-content file task).  Do not turn that success into a
+  // warning-looking line.  Missing command evidence remains useful context
+  // when verification failed.
+  if (!passed && verification.commandEvidence === "not_recorded") pushWrapped(lines, "未记录命令级验证收据", "  └ ", width, "secondary", "    ")
   return lines
 }
 

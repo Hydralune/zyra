@@ -63,6 +63,16 @@ async function existingAncestor(path: string): Promise<string> {
   }
 }
 
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await lstat(path)
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false
+    throw error
+  }
+}
+
 async function approvedRoot(startupRoot: string, candidate: string, label: string): Promise<string> {
   if (!isAbsolute(candidate)) {
     throw new TerminalProtocolError(`${label} must be absolute.`, "workspace_attestation_failed", 409)
@@ -165,6 +175,7 @@ async function fileRead(context: ActionContext, workspace: string): Promise<Term
 
 async function fileWrite(context: ActionContext, workspace: string): Promise<TerminalActionResult> {
   const target = await guardedPath(workspace, context.action.arguments.path, { createParent: true })
+  const existedBefore = await pathExists(target.absolute)
   const content = text(context.action.arguments.content ?? "", "content", true)
   if (Buffer.byteLength(content, "utf8") > MAX_FILE_BYTES) {
     throw new TerminalProtocolError("file_write content exceeds the action budget.", "resource_exhausted", 422)
@@ -174,7 +185,22 @@ async function fileWrite(context: ActionContext, workspace: string): Promise<Ter
   return result(context.action, {
     ok: true,
     summary: `Wrote ${target.relative} on terminal node`,
-    output: { relative_path: target.relative, chars: content.length, physical_location_redacted: true },
+    output: {
+      path: target.relative,
+      relative_path: target.relative,
+      chars: content.length,
+      workspace_path_disposition: existedBefore ? "modified" : "created",
+      workspace_path_created: !existedBefore,
+      workspace_path_existed_before: existedBefore,
+      physical_location_redacted: true,
+    },
+    metadata: {
+      workspace_mutation_committed: "true",
+      workspace_logical_path: target.relative,
+      workspace_path_disposition: existedBefore ? "modified" : "created",
+      workspace_path_created: String(!existedBefore),
+      workspace_path_existed_before: String(existedBefore),
+    },
   })
 }
 
@@ -196,7 +222,22 @@ async function fileEdit(context: ActionContext, workspace: string): Promise<Term
   return result(context.action, {
     ok: true,
     summary: `Edited ${target.relative} on terminal node`,
-    output: { relative_path: target.relative, replacements: replaceAll ? occurrences : 1, physical_location_redacted: true },
+    output: {
+      path: target.relative,
+      relative_path: target.relative,
+      replacements: replaceAll ? occurrences : 1,
+      workspace_path_disposition: "modified",
+      workspace_path_created: false,
+      workspace_path_existed_before: true,
+      physical_location_redacted: true,
+    },
+    metadata: {
+      workspace_mutation_committed: "true",
+      workspace_logical_path: target.relative,
+      workspace_path_disposition: "modified",
+      workspace_path_created: "false",
+      workspace_path_existed_before: "true",
+    },
   })
 }
 
@@ -210,7 +251,22 @@ async function fileDelete(context: ActionContext, workspace: string): Promise<Te
   return result(context.action, {
     ok: true,
     summary: `Deleted ${target.relative} on terminal node`,
-    output: { relative_path: target.relative, deleted: true, physical_location_redacted: true },
+    output: {
+      path: target.relative,
+      relative_path: target.relative,
+      deleted: true,
+      workspace_path_disposition: "deleted",
+      workspace_path_created: false,
+      workspace_path_existed_before: true,
+      physical_location_redacted: true,
+    },
+    metadata: {
+      workspace_mutation_committed: "true",
+      workspace_logical_path: target.relative,
+      workspace_path_disposition: "deleted",
+      workspace_path_created: "false",
+      workspace_path_existed_before: "true",
+    },
   })
 }
 

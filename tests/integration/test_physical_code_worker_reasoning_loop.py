@@ -20,6 +20,7 @@ from zyra_orchestration.deployment.code_worker_adapter import (
     _physical_resource_runtime_constraints,
     _provider_failure_summary,
     _provider_prompt_bindings,
+    _terminal_workspace_delta,
     execute_code_worker_operator,
 )
 from zyra_orchestration.goal_contracts import (
@@ -40,6 +41,42 @@ from zyra_workspace import WorkspaceManagerConfig, WorkspaceManagerRuntime
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_terminal_workspace_delta_exposes_canonical_changed_paths() -> None:
+    delta = _terminal_workspace_delta([
+        {
+            "payload": {
+                "query_session": {
+                    "phase": "tool_call_completed",
+                    "tool_name": "file_write",
+                },
+                "tool_result": {
+                    "ok": True,
+                    "output": {
+                        "relative_path": "src\\main.ts",
+                        "workspace_path_disposition": "created",
+                    },
+                },
+            },
+        },
+        {
+            "payload": {
+                "tool_call": {"tool_name": "file_delete"},
+                "tool_result": {
+                    "ok": True,
+                    "output": {"relative_path": "old.txt"},
+                },
+            },
+        },
+    ])
+
+    assert delta == {
+        "created": ["src/main.ts"],
+        "modified": [],
+        "deleted": ["old.txt"],
+        "changed": ["old.txt", "src/main.ts"],
+    }
 
 
 def test_physical_evidence_readers_bind_fork_calls_to_parent_task(

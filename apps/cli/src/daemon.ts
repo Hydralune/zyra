@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises"
 import { constants as fsConstants, existsSync } from "node:fs"
 import { homedir, platform, tmpdir } from "node:os"
+import { createServer as createNetServer, type Server as NetServer } from "node:net"
 import { basename, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import {
@@ -80,8 +81,83 @@ export interface DaemonOptions {
   token?: string
 }
 
+export interface DeploymentPortSelectionOptions {
+  host?: string
+  apiPort?: number
+  candidates?: readonly number[]
+}
+
 function sleep(milliseconds: number): Promise<void> {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds))
+}
+
+function closeNetServer(server: NetServer): Promise<void> {
+  if (!server.listening) return Promise.resolve()
+  return new Promise((resolvePromise) => server.close(() => resolvePromise()))
+}
+
+async function reservePort(host: string, port: number): Promise<NetServer> {
+  const server = createNetServer()
+  server.unref()
+  return await new Promise<NetServer>((resolvePromise, reject) => {
+    const failed = (error: Error) => {
+      server.removeListener("listening", listening)
+      reject(error)
+    }
+    const listening = () => {
+      server.removeListener("error", failed)
+      resolvePromise(server)
+    }
+    server.once("error", failed)
+    server.once("listening", listening)
+    server.listen({ host, port, exclusive: true })
+  })
+}
+
+/** Select three adjacent loopback ports and release the probe sockets.
+ *
+ * The deployment supervisor owns the real binds after the daemon starts. The
+ * short probe closes the fixed 8310 collision that otherwise appears only
+ * when the user's first task dispatches to a physical worker.
+ */
+export async function selectDeploymentProfileBasePort(
+  options: DeploymentPortSelectionOptions = {},
+): Promise<number> {
+  const host = options.host ?? "127.0.0.1"
+  const apiPort = options.apiPort ?? 8000
+  const generated = Array.from({ length: 128 }, (_value, index) => {
+    const span = 55_000 - 10_000
+    return 10_000 + ((process.pid * 131 + Date.now() + index * 7_919) % span)
+  })
+  const candidates = options.candidates ?? [8310, ...generated]
+  for (const rawBase of candidates) {
+    const base = Math.floor(Number(rawBase))
+    if (!Number.isSafeInteger(base) || base < 1_024 || base > 65_533) continue
+    if ([base, base + 1, base + 2].includes(apiPort)) continue
+    const reservations: NetServer[] = []
+    try {
+      for (let offset = 0; offset < 3; offset += 1) {
+        reservations.push(await reservePort(host, base + offset))
+      }
+      await Promise.all(reservations.map(closeNetServer))
+      return base
+    } catch {
+      await Promise.all(reservations.map(closeNetServer))
+    }
+  }
+  throw new CliDaemonError("Cannot reserve a local port block for Zyra deployment workers.")
+}
+
+async function deploymentProfileBasePort(apiPort: number): Promise<number> {
+  const explicit = process.env.ZYRA_DEPLOYMENT_PROFILE_BASE_PORT?.trim()
+  if (!explicit) return await selectDeploymentProfileBasePort({ apiPort })
+  const base = Number(explicit)
+  if (!Number.isSafeInteger(base) || base < 1_024 || base > 65_533) {
+    throw new CliDaemonError(
+      "ZYRA_DEPLOYMENT_PROFILE_BASE_PORT must leave room for three valid TCP ports.",
+    )
+  }
+  return base
 }
 
 function isErrno(error: unknown, code: string): boolean {
@@ -117,6 +193,13 @@ function startupLogPath(): string {
 
 function runtimeIdentityPath(generation: string): string {
   return join(cliStateDirectory(), `daemon-runtime-${generation}.json`)
+}
+
+export function daemonRuntimeStateRoot(
+  generation: string,
+  explicit = process.env.ZYRA_STATE_ROOT?.trim(),
+): string {
+  return resolve(explicit || join(cliStateDirectory(), "runtime", generation))
 }
 
 async function appendDaemonAudit(value: DaemonStopAudit): Promise<void> {
@@ -373,6 +456,7 @@ async function startManagedDaemon(options: DaemonOptions): Promise<DaemonState> 
     const projectRoot = resolveProjectRoot()
     const python = await resolvePythonCommand(projectRoot)
     const port = Number(url.port || "80")
+    const profileBasePort = await deploymentProfileBasePort(port)
     const generation = crypto.randomUUID()
     const runtimeIdentity = runtimeIdentityPath(generation)
     await rm(runtimeIdentity, { force: true })
@@ -389,6 +473,8 @@ async function startManagedDaemon(options: DaemonOptions): Promise<DaemonState> 
           ...process.env,
           ZYRA_API_HOST: url.hostname,
           ZYRA_API_PORT: String(port),
+          ZYRA_DEPLOYMENT_PROFILE_BASE_PORT: String(profileBasePort),
+          ZYRA_STATE_ROOT: daemonRuntimeStateRoot(generation),
           ZYRA_CLI_DAEMON_GENERATION: generation,
           ZYRA_CLI_DAEMON_RUNTIME_IDENTITY: runtimeIdentity,
         },

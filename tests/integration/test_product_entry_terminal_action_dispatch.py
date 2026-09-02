@@ -23,6 +23,7 @@ from zyra_scheduler.backend_registry import (
     BackendSelectionRequest,
     WorkerDispatchRouter,
     WorkspacePolicy,
+    WorkspaceAttestationRuntime,
     backend_registry_path,
     ensure_default_backends,
 )
@@ -148,7 +149,9 @@ class _TerminalActionFixture:
         self.temporary.cleanup()
 
 
-def test_worker_callable_excludes_terminal_while_typed_actions_select_it() -> None:
+def test_worker_callable_excludes_terminal_while_typed_actions_select_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fixture = _TerminalActionFixture()
     try:
         store = BackendRegistryStore(fixture.registry_path)
@@ -184,6 +187,11 @@ def test_worker_callable_excludes_terminal_while_typed_actions_select_it() -> No
         assert callable_outcome.final_lease.backend_id != "terminal-action-test"
         assert callable_outcome.final_envelope.backend_kind is BackendKind.LOCAL_PROCESS
         assert fixture.observed == []
+
+        def reject_live_tree_scan(_runtime, root):
+            raise AssertionError(f"terminal action enumerated the live workspace: {root}")
+
+        monkeypatch.setattr(WorkspaceAttestationRuntime, "_scan", reject_live_tree_scan)
 
         for index, (tool_name, arguments) in enumerate(
             (
@@ -351,6 +359,26 @@ def test_gateway_permission_then_http_dispatch_and_delegation_mutation() -> None
             },
         )
         delegated_router = GatewayToolExecutionRouter(delegated_bundle)
+        read = delegated_router.execute(
+            ToolCall(
+                run_id=state.run_id,
+                task_id=state.task_id,
+                node_id=state.root_node_id,
+                tool_name="file_read",
+                tool_call_id="gateway-terminal-file-read",
+                arguments={"path": "remote-proof.txt"},
+                metadata={"session_id": f"terminal-action-{state.task_id}"},
+            ),
+            permission_grant=None,
+            permission_authority=None,
+            permission_execution_context={},
+        )
+        assert read.ok, (read.error, read.metadata, read.output)
+        assert read.output["execution_location"] == "terminal"
+        assert read.output["backend_action_dispatch_receipt"]["backend_lease_id"]
+        assert read.output["gateway_receipt"]["permission_consumption_id"]
+        assert read.metadata["permission_execution_grant_consumed"] == "true"
+
         for index, (tool_name, tool_arguments) in enumerate(
             (
                 ("file_write", {"path": "remote-proof.txt", "content": "remote"}),

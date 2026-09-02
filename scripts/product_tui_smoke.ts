@@ -5,6 +5,7 @@ import { join, resolve } from "node:path"
 import { CliApi, type IngressFrame } from "../apps/cli/src/api.ts"
 import { projectProductEvents } from "../apps/cli/src/presentation/projector.ts"
 import { reduceProductEvents, renderProductSnapshot } from "../apps/cli/src/presentation/renderer.ts"
+import { renderMarkdown } from "../apps/cli/src/tui/markdown.ts"
 
 interface SmokeOptions {
   baseUrl: string
@@ -53,14 +54,15 @@ function runCli(root: string, workspace: string, input: SmokeOptions): Promise<{
   })
 }
 
-function productTaskId(stdout: string): string {
-  const taskId = stdout.match(/\btask_[A-Za-z0-9_-]+\b/u)?.[0]
-  if (!taskId) throw new Error("product TUI did not render its canonical task identity")
-  return taskId
-}
-
 function compactText(value: string): string {
   return value.replace(/\s+/gu, " ").trim()
+}
+
+function executorCwd(metadata: Readonly<Record<string, unknown>>): string {
+  const environment = metadata.executor_environment
+  if (!environment || typeof environment !== "object" || Array.isArray(environment)) return ""
+  const cwd = (environment as Record<string, unknown>).cwd
+  return typeof cwd === "string" ? resolve(cwd) : ""
 }
 
 async function main(): Promise<void> {
@@ -68,44 +70,55 @@ async function main(): Promise<void> {
   const root = resolve(import.meta.dir, "..")
   const workspace = await mkdtemp(join(tmpdir(), "zyra-product-tui-smoke-"))
   process.stderr.write(`product TUI smoke · ${input.baseUrl} · ${input.width} columns\n`)
+  const api = new CliApi({ baseUrl: input.baseUrl, timeoutMs: 30_000 })
   try {
+    const before = new Set((await api.tasks({ limit: 100 })).tasks.map((task) => task.taskId))
     const child = await runCli(root, workspace, input)
-    const taskId = productTaskId(child.stdout)
-    if (child.stdout.includes("runtime.") || child.stdout.includes("\u001b[?1049")) {
-      throw new Error("product CLI leaked a raw runtime event or entered alternate-screen mode")
+    if (
+      child.stdout.includes("runtime.")
+      || child.stdout.includes("\u001b[?1049")
+      || /\b(?:task|run|session)_[A-Za-z0-9_-]+\b/u.test(child.stdout)
+    ) {
+      throw new Error("product CLI leaked a raw runtime event/internal identity or entered alternate-screen mode")
     }
-    const api = new CliApi({ baseUrl: input.baseUrl, timeoutMs: 30_000 })
+    const newTasks = (await api.tasks({ limit: 100 })).tasks.filter((task) => (
+      !before.has(task.taskId)
+      && task.userGoal === input.goal
+    ))
+    const candidates = (await Promise.all(newTasks.map((task) => api.task(task.taskId))))
+      .filter((task) => executorCwd(task.metadata) === resolve(workspace))
+    if (candidates.length !== 1) {
+      throw new Error(`canonical smoke task resolution expected 1 exact task, observed ${candidates.length}`)
+    }
+    const task = candidates[0]!
+    const frames: IngressFrame[] = []
     try {
-      const task = await api.task(taskId)
-      const frames: IngressFrame[] = []
-      try {
-        const capabilities = await api.ingressCapabilities(taskId)
-        for await (const page of api.snapshotIngress(taskId, capabilities.generation)) frames.push(...page.frames)
-      } catch {
-        // The canonical task snapshot still provides an honest final-answer fallback.
-      }
-      const events = projectProductEvents({ task, frames })
-      const view = reduceProductEvents(events)
-      const rendered = renderProductSnapshot(events, {
-        width: input.width,
-        workspace: root,
-      })
-      const finalAnswer = String(task.metadata.final_answer ?? "")
-      if (
-        !finalAnswer
-        || !compactText(child.stdout).includes(compactText(finalAnswer))
-        || !view.messages.some((message) => message.role === "assistant" && message.text === finalAnswer)
-        || rendered.includes("runtime.")
-      ) {
-        throw new Error("product projection omitted the canonical final answer or leaked a raw runtime event")
-      }
-      process.stdout.write(child.stdout)
-      process.stdout.write(`\n--- ${input.width}-column deterministic replay ---\n`)
-      process.stdout.write(rendered)
-    } finally {
-      api.close()
+      const capabilities = await api.ingressCapabilities(task.taskId)
+      for await (const page of api.snapshotIngress(task.taskId, capabilities.generation)) frames.push(...page.frames)
+    } catch {
+      // The canonical task snapshot still provides an honest final-answer fallback.
     }
+    const events = projectProductEvents({ task, frames })
+    const view = reduceProductEvents(events)
+    const rendered = renderProductSnapshot(events, {
+      width: input.width,
+      workspace,
+    })
+    const finalAnswer = String(task.metadata.final_answer ?? "")
+    if (!finalAnswer) throw new Error("canonical smoke task omitted its final answer")
+    const productFinalAnswer = compactText(renderMarkdown(finalAnswer, 10_000).join("\n"))
+    if (!compactText(child.stdout).includes(productFinalAnswer)) {
+      throw new Error("product CLI omitted the rendered canonical final answer")
+    }
+    if (!view.messages.some((message) => message.role === "assistant" && message.text === finalAnswer)) {
+      throw new Error("product state projection omitted the canonical final answer")
+    }
+    if (rendered.includes("runtime.")) throw new Error("deterministic product replay leaked a raw runtime event")
+    process.stdout.write(child.stdout)
+    process.stdout.write(`\n--- ${input.width}-column deterministic replay ---\n`)
+    process.stdout.write(rendered)
   } finally {
+    api.close()
     await rm(workspace, { recursive: true, force: true })
   }
 }

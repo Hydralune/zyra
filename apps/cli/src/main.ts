@@ -343,8 +343,8 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
         const registration = await terminal.start()
         if (command.kind === "dev") stderr.write(`terminal node ${registration.backend_id} registered · generation ${registration.generation.slice(0, 8)}\n`)
       }
-      const ensureProductTerminal = async (): Promise<void> => {
-        if (terminal) return
+      const ensureProductTerminal = async () => {
+        if (terminal) return terminal.executorEnvironment()
         terminal = await TerminalNodeLifecycle.create({
           baseUrl: executionBaseUrl,
           token,
@@ -352,6 +352,7 @@ export async function runMain(argv: readonly string[], environment: MainEnvironm
           startupRoot: process.cwd(),
         })
         await terminal.start()
+        return terminal.executorEnvironment()
       }
       if (command.kind === "run") outcome = await executeRun({
         command,

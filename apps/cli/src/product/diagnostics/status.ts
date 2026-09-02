@@ -64,6 +64,7 @@ export function formatExecutionMode(task?: TaskProjection, configured: ProductEx
   if (!task) return [
     `执行模式 · ${configured === "sealed_autonomous" ? "封闭自治" : "标准"}`,
     `封闭运行 · ${configured === "sealed_autonomous" ? "是" : "否"}`,
+    `本地目录 · ${configured === "sealed_autonomous" ? "不挂载 CLI 当前目录" : "按本地执行环境受控挂载"}`,
     "生效范围 · 之后创建的新任务",
     "权限与沙箱 · 由每个任务的实际策略决定",
   ].join("\n")
@@ -72,6 +73,7 @@ export function formatExecutionMode(task?: TaskProjection, configured: ProductEx
   return [
     `执行模式 · ${sealed ? "封闭自治" : competition === "standard" ? "标准" : competition}`,
     `封闭运行 · ${sealed ? "是" : "否"}`,
+    `本地目录 · ${sealed ? "隔离任务工作区；不挂载 CLI 当前目录" : "按任务执行环境策略挂载"}`,
     "权限决定 · 每次决定都与当前请求严格绑定；无法确认时拒绝执行",
     "权限策略 · 使用 /permissions mode 查看或修改",
   ].join("\n")

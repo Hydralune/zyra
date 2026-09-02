@@ -616,6 +616,29 @@ class GatewayPolicyRuntime:
             recovery=("reduce_scope", "replan") if outcome == GatewayOutcome.DENIED else (),
         )
 
+    def evaluate_file_read(self, logical_path: str) -> GatewaySurfacePolicyDecision:
+        """Authorize a workspace-confined read without inventing a user grant.
+
+        Reads still cross the gateway and receive a consumption receipt.  This
+        keeps terminal-backed reads on the same audited path as terminal-backed
+        mutations while preserving the existing read-only, no-prompt policy.
+        """
+        normalized_path = self.assert_path(logical_path)
+        return GatewaySurfacePolicyDecision(
+            surface=GatewaySurface.CODE_WORKER,
+            action=GatewayAction.FILE_READ,
+            outcome=GatewayOutcome.ALLOWED,
+            reason="workspace-confined file read is read-only",
+            findings=(),
+            subject_digest=content_digest(
+                {"path": normalized_path, "operation": "file_read"}
+            ),
+            policy_digest=self.policy_digest,
+            requires_permission=False,
+            normalized={"path": normalized_path},
+            metadata={"read_only": True},
+        )
+
     def evaluate_mcp_call(
         self,
         *,

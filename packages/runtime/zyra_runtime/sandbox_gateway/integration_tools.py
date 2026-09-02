@@ -236,7 +236,13 @@ class GatewayToolExecutionRouter:
             if call.tool_name == "shell_wait":
                 return self._shell_wait(call, identity)
             if call.tool_name == "file_read":
-                return self._file_read(call, identity)
+                return self._file_read(
+                    call,
+                    identity,
+                    permission_grant=permission_grant,
+                    permission_authority=permission_authority,
+                    permission_execution_context=permission_execution_context,
+                )
             if call.tool_name == "file_write":
                 return self._file_write(
                     call,
@@ -1146,9 +1152,34 @@ class GatewayToolExecutionRouter:
             metadata=metadata,
         )
 
-    def _file_read(self, call: ToolCall, identity: WorkerGatewayIdentity) -> ToolResult:
-        artifact_port = self._require_artifact_port()
+    def _file_read(
+        self,
+        call: ToolCall,
+        identity: WorkerGatewayIdentity,
+        *,
+        permission_grant: Any,
+        permission_authority: Any,
+        permission_execution_context: Any,
+    ) -> ToolResult:
         logical_path = self.bundle.policy_runtime.assert_path(str(call.arguments.get("path") or ""))
+        policy = self.bundle.policy_runtime.evaluate_file_read(logical_path)
+        permission = self.bundle.permission_bridge.consume_non_command(
+            call=call,
+            grant=permission_grant,
+            authority=permission_authority,
+            execution_context=permission_execution_context,
+            policy=policy,
+        )
+        if not permission.allowed:
+            return self._error(call, "permission_denied", permission.reason)
+        remote = self._dispatch_authorized_backend_action(
+            call,
+            identity,
+            permission.safe_dict(),
+        )
+        if remote is not None:
+            return remote
+        artifact_port = self._require_artifact_port()
         content = artifact_port.read(logical_path)
         encoding = str(call.arguments.get("encoding") or "utf-8")
         try:
