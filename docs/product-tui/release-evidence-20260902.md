@@ -2,9 +2,34 @@
 
 ## 判定
 
-提交 `fedd24e0e7f9d54730cc950a92c0433155b4171c` 的 Windows 发布候选已完成全量 CLI/Web 回归、可重复归档和真实隔离 clean-install。build/install、state migration、产品生命周期、卸载和端口释放发布门均关闭。
+当前产品体验审计修复提交 `e8db9b0cc5d2586de5bb2c9da292d8207eecbf74` 已通过实现级回归、真实 provider continuation、真实流式终态竞态复验和可重复 Windows 归档；当前源码的隔离 clean-install 尚未签字。它在全新 cleanroom 执行 `bun install --frozen-lockfile --ignore-scripts` 时被 registry/cache 返回的 `csstype` tarball 完整性错误阻断，发生在产品构建和生命周期启动之前。
 
-这不等价于整份产品任务完成：Windows Terminal 人工 IME 候选窗仍未签字，因此 COMP-02、Phase F 和 Phase H 保持未完成。Linux/macOS 与官方 Codex 认证后参考序列也继续明确标为未运行。
+因此，本文下方 `fedd24e0` 和 `c0bde95b` 的 clean-install 成功记录只证明对应历史提交，不得外推到 `e8db9b0`。当前候选还需 clean-install、Windows Terminal 人工 IME 与两名外部用户盲测；Linux/macOS 与官方 Codex 认证后参考序列也继续明确标为未运行。
+
+## 最终产品体验审计候选（`e8db9b0`）
+
+本轮关闭的实现缺口包括：composer/footer 物理贴底、completion/approval/question overlay 与 composer 相邻且随终态取消、durable assistant end 封口后拒绝迟到 live delta、canonical final 只出现一次且为最后一个一级内容、系统固定标签统一本地化，以及 daemon 重启后结构化问题重绑到同一 canonical pending request。
+
+- CLI 全量回归：197 pass，0 fail，943 expect，22 files。
+- Python 定向契约：`tests/unit/test_user_input_continuation.py` 与 `tests/unit/test_product_presentation_contract.py` 共 10 passed。
+- 全仓 typecheck、CodeWorker build、CLI build、Web build：全部通过；CLI build 为 101 modules / 约 0.99 MB。
+- ConPTY：1,000 次 resize，通过；冷启动 721.342 ms，退出 275.892 ms；未启用 alternate screen。
+- 性能门：10,000 messages / 100,000 events；输入 P95 0.007 ms，重绘 23.88 ms，RSS 峰值 166.691 MiB。
+- 参考帧：13 个场景 × 80×24/120×40，共 26 帧，均为精确终端高度；逐项 Codex source-native 账本见 `codex-frame-review-20260902.md`。
+- 真实 provider restart：`task_1adbb2191c60` / `run_fa5b8e3e69e5` 在结构化问题 pending 时重启 daemon；恢复后只回答同一请求一次，原 provider tool 继续并完成。
+- 真实 SSE 终态竞态：`task_1057d6c5fe6c` / `run_bf1963339d0b` 的 `SQL` → durable `SQLite` → late `ite` 顺序最终只呈现一个 `SQLite`。
+
+可重复归档：
+
+- release id：`product-tui-audit-20260902-e8db9b0`
+- archive：`.tmp/product-tui-release-20260902-e8db9b0/product-tui-audit-20260902-e8db9b0.zip`
+- source commit：`e8db9b0cc5d2586de5bb2c9da292d8207eecbf74`
+- 两次独立归档字节完全一致；47,272,941 bytes / 4,907 files
+- archive SHA-256：`a5cb75b73e6798ecb746dcdf9f4d57ed158360f1fd34d4e4d66c48406ca97ef3`
+- pipeline digest：`5e27be5d231871a9b88f21afd912d43789d6865fc7537e8c5c13c1f35fffe6cb`
+- wheel SHA-256：`3f543a2487861d72b13f579a75619fbd53322246698ca97fb9d22d8cd2873a94`；2,245 entries / 10,146,776 bytes
+
+隔离 clean-install 使用上述同一归档和 commit。可观测失败均为外部依赖 tarball 完整性错误：一次同时涉及 `typescript`、`react-dom`、`@types/react` 和 `csstype`，最终复验在约 300,693 ms 后再次以 `IntegrityCheckFailed extracting tarball from csstype` 结束。cleanroom 使用一次性系统临时缓存，不复用仓库或用户全局 Bun cache；没有生成成功 receipt，也没有执行后续产品 lifecycle。此处记录为发布环境阻塞，不伪造为源码通过，也不以无界重试掩盖失败。
 
 ## 产品语法重构后复验（`c0bde95b`）
 
@@ -19,11 +44,11 @@ Phase I/J 产品语法与结构化用户提问完成后，已在干净提交 `c0
 
 此复验关闭了“重构后 release/clean-install”门，但不会替代真实 provider continuation、人工 Windows Terminal IME 或两名外部用户盲测。
 
-## 当前源码回归
+## `c0bde95b` 时的源码回归（历史基线）
 
 | 门 | 结果 |
 |---|---|
-| CLI test | 187 pass，0 fail，902 expect，17.55 s |
+| CLI test | 187 pass，0 fail，902 expect，17.55 s；当前 `e8db9b0` 已提升为 197 pass / 943 expect，见上节 |
 | Web test | 320 pass，0 fail，1916 expect，45.92 s |
 | 全仓 typecheck | pass；runtime、memory、typed client、commands、CLI、Web 全部通过 |
 | code-worker build | Bun/Node 各 275 modules，主产物约 5.73 MB |

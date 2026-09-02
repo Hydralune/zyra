@@ -1,6 +1,6 @@
 # Codex → Zyra 产品 CLI / TUI 覆盖矩阵
 
-状态：Phase I/J 与真实 provider continuation 已完成；Phase K 的当前候选发布绑定、人工 IME 与外部用户验收尚未关闭
+状态：Phase I/J、精确参考帧审查与真实 provider continuation 已完成；Phase K 当前候选的可重复归档已通过，隔离 clean-install 受外部 Bun tarball 完整性错误阻断；人工 IME 与外部用户验收尚未关闭
 参考源码：`G:\agent-zoo\codex`
 目标仓库：`G:\agent-zoo\zyra`
 审计日期：2026-09-01
@@ -100,9 +100,9 @@
 
 - Foundation 已演化出长期 session controller、有界增量产品状态、命令/overlay、Markdown、diff/tool/agent 浏览、权限范围、诊断和 PTY/性能 harness；组件、故障注入、8 小时性能门，以及 Phase G 真实失败/控制/恢复与 provider 成功文件工作流均已有证据。
 - Phase G 已关闭：真实 provider 产生 4 个 changed path、可见 diff、canonical 验证命令/退出码和 permission policy；daemon 重启后两次产品附着直接观察这些内容，并与稳定 canonical `completed` 对账。
-- “当前唯一 P0 阻塞是 Windows Terminal IME”的旧结论已经作废。重构前候选的发布归档不能覆盖 Phase I～K，因此本轮已经在提交 `c0bde95b` 上重新完成可重复归档和隔离 clean-install。
+- “当前唯一 P0 阻塞是 Windows Terminal IME”的旧结论已经作废。提交 `c0bde95b` 曾完成产品语法重构后的可重复归档和隔离 clean-install；它只覆盖该历史提交。
 - 当前工作树已经实现 Codex 产品语法重构：主界面不再是固定状态仪表盘，跨类型 history、真实 composer 光标、Codex 样式层、无框 picker/pager、自动权限与结构化问题抢占、原生 Markdown、canonical context footer、稳定命令结果历史、canonical `/rename`、回答 history cell 和 26 份对照帧均已落地。精确 source-native Codex 证据与逐场景判断见 `codex-frame-review-20260902.md`。
-- 当前没有已知的静态 P0/P1 功能或组合行为缺口。真实 provider/daemon-restart continuation 与 SSE late-delta 竞态均已关闭；尚未关闭的是把本轮修复绑定到新的可重复归档/clean-install、两名外部用户盲测和 Windows Terminal 人工 IME。因此当前仍不得称为 Codex 等价或最终成熟版本。
+- 当前没有已知的静态 P0/P1 功能或组合行为缺口。真实 provider/daemon-restart continuation 与 SSE late-delta 竞态均已关闭；提交 `e8db9b0` 的 13 场景 × 2 尺寸精确对照账本和可重复 Windows 归档已完成。当前隔离 clean-install 在产品构建/生命周期之前被 Bun 1.2.15 的 `csstype` tarball `IntegrityCheckFailed` 阻断，且两次可观测复验重现；另有两名外部用户盲测和 Windows Terminal 人工 IME 未完成。因此当前仍不得称为 Codex 等价或最终成熟版本。
 - typed API 已提供 session、task command、permission、diff、terminal、workspace、artifact 和版本化 event ingress。新增产品契约继续遵守 canonical owner，不从屏幕文本或 generic runtime summary 猜状态。
 - Codex 专属账户、插件、Apps、Pets 已在 ADR-019 逐项完成产品边界决定，不用一句批量排除代替审计。
 
