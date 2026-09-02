@@ -1993,6 +1993,7 @@ async function runProductSession(input: {
       input.shell.status(undefined)
     }
     input.shell.beginTask()
+    const submittedId = next.kind === "goal" ? input.shell.submitted(next.goal) : undefined
     const task = next.kind === "resume"
       ? next.task
       : (await input.api.createPendingTask(
@@ -2019,7 +2020,7 @@ async function runProductSession(input: {
         input.shell.status(undefined)
         if (!input.tty) throw error
         const goal = next.goal
-        input.shell.restoreDraft(goal)
+        input.shell.restoreDraft(goal, submittedId)
         const cancellation = await input.api.cancelTask(
           task,
           "Workspace synchronization failed before task execution.",

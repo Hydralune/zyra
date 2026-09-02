@@ -18,6 +18,7 @@ export interface ProductLocalHistoryItem {
   text: string
   afterOrder: number
   sequence: number
+  role?: "notice" | "user"
 }
 
 export interface ProductRenderOptions {
@@ -300,7 +301,7 @@ function renderTimelineWindow(
     : state.messages.map((message, order): ProductTimelineItem => ({ kind: "message", id: message.messageId, order }))
   const entries: Array<
     | { kind: "timeline"; afterOrder: number; sequence: number; item: ProductTimelineItem }
-    | { kind: "notice"; afterOrder: number; sequence: number; text: string }
+    | { kind: "notice" | "user"; afterOrder: number; sequence: number; id: string; text: string }
   > = [
     ...timeline.map((item) => ({
       kind: "timeline" as const,
@@ -309,9 +310,10 @@ function renderTimelineWindow(
       item,
     })),
     ...localHistory.map((item) => ({
-      kind: "notice" as const,
+      kind: item.role === "user" ? "user" as const : "notice" as const,
       afterOrder: item.afterOrder,
       sequence: item.sequence,
+      id: item.id,
       text: item.text,
     })),
   ].sort((left, right) =>
@@ -324,7 +326,9 @@ function renderTimelineWindow(
     const entry = entries[index]!
     const segment = entry.kind === "timeline"
       ? renderTimelineItem(entry.item, state, maps, width)
-      : renderNotice(entry.text, width)
+      : entry.kind === "user"
+        ? renderMessage({ messageId: entry.id, role: "user", text: entry.text, streaming: false }, width)
+        : renderNotice(entry.text, width)
     if (!segment.length) continue
     segments.unshift(segment)
     renderedLines += segment.length

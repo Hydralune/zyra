@@ -12,6 +12,7 @@ import { pickProductItem, promptProductText } from "./overlay/list-picker.ts"
 import type { ProductOverlay, ProductPickerItem } from "./overlay/model.ts"
 import { pageProductText } from "./overlay/pager.ts"
 import { probeTerminalCapabilities, type TerminalCapabilities } from "./terminal-capabilities.ts"
+import { sanitizeTerminalText } from "./text.ts"
 
 export class ProductTuiShell {
   readonly #workspace: string
@@ -135,6 +136,7 @@ export class ProductTuiShell {
     this.#taskEvents = events
     this.#events = Object.freeze([...this.#archivedEvents, ...events])
     this.#state.reconcile(this.#events)
+    this.#reconcileSubmittedMessages()
     this.#dispatchBlockingPrompt()
     this.#renderer.render()
   }
@@ -144,6 +146,7 @@ export class ProductTuiShell {
     this.#taskEvents = Object.freeze([...this.#taskEvents, ...events])
     this.#events = Object.freeze([...this.#archivedEvents, ...this.#taskEvents])
     this.#state.reconcile(this.#events)
+    this.#reconcileSubmittedMessages()
     this.#dispatchBlockingPrompt()
     this.#renderer.render()
   }
@@ -160,7 +163,23 @@ export class ProductTuiShell {
     this.#renderer.renderNow()
   }
 
-  restoreDraft(text: string): void {
+  submitted(text: string): string {
+    const id = `local:${++this.#localHistorySequence}`
+    const afterOrder = this.#state.snapshot().timeline?.at(-1)?.order ?? 0
+    this.#localHistory.push(Object.freeze({
+      id,
+      text: sanitizeTerminalText(text),
+      afterOrder,
+      sequence: this.#localHistorySequence,
+      role: "user",
+    }))
+    this.#localHistory = this.#localHistory.slice(-64)
+    this.#renderer.renderNow()
+    return id
+  }
+
+  restoreDraft(text: string, submissionId?: string): void {
+    if (submissionId) this.#localHistory = this.#localHistory.filter((item) => item.id !== submissionId)
     this.#composer.restoreDraft(text)
   }
 
@@ -197,6 +216,19 @@ export class ProductTuiShell {
   status(message?: string): void {
     this.#notice = message
     this.#renderer.renderNow()
+  }
+
+  #reconcileSubmittedMessages(): void {
+    const view = this.#state.snapshot()
+    const messageById = new Map(view.messages.map((message) => [message.messageId, message]))
+    const canonicalUsers = (view.timeline ?? [])
+      .filter((item) => item.kind === "message")
+      .map((item) => ({ order: item.order, message: messageById.get(item.id) }))
+      .filter((item): item is { order: number; message: NonNullable<typeof item.message> } => item.message?.role === "user")
+    this.#localHistory = this.#localHistory.filter((item) =>
+      item.role !== "user"
+      || !canonicalUsers.some((canonical) => canonical.order > item.afterOrder && canonical.message.text === item.text),
+    )
   }
 
   async read(running = false): Promise<ProductComposerResult> {
