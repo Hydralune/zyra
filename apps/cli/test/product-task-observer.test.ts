@@ -104,7 +104,11 @@ describe("product task observer", () => {
       async *snapshotIngress() {
         yield { cursor: "cursor_0", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
       },
-      async runTask() { return await new Promise<never>(() => undefined) },
+      async runTask(_task: TaskProjection, signal?: AbortSignal) {
+        return await new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
+        })
+      },
       async *streamIngress() {
         streamCalls += 1
         if (streamCalls <= 100) {
@@ -288,6 +292,7 @@ describe("product task observer", () => {
     const pending = task("pending")
     const failed = task("failed", { failure_reason: "canonical failure" })
     let mutationAborted = false
+    let mutationSettled = false
     const api = {
       async ingressCapabilities() {
         return { taskId: pending.taskId, generation: 1, subscriptionCursor: "cursor_0", subscriptionSequence: 0, sseAvailable: true, raw: {} }
@@ -299,7 +304,10 @@ describe("product task observer", () => {
         return await new Promise<never>((_resolve, reject) => {
           signal?.addEventListener("abort", () => {
             mutationAborted = true
-            reject(signal.reason)
+            setTimeout(() => {
+              mutationSettled = true
+              reject(signal.reason)
+            }, 5)
           }, { once: true })
         })
       },
@@ -321,6 +329,7 @@ describe("product task observer", () => {
 
     expect(result.status).toBe("failed")
     expect(mutationAborted).toBeTrue()
+    expect(mutationSettled).toBeTrue()
     expect(output.text).not.toContain("已从 task task_product 分离")
   })
 
@@ -388,7 +397,11 @@ describe("product task observer", () => {
       async *snapshotIngress(_taskId: string, generation: number) {
         yield { cursor: `cursor_${generation}`, generation, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
       },
-      async runTask() { return await new Promise<never>(() => undefined) },
+      async runTask(_task: TaskProjection, signal?: AbortSignal) {
+        return await new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
+        })
+      },
       async *streamIngress() {
         streamCalls += 1
         if (streamCalls === 1) {

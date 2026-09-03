@@ -1365,6 +1365,12 @@ export async function observeProductTask(input: {
     "Product observation settled at the canonical terminal state.",
     "product_observation_settled",
   ))
+  // Aborting only signals the fetch transport.  Wait for the mutation promise
+  // to unwind so the typed client can dispose its request deadline timer and
+  // release every listener before the product session returns to the prompt.
+  // The promise normalizes rejection into RunOutcome, so this cannot replace
+  // the authoritative canonical terminal state with a transport error.
+  if (runResult) await runResult
   await controlLoop
   return {
     exitCode: terminalExitCode(task),
