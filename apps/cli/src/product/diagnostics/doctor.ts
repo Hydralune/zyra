@@ -16,6 +16,7 @@ import {
 import type { DoctorCommand } from "../../contracts.ts"
 import { CliTaskError } from "../../contracts.ts"
 import { sanitizeForOutput } from "../../output.ts"
+import { providerConfigurationFromReadiness } from "./status.ts"
 
 export const DOCTOR_SCHEMA = "zyra.cli-doctor/v1" as const
 const BUNDLE_SCHEMA = "zyra.cli-diagnostic-bundle/v1" as const
@@ -260,6 +261,16 @@ export async function executeDoctor(input: {
       ? check("runtime.api-version", "pass", "API version 1.0 与当前 CLI 兼容。")
       : check("runtime.api-version", "fail", `API version ${readiness.apiVersion} 未声明兼容。`, "升级 CLI 或 daemon，使 API major version 匹配。"))
   }
+  const providerConfiguration = readiness
+    ? providerConfigurationFromReadiness(readiness)
+    : undefined
+  if (readiness) {
+    checks.push(providerConfiguration
+      ? providerConfiguration.configured
+        ? check("providers.configuration", "pass", `模型凭据已加载${providerConfiguration.selectedProviderId ? `；当前首选 ${providerConfiguration.selectedProviderId}/${providerConfiguration.selectedModelId ?? "自动"}` : ""}。`)
+        : check("providers.configuration", "fail", "daemon 未加载任何可用模型凭据。", "在 Zyra 项目中配置 .env.deepseek.local 后停止旧 daemon，并重新启动 CLI。")
+      : check("providers.configuration", "fail", "daemon 未提供模型配置状态；无法确认任务可以执行。", "停止旧 daemon，并由当前版本 Zyra CLI 重新启动。"))
+  }
   checks.push((modelCount ?? 0) > 0
     ? check("providers.catalog", "pass", `${modelCount} 个 canonical provider model 可用。`)
     : check("providers.catalog", daemon.reachable ? "fail" : "unknown", "未确认可用 provider model。", "启动 daemon 并检查 provider 凭据/模型目录。"))
@@ -311,7 +322,10 @@ export async function executeDoctor(input: {
       catalog_available: (modelCount ?? 0) > 0,
       model_count: modelCount ?? 0,
       provider_ids: providerIds ?? [],
-      configuration_present: Boolean(input.token),
+      configuration_present: providerConfiguration?.configured ?? null,
+      configured_provider_ids: providerConfiguration?.providerIds ?? [],
+      selected_provider_id: providerConfiguration?.selectedProviderId ?? null,
+      selected_model_id: providerConfiguration?.selectedModelId ?? null,
     },
     checks: Object.freeze(checks),
   })

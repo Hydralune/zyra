@@ -49,6 +49,53 @@ function report(): DoctorReport {
 }
 
 describe("product doctor", () => {
+  test("does not mistake an API bearer token for a configured model provider", async () => {
+    const workspace = await directory()
+    const result = await executeDoctor({
+      command: command(),
+      cwd: workspace,
+      token: "api-access-token-is-not-a-model-credential",
+      overrides: {
+        daemon: {
+          reachable: true,
+          managed: false,
+          baseUrl: "http://127.0.0.1:18998",
+          staleState: false,
+        },
+        readiness: {
+          ready: true,
+          status: "ready",
+          apiVersion: "1.0",
+          owners: { task_store: true },
+          blockers: [],
+          raw: {
+            details: {
+              provider_configuration: {
+                configured: false,
+                provider_ids: [],
+                selected_provider_id: null,
+                selected_model_id: null,
+              },
+            },
+          },
+        },
+        providerIds: ["deepseek"],
+        modelCount: 1,
+      },
+    })
+
+    expect(result.report.healthy).toBe(false)
+    expect(result.report.providers).toMatchObject({
+      catalog_available: true,
+      configuration_present: false,
+      configured_provider_ids: [],
+    })
+    expect(result.report.checks).toContainEqual(expect.objectContaining({
+      id: "providers.configuration",
+      status: "fail",
+    }))
+  })
+
   test("diagnoses a foreign occupied port without starting or trusting it", async () => {
     const workspace = await directory()
     const result = await executeDoctor({

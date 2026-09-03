@@ -23,7 +23,7 @@ import { parseProductCommand, productCommandCandidates, productCommandHelp } fro
 import { openProductArtifact } from "../product/artifact/controller.ts"
 import { workspaceReferenceCandidates } from "../product/files/index.ts"
 import { openProductDiff } from "../product/diff/controller.ts"
-import { formatExecutionMode, formatModelStatus, formatRuntimeReadiness, type ProductExecutionMode } from "../product/diagnostics/status.ts"
+import { formatExecutionMode, formatModelStatus, formatRuntimeReadiness, providerConfigurationFromReadiness, type ProductExecutionMode } from "../product/diagnostics/status.ts"
 import { ProductOnboardingStore } from "../product/onboarding/state.ts"
 import { ProductDraftStore } from "../product/session/local-state.ts"
 import { copyLatestAssistantMessage, exportProductTranscript, rawTranscriptLines } from "../product/transcript/export.ts"
@@ -1958,6 +1958,26 @@ async function runProductSession(input: {
     // Terminal history remains observation-only and does not pay this cost.
     const resumesExecution = next.kind === "resume"
       && (!terminalTask(next.task) || ["failed", "blocked"].includes(next.task.status))
+    if ((next.kind === "goal" || resumesExecution) && typeof input.api.readiness === "function") {
+      try {
+        const readiness = await input.api.readiness(input.signal)
+        const provider = providerConfigurationFromReadiness(readiness)
+        if (!provider?.configured) {
+          throw new CliTaskError(
+            provider
+              ? "当前 daemon 未加载可用模型凭据。请确认 Zyra 项目中的 .env.deepseek.local 已配置，停止旧 daemon 后重新启动 CLI。"
+              : "当前 daemon 未提供模型配置状态，可能仍是旧进程。请停止旧 daemon，并由当前版本 Zyra CLI 重新启动。",
+            provider ? "provider_not_configured" : "provider_configuration_unknown",
+          )
+        }
+      } catch (error) {
+        if (!input.tty) throw error
+        if (next.kind === "goal") input.shell.restoreDraft(next.goal)
+        input.shell.notice(`任务未启动；输入已保留 · ${controlError(error)}`)
+        next = undefined
+        continue
+      }
+    }
     if (
       executionMode === "standard"
       && !terminalReady

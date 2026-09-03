@@ -1760,6 +1760,54 @@ test("runtime commits provider prompt usage and recovery state through default l
   assert.ok(failureHost.events.some((event) => event.phase === "api_retry_report"));
 });
 
+test("direct-response runtime calls the provider without exposing workspace tools", async () => {
+  const originalFetch = globalThis.fetch;
+  const providerBodies: JsonObject[] = [];
+  globalThis.fetch = (async (
+    _resource: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    providerBodies.push(JSON.parse(String(init?.body ?? "{}")) as JsonObject);
+    const event = {
+      id: "direct-response-message",
+      object: "chat.completion.chunk",
+      model: "deepseek-test-model",
+      choices: [{ index: 0, delta: { content: "ZYRA_DIRECT_OK" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+    };
+    return new Response(`data: ${JSON.stringify(event)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const result = await new ClaudeRuntimeCore().run(input({
+      turns: [],
+      config: {
+        maxTurns: 3,
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          model_api_base_url: "https://provider.invalid/v1",
+          model_api_key: "test-only-provider-key",
+          disable_model_tools: true,
+        },
+      },
+    }), new MemoryHost());
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      (result.sessionSnapshot.modelIteration as JsonObject).finalText,
+      "ZYRA_DIRECT_OK",
+    );
+    assert.equal(result.toolCallCount, 0);
+    assert.equal(providerBodies.length, 1);
+    assert.equal(providerBodies[0].tools, undefined);
+    assert.equal(providerBodies[0].tool_choice, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("auto compaction replaces the next provider request transcript", async () => {
   const originalFetch = globalThis.fetch;
   const requestBodies: JsonObject[] = [];

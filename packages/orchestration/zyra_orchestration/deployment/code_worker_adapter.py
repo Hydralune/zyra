@@ -837,6 +837,12 @@ def execute_code_worker_operator(
         if isinstance(payload.get("goal_contract"), Mapping)
         else {}
     )
+    if str(goal_contract.get("expected_response") or "").strip():
+        # An explicit direct-response contract requires a real provider call,
+        # but it requires no physical workspace effects.  Hiding tools from
+        # the provider prevents a compliant text-only answer from later being
+        # invalidated by an unnecessary permission-denied tool attempt.
+        constraints["disable_model_tools"] = True
     if delivery_contract.get("workspace_mutation_required") is True:
         # Keep the obligation available through both runtime input channels.
         # The TypeScript progress controller consumes request metadata, while
@@ -1725,6 +1731,10 @@ def _execution_prompt(
         requirements.append(
             "Your entire final response must be exactly this text, with no "
             f"prefix, suffix, quotes, or Markdown: {expected_response}"
+        )
+        requirements.append(
+            "This is a text-only direct-response task. Do not inspect or modify "
+            "the workspace and do not call tools."
         )
     for path in delivery_contract.get("required_paths") or ():
         if str(path):

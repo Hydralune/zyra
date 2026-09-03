@@ -2263,7 +2263,7 @@ def test_early_exit_disabled_executes_every_available_maas_layer(
         worker_id="local-memory-curator"
     )
     state, created = api.make_task_created_event(
-        "Implement a code artifact, preserve memory, and verify the result."
+        "Only reply with ZYRA_FULL_DEPTH_OK."
     )
     workspace = api.get_workspace_manager().create_for_task(
         run_id=state.run_id,
@@ -2436,6 +2436,8 @@ def test_early_exit_disabled_executes_every_available_maas_layer(
     receipt_digest = receipt_unsigned.pop("receipt_digest")
     assert receipt_digest == canonical_digest(receipt_unsigned)
     assert all(item["output_contract_fulfilled"] is True for item in layers)
+    assert state.metadata["final_answer"] == "ZYRA_FULL_DEPTH_OK"
+    assert state.metadata["goal_contract_verification"]["passed"] is True
     assert str(state.status) == "completed"
 
 

@@ -6,6 +6,7 @@ import {
   DAEMON_STATE_SCHEMA,
   daemonRuntimeStateRoot,
   daemonHealthOwnsState,
+  managedDaemonLaunchConflict,
   selectDeploymentProfileBasePort,
   type DaemonHealthIdentity,
   type DaemonState,
@@ -61,5 +62,12 @@ describe("daemon process identity", () => {
     expect(first).not.toBe(second)
     expect(first).toContain("generation-a")
     expect(daemonRuntimeStateRoot("ignored", explicit)).toBe(resolve(explicit))
+  })
+
+  test("reports a live managed daemon on another origin as a launch conflict", () => {
+    expect(managedDaemonLaunchConflict(state, state.base_url, true)).toBe(false)
+    expect(managedDaemonLaunchConflict(state, "http://127.0.0.1:8170", true)).toBe(true)
+    expect(managedDaemonLaunchConflict(state, "http://127.0.0.1:8170", false)).toBe(false)
+    expect(managedDaemonLaunchConflict(undefined, "http://127.0.0.1:8170", true)).toBe(false)
   })
 })

@@ -2668,7 +2668,11 @@ class Phase2StrongestProductionBridge:
                 state.metadata["verification_command_evidence"] = (
                     command_evidence
                 )
-        if response_contract is not None:
+        # Only the CodeWorker owns the user-facing response. Later physical
+        # layers (for example the memory curator) intentionally have no
+        # ``final_text`` and must not overwrite a successful response verdict
+        # with validation of an empty string.
+        if response_contract is not None and code_worker_execution:
             state.metadata["goal_contract_verification"] = dict(
                 response_verification
             )

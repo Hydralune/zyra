@@ -999,3 +999,5 @@ def test_physical_code_worker_runs_model_tool_observation_model_loop(
     assert "entire final response must be exactly" in json.dumps(
         requests[2]
     )
+    assert "text-only direct-response task" in json.dumps(requests[2])
+    assert "tools" not in requests[2]

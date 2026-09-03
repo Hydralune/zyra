@@ -6330,6 +6330,7 @@ def runtime_readiness_probes(
     except Exception as error:  # noqa: BLE001 - readiness must fail closed.
         return legacy, {
             "productization": dict(productization),
+            "provider_configuration": _provider_configuration_status(),
             "canonical_runtime_owners": {
                 "ready": False,
                 "blockers": [item.value for item in RuntimeDomain],
@@ -6377,6 +6378,7 @@ def runtime_readiness_probes(
     details = {
         "productization": dict(productization),
         "canonical_runtime_owners": canonical,
+        "provider_configuration": _provider_configuration_status(),
         "legacy_projection": {
             name: {
                 "available": ready,
@@ -7911,6 +7913,35 @@ def _preferred_configured_provider() -> tuple[str, str] | None:
         if key in configured:
             return provider_id, model_id
     return None
+
+
+def _provider_configuration_status() -> dict[str, Any]:
+    """Expose provider availability without exposing credential material."""
+
+    try:
+        configured_keys = set(_load_configured_provider_environment())
+    except (OSError, UnicodeError, ValueError) as error:
+        return {
+            "schema": "zyra.provider-configuration-status/v1",
+            "configured": False,
+            "provider_ids": [],
+            "selected_provider_id": None,
+            "selected_model_id": None,
+            "error": type(error).__name__,
+        }
+    configured = [
+        (provider_id, model_id)
+        for key, _, provider_id, model_id in _PROVIDER_ENV_FILES
+        if key in configured_keys
+    ]
+    selected = configured[0] if configured else ("", "")
+    return {
+        "schema": "zyra.provider-configuration-status/v1",
+        "configured": bool(configured),
+        "provider_ids": [provider_id for provider_id, _ in configured],
+        "selected_provider_id": selected[0] or None,
+        "selected_model_id": selected[1] or None,
+    }
 
 
 _PRODUCT_EXECUTION_IDENTITY = re.compile(

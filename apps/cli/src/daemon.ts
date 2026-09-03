@@ -250,6 +250,14 @@ export function daemonHealthOwnsState(
   )
 }
 
+export function managedDaemonLaunchConflict(
+  state: DaemonState | undefined,
+  requestedBaseUrl: string,
+  alive: boolean,
+): boolean {
+  return Boolean(state && alive && state.base_url !== requestedBaseUrl)
+}
+
 function markerExists(candidate: string): boolean {
   return existsSync(join(candidate, "package.json"))
     && existsSync(join(candidate, "scripts", "dev_api.py"))
@@ -443,6 +451,12 @@ async function startManagedDaemon(options: DaemonOptions): Promise<DaemonState> 
     }
     const prior = await readState()
     if (prior && processAlive(prior.pid)) {
+      if (managedDaemonLaunchConflict(prior, options.baseUrl, true)) {
+        throw new CliDaemonError(
+          `A managed Zyra daemon is already running at ${prior.base_url}; stop it before starting ${options.baseUrl}.`,
+          { pid: prior.pid, generation: prior.generation, existing_base_url: prior.base_url },
+        )
+      }
       while (Date.now() < deadline) {
         if (await probeHealth(options.baseUrl, options.token)) return prior
         await sleep(200)

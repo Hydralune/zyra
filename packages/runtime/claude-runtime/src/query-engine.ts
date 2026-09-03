@@ -487,6 +487,9 @@ export class ClaudeRuntimeCore {
       });
     }
     const registry = new RuntimeToolRegistry(input.tools);
+    const providerTools = asBoolean(config.runtimeConstraints.disable_model_tools)
+      ? []
+      : registry.list();
     let turns = normalizeTurns(input.turns);
     const restored = selectRestoredSnapshot(input.restoredState);
     const session = restored
@@ -1266,7 +1269,7 @@ export class ClaudeRuntimeCore {
       resume_content_replacements_seeded:
         processedResume?.seededContentReplacements ?? false,
       model_name: config.modelName,
-      registry_size: registry.list().length,
+      registry_size: providerTools.length,
     });
     if (resourceBudget) {
       await emit("execution_resource_budget_accepted", {
@@ -1393,7 +1396,7 @@ export class ClaudeRuntimeCore {
         input,
         config,
         turns,
-        registry.list(),
+        providerTools,
         emit,
         (observation) => e01.decideProviderRecovery(observation),
         e01.journal.restartEpoch,
@@ -1419,7 +1422,7 @@ export class ClaudeRuntimeCore {
           model,
           iterationRound,
           true,
-          registry.list(),
+          providerTools,
         );
         if (settled.semanticStallExhausted) {
           ok = false;
@@ -2783,7 +2786,7 @@ export class ClaudeRuntimeCore {
             epoch: e01.journal.restartEpoch,
           };
           const history = compactBlocksFromMessages(compactSource);
-          const allowedTools = registry.list().map((tool) => tool.name);
+          const allowedTools = providerTools.map((tool) => tool.name);
           const deniedTools = runtimeStringArray(config.runtimeConstraints.denied_tools);
           // A CodeWorker registry scope is not a BrowserWorker grant. Only an
           // explicitly declared browser scope may cross this context handoff;
@@ -3195,7 +3198,7 @@ export class ClaudeRuntimeCore {
           input,
           config,
           [],
-          finalResponseOnly ? [] : registry.list(),
+          finalResponseOnly ? [] : providerTools,
           emit,
           (observation) => e01.decideProviderRecovery(observation),
           e01.journal.restartEpoch,
@@ -3235,7 +3238,7 @@ export class ClaudeRuntimeCore {
             nextModel,
             nextRound,
             !finalResponseOnly,
-            finalResponseOnly ? [] : registry.list(),
+            finalResponseOnly ? [] : providerTools,
           );
           if (settled.semanticStallExhausted) {
             ok = false;

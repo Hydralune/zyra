@@ -8,6 +8,30 @@ function firstText(...values: unknown[]): string | undefined {
   return values.find((value): value is string => typeof value === "string" && Boolean(value.trim()))?.trim()
 }
 
+export interface ProviderConfigurationStatus {
+  configured: boolean
+  providerIds: readonly string[]
+  selectedProviderId?: string
+  selectedModelId?: string
+}
+
+export function providerConfigurationFromReadiness(
+  readiness: RuntimeReadiness,
+): ProviderConfigurationStatus | undefined {
+  const details = object(readiness.raw.details)
+  const configuration = object(details.provider_configuration)
+  if (typeof configuration.configured !== "boolean") return undefined
+  const providerIds = Array.isArray(configuration.provider_ids)
+    ? configuration.provider_ids.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+    : []
+  return Object.freeze({
+    configured: configuration.configured,
+    providerIds: Object.freeze(providerIds),
+    selectedProviderId: firstText(configuration.selected_provider_id),
+    selectedModelId: firstText(configuration.selected_model_id),
+  })
+}
+
 export function formatRuntimeReadiness(readiness: RuntimeReadiness): string {
   const ownerEntries = Object.entries(readiness.owners)
   const readyOwners = ownerEntries.filter(([, ready]) => ready).length
@@ -15,6 +39,12 @@ export function formatRuntimeReadiness(readiness: RuntimeReadiness): string {
     `本地服务 · ${readiness.ready ? "已就绪" : `未就绪（${readiness.status}）`} · API ${readiness.apiVersion}`,
     `执行组件 · ${readyOwners}/${ownerEntries.length} 已就绪`,
   ]
+  const provider = providerConfigurationFromReadiness(readiness)
+  lines.push(provider
+    ? provider.configured
+      ? `模型连接 · 已配置${provider.selectedProviderId ? `（${provider.selectedProviderId}/${provider.selectedModelId ?? "自动"}）` : ""}`
+      : "模型连接 · 未配置"
+    : "模型连接 · 当前 daemon 未提供配置状态；请重启 daemon")
   if (readiness.blockers.length) lines.push(...readiness.blockers.slice(0, 12).map((blocker) => `阻塞项 · ${blocker}`))
   return lines.join("\n")
 }

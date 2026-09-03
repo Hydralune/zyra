@@ -30,6 +30,9 @@ def _configure_clean_state(monkeypatch, root: Path) -> None:
     monkeypatch.delenv("ZYRA_MEMORY_CURATOR_DISABLED", raising=False)
     monkeypatch.delenv("ZYRA_TERMINAL_DISABLED", raising=False)
     monkeypatch.delenv("ZYRA_DISABLE_RECOVERY_RUNTIME", raising=False)
+    monkeypatch.setenv("ZYRA_DISABLE_LOCAL_PROVIDER_ENV_FILES", "1")
+    for key in api.PROVIDER_API_KEY_ENV.values():
+        monkeypatch.delenv(key, raising=False)
 
 
 def _reset_api_composition() -> None:
@@ -62,6 +65,13 @@ def test_api_readiness_is_gated_by_product_bootstrap_and_migrations(
         assert productization["demo_fallback"] is False
         assert productization["source_store_fallback"] is False
         assert productization["migration"]["ready"] is True
+        assert details["provider_configuration"] == {
+            "schema": "zyra.provider-configuration-status/v1",
+            "configured": False,
+            "provider_ids": [],
+            "selected_provider_id": None,
+            "selected_model_id": None,
+        }
         receipt = productization["receipt"]
         assert receipt["migration"]["transaction"]["state"] == "committed"
         assert receipt["owner_readiness"]["ready"] is True
