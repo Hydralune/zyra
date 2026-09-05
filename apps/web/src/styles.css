@@ -7244,12 +7244,12 @@ kbd {
   height: 78px;
   margin: 0 auto 18px;
   place-items: center;
-  border: 1px solid #e6e6e6;
+  border: 1px solid #dddffa;
   border-radius: 25px;
   background:
     radial-gradient(circle at 35% 25%, rgb(255 255 255 / 0.9), transparent 33%),
-    linear-gradient(145deg, #f5f5f5, #e5e5e5);
-  box-shadow: 0 18px 50px rgb(106 106 106 / 0.12), inset 0 1px rgb(255 255 255 / 0.9);
+    linear-gradient(145deg, #e0f5ff, #ede5ff);
+  box-shadow: 0 18px 50px rgb(99 102 241 / 0.16), inset 0 1px rgb(255 255 255 / 0.9);
   transform: rotate(9deg);
 }
 
@@ -7260,8 +7260,8 @@ kbd {
   place-items: center;
   border-radius: 15px;
   color: #ffffff;
-  background: linear-gradient(145deg, #767676, #585858);
-  box-shadow: 0 7px 20px rgb(91 91 91 / 0.22);
+  background: linear-gradient(145deg, #2563eb, #7c3aed);
+  box-shadow: 0 7px 20px rgb(99 102 241 / 0.3);
   font-size: 19px;
   font-weight: 780;
   transform: rotate(-9deg);

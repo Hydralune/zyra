@@ -125,7 +125,7 @@ body { background: #fafafa; color: #202020; }
 }
 .product-orbit { transition: transform 200ms ease, box-shadow 200ms ease; }
 @media (hover: hover) {
-  .product-orbit:hover { transform: rotate(9deg) scale(1.08); box-shadow: 0 22px 56px rgb(80 80 80 / 18%), inset 0 1px rgb(255 255 255 / 90%); }
+  .product-orbit:hover { transform: rotate(9deg) scale(1.08); box-shadow: 0 22px 56px rgb(99 102 241 / 24%), inset 0 1px rgb(255 255 255 / 90%); }
 }
 @media (prefers-reduced-motion: reduce) {
   .product-orbit { transition: none; }
