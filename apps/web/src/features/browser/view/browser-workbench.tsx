@@ -1277,7 +1277,7 @@ export function BrowserWorkbench({
       <header className="browser-workbench-header">
         <div>
           <div className="browser-heading-line">
-            <h3 id="browser-workbench-heading">Browser session & artifact viewer</h3>
+            <h3 id="browser-workbench-heading">浏览器执行记录</h3>
             <span className={`browser-phase-badge ${phaseTone(state.projection.phase)}`}>
               {state.projection.phase}
             </span>

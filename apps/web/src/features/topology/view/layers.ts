@@ -398,14 +398,14 @@ export function topologyLayerIds(): readonly TopologyLayerId[] {
 
 export function topologyLayerLabel(id: TopologyLayerId): string {
   const labels: Readonly<Record<TopologyLayerId, string>> = Object.freeze({
-    structure: "Structure",
-    "route-density": "Route density",
-    "route-churn": "Route churn",
-    broadcast: "Broadcast fan-out",
-    placement: "Placement",
-    "provider-model": "Provider / model",
-    privacy: "Privacy",
-    "policy-violation": "Policy violations",
+    structure: "结构关系",
+    "route-density": "路由密度",
+    "route-churn": "路由变更",
+    broadcast: "广播范围",
+    placement: "执行位置",
+    "provider-model": "服务商 / 模型",
+    privacy: "隐私等级",
+    "policy-violation": "策略违规",
   })
   return labels[id]
 }

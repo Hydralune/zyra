@@ -690,6 +690,35 @@ describe("artifact viewer models and verified media lifecycle", () => {
 })
 
 describe("artifact operation runtime reachability", () => {
+  test("repeated selection while metadata loads preserves the original request", async () => {
+    const api = fakeTaskApi()
+    const readMetadata = api.artifactMetadata.bind(api)
+    let release!: () => void
+    let entered!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const started = new Promise<void>((resolve) => { entered = resolve })
+    let calls = 0
+    let signal: AbortSignal | undefined
+    api.artifactMetadata = async (...args) => {
+      calls += 1
+      signal = args[2]?.signal
+      entered()
+      await gate
+      return readMetadata(...args)
+    }
+    const runtime = new ArtifactWorkbenchRuntime({ api, taskId: TASK_ID })
+    const loading = runtime.loadCatalog()
+    await started
+    await runtime.select({ artifactId: "artifact-text", revision: REVISION, source: "artifact", focus: true })
+    expect(calls).toBe(1)
+    expect(signal?.aborted).toBe(false)
+    expect(runtime.state.phase).toBe("artifact-loading")
+    release()
+    await loading
+    expect(runtime.state.phase).toBe("artifact-ready")
+    expect(runtime.state.error).toBeUndefined()
+    runtime.close()
+  })
   test("loads catalog, verifies metadata/range, builds text viewer and audits causality", async () => {
     const api = fakeTaskApi()
     const runtime = new ArtifactWorkbenchRuntime({

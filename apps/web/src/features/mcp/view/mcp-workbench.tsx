@@ -110,7 +110,7 @@ export function McpWorkbench({
       <header className="panel-header">
         <div>
           <span className="eyebrow">Runtime extensions</span>
-          <h2>MCP control plane</h2>
+          <h2>MCP 服务</h2>
           <p className="muted">
             Canonical projection revision{" "}
             {snapshot.projection?.authority.projectionRevision ?? "—"}

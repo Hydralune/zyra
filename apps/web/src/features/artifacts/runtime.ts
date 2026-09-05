@@ -371,6 +371,11 @@ export class ArtifactWorkbenchRuntime {
       })
       return
     }
+    // Repeated clicks on the revision already loading must not cancel its
+    // shared metadata request and then rejoin that cancelled request.
+    if (this.#selectionController && !this.#selectionController.signal.aborted
+      && this.#state.selected?.artifactId === projected.artifactId
+      && this.#state.selected.revision === projected.revision) return
     this.#audit.selection(projected, selection.source)
     this.#selectionController?.abort("Superseded artifact selection.")
     this.#searchController?.abort("Artifact selection changed.")

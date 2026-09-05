@@ -54,14 +54,14 @@ function TraceMetrics({ controller }: { controller: TraceWorkbenchController }) 
   const diagnostics = projection.diagnostics
   return (
     <dl className="fact-grid trace-metrics">
-      <div><dt>Canonical events</dt><dd>{diagnostics.eventCount}</dd></div>
-      <div><dt>Trace nodes</dt><dd>{diagnostics.nodeCount}</dd></div>
-      <div><dt>Typed edges</dt><dd>{diagnostics.edgeCount}</dd></div>
-      <div><dt>Critical duration</dt><dd>{formatDuration(projection.criticalPath.durationMs)}</dd></div>
-      <div><dt>Projection lag</dt><dd>{diagnostics.lag}</dd></div>
-      <div><dt>Partial / late</dt><dd>{diagnostics.partialCount} / {diagnostics.lateCount}</dd></div>
-      <div><dt>Orphan / quarantine</dt><dd>{diagnostics.orphanCount} / {diagnostics.quarantineCount}</dd></div>
-      <div><dt>Visible / hidden</dt><dd>{snapshot.folded.nodes.length} / {snapshot.folded.hiddenNodeKeys.length}</dd></div>
+      <div><dt>事件记录</dt><dd>{diagnostics.eventCount}</dd></div>
+      <div><dt>追踪节点</dt><dd>{diagnostics.nodeCount}</dd></div>
+      <div><dt>关联关系</dt><dd>{diagnostics.edgeCount}</dd></div>
+      <div><dt>关键路径用时</dt><dd>{formatDuration(projection.criticalPath.durationMs)}</dd></div>
+      <div><dt>待同步</dt><dd>{diagnostics.lag}</dd></div>
+      <div><dt>不完整 / 延迟</dt><dd>{diagnostics.partialCount} / {diagnostics.lateCount}</dd></div>
+      <div><dt>未关联 / 隔离</dt><dd>{diagnostics.orphanCount} / {diagnostics.quarantineCount}</dd></div>
+      <div><dt>显示 / 隐藏</dt><dd>{snapshot.folded.nodes.length} / {snapshot.folded.hiddenNodeKeys.length}</dd></div>
     </dl>
   )
 }
@@ -503,7 +503,7 @@ export function CausalTraceWorkbench({
       <div className="section-heading">
         <div>
           <p className="eyebrow">Canonical cross-view evidence</p>
-          <h3 id="causal-trace-heading">Causal trace</h3>
+          <h3 id="causal-trace-heading">事件追踪</h3>
         </div>
         <div className="trace-heading-actions">
           {snapshot.activeNavigation ? (
@@ -512,10 +512,10 @@ export function CausalTraceWorkbench({
             </span>
           ) : null}
           <button type="button" className="button button-secondary" onClick={() => controller.navigateBack()}>
-            Back across views
+            返回上一视图
           </button>
           <button type="button" className="button button-secondary" onClick={() => setCollapsed((value) => !value)}>
-            {collapsed ? "Open trace" : "Close viewer"}
+            {collapsed ? "Open trace" : "关闭查看器"}
           </button>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { nodeLabel, nodeDescription, nodeStateLabel, phaseLabel } from "../../shell/product-copy.ts"
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import type {
   PlanNodeProjection,
   TaskProjection,
@@ -16,7 +16,7 @@ import {
   selectEventsForTask,
   selectRevision,
 } from "../../state/selectors.ts"
-import { TopologyWorkbench } from "../../features/topology/view/topology-workbench.tsx"
+import { TopologyWorkbench, PolicyWorkbench } from "../../features/topology/view/topology-workbench.tsx"
 import { WorkerCausalTimelineWorkbench } from "../../features/timeline/view/timeline-workbench.tsx"
 import { ArtifactWorkbench } from "../../features/artifacts/view/artifact-workbench.tsx"
 import { DiffReviewWorkbench } from "../../features/diff-review/view/diff-review-workbench.tsx"
@@ -31,6 +31,7 @@ import { SubagentWorkbench } from "../../features/subagents/index.ts"
 import { LoopXWorkbench } from "../../features/long-horizon/loopx/index.ts"
 import { CommandQueuePanel } from "../../features/commands/queue-panel.tsx"
 import { permissionDisplayActor } from "../../features/permissions/index.ts"
+import type { EvidenceNavigationTarget } from "../../features/evidence/model.ts"
 
 function dateTime(value: string | undefined): string {
   if (!value) return "—"
@@ -175,9 +176,14 @@ function BoundSubagentWorkbench({
   return <SubagentWorkbench controller={runtime.subagentConsole} />
 }
 
+const SelectedEvidenceSection = createContext<string | undefined>(undefined)
+const EvidenceNavigation = createContext<((target: EvidenceNavigationTarget) => void) | undefined>(undefined)
+const EvidenceArtifact = createContext<string | undefined>(undefined)
+
 function EvidencePanel({ id, title, runtime, children }: {
   id: string; title: string; runtime: WorkbenchRuntime; children: ReactNode
 }) {
+  const selected = useContext(SelectedEvidenceSection)
   const [open, setOpen] = useState(() => runtime.router.current.query.section === id
     || (typeof location !== "undefined" && location.hash === `#${id}`))
   const ref = useRef<HTMLDetailsElement>(null)
@@ -191,6 +197,9 @@ function EvidencePanel({ id, title, runtime, children }: {
     window.addEventListener("hashchange", reveal)
     return () => { unsubscribe(); window.removeEventListener("hashchange", reveal) }
   }, [id, runtime])
+  if (selected) return selected === id
+    ? <section id={id} className="evidence-focused-panel" aria-label={title}>{children}</section>
+    : null
   return (
     <details ref={ref} id={id} className="evidence-panel" open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}>
@@ -201,6 +210,9 @@ function EvidencePanel({ id, title, runtime, children }: {
 }
 
 function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: TaskProjection }) {
+  const selected = useContext(SelectedEvidenceSection)
+  const navigateEvidence = useContext(EvidenceNavigation)
+  const artifactId = useContext(EvidenceArtifact)
   const tree = useMemo(() => buildTaskTree(task), [task])
   const metrics = useMemo(() => taskMetrics(task), [task])
   const live = useProjectionSelector(runtime, selectTaskSummary(task.taskId))
@@ -211,7 +223,7 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
   const projectionRevision = useProjectionSelector(runtime, selectRevision())
   return (
     <div className="task-detail-scroll" data-task-id={task.taskId}>
-      <header className="task-detail-header">
+      {!selected ? <header className="task-detail-header">
         <div>
           <div className="task-identity">
             <span className={`status-marker status-${task.status}`} aria-hidden="true" />
@@ -223,7 +235,7 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
           <p className="task-id">{task.taskId}</p>
         </div>
         <TaskActions runtime={runtime} task={task} />
-      </header>
+      </header> : null}
 
       <EvidencePanel runtime={runtime} id="evidence-diagnostics" title="运行信息与诊断">
       <dl className="fact-grid">
@@ -314,7 +326,11 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
       </EvidencePanel>
 
       <EvidencePanel runtime={runtime} id="evidence-topology" title="任务拓扑与协作">
-        <TopologyWorkbench runtime={runtime} task={task} />
+        <TopologyWorkbench runtime={runtime} task={task} onEvidenceNavigate={navigateEvidence} />
+      </EvidencePanel>
+
+      <EvidencePanel runtime={runtime} id="evidence-policy" title="策略与执行回执">
+        <PolicyWorkbench runtime={runtime} task={task} onEvidenceNavigate={navigateEvidence} />
       </EvidencePanel>
 
       <EvidencePanel runtime={runtime} id="evidence-long-horizon" title="长程任务">
@@ -399,7 +415,7 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
       <EvidencePanel runtime={runtime} title="全部产物、运行记录与内容校验"
         id="evidence-artifacts"
       >
-        <ArtifactWorkbench runtime={runtime} taskId={task.taskId} />
+        <ArtifactWorkbench runtime={runtime} taskId={task.taskId} initialArtifactId={artifactId} />
       </EvidencePanel>
 
       <EvidencePanel runtime={runtime} id="evidence-diff" title="代码差异与变更审查">
@@ -415,6 +431,15 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
       </EvidencePanel>
     </div>
   )
+}
+
+export function TaskEvidenceSection({ runtime, task, section, onNavigate, artifactId }: {
+  runtime: WorkbenchRuntime; task: TaskProjection; section: string
+  onNavigate?: (target: EvidenceNavigationTarget) => void; artifactId?: string
+}) {
+  return <SelectedEvidenceSection.Provider value={section}><EvidenceNavigation.Provider value={onNavigate}><EvidenceArtifact.Provider value={artifactId}>
+    <DetailContent runtime={runtime} task={task} />
+  </EvidenceArtifact.Provider></EvidenceNavigation.Provider></SelectedEvidenceSection.Provider>
 }
 
 export function TaskDetail({

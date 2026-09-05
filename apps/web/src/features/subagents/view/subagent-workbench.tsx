@@ -88,7 +88,7 @@ export function SubagentWorkbench(props: {
       <header className="subagent-workbench__header">
         <div>
           <p className="eyebrow">AgentTool · canonical projection</p>
-          <h2>Subagents</h2>
+          <h2>子代理</h2>
           <p role="status" aria-live="polite">
             {projection
               ? `${projection.activeIds.length} active · ${projection.settledIds.length} settled · revision ${projection.canonicalRevision}`

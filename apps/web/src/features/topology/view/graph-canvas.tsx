@@ -15,6 +15,7 @@ import type {
 import type { TopologyWorkbenchController } from "./controller.ts"
 import { buildAccessibleGraph, safeDomId } from "./accessibility.ts"
 import { point, rect } from "./geometry.ts"
+import { topologyLabel } from "./copy.ts"
 
 function pathData(points: readonly { x: number; y: number }[]): string {
   if (points.length === 0) return ""
@@ -94,8 +95,8 @@ function GraphNode({
   const node = value.node
   const layout = value.layout
   const title =
-    node.title.length > 32 ? `${node.title.slice(0, 31)}…` : node.title
-  const subtitle = `${node.role} · ${node.location}`
+    topologyLabel(node.title).length > 32 ? `${topologyLabel(node.title).slice(0, 31)}…` : topologyLabel(node.title)
+  const subtitle = `${topologyLabel(node.role)} · ${topologyLabel(node.location)}`
   return (
     <g
       id={`topology-node-${safeDomId(node.id)}`}
@@ -154,7 +155,7 @@ function GraphNode({
         x={17}
         y={layout.size.height - 12}
       >
-        {node.dependencyCount} dep · {node.workerCount} worker · {node.routeCount} route
+        {node.dependencyCount} 依赖 · {node.workerCount} 执行者 · {node.routeCount} 路由
       </text>
       {node.policyViolation ? (
         <g className="topology-node-alert" transform={`translate(${layout.size.width - 23} 16)`}>
@@ -197,6 +198,7 @@ function GraphCluster({
         value.layer ? `severity-${value.layer.severity}` : "",
       ].filter(Boolean).join(" ")}
       transform={`translate(${cluster.bounds.x} ${cluster.bounds.y})`}
+      data-topology-cluster={cluster.id}
       role="treeitem"
       aria-label={`Cluster of ${cluster.nodeIds.length} nodes, ${cluster.policyViolationCount} policy violations`}
       tabIndex={-1}
@@ -239,6 +241,7 @@ export function TopologyGraphCanvas({
   const container = useRef<HTMLDivElement>(null)
   const svg = useRef<SVGSVGElement>(null)
   const pointerActive = useRef<number | undefined>(undefined)
+  const pointerOrigin = useRef<{ kind: "node" | "edge" | "cluster"; id: string } | undefined>(undefined)
   const accessible = useMemo(
     () =>
       buildAccessibleGraph(snapshot.model, snapshot.layout, {
@@ -288,6 +291,11 @@ export function TopologyGraphCanvas({
       })
     ) {
       pointerActive.current = event.pointerId
+      const target = event.target instanceof Element ? event.target.closest("[data-topology-node], [data-topology-edge], [data-topology-cluster]") : null
+      const edgeId = target?.getAttribute("data-topology-edge")
+      const clusterId = target?.getAttribute("data-topology-cluster")
+      pointerOrigin.current = nodeId ? { kind: "node", id: nodeId }
+        : edgeId ? { kind: "edge", id: edgeId } : clusterId ? { kind: "cluster", id: clusterId } : undefined
       svg.current?.setPointerCapture(event.pointerId)
       event.preventDefault()
     }
@@ -310,7 +318,12 @@ export function TopologyGraphCanvas({
     if (svg.current?.hasPointerCapture(event.pointerId)) {
       svg.current.releasePointerCapture(event.pointerId)
     }
-    if (result.click && event.target === svg.current) controller.clearSelection()
+    // Pointer capture retargets pointerup/click to the SVG. Use the original
+    // entity so a real mouse click does not immediately clear its selection.
+    if (result.click) {
+      if (pointerOrigin.current) controller.select(pointerOrigin.current.kind, pointerOrigin.current.id, "pointer")
+      else controller.clearSelection()
+    }
   }
   const keyDown = (event: KeyboardEvent<SVGSVGElement>) => {
     if (
@@ -350,7 +363,11 @@ export function TopologyGraphCanvas({
         onPointerDown={(event) => pointerDown(event)}
         onPointerMove={pointerMove}
         onPointerUp={pointerUp}
-        onPointerCancel={(event) => controller.viewport.pointerCancel(event.pointerId)}
+        onPointerCancel={(event) => { controller.viewport.pointerCancel(event.pointerId); pointerActive.current = undefined; pointerOrigin.current = undefined }}
+        onDoubleClick={() => {
+          if (pointerOrigin.current?.kind === "node") controller.viewport.focusNode(pointerOrigin.current.id, 1.15)
+          if (pointerOrigin.current?.kind === "cluster") controller.viewport.toggleCluster(pointerOrigin.current.id)
+        }}
         onPointerLeave={() => {
           if (pointerActive.current === undefined) controller.viewport.clearHover()
         }}
@@ -413,8 +430,8 @@ export function TopologyGraphCanvas({
         ))}
       </ul>
       <div className="topology-canvas-stats" aria-hidden="true">
-        <span>{snapshot.renderPlan.virtualizedNodeCount}/{snapshot.renderPlan.totalNodeCount} nodes</span>
-        <span>{snapshot.renderPlan.virtualizedEdgeCount}/{snapshot.renderPlan.totalEdgeCount} edges</span>
+        <span>{snapshot.renderPlan.virtualizedNodeCount}/{snapshot.renderPlan.totalNodeCount} 节点</span>
+        <span>{snapshot.renderPlan.virtualizedEdgeCount}/{snapshot.renderPlan.totalEdgeCount} 关系</span>
         <span>{Math.round(transform.scale * 100)}%</span>
         {snapshot.renderPlan.lodLevel >= 0 ? <span>LOD {snapshot.renderPlan.lodLevel}</span> : null}
         {snapshot.renderPlan.clipped ? <span className="warning">render cap</span> : null}

@@ -319,7 +319,7 @@ export function TerminalWorkbench({
       })
       if (snapshot.terminal?.permission.effect === "ask") {
         setError(
-          "等待本次终端操作的权限审批。点击上方权限请求，批准后再点 Create PTY；批准凭据会自动带入。",
+          "等待本次终端操作的权限审批。点击上方权限请求，批准后再点 启动终端；批准凭据会自动带入。",
         )
       } else if (snapshot.terminal?.permission.effect === "deny") {
         setError(snapshot.terminal.permission.reason)
@@ -493,7 +493,7 @@ export function TerminalWorkbench({
     >
       <header className="terminal-workbench-header">
         <div>
-          <h3 id="terminal-workbench-heading">Terminal PTY</h3>
+          <h3 id="terminal-workbench-heading">工作区终端</h3>
           <p>
             Real workspace PTY with cursor replay. Closing a tab detaches the viewer;
             Kill is the only process-ending control.
@@ -517,23 +517,23 @@ export function TerminalWorkbench({
 
       <div className="terminal-create-grid">
         <label>
-          <span>Command</span>
+          <span>命令</span>
           <input value={draft.command} onChange={(event) => setDraft({ ...draft, command: event.target.value })} />
         </label>
         <label>
-          <span>Cwd</span>
+          <span>工作目录</span>
           <input value={draft.cwd} onChange={(event) => setDraft({ ...draft, cwd: event.target.value })} />
         </label>
         <label>
-          <span>Shell override</span>
+          <span>指定 Shell</span>
           <input placeholder="platform default" value={draft.shell} onChange={(event) => setDraft({ ...draft, shell: event.target.value })} />
         </label>
         <label>
-          <span>Permission permit</span>
+          <span>审批凭据</span>
           <input placeholder="optional approval permit" value={draft.permitId} onChange={(event) => setDraft({ ...draft, permitId: event.target.value })} />
         </label>
         <button className="button button-primary" disabled={busy || !draft.command.trim()} onClick={() => void create()} type="button">
-          {busy ? "Working…" : "Create PTY"}
+          {busy ? "Working…" : "启动终端"}
         </button>
       </div>
 

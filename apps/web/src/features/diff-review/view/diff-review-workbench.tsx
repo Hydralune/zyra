@@ -65,7 +65,7 @@ function fileKindSymbol(file: DiffFileContract): string {
 }
 
 function phaseMessage(state: DiffReviewWorkbenchState): string {
-  if (state.phase === "catalog-loading") return "Loading patch artifacts…"
+  if (state.phase === "catalog-loading") return "正在加载代码变更…"
   if (state.phase === "manifest-loading") return "Parsing the selected patch…"
   if (state.phase === "loading") return "Loading verified hunk pages…"
   if (state.phase === "preflighting") return "Checking file snapshots and merge safety…"
@@ -119,7 +119,7 @@ export function DiffReviewWorkbench({
 
   useEffect(() => {
     const unsubscribe = workbench.listen(setState)
-    void workbench.loadCatalog()
+    void workbench.loadCatalog().catch(() => { /* Load failures are published by the runtime; cancellation on unmount is expected. */ })
     return () => {
       unsubscribe()
       workbench.close("Diff review component unmounted.")
@@ -346,7 +346,7 @@ export function DiffReviewWorkbench({
     >
       <header className="diff-review-header">
         <div>
-          <h3 id="diff-review-heading">Patch review</h3>
+          <h3 id="diff-review-heading">代码变更审查</h3>
           <p>
             Revision-bound diffs with permission-gated apply, verification,
             rollback, and transaction receipts.
@@ -365,9 +365,9 @@ export function DiffReviewWorkbench({
           <button
             className="button button-secondary"
             type="button"
-            onClick={() => void workbench.loadCatalog()}
+            onClick={() => void workbench.loadCatalog().catch(() => { /* Load failures are published by the runtime; cancellation on unmount is expected. */ })}
           >
-            Refresh patches
+            刷新变更
           </button>
         </div>
       </header>
@@ -464,7 +464,7 @@ export function DiffReviewWorkbench({
           {state.patchArtifacts.length
             ? phaseMessage(state) || "Select a patch artifact."
             : state.phase === "catalog-loading"
-              ? "Loading patch artifacts…"
+              ? "正在加载代码变更…"
               : "No verified text patch artifact is attached to this task."}
         </div>
       )}

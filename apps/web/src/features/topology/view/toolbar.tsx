@@ -12,14 +12,14 @@ const STATUS_OPTIONS: readonly {
   value: TopologyStatusFilter
   label: string
 }[] = Object.freeze([
-  { value: "all", label: "All states" },
-  { value: "active", label: "Active" },
-  { value: "waiting", label: "Waiting / blocked" },
-  { value: "recovering", label: "Recovering" },
-  { value: "failed", label: "Failed / rejected" },
-  { value: "terminal", label: "Terminal" },
-  { value: "changed", label: "Changed topology" },
-  { value: "policy-risk", label: "Policy risk" },
+  { value: "all", label: "全部状态" },
+  { value: "active", label: "执行中" },
+  { value: "waiting", label: "等待 / 受阻" },
+  { value: "recovering", label: "恢复中" },
+  { value: "failed", label: "失败 / 拒绝" },
+  { value: "terminal", label: "已结束" },
+  { value: "changed", label: "关系已变更" },
+  { value: "policy-risk", label: "策略风险" },
 ])
 
 function toggle(values: readonly string[], value: string): readonly string[] {
@@ -76,11 +76,11 @@ export function TopologyToolbar({
     <div className="topology-toolbar" aria-label="Topology graph controls">
       <div className="topology-toolbar-primary">
         <label className="topology-search">
-          <span className="visually-hidden">Search topology</span>
+          <span className="visually-hidden">搜索关系图</span>
           <input
             type="search"
             value={filters.query}
-            placeholder="Search nodes, routes, checkpoints…"
+            placeholder="搜索节点、路由、检查点…"
             onChange={(event) => controller.setFilters({ query: event.currentTarget.value })}
             aria-controls="topology-graph-region"
           />
@@ -88,7 +88,7 @@ export function TopologyToolbar({
             <button
               type="button"
               className="icon-button"
-              aria-label="Clear topology search"
+              aria-label="清除搜索"
               onClick={() => controller.setFilters({ query: "" })}
             >
               ×
@@ -96,7 +96,7 @@ export function TopologyToolbar({
           ) : null}
         </label>
         <label className="topology-select-control">
-          <span>State</span>
+          <span>状态</span>
           <select
             value={filters.status}
             onChange={(event) =>
@@ -113,7 +113,7 @@ export function TopologyToolbar({
           </select>
         </label>
         <label className="topology-select-control">
-          <span>Layer</span>
+          <span>图层</span>
           <select
             value={snapshot.activeLayer}
             onChange={(event) =>
@@ -128,7 +128,7 @@ export function TopologyToolbar({
           </select>
         </label>
         <button type="button" className="button button-secondary" onClick={() => controller.fit()}>
-          Fit
+          适应画布
         </button>
         <button
           type="button"
@@ -141,7 +141,7 @@ export function TopologyToolbar({
             snapshot.viewport.transform.scale * 1.25,
             "programmatic",
           )}
-          aria-label="Zoom in"
+          aria-label="放大"
         >
           +
         </button>
@@ -156,26 +156,26 @@ export function TopologyToolbar({
             snapshot.viewport.transform.scale / 1.25,
             "programmatic",
           )}
-          aria-label="Zoom out"
+          aria-label="缩小"
         >
           −
         </button>
       </div>
-      <div className="topology-toolbar-filters">
+      <details className="topology-extra-filters"><summary>更多筛选</summary><div className="topology-toolbar-filters">
         <FilterMenu
-          label="Namespace"
+          label="命名空间"
           values={facets.namespaces}
           selected={filters.namespaces}
           onChange={(namespaces) => controller.setFilters({ namespaces })}
         />
         <FilterMenu
-          label="Role"
+          label="角色"
           values={facets.roles}
           selected={filters.roles}
           onChange={(roles) => controller.setFilters({ roles })}
         />
         <FilterMenu
-          label="Placement"
+          label="执行位置"
           values={facets.locations}
           selected={filters.locations}
           onChange={(locations) =>
@@ -185,25 +185,25 @@ export function TopologyToolbar({
           }
         />
         <FilterMenu
-          label="Provider"
+          label="服务商"
           values={facets.providers}
           selected={filters.providers}
           onChange={(providers) => controller.setFilters({ providers })}
         />
         <FilterMenu
-          label="Model"
+          label="模型"
           values={facets.models}
           selected={filters.models}
           onChange={(models) => controller.setFilters({ models })}
         />
         <FilterMenu
-          label="Privacy"
+          label="隐私等级"
           values={facets.privacyClasses}
           selected={filters.privacyClasses}
           onChange={(privacyClasses) => controller.setFilters({ privacyClasses })}
         />
         <FilterMenu
-          label="Capability"
+          label="能力"
           values={facets.capabilities}
           selected={filters.capabilities}
           onChange={(capabilities) => controller.setFilters({ capabilities })}
@@ -214,7 +214,7 @@ export function TopologyToolbar({
             checked={filters.changedOnly}
             onChange={(event) => controller.setFilters({ changedOnly: event.currentTarget.checked })}
           />
-          Changed
+          仅显示变更
         </label>
         <label className="topology-filter-check">
           <input
@@ -222,7 +222,7 @@ export function TopologyToolbar({
             checked={filters.openWorldOnly}
             onChange={(event) => controller.setFilters({ openWorldOnly: event.currentTarget.checked })}
           />
-          Open-world
+          动态新增
         </label>
         <label className="topology-filter-check">
           <input
@@ -232,7 +232,7 @@ export function TopologyToolbar({
               controller.setFilters({ policyViolationsOnly: event.currentTarget.checked })
             }
           />
-          Violations
+          策略违规
         </label>
         <label className="topology-filter-check">
           <input
@@ -240,12 +240,12 @@ export function TopologyToolbar({
             checked={filters.includePending}
             onChange={(event) => controller.setFilters({ includePending: event.currentTarget.checked })}
           />
-          Pending
+          包含待处理
         </label>
         <button type="button" className="link-button" onClick={() => controller.resetFilters()}>
-          Reset filters
+          重置筛选
         </button>
-      </div>
+      </div></details>
     </div>
   )
 }

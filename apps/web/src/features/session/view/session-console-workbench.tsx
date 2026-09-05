@@ -95,7 +95,7 @@ export function SessionConsoleWorkbench({
       <div className="section-heading">
         <div>
           <p className="eyebrow">Canonical backend custody</p>
-          <h3 id="session-console-heading">Session, context, memory & placement</h3>
+          <h3 id="session-console-heading">会话、记忆与执行位置</h3>
         </div>
         <span className={`tag tag-${projection?.connected ? "success" : "danger"}`}>
           {projection?.connected ? "live" : "disconnected"}
@@ -116,7 +116,7 @@ export function SessionConsoleWorkbench({
       <div className="settings-grid">
         <article aria-labelledby="session-lineage-heading">
           <div className="section-heading">
-            <h4 id="session-lineage-heading">Session lineage</h4>
+            <h4 id="session-lineage-heading">会话关系</h4>
             <span>{projection?.lineage.length ?? 0}</span>
           </div>
           <label>
@@ -163,16 +163,16 @@ export function SessionConsoleWorkbench({
 
         <article aria-labelledby="context-budget-heading">
           <div className="section-heading">
-            <h4 id="context-budget-heading">Context & compact</h4>
+            <h4 id="context-budget-heading">上下文与压缩</h4>
             <span>{context?.pressure ?? "unavailable"}</span>
           </div>
           <dl className="fact-grid">
-            <div><dt>Used</dt><dd>{humanTokens(context?.used ?? 0)}</dd></div>
-            <div><dt>Limit</dt><dd>{humanTokens(context?.limit ?? 0)}</dd></div>
-            <div><dt>Reserve</dt><dd>{humanTokens(context?.reserve ?? 0)}</dd></div>
-            <div><dt>Epoch</dt><dd>{context?.compactEpoch ?? 0}</dd></div>
-            <div><dt>Restore</dt><dd>{projection?.restoreSource ?? "none"}</dd></div>
-            <div><dt>Pending writes</dt><dd>{projection?.pendingWriteCount ?? 0}</dd></div>
+            <div><dt>已使用</dt><dd>{humanTokens(context?.used ?? 0)}</dd></div>
+            <div><dt>上限</dt><dd>{humanTokens(context?.limit ?? 0)}</dd></div>
+            <div><dt>预留</dt><dd>{humanTokens(context?.reserve ?? 0)}</dd></div>
+            <div><dt>压缩轮次</dt><dd>{context?.compactEpoch ?? 0}</dd></div>
+            <div><dt>恢复来源</dt><dd>{projection?.restoreSource ?? "none"}</dd></div>
+            <div><dt>待写入</dt><dd>{projection?.pendingWriteCount ?? 0}</dd></div>
           </dl>
           <div className="context-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={(context?.percentage ?? 0) * 100}>
             <span style={{ width: `${Math.min(100, (context?.percentage ?? 0) * 100)}%` }} />
@@ -227,7 +227,7 @@ export function SessionConsoleWorkbench({
               disabled={Boolean(busy) || !snapshot.connected}
               onClick={() => void act("context", () => runtime.sessionConsole.inspectContext("all"))}
             >
-              Inspect context
+              查看上下文
             </button>
           </div>
           {preview ? (
@@ -244,7 +244,7 @@ export function SessionConsoleWorkbench({
       <div className="settings-grid">
         <article aria-labelledby="checkpoint-heading">
           <div className="section-heading">
-            <h4 id="checkpoint-heading">Checkpoint & restore</h4>
+            <h4 id="checkpoint-heading">检查点与恢复</h4>
             <span>{projection?.checkpoints.length ?? 0}</span>
           </div>
           <ol className="compact-list">
@@ -295,17 +295,17 @@ export function SessionConsoleWorkbench({
 
         <article aria-labelledby="memory-heading">
           <div className="section-heading">
-            <h4 id="memory-heading">Memory & curator</h4>
+            <h4 id="memory-heading">记忆管理</h4>
             <span>{memory.totalRows}</span>
           </div>
           <div className="filter-row">
             <input
               value={memoryQuery}
-              placeholder="Search canonical memory"
+              placeholder="搜索记忆记录"
               onChange={(event) => setMemoryQuery(event.currentTarget.value)}
             />
             <select value={memoryLayer} onChange={(event) => setMemoryLayer(event.currentTarget.value as MemoryLayer | "all")}>
-              <option value="all">All layers</option>
+              <option value="all">全部记忆层</option>
               <option value="working">Working</option>
               <option value="episodic">Episodic</option>
               <option value="semantic">Semantic</option>
@@ -369,7 +369,7 @@ export function SessionConsoleWorkbench({
       <div className="settings-grid">
         <article aria-labelledby="provider-heading">
           <div className="section-heading">
-            <h4 id="provider-heading">Providers & models</h4>
+            <h4 id="provider-heading">服务商与模型</h4>
             <span>{providers.providers.length} / {providers.models.length}</span>
           </div>
           <label>
@@ -440,7 +440,7 @@ export function SessionConsoleWorkbench({
 
         <article aria-labelledby="placement-heading">
           <div className="section-heading">
-            <h4 id="placement-heading">Device / edge / cloud placement</h4>
+            <h4 id="placement-heading">设备、边缘与云端执行</h4>
             <span>{placement.selectedTier ?? "unplaced"}</span>
           </div>
           <dl className="fact-grid">

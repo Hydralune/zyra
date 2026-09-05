@@ -546,7 +546,7 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
       ? route.taskId
       : undefined
   const bootstrapKey = useMemo(
-    () => `${route.kind}:${routeTaskId ?? ""}:${route.query.status ?? ""}:${route.query.cursor ?? ""}`,
+    () => `${routeTaskId ? "task-detail" : route.kind}:${routeTaskId ?? ""}:${route.query.status ?? ""}:${route.query.cursor ?? ""}`,
     [route.kind, route.query.cursor, route.query.status, routeTaskId],
   )
 
@@ -707,11 +707,11 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
         <main id="workbench-main" tabIndex={-1}>
           <MainRoute runtime={runtime} route={route} />
         </main>
-        {route.kind !== "settings" ? (
+        {route.kind !== "settings" && route.kind !== "evidence" ? (
           <CommandInput
             runtime={runtime}
             taskContext={
-              route.kind === "task" || route.kind === "evidence"
+              route.kind === "task"
                 ? state.detail.task
                 : undefined
             }

@@ -826,9 +826,8 @@ export class TopologyViewportController {
     const overscan = this.options.overscanPixels / this.#snapshot.transform.scale
     const filteredNodes = new Set(context.filtered.nodeIds)
     const filteredEdges = new Set(context.filtered.edgeIds)
-    const useClusters =
-      context.model.nodes.length >= this.options.clusterThreshold ||
-      this.#snapshot.transform.scale < 0.8
+    // Small task graphs must remain inspectable when fitted into a narrow pane.
+    const useClusters = context.model.nodes.length >= this.options.clusterThreshold
     const lodLevel = useClusters
       ? context.clusterEngine.levelForScale(
           this.#snapshot.transform.scale,

@@ -531,6 +531,17 @@ function projection(
 }
 
 describe("topology interaction and large graph control", () => {
+  test("keeps small fitted graphs selectable instead of collapsing all nodes into a cluster", () => {
+    const controller = new TopologyWorkbenchController(TASK_ID, { initialViewport: { width: 600, height: 400 } })
+    controller.project(projection(8), { fit: true })
+    const snapshot = controller.getSnapshot()
+    expect(snapshot.viewport.transform.scale).toBeLessThan(0.8)
+    expect(snapshot.renderPlan.clusters).toHaveLength(0)
+    expect(snapshot.renderPlan.nodes).toHaveLength(8)
+    expect(controller.select("node", "node-0", "pointer")).toBeTruthy()
+    expect(controller.getSnapshot().selectedDetails?.id).toBe("node-0")
+    controller.close()
+  })
   test(
     "virtualizes and clusters a 2,400-node graph while preserving semantic layers and minimap navigation",
     () => {

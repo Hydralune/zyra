@@ -6,7 +6,7 @@ import type {
   TopologyControlAction,
 } from "./contracts.ts"
 import type { TopologyWorkbenchController } from "./controller.ts"
-import { layerSummary } from "./layers.ts"
+import { topologyLabel } from "./copy.ts"
 
 function metadataBoolean(metadata: Record<string, unknown>, ...keys: string[]): boolean {
   for (const key of keys) {
@@ -43,41 +43,32 @@ function DetailFacts({
   const details = snapshot.selectedDetails
   const intents = useMemo(() => controller.navigationIntents(), [controller, snapshot.viewport.selected])
   if (!details) {
-    const layer = snapshot.layers.get(snapshot.activeLayer)
     return (
       <div className="topology-inspector-empty">
-        <h4>No entity selected</h4>
-        <p>Select a node, edge, route, placement, checkpoint or branch to inspect canonical facts.</p>
-        {layer ? (
-          <>
-            <h5>{layer.id}</h5>
-            <ul>
-              {layerSummary(layer, snapshot.model).map((value) => <li key={value}>{value}</li>)}
-            </ul>
-          </>
-        ) : null}
+        <h4>选择一个节点</h4>
+        <p>点击图中的节点或连线，查看状态、依赖和关联记录。</p>
       </div>
     )
   }
   return (
     <article className="topology-entity-details" id={`topology-inspector-${details.id}`}>
       <header>
-        <span className="topology-detail-kind">{details.kind}</span>
-        <h4>{details.title}</h4>
-        <p>{details.subtitle}</p>
-        <span className={`tag status-${details.state}`}>{details.state}</span>
+        <span className="topology-detail-kind">{topologyLabel(details.kind)}</span>
+        <h4>{topologyLabel(details.title)}</h4>
+        <p>{topologyLabel(details.subtitle)}</p>
+        <span className={`tag status-${details.state}`}>{topologyLabel(details.state)}</span>
       </header>
       <dl className="topology-detail-facts">
         {details.facts.map((fact) => (
           <div key={`${fact.label}:${fact.value}`} className={fact.tone ? `tone-${fact.tone}` : undefined}>
-            <dt>{fact.label}</dt>
-            <dd>{fact.value}</dd>
+            <dt>{topologyLabel(fact.label)}</dt>
+            <dd>{topologyLabel(fact.value)}</dd>
           </div>
         ))}
       </dl>
       {details.relatedEntityIds.length > 0 ? (
         <details>
-          <summary>Related entities ({details.relatedEntityIds.length})</summary>
+          <summary>关联节点（{details.relatedEntityIds.length}）</summary>
           <div className="topology-related-list">
             {details.relatedEntityIds.slice(0, 80).map((id) => (
               <button
@@ -118,26 +109,26 @@ function DetailFacts({
               }}
             >
               {intent.kind === "open-artifact"
-                ? `Artifact ${intent.artifactId}`
+                ? `查看产物 ${intent.artifactId}`
                 : intent.kind === "open-timeline"
-                  ? `Timeline ${intent.eventId}`
+                  ? `查看事件 ${intent.eventId}`
                   : intent.kind === "open-causation"
-                    ? `Cause ${intent.causationId ?? intent.correlationId}`
-                    : intent.kind.replaceAll("-", " ")}
+                    ? `追踪来源 ${intent.causationId ?? intent.correlationId}`
+                    : topologyLabel(intent.kind)}
             </button>
           ))}
         </div>
       ) : null}
       <details>
-        <summary>Canonical evidence</summary>
+        <summary>原始证据</summary>
         <dl className="topology-evidence-list">
-          <dt>Events</dt>
+          <dt>事件</dt>
           <dd>{details.eventIds.join(", ") || "—"}</dd>
-          <dt>Mutations</dt>
+          <dt>变更</dt>
           <dd>{details.mutationIds.join(", ") || "—"}</dd>
-          <dt>Checkpoints</dt>
+          <dt>检查点</dt>
           <dd>{details.checkpointIds.join(", ") || "—"}</dd>
-          <dt>Artifacts</dt>
+          <dt>产物</dt>
           <dd>{details.artifactIds.join(", ") || "—"}</dd>
         </dl>
       </details>
@@ -153,7 +144,7 @@ function CheckpointLineage({
   controller: TopologyWorkbenchController
 }) {
   if (snapshot.model.checkpoints.length === 0) {
-    return <p className="muted-copy">No recovery checkpoint has been projected.</p>
+    return <p className="muted-copy">暂无恢复检查点。</p>
   }
   return (
     <ol className="topology-checkpoint-list">
@@ -192,7 +183,7 @@ function BranchConflicts({
   controller: TopologyWorkbenchController
 }) {
   if (snapshot.model.branches.length === 0 && snapshot.model.conflicts.length === 0) {
-    return <p className="muted-copy">No branch delta or conflict has been projected.</p>
+    return <p className="muted-copy">暂无分支变更或冲突。</p>
   }
   return (
     <div className="topology-branch-list">
@@ -273,25 +264,25 @@ function ControlForm({
   return (
     <form className="topology-control-form" onSubmit={submit}>
       <div className="topology-control-policy">
-        <span className={sealed ? "tag tag-danger" : "tag"}>{sealed ? "sealed" : "interactive"}</span>
+        <span className={sealed ? "tag tag-danger" : "tag"}>{sealed ? "封闭运行" : "交互运行"}</span>
         <span>
-          Mutations are submitted through the typed ControlCommand API. No graph state changes locally.
+          操作将提交给运行时，处理结果以返回的回执为准。
         </span>
       </div>
       <label>
-        Action
+        操作类型
         <select value={action} onChange={(event) => setAction(event.currentTarget.value as TopologyControlAction)}>
-          <option value="local-update">Local update-state</option>
-          <option value="requirement-change">Requirement change / replan</option>
-          <option value="time-travel">Time travel to checkpoint</option>
-          <option value="resume-checkpoint">Resume checkpoint</option>
+          <option value="local-update">更新节点状态</option>
+          <option value="requirement-change">修改需求并重新规划</option>
+          <option value="time-travel">回到检查点</option>
+          <option value="resume-checkpoint">从检查点恢复</option>
         </select>
       </label>
       {action === "local-update" || action === "requirement-change" ? (
         <label>
-          Node
+          节点
           <select value={nodeId} onChange={(event) => setNodeId(event.currentTarget.value)}>
-            <option value="">Selected/root node</option>
+            <option value="">当前选中节点 / 根节点</option>
             {snapshot.model.nodes.slice(0, 2_000).map((node) => (
               <option key={node.id} value={node.id}>{node.title} ({node.id})</option>
             ))}
@@ -301,18 +292,18 @@ function ControlForm({
       {action === "local-update" ? (
         <div className="topology-control-fields">
           <label>
-            Field
+            字段
             <input value={fieldName} onChange={(event) => setFieldName(event.currentTarget.value)} />
           </label>
           <label>
-            Value
+            值
             <input value={fieldValue} onChange={(event) => setFieldValue(event.currentTarget.value)} required />
           </label>
         </div>
       ) : null}
       {action === "requirement-change" || action === "local-update" ? (
         <label>
-          {action === "requirement-change" ? "Requirement" : "Note"}
+          {action === "requirement-change" ? "新需求" : "备注"}
           <textarea
             value={text}
             onChange={(event) => setText(event.currentTarget.value)}
@@ -323,9 +314,9 @@ function ControlForm({
       ) : null}
       {action === "time-travel" || action === "resume-checkpoint" ? (
         <label>
-          Checkpoint
+          检查点
           <select value={checkpointId} onChange={(event) => setCheckpointId(event.currentTarget.value)} required>
-            <option value="">Select a canonical checkpoint</option>
+            <option value="">选择检查点</option>
             {snapshot.model.checkpoints.map((checkpoint) => (
               <option key={checkpoint.id} value={checkpoint.id}>
                 {checkpoint.id} · r{checkpoint.commitRevision} · {checkpoint.phase}
@@ -336,7 +327,7 @@ function ControlForm({
       ) : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <button type="submit" className="button button-primary" disabled={busy}>
-        {busy ? "Control pending…" : sealed ? "Submit (expected denial)" : "Submit control"}
+        {busy ? "正在提交…" : sealed ? "提交操作（可能被拒绝）" : "提交操作"}
       </button>
     </form>
   )
@@ -350,7 +341,7 @@ function ReceiptList({
   controller: TopologyWorkbenchController
 }) {
   if (snapshot.receipts.length === 0) {
-    return <p className="muted-copy">No topology control receipt yet.</p>
+    return <p className="muted-copy">暂无控制操作回执。</p>
   }
   return (
     <ol className="topology-receipt-list">
@@ -372,13 +363,13 @@ function ReceiptList({
             <dd>{receipt.checkpointId ?? "—"}</dd>
             <dt>Revision</dt>
             <dd>{receipt.expectedRevision ?? "—"} → {receipt.observedRevision ?? "pending"}</dd>
-            <dt>Events</dt>
+            <dt>事件</dt>
             <dd>{receipt.observedEventIds.join(", ") || "—"}</dd>
           </dl>
           {receipt.errorMessage ? <p className="form-error">{receipt.errorCode}: {receipt.errorMessage}</p> : null}
           {["validating", "submitting", "pending"].includes(receipt.phase) ? (
             <button type="button" className="link-button" onClick={() => controller.cancelControl(receipt.id)}>
-              Cancel submission
+              取消提交
             </button>
           ) : null}
         </li>
@@ -410,12 +401,12 @@ export function TopologyInspector({
             onClick={() => setTab(id)}
           >
             {id === "checkpoints"
-              ? `Checkpoints ${snapshot.model.checkpoints.length}`
+              ? `检查点 ${snapshot.model.checkpoints.length}`
               : id === "branches"
-                ? `Branches ${snapshot.model.branches.length}`
+                ? `分支 ${snapshot.model.branches.length}`
                 : id === "control"
-                  ? `Control ${snapshot.receipts.length}`
-                  : "Details"}
+                  ? `操作 ${snapshot.receipts.length}`
+                  : "详情"}
           </button>
         ))}
       </nav>

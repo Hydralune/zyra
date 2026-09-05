@@ -90,7 +90,7 @@ export function TopologyMinimap({
           rx={2}
         />
       </svg>
-      <span>{snapshot.model.nodes.length.toLocaleString()} nodes</span>
+      <span>{snapshot.model.nodes.length.toLocaleString()} 个节点</span>
     </aside>
   )
 }

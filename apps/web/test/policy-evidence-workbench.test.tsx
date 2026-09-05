@@ -312,6 +312,10 @@ describe("policy evidence admission and incremental projection", () => {
       execution: "simulated",
       hasMore: false,
     }))
+    const collapsed = renderToStaticMarkup(<PolicyEvidenceView runtime={runtime} />)
+    expect(collapsed).toContain("模拟执行")
+    expect(collapsed).not.toContain('data-evidence-ref-kind="attempt"')
+    runtime.select("1:receipt-1")
     const markup = renderToStaticMarkup(
       <PolicyEvidenceView runtime={runtime} />,
     )
@@ -319,7 +323,7 @@ describe("policy evidence admission and incremental projection", () => {
     expect(markup).toContain('data-policy-integrity="verified"')
     expect(markup).toContain('data-evidence-ref-kind="attempt"')
     expect(markup).toContain("deterministic_ready")
-    expect(markup).toContain("Export with digest")
+    expect(markup).toContain("导出已加载记录")
   })
 
   test("renders a terminal receipt as LOCAL and never as EDGE", () => {
@@ -358,10 +362,11 @@ describe("policy evidence admission and incremental projection", () => {
       ...page(9, 1, { hasMore: false }),
       transitions: [terminal],
     })
+    runtime.select(terminal.transition_id)
     const markup = renderToStaticMarkup(<PolicyEvidenceView runtime={runtime} />)
     expect(markup).toContain('data-physical-location="LOCAL"')
     expect(markup).toContain('data-physical-lane="terminal"')
-    expect(markup).toContain("TERMINAL · LOCAL")
+    expect(markup).toContain("本地终端")
     expect(markup).not.toContain('data-physical-location="EDGE"')
   })
 

@@ -92,7 +92,7 @@ export function buildSkillWorkbenchViewModel(
         ? "muted"
         : "danger"
   return Object.freeze({
-    headline: "Skills, provenance & supply chain",
+    headline: "技能与来源记录",
     status,
     tone,
     controlsDisabled,

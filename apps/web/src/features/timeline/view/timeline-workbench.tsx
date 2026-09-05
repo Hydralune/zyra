@@ -721,11 +721,11 @@ function TimelineInspector({
     return (
       <aside className="timeline-inspector" aria-label="Timeline critical path summary">
         <p className="eyebrow">Causal analysis</p>
-        <h4>Critical path</h4>
+        <h4>关键执行路径</h4>
         <dl>
-          <div><dt>Rows</dt><dd>{path.rowKeys.length}</dd></div>
+          <div><dt>记录</dt><dd>{path.rowKeys.length}</dd></div>
           <div><dt>Events</dt><dd>{path.eventIds.length}</dd></div>
-          <div><dt>Workers</dt><dd>{path.workerIds.length}</dd></div>
+          <div><dt>执行者</dt><dd>{path.workerIds.length}</dd></div>
           <div><dt>Duration</dt><dd>{formatDuration(path.durationMs)}</dd></div>
           <div><dt>Complete</dt><dd>{path.complete ? "yes" : "partial"}</dd></div>
         </dl>
@@ -885,17 +885,16 @@ export function WorkerCausalTimelineWorkbench({
       <header className="worker-timeline-heading">
         <div>
           <p className="eyebrow">Worker causal timeline</p>
-          <h3 id="worker-timeline-heading">Execution, failure and recovery evidence</h3>
+          <h3 id="worker-timeline-heading">执行时间线与故障恢复</h3>
           <p>
-            Canonical worker phases joined with spans, tools, artifacts, routes,
-            failures, recovery attempts and state mutations.
+            查看执行者的活动、工具调用、产物和故障恢复记录。
           </p>
         </div>
         <dl className="timeline-summary">
-          <div><dt>Rows</dt><dd>{projection.rows.length}</dd></div>
-          <div><dt>Workers</dt><dd>{projection.workerEpochs.length}</dd></div>
-          <div><dt>Recoveries</dt><dd>{projection.recoveryChains.length}</dd></div>
-          <div><dt>Lag</dt><dd>{projection.diagnostics.lag}</dd></div>
+          <div><dt>记录</dt><dd>{projection.rows.length}</dd></div>
+          <div><dt>执行者</dt><dd>{projection.workerEpochs.length}</dd></div>
+          <div><dt>恢复次数</dt><dd>{projection.recoveryChains.length}</dd></div>
+          <div><dt>待同步</dt><dd>{projection.diagnostics.lag}</dd></div>
         </dl>
       </header>
       <StatusBanner snapshot={snapshot} />

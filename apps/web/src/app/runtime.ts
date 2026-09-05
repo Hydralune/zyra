@@ -269,7 +269,13 @@ export function createWorkbenchRuntime(
   let projectionBinding: ProjectionIngressBinding | undefined
   let projectionTaskId: string | undefined
   let projectionRouteGeneration = 0
+  let boundRouteTaskId: string | undefined
+  let projectionRouteInitialized = false
   const bindProjectionRoute = (taskId?: string) => {
+    // A tab or detail-panel change keeps ownership of the same task stream.
+    if (projectionRouteInitialized && boundRouteTaskId === taskId) return
+    projectionRouteInitialized = true
+    boundRouteTaskId = taskId
     const generation = ++projectionRouteGeneration
     liveSync.bind(taskId)
     void controlCommands.bindTask(taskId).catch((error) => {

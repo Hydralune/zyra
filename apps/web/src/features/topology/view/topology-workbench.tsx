@@ -8,6 +8,7 @@ import type { WorkbenchRuntime } from "../../../app/runtime.ts"
 import { useProjectionSelector } from "../../../app/hooks.ts"
 import { selectTopologyProjection } from "../projection/index.ts"
 import type { NavigationIntent } from "./contracts.ts"
+import type { EvidenceNavigationTarget } from "../../evidence/model.ts"
 import { TopologyWorkbenchController } from "./controller.ts"
 import { topologyControlTransport } from "./controls.ts"
 import { TopologyGraphCanvas } from "./graph-canvas.tsx"
@@ -168,13 +169,13 @@ function TopologyStatus({
     >
       <strong>
         {error
-          ? "Topology projection integrity error"
+          ? "任务关系图加载异常"
           : reconnecting
-            ? "Reconnecting canonical event stream"
-            : "Restoring topology snapshot"}
+            ? "正在恢复事件连接"
+            : loading ? "正在加载任务关系图" : "部分关系记录尚未同步完整"}
       </strong>
       {error ? <p>{error}</p> : null}
-      {warnings.length > 0 ? <p>{warnings.join(" · ")}</p> : null}
+      {warnings.length > 0 ? <details><summary>查看同步详情</summary><p>{warnings.join(" · ")}</p></details> : null}
     </div>
   )
 }
@@ -189,7 +190,7 @@ function SearchResults({
   if (matches.length === 0) return null
   return (
     <div className="topology-search-results" aria-label="Topology search results">
-      <span>{matches.length} matches</span>
+      <span>找到 {matches.length} 项</span>
       <div>
         {matches.slice(0, 20).map((match) => (
           <button
@@ -216,9 +217,11 @@ function SearchResults({
 export function TopologyWorkbench({
   runtime,
   task,
+  onEvidenceNavigate,
 }: {
   runtime: WorkbenchRuntime
   task: TaskProjection
+  onEvidenceNavigate?: (target: EvidenceNavigationTarget) => void
 }) {
   const selector = useMemo(
     () =>
@@ -256,15 +259,6 @@ export function TopologyWorkbench({
       }),
     [runtime, task.taskId],
   )
-  const policyEvidence = useMemo(
-    () => new PolicyEvidenceRuntime({
-      api: runtime.api.policy,
-      query: { taskId: task.taskId },
-      pageLimit: 100,
-      maximumTransitions: 5_000,
-    }),
-    [runtime.api.policy, task.taskId],
-  )
   const snapshot = useSyncExternalStore(
     controller.subscribe,
     controller.getSnapshot,
@@ -299,24 +293,24 @@ export function TopologyWorkbench({
     >
       <header className="topology-workbench-heading">
         <div>
-          <p className="eyebrow">Dynamic topology</p>
-          <h3 id="topology-workbench-heading">Live graph and recovery control</h3>
+          <h3 id="topology-workbench-heading">任务关系图</h3>
+          <p className="muted-copy">点击节点查看详情，拖动画布移动视图。</p>
         </div>
         <dl className="topology-revision-facts">
           <div>
-            <dt>Projection</dt>
+            <dt>数据版本</dt>
             <dd>{snapshot.model.projectionRevision}</dd>
           </div>
           <div>
-            <dt>Graph</dt>
+            <dt>关系图</dt>
             <dd>{snapshot.model.graphRevision}</dd>
           </div>
           <div>
-            <dt>Commit</dt>
+            <dt>已提交</dt>
             <dd>{snapshot.model.commitRevision}</dd>
           </div>
           <div>
-            <dt>Lag</dt>
+            <dt>待同步</dt>
             <dd>{snapshot.model.diagnostics.lag}</dd>
           </div>
         </dl>
@@ -338,8 +332,8 @@ export function TopologyWorkbench({
           <TopologyMinimap controller={controller} snapshot={snapshot} />
           {snapshot.model.nodes.length === 0 && !snapshot.loading ? (
             <div className="topology-empty-overlay">
-              <strong>No topology entities</strong>
-              <p>The canonical projection has not committed graph nodes for this task.</p>
+              <strong>暂无任务关系记录</strong>
+              <p>该任务尚未提供可展示的关系图。</p>
             </div>
           ) : null}
         </div>
@@ -347,18 +341,26 @@ export function TopologyWorkbench({
           controller={controller}
           snapshot={snapshot}
           task={task}
-          onNavigate={(intent) => handleNavigation(runtime, intent)}
+          onNavigate={(intent) => onEvidenceNavigate && (intent.artifactId || intent.eventId)
+            ? onEvidenceNavigate({ artifactId: intent.artifactId, eventId: intent.eventId })
+            : handleNavigation(runtime, intent)}
         />
       </div>
-      <PolicyEvidenceView
-        runtime={policyEvidence}
-        title="Proposal → symbolic verdict → canonical commit"
-        onNavigate={(reference, transition) =>
-          handlePolicyNavigation(runtime, reference, transition)}
-      />
       <div className="visually-hidden" aria-live="polite" aria-atomic="true">
         {controller.announcements().at(-1) ?? ""}
       </div>
     </section>
   )
+}
+
+export function PolicyWorkbench({ runtime, task, onEvidenceNavigate }: {
+  runtime: WorkbenchRuntime; task: TaskProjection; onEvidenceNavigate?: (target: EvidenceNavigationTarget) => void
+}) {
+  const policyEvidence = useMemo(() => new PolicyEvidenceRuntime({
+    api: runtime.api.policy, query: { taskId: task.taskId }, pageLimit: 100, maximumTransitions: 5_000,
+  }), [runtime.api.policy, task.taskId])
+  return <PolicyEvidenceView runtime={policyEvidence} title="策略与执行回执"
+    onNavigate={(reference, transition) => onEvidenceNavigate && ["artifact", "event"].includes(reference.kind)
+      ? onEvidenceNavigate(reference.kind === "artifact" ? { artifactId: reference.id } : { eventId: reference.id })
+      : handlePolicyNavigation(runtime, reference, transition)} />
 }

@@ -1,0 +1,23 @@
+const labels: Record<string, string> = {
+  "Root task": "任务目标", Plan: "规划", Route: "选择执行资源", Execute: "执行", Verify: "验证", Finalize: "整理结果",
+  node: "节点", edge: "关系", route: "路由", placement: "执行位置", checkpoint: "检查点", branch: "分支", change: "变更", cluster: "节点分组",
+  root: "根节点", local: "本地", edge_runtime: "边缘运行时", cloud: "云端", unknown: "未确认", default: "默认",
+  unassigned: "未分配", satisfied: "已满足", violation: "存在违规", planner: "规划者", verifier: "验证者", coder: "代码执行者",
+  "select-node": "定位节点", "select-route": "查看路由", "select-placement": "查看执行位置", "select-checkpoint": "查看检查点", "focus-subgraph": "聚焦关联节点",
+  "Check node outputs, event coverage, and checkpoint readiness.": "检查步骤结果与恢复状态。",
+  "Decompose the user goal into an executable task graph.": "将目标拆分为可执行的步骤。",
+  "Select the worker and control route for the executable node.": "选择适合当前步骤的执行资源。",
+  "Run the current node through the selected worker runtime.": "执行当前步骤并记录结果。",
+  "Finalize the trace and mark the task ready for inspection.": "整理执行记录和交付结果。",
+  completed: "已完成", succeeded: "已完成", verified: "已验证", running: "执行中", active: "执行中", pending: "待处理", failed: "失败", blocked: "受阻", waiting: "等待中", cancelled: "已停止", yes: "是", no: "否",
+  Role: "角色", Namespace: "命名空间", Placement: "执行位置", Provider: "服务商", Model: "模型", Policy: "策略",
+  "Graph revision": "关系图版本", "Commit revision": "提交版本", Dependencies: "依赖数", Workers: "执行者数",
+  Kind: "类型", Relation: "关系", Weight: "权重", "Runtime mutation": "运行时变更", Inferred: "推断关系",
+  Node: "节点", Worker: "执行者", Location: "执行位置", Candidates: "候选项", Accepted: "已接受",
+  "Topology mutation": "拓扑变更", Privacy: "隐私等级", Parent: "父节点", "Pending writes": "待写入", "Committed writes": "已写入",
+  Interrupts: "中断次数", Resumes: "恢复次数", "Next tasks": "后续任务", Lineage: "来源链", Visibility: "可见范围",
+  Checkpoint: "检查点", "Base revision": "基础版本", Conflicts: "冲突数", "Canonical visibility": "正式记录可见性",
+  "Affected nodes": "受影响节点", Superseded: "已替代", "Needs revision": "需要修订", "Replan node": "重新规划节点",
+  "Local replan": "局部重规划", "Fault classified": "故障已分类", Nodes: "节点数", "Route density": "路由密度", "Policy violations": "策略违规", Changed: "变更数",
+}
+export function topologyLabel(value: string): string { return labels[value] ?? value }

@@ -34,6 +34,7 @@ import type {
 export interface ArtifactWorkbenchProps {
   runtime: WorkbenchRuntime
   taskId: string
+  initialArtifactId?: string
 }
 
 const catalogRowHeight = 88
@@ -42,6 +43,7 @@ const textLineHeight = 22
 export function ArtifactWorkbench({
   runtime,
   taskId,
+  initialArtifactId,
 }: ArtifactWorkbenchProps) {
   const workbench = useMemo(
     () =>
@@ -49,7 +51,7 @@ export function ArtifactWorkbench({
         api: runtime.api.tasks,
         taskId,
       }),
-    [runtime, taskId],
+    [runtime, taskId, initialArtifactId],
   )
   const [state, setState] = useState<ArtifactWorkbenchState>(workbench.state)
   const [catalogScrollTop, setCatalogScrollTop] = useState(0)
@@ -65,12 +67,16 @@ export function ArtifactWorkbench({
 
   useEffect(() => {
     const unsubscribe = workbench.listen(setState)
-    void workbench.loadCatalog()
+    let cancelled = false
+    void workbench.loadCatalog().then(() => {
+      if (!cancelled && initialArtifactId) return workbench.select({ artifactId: initialArtifactId, source: "topology", focus: true })
+    })
     return () => {
+      cancelled = true
       unsubscribe()
       workbench.close("Artifact workbench component unmounted.")
     }
-  }, [workbench])
+  }, [workbench, initialArtifactId])
 
   useEffect(() => {
     const element = catalogViewport.current
@@ -319,6 +325,8 @@ export function ArtifactWorkbench({
                 <CatalogRow
                   key={row.key}
                   row={row}
+                  integrity={state.selected?.artifactId === row.artifact.artifactId && state.selected?.revision === row.artifact.revision
+                    ? state.selected.status.integrity : row.artifact.status.integrity}
                   onSelect={() => selectRow(row)}
                 />
               ))}
@@ -415,9 +423,8 @@ export function ArtifactWorkbench({
               <SecurityBanner state={state} />
               {state.search ? (
                 <p className="artifact-search-summary" role="status">
-                  {state.search.matches.length.toLocaleString()} match(es) in{" "}
-                  {state.search.scannedLines.toLocaleString()} loaded line(s)
-                  {state.search.truncated ? " · result limit reached" : ""}
+                  已搜索 {state.search.scannedLines.toLocaleString()} 行，找到 {state.search.matches.length.toLocaleString()} 处匹配
+                  {state.search.truncated ? " · 已达到结果上限" : ""}
                 </p>
               ) : null}
               <ArtifactModelView
@@ -478,7 +485,7 @@ export function ArtifactWorkbench({
                     }
                   }}
                 >
-                  Retry guarded read
+                  重新读取
                 </button>
               ) : null}
             </div>
@@ -505,8 +512,8 @@ export function ArtifactWorkbench({
 
 function ArtifactStatus({ state }: { state: ArtifactWorkbenchState }) {
   const cache = state.content
-    ? `${state.content.loadedBytes.toLocaleString()} verified bytes`
-    : "metadata only"
+    ? `${state.content.loadedBytes.toLocaleString()} 字节已校验`
+    : "仅加载目录"
   return (
     <div className="artifact-status" role="status">
       <span className={`status-marker status-${statusTone(state.phase)}`} />
@@ -521,24 +528,12 @@ function CatalogFacets({ state }: { state: ArtifactWorkbenchState }) {
   return (
     <dl className="artifact-catalog-facets">
       <div>
-        <dt>版本</dt>
+        <dt>文件数量</dt>
         <dd>{state.catalog.filtered.length.toLocaleString()}</dd>
       </div>
       <div>
         <dt>总大小</dt>
         <dd>{facets.totalBytes.toLocaleString()}</dd>
-      </div>
-      <div>
-        <dt>已校验</dt>
-        <dd>{facets.verifiedBytes.toLocaleString()}</dd>
-      </div>
-      <div>
-        <dt>旧版记录</dt>
-        <dd>{facets.legacyCount.toLocaleString()}</dd>
-      </div>
-      <div>
-        <dt>缺失</dt>
-        <dd>{facets.missingCount.toLocaleString()}</dd>
       </div>
     </dl>
   )
@@ -546,9 +541,11 @@ function CatalogFacets({ state }: { state: ArtifactWorkbenchState }) {
 
 function CatalogRow({
   row,
+  integrity,
   onSelect,
 }: {
   row: ArtifactCatalogVirtualRow
+  integrity: string
   onSelect: () => void
 }) {
   const artifact = row.artifact
@@ -579,9 +576,9 @@ function CatalogRow({
         </span>
       </span>
       <span className="artifact-catalog-row-meta">
-        <span>{artifact.sizeBytes.toLocaleString()} bytes</span>
+        <span>{artifact.sizeBytes.toLocaleString()} 字节</span>
         <span>{artifact.mediaType}</span>
-        <span>{artifact.status.integrity}</span>
+        <span>{artifactLabel(integrity)}</span>
       </span>
       <code>{artifact.revision.slice(0, 23)}…</code>
     </button>
@@ -592,33 +589,35 @@ function ArtifactContractHeader({ artifact }: { artifact: ArtifactContract }) {
   return (
     <header className="artifact-contract-header">
       <div>
-        <span className="artifact-kind">{artifact.kind}</span>
+        <span className="artifact-kind">{artifactLabel(artifact.kind)}</span>
         <h4>{artifact.title || artifact.artifactId}</h4>
-        <code>{artifact.artifactId}</code>
+        <span className="tag">{artifactLabel(artifact.status.integrity)}</span>
       </div>
+      <details><summary>版本与来源</summary>
       <dl className="artifact-contract-facts">
+        <div><dt>产物编号</dt><dd>{artifact.artifactId}</dd></div>
         <div>
-          <dt>Revision</dt>
+          <dt>版本摘要</dt>
           <dd title={artifact.revision}>{artifact.revision.slice(0, 23)}…</dd>
         </div>
         <div>
-          <dt>Integrity</dt>
-          <dd>{artifact.status.integrity}</dd>
+          <dt>内容校验</dt>
+          <dd>{artifactLabel(artifact.status.integrity)}</dd>
         </div>
         <div>
-          <dt>Media</dt>
+          <dt>文件类型</dt>
           <dd>{artifact.mediaType}</dd>
         </div>
         <div>
-          <dt>Encoding</dt>
+          <dt>编码</dt>
           <dd>{artifact.encoding ?? "binary"}</dd>
         </div>
         <div>
-          <dt>Security</dt>
-          <dd>{artifact.security.label}</dd>
+          <dt>安全等级</dt>
+          <dd>{artifactLabel(artifact.security.label)}</dd>
         </div>
         <div>
-          <dt>Producer</dt>
+          <dt>生成来源</dt>
           <dd>
             {artifact.producer.nodeId
               ?? artifact.producer.workerId
@@ -626,6 +625,7 @@ function ArtifactContractHeader({ artifact }: { artifact: ArtifactContract }) {
           </dd>
         </div>
       </dl>
+      </details>
     </header>
   )
 }
@@ -640,17 +640,17 @@ function SecurityBanner({ state }: { state: ArtifactWorkbenchState }) {
     state.model?.kind === "text" || state.model?.kind === "markdown"
       ? state.model.notices
       : []
+  if (!quarantine && !transformations.length) return null
   return (
     <div
       className={`artifact-security-banner ${quarantine ? "is-quarantined" : ""}`}
       role={quarantine ? "alert" : "status"}
     >
       <strong>
-        {quarantine ? "Untrusted content quarantine" : "Verified inert content"}
+        {quarantine ? "此内容尚未建立信任" : "内容已校验"}
       </strong>
       <span>
-        This viewer cannot execute HTML, SVG, scripts, commands, tools, or
-        permission actions.
+        以只读方式展示，不执行文件中的脚本或指令。
       </span>
       {transformations.map((notice) => (
         <span key={notice}>{notice}</span>
@@ -678,8 +678,8 @@ function ArtifactModelView({
     return (
       <div className="artifact-viewer-loading" role="status">
         {phase === "artifact-loading"
-          ? "Verifying immutable revision and loading a bounded range…"
-          : "No admitted artifact content."}
+          ? "正在校验版本并加载内容…"
+          : "暂无可查看的产物内容。"}
       </div>
     )
   }
@@ -1059,7 +1059,7 @@ function BookmarkRail({
   if (!state.bookmarks.length) return null
   return (
     <aside className="artifact-bookmark-rail" aria-label="Artifact bookmarks">
-      <h4>Bookmarks and report references</h4>
+      <h4>已收藏的版本</h4>
       <ul>
         {state.bookmarks.map((bookmark) => (
           <li key={bookmark.id}>
@@ -1073,10 +1073,10 @@ function BookmarkRail({
               onClick={() => onTogglePin(bookmark.id)}
               aria-pressed={bookmark.pinned}
             >
-              {bookmark.pinned ? "Unpin" : "Pin"}
+              {bookmark.pinned ? "取消固定" : "固定"}
             </button>
             <button type="button" onClick={() => onRemove(bookmark.id)}>
-              Remove
+              移除
             </button>
           </li>
         ))}
@@ -1181,5 +1181,9 @@ function statusTone(
 }
 
 function humanPhase(phase: ArtifactWorkbenchState["phase"]): string {
-  return phase.replace(/-/g, " ")
+  return artifactLabel(phase)
+}
+
+function artifactLabel(value: string): string {
+  return ({ idle: "等待加载", "catalog-loading": "正在加载目录", "catalog-ready": "目录已加载", "artifact-loading": "正在加载内容", "artifact-ready": "内容已加载", error: "加载失败", closed: "已关闭", unverified: "待校验", verified: "校验通过", missing: "内容缺失", corrupt: "校验未通过", internal: "内部", public: "公开", confidential: "机密", structured_data: "结构化数据", runtime_evidence: "运行记录", delivery: "交付文件" } as Record<string, string>)[value] ?? value
 }

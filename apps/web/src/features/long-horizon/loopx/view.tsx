@@ -78,7 +78,7 @@ export function LoopXWorkbench({
     return (
       <section className="detail-section" aria-labelledby="loopx-heading">
         <div className="section-heading">
-          <h3 id="loopx-heading">LoopX long-horizon control</h3>
+          <h3 id="loopx-heading">长程任务控制</h3>
           <span>{failure ? "degraded" : "loading"}</span>
         </div>
         <p className={failure ? "plan-warning" : "muted-copy"}>
@@ -96,7 +96,7 @@ export function LoopXWorkbench({
       data-loopx-lifecycle={view.lifecycle}
     >
       <div className="section-heading">
-        <h3 id="loopx-heading">LoopX long-horizon control</h3>
+        <h3 id="loopx-heading">长程任务控制</h3>
         <span className={`tag ${view.lifecycle === "degraded" ? "tag-danger" : ""}`}>
           {view.lifecycle}
         </span>
