@@ -664,6 +664,49 @@ describe("FE-S01 run result and fail-closed contracts", () => {
     expect(stdout.text).toContain("canonical_task_result_settled_after_mutation_transport_detached")
   })
 
+  test.each([
+    ["failed", CliExitCode.TASK_FAILED],
+    ["cancelled", CliExitCode.CANCELLED],
+  ] as const)("preserves canonical %s after mutation transport disconnects", async (status, exitCode) => {
+    const pending = task("pending")
+    const terminal = task(status)
+    let runCalls = 0
+    const fake = {
+      async createPendingTask() { return mutation(pending) },
+      async openIngress() {
+        return { cursor: "opaque.start", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async runTask() {
+        runCalls += 1
+        throw new TransportDisconnectedError("response disconnected after canonical settlement")
+      },
+      async nextIngress() {
+        return { cursor: "opaque.final", generation: 1, frames: [], hasMore: false, caughtUp: true, nextSequence: 0 }
+      },
+      async task() { return terminal },
+      async events() { return [] },
+    } as unknown as CliApi
+
+    const outcome = await executeRun({
+      command: {
+        kind: "run", goal: "Observe authoritative terminal state.",
+        baseUrl: "http://127.0.0.1:8000", autoStart: false,
+        startupTimeoutMs: 1_000, timeoutMs: 10_000, sealed: true,
+      },
+      api: fake,
+      output: new CliOutput({
+        stdout: new Capture(), stderr: new Capture(),
+        requestId: `request_terminal_${status}`, command: "run",
+      }),
+      stdin: Readable.from([]), signal: new AbortController().signal,
+    })
+
+    expect(runCalls).toBe(1)
+    expect(outcome.exitCode).toBe(exitCode)
+    expect(outcome.status).toBe(status)
+    expect(outcome.diagnostics?.map((item) => item.stage)).toContain("client_connection")
+  })
+
   test("does not wait for a stuck ingress poll after the run request settles", async () => {
     const pending = task("pending")
     const blocked = task("blocked")

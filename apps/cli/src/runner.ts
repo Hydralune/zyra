@@ -654,7 +654,10 @@ export async function executeRun(input: {
 
   if (run && !run.ok && !(run.error instanceof RequestCancelledError)) {
     const outcome = classifyTaskOutcome(finalTask, accumulator.verifier, diagnostics)
-    if (outcome.exitCode !== CliExitCode.SUCCESS && outcome.exitCode !== CliExitCode.VERIFIER_FAILED) {
+    // A detached mutation response is secondary once the canonical task has
+    // terminated, including failed/cancelled outcomes. Keep the transport
+    // error as a diagnostic without replacing that authoritative result.
+    if (!finalTask.terminal && outcome.exitCode !== CliExitCode.SUCCESS && outcome.exitCode !== CliExitCode.VERIFIER_FAILED) {
       throw run.error
     }
     diagnostics.push(outcomeDiagnostic("client_connection", run.error))
