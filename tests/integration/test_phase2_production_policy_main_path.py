@@ -522,6 +522,30 @@ def test_completion_failures_exclude_adaptive_depth_only_diagnostics() -> None:
     ) == ("final_verifier_passed",)
 
 
+def test_production_depth_counts_repaired_dispatch_once_without_losing_cost() -> None:
+    from zyra_scheduler.operator_policy.adaptive_depth import AdaptiveDepthCostReceipt
+
+    records = (
+        {"operator_ref": "code@1", "actual_tokens": 100, "actual_cost_usd": .01, "actual_latency_ms": 50},
+        {"operator_ref": "code@1", "actual_tokens": 40, "actual_cost_usd": .005, "actual_latency_ms": 20},
+        {"operator_ref": "memory@1", "actual_tokens": 0, "actual_cost_usd": 0, "actual_latency_ms": 5},
+    )
+    accounting = production_policy._production_execution_costs(("code@1", "memory@1"), ("code@1", "memory@1"), records)
+    receipt = AdaptiveDepthCostReceipt(proposal_id="p", proposal_digest="digest", decision_ref="d",
+        **accounting, estimated_avoided_tokens=0, estimated_avoided_cost_usd=0,
+        task_completed=True, verifier_passed=True, artifact_complete=True)
+    assert receipt.executed_depth == receipt.proposed_depth == 2
+    assert receipt.actual_tokens == 140
+    assert receipt.actual_cost_usd == pytest.approx(.015)
+    assert receipt.actual_latency_ms == 75
+    # An extra operator must still be rejected, even if total counts fit.
+    with pytest.raises(production_policy.Phase2ProductionPolicyError, match="operator path"):
+        production_policy._production_execution_costs(("code@1", "unused@1", "memory@1"),
+            ("code@1", "unplanned@1", "memory@1"), (*records, {"operator_ref": "unplanned@1"}))
+    with pytest.raises(production_policy.Phase2ProductionPolicyError, match="operator path"):
+        production_policy._production_execution_costs(("code@1", "memory@1"), ("code@1", "memory@1"), records[:2])
+
+
 def _communication_candidate() -> SimpleNamespace:
     return SimpleNamespace(
         edge_id="edge-communication-window",

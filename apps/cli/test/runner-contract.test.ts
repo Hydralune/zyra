@@ -176,17 +176,38 @@ describe("FE-S01 run result and fail-closed contracts", () => {
     expect(taskHasSettledRunResult(persisted, {})).toBe(true)
   })
 
-  test("settles a resumed blocked task from its persisted verifier outcome", async () => {
+  test("only exact current terminal outcomes settle a blocked completion-gate exception", () => {
+    const blocked = task("blocked")
+    const canonical = { schema: "zyra.task-outcome/v1", task_id: blocked.taskId,
+      run_id: blocked.runId, task_status: "blocked", terminal: true }
+    blocked.metadata.canonical_task_outcome = canonical
+    expect(taskHasSettledRunResult(blocked, { finalPassed: true })).toBe(true)
+    blocked.metadata.canonical_task_outcome = { ...canonical, run_id: "previous-run" }
+    expect(taskHasSettledRunResult(blocked, { finalPassed: true })).toBe(false)
+    blocked.metadata.canonical_task_outcome = { ...canonical, task_id: "another-task" }
+    expect(taskHasSettledRunResult(blocked, { finalPassed: true })).toBe(false)
+    blocked.metadata.canonical_task_outcome = { ...canonical, terminal: false }
+    expect(taskHasSettledRunResult(blocked, { finalPassed: true })).toBe(false)
+    blocked.metadata.canonical_task_outcome = canonical
+    blocked.status = "running"
+    expect(taskHasSettledRunResult(blocked, { finalPassed: true })).toBe(false)
+  })
+
+  test.each([false, true])("settles a resumed blocked task (completion-gate exception=%s)", async (gateException) => {
     const pending = task("pending")
     const blocked = task("blocked")
     blocked.metadata.canonical_task_outcome = {
       schema: "zyra.task-outcome/v1",
+      task_id: blocked.taskId,
+      run_id: blocked.runId,
+      task_status: "blocked",
+      terminal: true,
       verification: {
         final_verifier: {
           schema: "zyra.production-independent-final-verifier/v2",
-          passed: false,
+          passed: gateException,
         },
-        completion_gate: {
+        completion_gate: gateException ? {} : {
           schema: "zyra.production-adaptive-depth-completion-gate/v1",
           hard_conditions_passed: false,
         },
@@ -235,8 +256,8 @@ describe("FE-S01 run result and fail-closed contracts", () => {
       signal: new AbortController().signal,
     })
 
-    expect(outcome.exitCode).toBe(CliExitCode.VERIFIER_FAILED)
-    expect(outcome.status).toBe("verifier_failed")
+    expect(outcome.exitCode).toBe(gateException ? CliExitCode.TASK_FAILED : CliExitCode.VERIFIER_FAILED)
+    expect(outcome.status).toBe(gateException ? "blocked" : "verifier_failed")
   })
 
   test("returns a verifier-backed blocked result without waiting for stuck mutation transport", async () => {

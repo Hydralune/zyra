@@ -1413,7 +1413,24 @@ function isRetryableVerificationInvocationDiagnostic(
     // verification guard blocks the very manifest/report generator named by
     // the diagnostic and creates a deterministic recovery deadlock.
     || /\b(?:manifest|submission|deliverables?|artifacts?|reports?)\b[^\n]{0,160}\bmissing\b[^\n]{0,240}\b(?:create|generate|produce|write|provide)\b[^\n]{0,160}\bbefore\b[^\n]{0,80}\b(?:verification|validation|acceptance)\b/iu.test(value)
+    || missingDocumentationVerificationPrerequisite(value)
     || scopedRunnerModuleUnavailable(value, verificationScope);
+}
+
+function missingDocumentationVerificationPrerequisite(value: string): boolean {
+  // A suite can reach its documentation check before REPORT.md exists. A
+  // documentation write deliberately is not a business-code repair, so
+  // treating this as semantic debt would prevent the corrected suite from
+  // ever running. This grants no verification credit: the suite must pass.
+  // Preserve mixed behavioral failures and missing code/data/configuration.
+  if (/\bAssertionError\b|(?:^|\n)FAIL(?:URE)?:|\bfailures?\s*[:=]\s*[1-9]|\b[1-9]\d*\s+failed\b/iu.test(value)) {
+    return false;
+  }
+  const exceptions = [...value.matchAll(/(?:^|\n)([A-Za-z]\w*(?:Error|Exception)):[^\n]*/gu)];
+  return exceptions.length > 0 && exceptions.every((match) => (
+    match[1] === "FileNotFoundError"
+    && /No such file or directory:[^\n]*\.(?:md|rst)['"]?\s*$/iu.test(match[0])
+  ));
 }
 
 function scopedRunnerModuleUnavailable(value: string, verificationScope: string): boolean {

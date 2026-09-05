@@ -83,6 +83,16 @@ export function taskHasSettledRunResult(
   task: TaskProjection,
   evidence: { finalPassed?: boolean; completionGatePresent?: boolean },
 ): boolean {
+  const canonical = record(task.metadata.canonical_task_outcome)
+  // A completion-gate exception can settle the task after the independent
+  // verifier passed but before a completion-gate receipt exists. Trust only
+  // the explicit terminal outcome bound to this exact task/run/status.
+  if (task.status === "blocked"
+    && canonical.schema === "zyra.task-outcome/v1"
+    && canonical.terminal === true
+    && canonical.task_id === task.taskId
+    && canonical.run_id === task.runId
+    && canonical.task_status === task.status) return true
   const persisted = persistedVerifierEvidence(task)
   const finalPassed = evidence.finalPassed
     ?? (persisted.final?.passed === true

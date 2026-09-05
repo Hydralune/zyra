@@ -3582,27 +3582,9 @@ class Phase2StrongestProductionBridge:
             # therefore serialized into a deterministic dispatch prefix.  Use
             # that physical plan depth for the cost receipt instead of mixing
             # it with the logical MaAS layer count.
-            proposed_depth=len(proposed_operator_refs),
-            executed_depth=len(layer_records),
-            proposed_operator_count=len(proposed_operator_refs),
-            executed_operator_count=len(executed_set),
-            avoided_operator_refs=tuple(
-                ref for ref in proposed_operator_refs if ref not in executed_set
-            ),
-            actual_tokens=sum(
-                int(item.get("actual_tokens") or 0)
-                for item in layer_records
-            ),
+            **_production_execution_costs(proposed_operator_refs, accumulated_executed, layer_records),
             estimated_avoided_tokens=int(decision.avoided_tokens),
-            actual_cost_usd=sum(
-                float(item.get("actual_cost_usd") or 0.0)
-                for item in layer_records
-            ),
             estimated_avoided_cost_usd=float(decision.avoided_cost_usd),
-            actual_latency_ms=sum(
-                int(item.get("actual_latency_ms") or 0)
-                for item in layer_records
-            ),
             task_completed=state.status is PlanNodeStatus.COMPLETED,
             verifier_passed=hard_conditions_passed,
             artifact_complete=not snapshot.invalid_artifact_ids,
@@ -3644,6 +3626,8 @@ class Phase2StrongestProductionBridge:
             "adaptive_depth_receipt": adaptive_depth_receipt.to_dict(),
             "maas_proposed_depth": len(full_proposal.layers),
             "physical_dispatch_proposed_depth": len(proposed_operator_refs),
+            "physical_dispatch_attempt_count": len(layer_records),
+            "repeated_operator_dispatch_count": len(layer_records) - len(executed_set),
             "early_exit_enabled": early_exit_enabled,
             "canonical_owner_bypass": False,
         }
@@ -4535,6 +4519,32 @@ class Phase2StrongestProductionBridge:
             input_version="v1",
             idempotency_key=f"{mechanism_id}:{contract_id}",
         )
+
+
+def _production_execution_costs(
+    proposed_refs: tuple[str, ...],
+    executed_refs: tuple[str, ...],
+    layer_records: tuple[Mapping[str, Any], ...],
+) -> dict[str, Any]:
+    """Count completed plan positions once, retaining every retry's cost.
+
+    Production flattens MaAS to one position per unique operator reference.
+    A repaired/restarted dispatch at that position is not another plan layer.
+    Check membership as well as counts, so retries cannot hide an unplanned
+    operator or a missing physical execution record.
+    """
+    proposed, executed = set(proposed_refs), set(executed_refs)
+    observed = {str(item.get("operator_ref") or "") for item in layer_records}
+    if "" in observed or observed != executed or not executed.issubset(proposed):
+        raise Phase2ProductionPolicyError("physical execution records do not match the proposed operator path")
+    return {
+        "proposed_depth": len(proposed), "executed_depth": len(executed),
+        "proposed_operator_count": len(proposed), "executed_operator_count": len(executed),
+        "avoided_operator_refs": tuple(ref for ref in proposed_refs if ref not in executed),
+        "actual_tokens": sum(int(item.get("actual_tokens") or 0) for item in layer_records),
+        "actual_cost_usd": sum(float(item.get("actual_cost_usd") or 0) for item in layer_records),
+        "actual_latency_ms": sum(int(item.get("actual_latency_ms") or 0) for item in layer_records),
+    }
 
 
 def _failed_completion_conditions(

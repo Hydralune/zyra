@@ -333,6 +333,9 @@ class ToolExecutor:
             if call.tool_name == "web_search":
                 result = self._web_search(call, authorized=authorized)
                 return self._stamp_grant(result, permission_grant, call) if authorized else result
+            if call.tool_name == "model_inference":
+                result = self._model_inference(call, authorized=authorized)
+                return self._stamp_grant(result, permission_grant, call) if authorized else result
             if call.tool_name == "artifact_write":
                 result = self._artifact_write(call, authorized=authorized)
                 return self._stamp_grant(result, permission_grant, call) if authorized else result
@@ -1010,6 +1013,80 @@ class ToolExecutor:
             artifacts=[artifact],
             metadata={"mode": "url" if source_url else "workspace"},
         )
+
+    def _model_inference(self, call: ToolCall, *, authorized: bool = False) -> ToolResult:
+        if not authorized:
+            return self._missing_grant_result(call)
+        import base64
+        import os
+
+        from .inference.protocol import MAX_BYTES, decode_tensors
+        from .inference.runtime import PartitionedInferenceRuntime
+
+        config = os.environ.get("ZYRA_INFERENCE_CONFIG", "")
+        if not config:
+            raise ValueError("model inference is not configured: ZYRA_INFERENCE_CONFIG is missing")
+        target = self._resolve_path(call.arguments.get("path"))
+        if not target.is_relative_to(self._workspace_root) or target.suffix.lower() != ".npz":
+            raise ValueError("inference input must be an NPZ file inside the task workspace")
+        import uuid
+        output_path = str(call.arguments.get("output_path") or f"inference-results/{uuid.uuid4().hex}.json")
+        output_target = self._resolve_path(output_path)
+        if not output_target.is_relative_to(self._workspace_root) or output_target.suffix.lower() != ".json":
+            raise ValueError("inference output must be a JSON file inside the task workspace")
+        read_evidence = {}
+        if self._workspace_edit_port is not None:
+            read = self._workspace_edit_port.read_bytes(self._gateway_logical_path(call.arguments.get("path")))
+            if not read.exists or not read.evidence.complete:
+                raise ValueError("inference requires a complete workspace input read")
+            content = read.content
+            read_evidence = {"workspace_id": read.workspace_id, "read_evidence_id": read.evidence.evidence_id}
+        elif self._workspace_gateway_required:
+            return self._workspace_gateway_missing(call, operation="model_inference")
+        else:
+            with target.open("rb") as stream:
+                content = stream.read(MAX_BYTES + 1)
+        if len(content) > MAX_BYTES:
+            raise ValueError("inference input exceeds the byte budget")
+        values = decode_tensors(base64.b64encode(content).decode("ascii"))
+        report = PartitionedInferenceRuntime(config).infer(
+            str(call.arguments.get("model_id") or ""), values,
+            mode=str(call.arguments.get("mode") or "auto"),
+            sensitivity=str(call.arguments.get("sensitivity") or "internal"),
+            latency_sla_ms=int(call.arguments.get("latency_sla_ms") or 30000),
+            batch=call.arguments.get("batch") is True,
+            request_id=call.tool_call_id,
+        )
+        # Only this granted Agent tool path can claim an Agent tool call;
+        # direct inference/CLI validation must not manufacture one.
+        report["agent_tool_call_count"] = 1
+        report_text = json.dumps(report, ensure_ascii=False, indent=2)
+        if self._workspace_edit_port is not None:
+            written = self._workspace_edit_port.write_text(
+                self._gateway_logical_path(output_path), report_text, encoding="utf-8",
+                idempotency_key=call.tool_call_id, causation_id=call.tool_call_id,
+            )
+            if not written.ok:
+                raise ValueError("inference completed but its workspace report was not committed")
+        else:
+            output_target.parent.mkdir(parents=True, exist_ok=True)
+            output_target.write_text(report_text, encoding="utf-8")
+        artifact = self._artifact_store.write_text(
+            run_id=call.run_id, task_id=call.task_id,
+            content=report_text,
+            title=f"model-inference:{report['model_id']}", kind=ArtifactKind.TRACE,
+            extension=".json", producer_node_id=call.node_id,
+        )
+        summary = {key: report[key] for key in (
+            "model_id", "selected_route", "final_route", "sample_count", "stage_execution_count",
+            "distinct_process_count", "distinct_reported_host_count", "elapsed_ms", "recoveries",
+        )}
+        summary.update({"artifact_id": artifact.artifact_id, "artifact_uri": artifact.uri,
+                        "output_path": output_target.relative_to(self._workspace_root).as_posix(), **read_evidence})
+        return ToolResult(tool_call_id=call.tool_call_id, ok=True,
+                          summary=f"Executed {report['sample_count']} model inputs through {report['selected_route']} inference.",
+                          output=summary, artifacts=[artifact],
+                          metadata={"model_computation_partitioned": str(report["selected_route"] == "split").lower()})
 
     def _trace(self, call: ToolCall, *, authorized: bool = False) -> ToolResult:
         if self._event_reader is None:

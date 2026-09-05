@@ -6593,6 +6593,43 @@ test("missing generated verification prerequisites do not create semantic debt",
   );
 });
 
+test("missing documentation permits acceptance retry but mixed business failures remain debt", () => {
+  const scenarios = [
+    { name: "missing report", stderr: "FileNotFoundError: [Errno 2] No such file or directory: 'C:\\task\\REPORT.md'\nRan 3 tests\nFAILED (errors=1)", debt: false },
+    { name: "missing report plus incorrect predictions", stderr: "AssertionError: predicted labels differ\nFileNotFoundError: [Errno 2] No such file or directory: 'REPORT.md'\nFAILED (failures=1, errors=1)", debt: true },
+    { name: "missing input data", stderr: "FileNotFoundError: [Errno 2] No such file or directory: 'inputs.json'\nFAILED (errors=1)", debt: true },
+    { name: "missing report plus another runtime error", stderr: "ValueError: invalid logits\nFileNotFoundError: [Errno 2] No such file or directory: 'REPORT.md'\nFAILED (errors=2)", debt: true },
+  ];
+  for (const scenario of scenarios) {
+    const progressive = new ProgressiveExecutionRuntime({
+      deliveryContract: { workspace_mutation_required: true },
+      continuityProgress: { requiredDeliveryMissing: false, workspaceMutationCount: 4, repairMutationCount: 4 },
+    });
+    const request: ToolExecutionRequest = {
+      toolCallId: "acceptance", toolName: "shell",
+      arguments: { executable: "python", argv: ["-m", "unittest", "-v", "inference_task_acceptance"] },
+      turnIndex: 0, stepIndex: 0, batchId: "acceptance", batchIndex: 0, batchSize: 1,
+      executionMode: "serial_non_read_only",
+      metadata: { progressive_verification_driving: true, progressive_verification_scope: "shell:acceptance" },
+    };
+    progressive.observeToolResult(request, {
+      tool_call_id: "acceptance", ok: false, summary: "Sandbox command failed",
+      output: { stderr: scenario.stderr, return_code: 1 }, artifacts: [], error: "sandbox_command_failed",
+      metadata: { workspace_mutation_committed: "false" },
+    }, false);
+    assert.equal(progressive.failedVerificationScopeAwaitingRepair("shell:acceptance"), scenario.debt, scenario.name);
+    assert.equal(progressive.snapshot().verificationCount, 0, scenario.name);
+    if (!scenario.debt) {
+      // Only the subsequent actual successful suite can satisfy the gate.
+      progressive.observeToolResult({ ...request, toolCallId: "acceptance-after-report" }, {
+        tool_call_id: "acceptance-after-report", ok: true, summary: "3 tests passed",
+        output: { stderr: "Ran 3 tests\nOK", return_code: 0 }, artifacts: [], metadata: {},
+      }, false);
+      assert.equal(progressive.snapshot().verificationCount, 1);
+    }
+  }
+});
+
 test("missing selected verification runners are invocation failures but product imports remain debt", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },

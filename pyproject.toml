@@ -21,6 +21,10 @@ zyra-release = "zyra_productization.release.cli:main"
 zyra-first-stage-evidence = "zyra_evaluation.freeze_reporting.cli:main"
 
 [project.optional-dependencies]
+inference = [
+    "onnx==1.19.1",
+    "onnxruntime==1.23.2",
+]
 test = [
     "pytest>=8,<10",
 ]

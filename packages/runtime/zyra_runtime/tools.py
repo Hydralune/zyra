@@ -484,6 +484,31 @@ def default_tool_registry() -> ToolRegistry:
                 },
             ),
             ToolSpec(
+                "model_inference",
+                "Run a registered ONNX model on workspace NPZ tensors using actual device/edge "
+                "model partitions. Auto selects an admissible route; split requires both partitions. "
+                "Returns an evidence artifact with numeric outputs and real execution receipts. "
+                "Also saves the report to a workspace JSON file for subsequent analysis tools. "
+                "Endpoint and model configuration is operator-owned, not supplied by the agent.",
+                "zyra",
+                input_schema={
+                    "type": "object",
+                    "required": ["model_id", "path"],
+                    "properties": {
+                        "model_id": {"type": "string"},
+                        "path": {"type": "string", "description": "Workspace-relative NPZ input file."},
+                        "output_path": {"type": "string", "description": "Optional workspace-relative JSON report path; defaults to a unique inference-results file."},
+                        "mode": {"type": "string", "enum": ["auto", "full", "split"]},
+                        "sensitivity": {"type": "string", "enum": ["public", "internal", "sensitive", "restricted"]},
+                        "batch": {"type": "boolean", "description": "Slice axis zero into individual model inputs."},
+                        "latency_sla_ms": {"type": "integer", "minimum": 1, "maximum": 3600000},
+                    },
+                    "additionalProperties": False,
+                },
+                metadata={"access_mode": "artifact_write", "read_only": "false",
+                          "concurrency_safe": "false", "source_path": "zyra_runtime.inference"},
+            ),
+            ToolSpec(
                 "artifact_write",
                 "Persist large outputs as artifacts.",
                 "zyra",
