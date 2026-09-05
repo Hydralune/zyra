@@ -129,7 +129,7 @@ export function ProductSettings({ runtime }: { runtime: WorkbenchRuntime }) {
       </section>
     </> : tab === "system" ? <div className="settings-grid">
       <article className="settings-card"><h2>API 与运行时</h2><p>当前浏览器连接的服务。</p><dl className="fact-grid"><div><dt>服务地址</dt><dd>{runtime.api.client.baseUrl}</dd></div><div><dt>运行状态</dt><dd><span className="tag" data-phase={runtimeStatus.phase}>{runtimeStatus.label}</span></dd></div></dl><button type="button" className="product-button" onClick={() => void runtime.commands.submit("/status", { origin: "button" })}>查看运行状态</button></article>
-      <article className="settings-card"><h2>浏览器历史</h2><p>输入历史、草稿、归档标记和外观偏好保存在当前浏览器。</p><dl className="fact-grid"><div><dt>输入历史</dt><dd>{historyCount}</dd></div><div><dt>已归档会话</dt><dd>{preferences.archived.length}</dd></div></dl><button className="product-button product-button-danger" type="button" disabled={!historyCount} onClick={() => { runtime.history.clear(); setHistoryCount(0); setNotice("输入历史已清除，任务和会话记录仍保留。") }}>清除输入历史</button></article>
+      <article className="settings-card"><h2>浏览器历史</h2><p>输入历史、草稿、置顶标记和外观偏好保存在当前浏览器。</p><dl className="fact-grid"><div><dt>输入历史</dt><dd>{historyCount}</dd></div><div><dt>已置顶会话</dt><dd>{preferences.pinned.length}</dd></div></dl><button className="product-button product-button-danger" type="button" disabled={!historyCount} onClick={() => { runtime.history.clear(); setHistoryCount(0); setNotice("输入历史已清除，任务和会话记录仍保留。") }}>清除输入历史</button></article>
     </div> : <div className="settings-experiments"><p>以下用于场景试运行与正式实验，后台任务在浏览器关闭后继续执行。</p><ScenarioWorkbench runtime={runtime.scenarioConsole} /><ExperimentWorkbench runtime={runtime.experimentConsole} /></div>}
     </div>
   </section>

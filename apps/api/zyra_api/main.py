@@ -65,6 +65,7 @@ PACKAGE_PATHS = [
 ZYRA_DYNAMIC_API_ROUTES = (
     ("GET", "/sessions"),
     ("GET", "/sessions/{session_id}"),
+    ("POST", "/sessions/{session_id}/delete"),
     ("GET", "/experiments/registry"),
     ("GET", "/experiments/runs"),
     ("GET", "/experiments/runs/{experiment_id}"),
@@ -12452,6 +12453,26 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             payload = self._read_json_body()
         except JsonRequestError as error:
             self._send_json(error.status, {"error": error.code, "message": error.message})
+            return
+
+        if len(parts) == 3 and parts[0] == "sessions" and parts[2] == "delete":
+            reservation = self._begin_typed_receipt(operation="session.delete", path=parsed.path, payload=payload)
+            if reservation is False:
+                return
+            try:
+                body = store.delete_conversation(unquote(parts[1]))
+            except (KeyError, ValueError) as error:
+                if isinstance(reservation, ReceiptReservation):
+                    self._typed_receipts().abandon(reservation)
+                self._send_json(HTTPStatus.NOT_FOUND if isinstance(error, KeyError) else HTTPStatus.CONFLICT,
+                                {"error": "session_not_found" if isinstance(error, KeyError) else "session_not_terminal",
+                                 "message": str(error)})
+                return
+            committed = self._commit_typed_receipt(reservation, status=HTTPStatus.OK, body=body,
+                                                   binding={"session_id": body["session_id"]})
+            if committed is not None:
+                response, headers = committed
+                self._send_json(HTTPStatus.OK, response, headers=headers)
             return
 
         if (

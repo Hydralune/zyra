@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { PlanNodeProjection, TaskProjection } from "../../../packages/core/typed-api-client/src/index.ts"
 import { SIDEBAR_DRAWER_QUERY, productConversationList } from "../src/app/workbench-app.tsx"
+import { taskFinishedAt, taskMetrics } from "../src/shell/task-metrics.ts"
 import {
   extractArtifactText,
   orderedProductPlan,
@@ -47,6 +48,33 @@ function task(
 }
 
 describe("product frontstage", () => {
+  test("completed duration is frozen at the matching outcome, not a later control command", () => {
+    const value = task("task_duration", "session_duration", "2026-09-05T10:15:06.869Z")
+    value.updatedAt = "2026-09-05T13:54:24.868Z"
+    value.metadata.canonical_task_outcome = { schema: "zyra.task-outcome/v1", task_id: value.taskId,
+      run_id: value.runId, terminal: true, task_status: "completed", confirmed_at: "2026-09-05T10:15:32.076Z" }
+    expect(taskMetrics(value).elapsedMs).toBe(25_207)
+    value.updatedAt = "2026-09-06T13:54:24Z"
+    expect(taskMetrics(value).elapsedMs).toBe(25_207)
+    expect(taskFinishedAt(value)).toBe(Date.parse("2026-09-05T10:15:32.076Z"))
+  })
+  test("old outcomes cannot freeze an active retry and legacy node timestamps survive metadata updates", () => {
+    const value = task("task_duration", "session_duration", "2026-09-05T10:00:00Z")
+    value.updatedAt = "2026-09-05T14:00:00Z"
+    value.planNodes = [{ ...node("node_end", "completed"), updatedAt: "2026-09-05T10:00:17Z" }]
+    value.metadata.canonical_task_outcome = { schema: "zyra.task-outcome/v1", task_id: value.taskId,
+      run_id: "run_other", terminal: true, task_status: "completed", confirmed_at: "2026-09-05T11:00:00Z" }
+    expect(taskMetrics(value).elapsedMs).toBe(17_000)
+    value.status = "running"; value.active = true; value.terminal = false
+    expect(taskFinishedAt(value)).toBeUndefined()
+    expect(taskMetrics(value, Date.parse("2026-09-05T15:00:00Z")).elapsedMs).toBe(5 * 3_600_000)
+  })
+  test("pinning moves an entire conversation ahead of more recent conversations", () => {
+    const older = task("task_old", "session_old", "2026-09-05T10:00:00Z")
+    const newer = task("task_new", "session_new", "2026-09-05T11:00:00Z")
+    expect(productConversationList([older, newer], ["session_old"]).map((c) => c.key)).toEqual(["session_old", "session_new"])
+    expect(productConversationList([older, newer]).map((c) => c.key)).toEqual(["session_new", "session_old"])
+  })
   test("orders displayed steps by dependency rather than opaque task identifiers", () => {
     const plan = node("node_plan", "completed")
     const run = { ...node("node_run", "completed"), dependsOn: [plan.nodeId] }
@@ -81,6 +109,7 @@ describe("product frontstage", () => {
     const first = task("task_first", "session_alpha", "2026-08-03T10:00:00Z", "First goal")
     const second = task("task_second", "session_alpha", "2026-08-03T11:00:00Z", "Follow up")
     const other = task("task_other", "session_beta", "2026-08-03T12:00:00Z")
+    first.updatedAt = "2026-08-04T12:00:00Z" // A later rename must not become the latest turn.
 
     expect(productConversationTasks(second, [other, second, first]).map((entry) => entry.taskId))
       .toEqual(["task_first", "task_second"])

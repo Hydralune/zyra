@@ -14,6 +14,7 @@ import {
 import { CommandInput } from "../components/command-input/command-input.tsx"
 import { OverlayHost } from "../components/overlays/overlay-host.tsx"
 import { ProductTaskDetail } from "../components/tasks/product-task-detail.tsx"
+import { ConversationIcon, ConversationMenu } from "../components/tasks/conversation-menu.tsx"
 import { EmptyState, ReconnectingState } from "../components/status/request-state.tsx"
 import { NotificationTray } from "../components/status/notification-tray.tsx"
 import { ProductSettings } from "../components/settings/product-settings.tsx"
@@ -89,6 +90,7 @@ export interface ProductConversation {
 
 export function productConversationList(
   tasks: readonly TaskProjection[],
+  pinned: readonly string[] = [],
 ): ProductConversation[] {
   const groups = new Map<string, TaskProjection[]>()
   for (const task of tasks) {
@@ -102,10 +104,7 @@ export function productConversationList(
       const created = Date.parse(left.createdAt) - Date.parse(right.createdAt)
       return created || left.taskId.localeCompare(right.taskId)
     })
-    const latest = [...ordered].sort((left, right) => {
-      const updated = Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
-      return updated || right.taskId.localeCompare(left.taskId)
-    })[0]!
+    const latest = ordered[ordered.length - 1]!
     return {
       key,
       title: ordered[0]?.userGoal || latest.userGoal || "未命名会话",
@@ -113,7 +112,9 @@ export function productConversationList(
       turnCount: ordered.length,
     }
   }).sort((left, right) => {
-    const updated = Date.parse(right.latest.updatedAt) - Date.parse(left.latest.updatedAt)
+    const pinOrder = Number(pinned.includes(right.key)) - Number(pinned.includes(left.key))
+    if (pinOrder) return pinOrder
+    const updated = Date.parse(right.latest.createdAt) - Date.parse(left.latest.createdAt)
     return updated || left.key.localeCompare(right.key)
   })
 }
@@ -156,10 +157,7 @@ function AppNavigation({
   const [query, setQuery] = useState("")
   const [visibleCount, setVisibleCount] = useState(12)
   const preferences = useSyncExternalStore(runtime.preferences.subscribe, runtime.preferences.getSnapshot, runtime.preferences.getSnapshot)
-  const [showArchived, setShowArchived] = useState(false)
-  const [menuKey, setMenuKey] = useState<string>()
-  const [renameTitle, setRenameTitle] = useState("")
-  const [menuBusy, setMenuBusy] = useState(false)
+  const [menu, setMenu] = useState<{ key: string; anchor: HTMLElement }>()
   const [feedback, setFeedback] = useState("")
   useEffect(() => {
     if (listPhase !== "ready") return
@@ -175,11 +173,10 @@ function AppNavigation({
     }).catch(() => { /* Existing titles stay available while offline. */ })
     return () => controller.abort()
   }, [runtime, listPhase])
-  const conversations = productConversationList(tasks).map((conversation) => ({ ...conversation,
+  const conversations = productConversationList(tasks, preferences.pinned).map((conversation) => ({ ...conversation,
     title: preferences.titles[conversation.key] || conversation.title,
   })).filter((conversation) =>
-    preferences.archived.includes(conversation.key) === showArchived
-    && conversation.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
+    conversation.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
   )
   const recent = conversations.slice(0, visibleCount)
   const selectedTask = tasks.find((task) => task.taskId === selectedTaskId)
@@ -191,18 +188,22 @@ function AppNavigation({
   // Off-canvas on a narrow viewport means visually gone but still in the tab
   // order unless it is explicitly removed from the accessibility tree.
   const hidden = drawer && !open
-  const rename = async (conversation: ProductConversation) => {
-    const title = renameTitle.trim()
-    if (!title) { setFeedback("请输入会话名称。"); return }
-    if (new TextEncoder().encode(title).length > 256) { setFeedback("名称太长，请缩短后再保存。"); return }
-    setMenuBusy(true); setFeedback("")
-    try {
-      const receipt = await runtime.controlCommands.renameConversation(conversation.latest, title)
-      if (receipt.phase !== "applied") throw new Error(receipt.error?.message || "名称尚未保存，请稍后刷新会话列表。")
-      runtime.preferences.rememberTitle(conversation.key, title)
-      setMenuKey(undefined); setFeedback("会话已重命名。")
-    } catch (error) { setFeedback(error instanceof Error ? error.message : "重命名失败，请重试。") }
-    finally { setMenuBusy(false) }
+  const rename = async (conversation: ProductConversation, value: string) => {
+    const title = value.trim()
+    if (!title) throw new Error("请输入会话名称。")
+    if (new TextEncoder().encode(title).length > 256) throw new Error("名称太长，请缩短后再保存。")
+    const receipt = await runtime.controlCommands.renameConversation(conversation.latest, title)
+    if (receipt.phase !== "applied") throw new Error(receipt.error?.message || "名称尚未保存，请稍后刷新会话列表。")
+    runtime.preferences.rememberTitle(conversation.key, title)
+    setFeedback("会话已重命名。")
+  }
+  const deleteConversation = async (conversation: ProductConversation) => {
+    const result = await runtime.api.tasks.deleteConversation(conversation.latest.sessionId ?? `session_${conversation.latest.taskId}`)
+    if (selectedConversationKey === conversation.key) navigate(() => runtime.router.openNewTask())
+    runtime.workbench.forgetTasks(result.taskIds)
+    await runtime.workbench.refreshTasks({ preserveOnError: true })
+    try { runtime.preferences.forgetConversation(conversation.key); setFeedback("会话已删除。") }
+    catch { setFeedback("会话已删除；本地置顶信息未能清除。") }
   }
   return (
     <nav
@@ -266,7 +267,7 @@ function AppNavigation({
 
       <section className="product-recents" aria-labelledby="product-recents-heading">
         <div className="product-nav-section-heading">
-          <span id="product-recents-heading">{showArchived ? "已归档会话" : "最近会话"}</span>
+          <span id="product-recents-heading">最近会话</span>
           <button
             type="button"
             aria-label="刷新最近会话"
@@ -276,7 +277,6 @@ function AppNavigation({
             ↻
           </button>
         </div>
-        <button className="product-history-filter" type="button" onClick={() => { setShowArchived(!showArchived); setMenuKey(undefined); setVisibleCount(12) }}>{showArchived ? "返回最近会话" : "查看归档"}</button>
         <input
           className="product-conversation-search"
           type="search"
@@ -287,7 +287,7 @@ function AppNavigation({
         />
         <div className="product-recent-list">
           {recent.map((conversation) => (
-            <div className="product-recent-row" key={conversation.key}>
+            <div className="product-recent-row" key={conversation.key} data-pinned={preferences.pinned.includes(conversation.key) || undefined}>
             <button
               type="button"
               className="product-recent-task"
@@ -296,24 +296,21 @@ function AppNavigation({
             >
               <span className="product-recent-status" data-tone={statusTone(conversation.latest)} aria-hidden="true" />
               <span>
-                <strong>{conversation.title}</strong>
+                <strong>{preferences.pinned.includes(conversation.key) ? <span className="conversation-pin" title="已置顶"><ConversationIcon kind="pin" /></span> : null}{conversation.title}</strong>
                 <small>
                   <span className="sr-only">{statusText(conversation.latest)} · </span>
                   {conversation.turnCount > 1 ? `${conversation.turnCount} 轮 · ` : ""}
-                  {taskTime(conversation.latest.updatedAt)}
+                  {taskTime(conversation.latest.createdAt)}
                 </small>
               </span>
             </button>
-            <button className="product-conversation-more" type="button" aria-label={`会话操作：${conversation.title}`} aria-expanded={menuKey === conversation.key} onClick={() => { setMenuKey(menuKey === conversation.key ? undefined : conversation.key); setRenameTitle(conversation.title); setFeedback("") }}>⋯</button>
-            {menuKey === conversation.key ? <form className="product-conversation-menu" onSubmit={(event) => { event.preventDefault(); void rename(conversation) }} onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setMenuKey(undefined) } }}>
-              <label>会话名称<input aria-label="会话名称" value={renameTitle} disabled={menuBusy} onChange={(event) => setRenameTitle(event.target.value)} /></label>
-              <button className="product-button" disabled={menuBusy} type="submit">{menuBusy ? "保存中…" : "保存名称"}</button>
-              <button className="product-button" type="button" disabled={menuBusy} onClick={() => {
-                try { runtime.preferences.archive(conversation.key, !showArchived); setMenuKey(undefined); setFeedback(showArchived ? "会话已恢复。" : "已在此浏览器归档，任务记录仍保留。") }
-                catch { setFeedback("归档未保存，请检查浏览器存储权限。") }
-              }}>{showArchived ? "恢复会话" : "归档会话"}</button>
-              <p>归档只影响此浏览器的列表，不会停止任务或删除记录。</p>
-            </form> : null}
+            <button className="product-conversation-more" type="button" aria-label={`会话操作：${conversation.title}`} aria-haspopup="menu" aria-expanded={menu?.key === conversation.key} onClick={(event) => { setMenu(menu?.key === conversation.key ? undefined : { key: conversation.key, anchor: event.currentTarget }); setFeedback("") }}>⋯</button>
+            {menu?.key === conversation.key ? <ConversationMenu key={conversation.key} anchor={menu.anchor} title={conversation.title}
+              pinned={preferences.pinned.includes(conversation.key)}
+              canDelete={tasks.filter((task) => (task.sessionId ?? `task:${task.taskId}`) === conversation.key).every((task) => task.terminal)}
+              onClose={() => setMenu(undefined)} onRename={(title) => rename(conversation, title)}
+              onPin={() => { runtime.preferences.pin(conversation.key, !preferences.pinned.includes(conversation.key)); setFeedback(preferences.pinned.includes(conversation.key) ? "已取消置顶。" : "会话已置顶。") }}
+              onDelete={() => deleteConversation(conversation)} /> : null}
             </div>
           ))}
           {!recent.length && listPhase === "loading" ? (
@@ -326,7 +323,7 @@ function AppNavigation({
             </p>
           ) : null}
           {!recent.length && !["loading", "error"].includes(listPhase) ? (
-            <p className="product-sidebar-empty">{query ? "没有匹配的会话。" : showArchived ? "没有已归档的会话。" : "开始会话后会显示在这里。"}</p>
+            <p className="product-sidebar-empty">{query ? "没有匹配的会话。" : "开始会话后会显示在这里。"}</p>
           ) : null}
           {conversations.length > visibleCount ? (
             <button className="product-history-more" type="button" onClick={() => setVisibleCount((count) => count + 12)}>显示更多会话</button>

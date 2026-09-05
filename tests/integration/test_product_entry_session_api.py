@@ -185,6 +185,67 @@ def test_default_task_session_alias_is_resolvable() -> None:
     assert detail["session"]["title"] == "Readable session"
 
 
+def test_conversation_deletion_is_atomic_durable_and_preserves_other_sessions() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        _configure(root)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), _fresh_handler())
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base_url = f"http://127.0.0.1:{server.server_address[1]}"
+        session_id = "session_delete_001"
+        try:
+            from apps.api.zyra_api.main import get_store
+            from zyra_core import PlanNodeStatus
+            from zyra_memory import SQLiteStore
+
+            _, first = _request(base_url, "/tasks", payload={"goal": "delete test first", "auto_run": False, "session_id": session_id})
+            _, second = _request(base_url, "/tasks", payload={"goal": "delete test second", "auto_run": False, "session_id": session_id})
+            _, other = _request(base_url, "/tasks", payload={"goal": "keep test", "auto_run": False})
+            ids = {first["task"]["task_id"], second["task"]["task_id"]}
+            store = get_store()
+            state = store.load_task(first["task"]["task_id"])
+            state.status = PlanNodeStatus.COMPLETED
+            store.save_checkpoint(state)
+            status, rejected = _request(base_url, f"/sessions/{session_id}/delete", payload={})
+            assert status == 409 and rejected["error"] == "session_not_terminal"
+            assert all(store.load_task(task_id) is not None for task_id in ids)
+
+            state = store.load_task(second["task"]["task_id"])
+            state.status = PlanNodeStatus.COMPLETED
+            store.save_checkpoint(state)
+            status, deleted = _request(base_url, f"/sessions/{session_id}/delete", payload={})
+            assert status == 200 and deleted["schema"] == "zyra.session-deletion.v1"
+            assert set(deleted["task_ids"]) == ids
+            assert _request(base_url, f"/sessions/{session_id}/delete", payload={}) == (200, deleted)
+            assert _request(base_url, f"/sessions/{session_id}")[0] == 404
+            assert all(_request(base_url, f"/tasks/{task_id}")[0] == 404 for task_id in ids)
+            remaining = _request(base_url, "/tasks")[1]["tasks"]
+            assert {row["task_id"] for row in remaining} == {other["task"]["task_id"]}
+            restarted = SQLiteStore(store.path)
+            assert all(restarted.load_task(task_id) is None for task_id in ids)
+            try:
+                restarted.save_checkpoint(state)
+            except ValueError as error:
+                assert "deleted" in str(error)
+            else:
+                raise AssertionError("A stale checkpoint resurrected a deleted conversation")
+            assert restarted.task_events(state.task_id)  # Execution audit remains intact.
+            assert _request(base_url, "/sessions/session_missing_delete/delete", payload={})[0] == 404
+            alias = f"task:{other['task']['task_id']}"
+            kept = restarted.load_task(other["task"]["task_id"])
+            kept.status = PlanNodeStatus.CANCELLED
+            restarted.save_checkpoint(kept)
+            alias_status, alias_result = _request(base_url, f"/sessions/{alias}/delete", payload={})
+            assert alias_status == 200
+            assert alias_result["session_id"] == f"session_{kept.task_id}"
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=10)
+            _shutdown()
+
+
 def test_user_input_api_answers_the_exact_canonical_request_idempotently() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)

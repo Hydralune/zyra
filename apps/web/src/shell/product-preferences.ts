@@ -3,7 +3,7 @@ import type { ProductExecutionConfig } from "../api/task-api.ts"
 export interface ProductPreferences {
   fontSize: 14 | 16 | 18
   execution?: ProductExecutionConfig
-  archived: readonly string[]
+  pinned: readonly string[]
   titles: Readonly<Record<string, string>>
 }
 
@@ -11,7 +11,7 @@ export class ProductPreferenceStore {
   readonly #key: string
   readonly #storage?: Pick<Storage, "getItem" | "setItem">
   readonly #listeners = new Set<() => void>()
-  #state: ProductPreferences = Object.freeze({ fontSize: 16, archived: [], titles: {} })
+  #state: ProductPreferences = Object.freeze({ fontSize: 16, pinned: [], titles: {} })
   constructor(scope: string, storage?: Pick<Storage, "getItem" | "setItem">) {
     this.#key = `zyra.product-preferences.v1:${scope}`
     this.#storage = storage
@@ -24,7 +24,7 @@ export class ProductPreferenceStore {
           execution: execution && typeof execution.providerId === "string" && typeof execution.modelId === "string"
             ? { providerId: execution.providerId, modelId: execution.modelId,
                 ...(typeof execution.reasoningEffort === "string" ? { reasoningEffort: execution.reasoningEffort } : {}) } : undefined,
-          archived: Array.isArray(value.archived) ? value.archived.filter((v: unknown) => typeof v === "string").slice(-2000) : [],
+          pinned: Array.isArray(value.pinned) ? [...new Set(value.pinned.filter((v: unknown) => typeof v === "string"))].slice(-2000) as string[] : [],
           titles: value.titles && typeof value.titles === "object" && !Array.isArray(value.titles)
             ? Object.fromEntries(Object.entries(value.titles).filter(([, v]) => typeof v === "string").slice(-2000)) as Record<string, string> : {},
         })
@@ -40,8 +40,13 @@ export class ProductPreferenceStore {
     this.#state = next
     for (const listener of this.#listeners) listener()
   }
-  archive(key: string, archived: boolean): void {
-    this.update({ archived: [...new Set([...this.#state.archived.filter((item) => item !== key), ...(archived ? [key] : [])])] })
+  pin(key: string, pinned: boolean): void {
+    this.update({ pinned: [...this.#state.pinned.filter((item) => item !== key), ...(pinned ? [key] : [])] })
+  }
+  forgetConversation(key: string): void {
+    const titles = { ...this.#state.titles }
+    delete titles[key]
+    this.update({ pinned: this.#state.pinned.filter((item) => item !== key), titles })
   }
   rememberTitle(key: string, title: string): void { this.update({ titles: { ...this.#state.titles, [key]: title } }) }
 }

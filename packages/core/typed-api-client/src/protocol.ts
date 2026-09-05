@@ -227,6 +227,18 @@ export const CORE_ENDPOINTS = {
     pathParameters: ["session_id"],
     queryParameters: [],
   }),
+  sessionDelete: normalizeEndpoint({
+    operation: OPERATION_NAMES.sessionDelete,
+    contract: CONTRACT_NAMES.sessionDeletion,
+    method: "POST",
+    pathTemplate: "/sessions/{session_id}/delete",
+    kind: "mutation",
+    receipt: "required",
+    auth: "optional",
+    expectedStatuses: [200],
+    pathParameters: ["session_id"],
+    queryParameters: [],
+  }),
   taskEvents: normalizeEndpoint({
     operation: OPERATION_NAMES.taskEvents,
     contract: CONTRACT_NAMES.taskEvents,

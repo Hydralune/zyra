@@ -133,6 +133,23 @@ export interface SessionListProjection {
   }>
 }
 
+export interface SessionDeletionProjection {
+  sessionId: string
+  taskIds: string[]
+  deletedAt: string
+}
+
+export function normalizeSessionDeletion(value: unknown): SessionDeletionProjection {
+  const body = objectBody(value, "session deletion response")
+  if (body.schema !== CONTRACT_NAMES.sessionDeletion || body.state_owner !== "task_store_projection") {
+    throw new ResponseValidationError("Session deletion receipt is not task-backed.")
+  }
+  const taskIds = arrayBody(body.task_ids, "session deletion.task_ids").map((id) => normalizeIdentity("task", id))
+  if (!taskIds.length) throw new ResponseValidationError("Session deletion receipt has no tasks.")
+  return { sessionId: normalizeIdentity("session", body.session_id), taskIds,
+    deletedAt: responseString(body.deleted_at, "session deletion.deleted_at") }
+}
+
 export interface TaskMutationProjection {
   task: TaskProjection
   events: EventProjection[]
@@ -631,6 +648,7 @@ export function registerCoreNormalizers(registry: NormalizerRegistry): void {
   registry.register(CONTRACT_NAMES.taskDetail, normalizeTaskDetail)
   registry.register(CONTRACT_NAMES.sessionList, normalizeSessionList)
   registry.register(CONTRACT_NAMES.sessionDetail, normalizeSessionDetail)
+  registry.register(CONTRACT_NAMES.sessionDeletion, normalizeSessionDeletion)
   registry.register(CONTRACT_NAMES.taskEvents, normalizeTaskEvents)
   registry.register(CONTRACT_NAMES.taskEventIngressCapabilities, normalizeEventIngressEnvelope)
   registry.register(CONTRACT_NAMES.taskEventIngressSnapshot, normalizeEventIngressEnvelope)

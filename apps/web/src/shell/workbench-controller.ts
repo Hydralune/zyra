@@ -169,6 +169,7 @@ export class WorkbenchController {
   readonly #controllers = new Map<"list" | "detail" | "runtime", AbortController>()
   readonly #retry = new RetrySupervisor()
   readonly #details = new Map<string, TaskProjection>()
+  readonly #deletedTasks = new Set<string>()
   readonly #conversationRequests = new Map<string, AbortController>()
   readonly #conversationFailures = new Map<string, RequestFailure>()
   #snapshot: WorkbenchSnapshot
@@ -218,6 +219,25 @@ export class WorkbenchController {
       (task) => task.taskId === this.#snapshot.selectedTaskId,
     )
     return selected ? cloneTask(selected) : undefined
+  }
+
+  forgetTasks(taskIds: readonly string[]): void {
+    const removed = new Set(taskIds)
+    this.#controllers.get("list")?.abort()
+    for (const id of removed) {
+      this.#deletedTasks.add(id)
+      this.#details.delete(id)
+      this.#conversationRequests.get(id)?.abort()
+      this.#conversationRequests.delete(id)
+      this.#conversationFailures.delete(id)
+    }
+    const selected = this.#snapshot.selectedTaskId && removed.has(this.#snapshot.selectedTaskId)
+    if (selected) this.#controllers.get("detail")?.abort()
+    const tasks = this.#snapshot.list.tasks.filter((task) => !removed.has(task.taskId))
+    this.#replace({ list: { ...this.#snapshot.list, tasks: Object.freeze(tasks),
+      phase: tasks.length ? "ready" : "empty",
+      total: Math.max(0, this.#snapshot.list.total - removed.size), generation: this.#snapshot.list.generation + 1 },
+      ...(selected ? { selectedTaskId: undefined, detail: { phase: "idle" as const, generation: this.#snapshot.detail.generation + 1 } } : {}) })
   }
 
   conversationDetail(taskId: string): { phase: "loading" | "ready" | "error"; failure?: RequestFailure } {
@@ -429,6 +449,7 @@ export class WorkbenchController {
         timeoutMs: 15_000,
       })
       if (!this.#isCurrent("detail", controller, generation)) return this.#snapshot.detail
+      if (this.#deletedTasks.has(task.taskId)) throw new Error("Task not found (deleted).")
       this.#rememberDetail(task)
       this.#replace({
         selectedTaskId: task.taskId,
@@ -513,6 +534,7 @@ export class WorkbenchController {
 
   applyMutation(task: TaskProjection): void {
     this.#assertUsable()
+    if (this.#deletedTasks.has(task.taskId)) return
     const cloned = cloneTask(task)
     this.#rememberDetail(task)
     this.#replace({
@@ -636,8 +658,9 @@ export class WorkbenchController {
     incoming: readonly TaskProjection[],
   ): TaskProjection[] {
     const values = new Map<string, TaskProjection>()
-    for (const task of current) values.set(task.taskId, cloneTask(task))
+    for (const task of current) if (!this.#deletedTasks.has(task.taskId)) values.set(task.taskId, cloneTask(task))
     for (const task of incoming) {
+      if (this.#deletedTasks.has(task.taskId)) continue
       const detail = this.#details.get(task.taskId)
       const candidate = detail && Date.parse(detail.updatedAt) >= Date.parse(task.updatedAt) ? detail : task
       const previous = values.get(task.taskId)
@@ -652,6 +675,7 @@ export class WorkbenchController {
   }
 
   #rememberDetail(task: TaskProjection): void {
+    if (this.#deletedTasks.has(task.taskId)) return
     this.#conversationFailures.delete(task.taskId)
     this.#details.delete(task.taskId)
     this.#details.set(task.taskId, cloneTask(task))
@@ -673,7 +697,7 @@ export class WorkbenchController {
       this.#conversationRequests.set(row.taskId, controller)
       try {
         const task = await this.#tasks.get(row.taskId, { signal: controller.signal, timeoutMs: 15_000 })
-        if (this.#closed || task.sessionId !== selected.sessionId) continue
+        if (this.#closed || controller.signal.aborted || this.#deletedTasks.has(task.taskId) || task.sessionId !== selected.sessionId) continue
         this.#rememberDetail(task)
         this.#replace({ list: {
           ...this.#snapshot.list,

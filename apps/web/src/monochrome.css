@@ -39,6 +39,9 @@ body { background: #fafafa; color: #202020; }
 }
 .product-shell .product-new-task { color: var(--text); background: #fff; border-color: #d4d4d4; }
 .product-primary-nav button[aria-current="page"], .product-recent-task[aria-current="page"] { color: #171717; background: #e9e9e9; }
+.product-shell .product-primary-nav button { color: #171717; font-size: 16px; }
+.product-shell .product-primary-nav button:disabled { color: #171717; opacity: 1; }
+.product-shell .product-primary-nav button:disabled > span:first-child { opacity: .45; }
 .product-shell :is(.button, .product-button) { font: inherit; font-size: 14px; min-height: 36px; border-radius: 8px; }
 .product-shell :is(.button-primary, .product-button-primary), .product-shell .command-submit {
   color: #fff; background: var(--accent); border: 1px solid var(--accent); box-shadow: none;
@@ -56,7 +59,7 @@ body { background: #fafafa; color: #202020; }
 .product-shell :is(.product-status-dot, .product-recent-status, .connection-dot, .product-working-spinner) { color: #404040; background-color: #777; box-shadow: none; }
 .product-shell :is(.product-progress, .product-sync-bar) > span { background: var(--accent); }
 .product-shell .product-answer, .product-shell .product-message-user p { color: #252525; font-size: var(--answer-font-size, 16px); line-height: 1.8; }
-.product-shell .product-message-user p { background: #eee; }
+.product-shell .product-message-user p { background: #e8f2ff; color: #193b63; }
 .product-shell :is(.product-agent-meta time, .product-disclosure small, .product-plan-list small, .product-topbar small, .product-session-status small, .product-recent-task small, .product-command-footer, .product-composer-context, .product-sidebar-empty) { color: #666; font-size: 12px; }
 .product-shell :is(.product-agent-meta strong, .product-disclosure strong, .product-plan-list strong) { color: #505050; font-size: 13px; }
 .product-shell .product-disclosure { border-color: #e2e2e2; background: #fcfcfc; box-shadow: none; }
@@ -78,14 +81,30 @@ body { background: #fafafa; color: #202020; }
 .product-shell .plan-warning { color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border); border-left-width: 3px; padding: 10px 14px; border-radius: 8px; }
 .product-recent-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 28px; align-items: center; }
 .product-recent-row .product-recent-task { min-width: 0; width: 100%; }
-.product-conversation-more, .product-history-filter { background: transparent; border: 0; color: #656565; cursor: pointer; font-size: 13px; }
+.product-conversation-more { background: transparent; border: 0; color: #656565; cursor: pointer; font-size: 13px; }
 .product-conversation-more { height: 34px; font-size: 21px; border-radius: 6px; }
 .product-conversation-more:hover { background: #e5e5e5; }
-.product-history-filter { padding: 4px 0 12px; text-align: left; }
-.product-conversation-menu { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; border: 1px solid #ccc; border-radius: 9px; background: #fff; box-shadow: var(--shadow); }
-.product-conversation-menu label { width: 100%; display: grid; gap: 6px; font-size: 12px; color: #555; }
-.product-conversation-menu input { box-sizing: border-box; width: 100%; min-width: 0; padding: 8px; border: 1px solid #aaa; border-radius: 6px; font: inherit; color: #222; background: #fff; }
-.product-conversation-menu p, .product-sidebar-feedback { width: 100%; margin: 0; font-size: 12px; color: #555; line-height: 1.6; }
+.product-conversation-popover { position: fixed; z-index: 300; width: min(256px, calc(100vw - 16px)); box-sizing: border-box; padding: 8px; border: 1px solid #e0e0e0; border-radius: 14px; background: #fff; color: #202020; box-shadow: 0 8px 28px rgb(0 0 0 / 12%); font: 15px/1.5 "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+.product-conversation-popover > button { width: 100%; text-align: left; }
+.product-conversation-popover button { display: flex; gap: 12px; align-items: center; min-height: 42px; padding: 9px 12px; border: 0; border-radius: 8px; color: inherit; background: transparent; cursor: pointer; font: inherit; }
+.product-conversation-popover button:hover:not(:disabled) { background: #f3f3f3; }
+.product-conversation-popover button:disabled { opacity: .45; cursor: not-allowed; }
+.product-conversation-popover .conversation-delete { color: #c52230; }
+.product-conversation-popover .conversation-delete:hover:not(:disabled) { background: #fef2f2; }
+.conversation-menu-divider { height: 1px; margin: 5px 8px; background: #e9e9e9; }
+.product-conversation-popover form, .product-conversation-popover[role="dialog"] { padding: 14px; }
+.product-conversation-popover form { padding: 0; }
+.product-conversation-popover label { display: grid; gap: 10px; }
+.product-conversation-popover input { box-sizing: border-box; width: 100%; padding: 9px 10px; border: 1px solid #ccc; border-radius: 7px; color: #202020; background: #fff; font: inherit; }
+.product-conversation-popover p { margin: 10px 0; color: #666; font-size: 14px; overflow-wrap: anywhere; }
+.product-conversation-popover .conversation-delete-title { color: #202020; max-height: 4.5em; overflow: auto; }
+.conversation-menu-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 14px; }
+.product-conversation-popover .conversation-confirm { color: var(--accent-strong); background: var(--accent-bg); }
+.product-conversation-popover .conversation-menu-error { color: var(--danger); }
+.product-conversation-popover :is(button, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.conversation-pin { display: inline-flex; vertical-align: -3px; margin-right: 5px; color: #555; }
+.conversation-pin svg { width: 14px; height: 14px; }
+.product-sidebar-feedback { width: 100%; margin: 0; font-size: 12px; color: #555; line-height: 1.6; }
 .product-sidebar-feedback { padding: 10px; }
 .product-settings { max-width: none; background: #fafafa; padding: 36px clamp(20px, 5vw, 72px); }
 .product-settings > * { max-width: 1050px; margin-left: auto; margin-right: auto; }

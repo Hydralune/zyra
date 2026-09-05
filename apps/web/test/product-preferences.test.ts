@@ -20,25 +20,36 @@ test("control commands preserve the owner session key while validating its norma
   expect(captured?.binding.sessionId).toBe("session_task_alias_001")
 })
 
-test("preferences persist per backend and archive is reversible without losing titles", () => {
+test("preferences persist per backend and pinning is reversible without losing titles", () => {
   const data = new Map<string, string>()
   const storage = { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => { data.set(key, value) } }
   const store = new ProductPreferenceStore("api-one", storage)
   store.update({ fontSize: 18, execution: { providerId: "deepseek", modelId: "flash", reasoningEffort: "low" } })
   store.rememberTitle("session-one", "Readable title")
-  store.archive("session-one", true)
+  store.pin("session-one", true)
   const restored = new ProductPreferenceStore("api-one", storage)
   expect(restored.getSnapshot()).toEqual(store.getSnapshot())
-  restored.archive("session-one", false)
-  expect(restored.getSnapshot().archived).toEqual([])
+  restored.pin("session-one", false)
+  expect(restored.getSnapshot().pinned).toEqual([])
   expect(restored.getSnapshot().titles["session-one"]).toBe("Readable title")
   expect(new ProductPreferenceStore("api-two", storage).getSnapshot().execution).toBeUndefined()
+  restored.pin("session-one", true)
+  restored.forgetConversation("session-one")
+  const afterDelete = new ProductPreferenceStore("api-one", storage).getSnapshot()
+  expect(afterDelete.pinned).toEqual([])
+  expect(afterDelete.titles["session-one"]).toBeUndefined()
 })
 
 test("failed browser storage does not claim a preference was saved", () => {
   const store = new ProductPreferenceStore("api", { getItem: () => "broken json", setItem: () => { throw new Error("quota") } })
   expect(() => store.update({ fontSize: 18 })).toThrow("quota")
   expect(store.getSnapshot().fontSize).toBe(16)
+})
+
+test("legacy archived chats return to the normal list without erasing saved preferences", () => {
+  const store = new ProductPreferenceStore("api", { getItem: () => JSON.stringify({ fontSize: 18, archived: ["session_old"], titles: { session_old: "Old title" } }), setItem: () => {} })
+  expect(store.getSnapshot()).toMatchObject({ fontSize: 18, pinned: [], titles: { session_old: "Old title" } })
+  expect("archived" in store.getSnapshot()).toBe(false)
 })
 
 test("only known runtime records leave deliverables, including internally labelled user files", () => {

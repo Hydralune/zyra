@@ -434,6 +434,22 @@ describe("command keyboard, history, drafts, and queue", () => {
 })
 
 describe("workbench controller and route loader", () => {
+  test("deleted conversations stay absent when stale list or mutation responses arrive", async () => {
+    const removed = task("task_remove_001", "completed")
+    const kept = task("task_keep_001", "completed")
+    const controller = new WorkbenchController({ list: async () => ({ tasks: [removed, kept], total: 2 }),
+      get: async () => removed } as unknown as TaskApi)
+    await controller.refreshTasks()
+    await controller.loadTask(removed.taskId)
+    controller.forgetTasks([removed.taskId])
+    controller.applyMutation(removed)
+    await controller.refreshTasks()
+    expect(controller.getSnapshot().list.tasks.map((value) => value.taskId)).toEqual([kept.taskId])
+    expect(controller.selectedTask()).toBeUndefined()
+    await controller.loadTask(removed.taskId)
+    expect(controller.getSnapshot().detail.phase).toBe("not-found")
+    controller.close()
+  })
   test("list summaries cannot erase loaded answers and prior session turns are hydrated", async () => {
     const first = task("task_first_001", "completed", { sessionId: "session_chat_001" })
     const second = task("task_second_001", "completed", { sessionId: "session_chat_001" })

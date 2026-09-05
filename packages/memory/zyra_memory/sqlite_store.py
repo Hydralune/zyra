@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from zyra_core import EventRecord, EventType, TaskState, task_state_from_json, to_jsonable
+from zyra_core import EventRecord, EventType, TaskState, now_iso, task_state_from_json, to_jsonable
 
 from .models import CompactResult, MemoryLayer, MemoryRecord
 
@@ -29,6 +29,12 @@ class SQLiteStore:
                     root_node_id TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS deleted_conversations (
+                    session_id TEXT PRIMARY KEY,
+                    deleted_at TEXT NOT NULL,
+                    task_ids_json TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS events (
@@ -140,6 +146,12 @@ class SQLiteStore:
         self.initialize()
         payload = to_jsonable(state)
         with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if connection.execute(
+                "SELECT 1 FROM deleted_conversations WHERE session_id = ?",
+                (_conversation_key(payload),),
+            ).fetchone():
+                raise ValueError("This conversation has been deleted.")
             connection.execute(
                 """
                 INSERT INTO tasks (
@@ -184,13 +196,20 @@ class SQLiteStore:
                 "SELECT checkpoint_json FROM checkpoints WHERE task_id = ?",
                 (task_id,),
             ).fetchone()
-        if row is None:
-            return None
-        return task_state_from_json(json.loads(str(row["checkpoint_json"])))
+            if row is None:
+                return None
+            payload = json.loads(str(row["checkpoint_json"]))
+            if connection.execute(
+                "SELECT 1 FROM deleted_conversations WHERE session_id = ?",
+                (_conversation_key(payload),),
+            ).fetchone():
+                return None
+        return task_state_from_json(payload)
 
     def list_tasks(self) -> list[dict[str, Any]]:
         self.initialize()
         with self._connection() as connection:
+            deleted = {row["session_id"] for row in connection.execute("SELECT session_id FROM deleted_conversations")}
             rows = connection.execute(
                 """
                 SELECT
@@ -213,6 +232,8 @@ class SQLiteStore:
             checkpoint_json = value.pop("checkpoint_json", None)
             if checkpoint_json:
                 checkpoint = json.loads(str(checkpoint_json))
+                if _conversation_key(checkpoint) in deleted:
+                    continue
                 metadata = checkpoint.get("metadata")
                 if isinstance(metadata, dict):
                     session_id = str(metadata.get("query_session_id") or "").strip()
@@ -223,6 +244,42 @@ class SQLiteStore:
                         value["session_title"] = session_title
             values.append(value)
         return values
+
+    def delete_conversation(self, session_id: str) -> dict[str, Any]:
+        """Atomically remove a settled conversation from product access.
+
+        Execution evidence is retained for audits; a durable tombstone prevents
+        later checkpoint writes or a stale client from resurrecting the chat.
+        """
+        self.initialize()
+        normalized = _canonical_conversation_key(session_id)
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            existing = connection.execute(
+                "SELECT * FROM deleted_conversations WHERE session_id = ?", (normalized,)
+            ).fetchone()
+            if existing:
+                task_ids = json.loads(existing["task_ids_json"])
+                deleted_at = existing["deleted_at"]
+            else:
+                selected = [
+                    json.loads(row["checkpoint_json"])
+                    for row in connection.execute("SELECT checkpoint_json FROM checkpoints")
+                ]
+                selected = [task for task in selected if _conversation_key(task) == normalized]
+                if not selected:
+                    raise KeyError(normalized)
+                terminal = {"completed", "failed", "cancelled", "rejected", "timed_out"}
+                if any(str(task.get("status")) not in terminal for task in selected):
+                    raise ValueError("会话中仍有未结束的任务，请先停止任务再删除。")
+                task_ids = sorted(task["task_id"] for task in selected)
+                deleted_at = now_iso()
+                connection.execute(
+                    "INSERT INTO deleted_conversations (session_id, deleted_at, task_ids_json) VALUES (?, ?, ?)",
+                    (normalized, deleted_at, json.dumps(task_ids)),
+                )
+        return {"schema": "zyra.session-deletion.v1", "session_id": normalized,
+                "task_ids": task_ids, "deleted_at": deleted_at, "state_owner": "task_store_projection"}
 
     def task_events(self, task_id: str) -> list[dict[str, Any]]:
         self.initialize()
@@ -644,6 +701,16 @@ class SQLiteStore:
             connection.commit()
         finally:
             connection.close()
+
+
+def _canonical_conversation_key(value: str) -> str:
+    return f"session_{value[5:]}" if value.startswith("task:task_") else value
+
+
+def _conversation_key(task: dict[str, Any]) -> str:
+    metadata = task.get("metadata") or {}
+    return _canonical_conversation_key(str(metadata.get("query_session_id") or metadata.get("session_id")
+                                           or task.get("session_id") or f"task:{task['task_id']}"))
 
 
 def _event_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:

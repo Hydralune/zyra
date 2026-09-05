@@ -15,6 +15,7 @@ import {
   type TaskMutationProjection,
   type TaskProjection,
   type ControlCommandProjection,
+  type SessionDeletionProjection,
 } from "../../../../packages/core/typed-api-client/src/index.ts"
 import type { ZyraApiClient } from "./client.ts"
 
@@ -632,6 +633,24 @@ export class TaskApi {
       coordinationKey: `task.get:${normalizedTaskId}`,
       latestWins: true,
     })
+    return response.data
+  }
+
+  async deleteConversation(session: string): Promise<SessionDeletionProjection> {
+    const sessionId = normalizeIdentity("session", session)
+    const binding = { sessionId }
+    const body = {}
+    const idempotencyKey = createIdempotencyKey(OPERATION_NAMES.sessionDelete, binding, body)
+    const response = await this.#client.endpoint<SessionDeletionProjection>(OPERATION_NAMES.sessionDelete, {
+      path: { session_id: sessionId }, body, binding, idempotencyKey,
+      coordinationKey: `session.delete:${sessionId}`, deduplicate: true,
+    })
+    if (response.data.sessionId !== sessionId) throw new TypeError("删除回执与当前会话不匹配。")
+    const receipt = normalizeReceipt(response.raw.body, response.raw.headers, {
+      requestId: response.raw.requestId, idempotencyKey, operation: OPERATION_NAMES.sessionDelete,
+      statusCode: response.raw.status, binding,
+    })
+    this.#client.receipts.remember(receipt)
     return response.data
   }
 

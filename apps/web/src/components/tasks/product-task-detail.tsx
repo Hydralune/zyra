@@ -10,7 +10,7 @@ import type { WorkbenchRuntime } from "../../app/runtime.ts"
 import type { TaskDetailState } from "../../shell/workbench-controller.ts"
 import type { ProductAssistantStreamSnapshot } from "../../shell/task-live-sync.ts"
 import { taskActionSet } from "../../shell/task-action-policy.ts"
-import { formatDuration, taskMetrics } from "../../shell/task-metrics.ts"
+import { formatDuration, taskFinishedAt, taskMetrics } from "../../shell/task-metrics.ts"
 import { FocusTrap } from "../../shell/focus-trap.ts"
 import {
   useCommandSnapshot,
@@ -534,6 +534,7 @@ function ConversationTurn({
 }) {
   const progress = productTaskProgress(task)
   const metrics = taskMetrics(task)
+  const answerTime = new Date(taskFinishedAt(task) ?? Date.parse(task.updatedAt)).toISOString()
   const copy = statusCopy(task)
   const summary = resultSummary(task)
   const detail = runtime.workbench.conversationDetail?.(task.taskId) ?? { phase: "ready" }
@@ -556,8 +557,8 @@ function ConversationTurn({
         <div className="product-message-body">
           <div className="product-agent-meta">
             <strong>Zyra</strong>
-            <time dateTime={task.updatedAt} title={new Date(task.updatedAt).toLocaleString("zh-CN")}>
-              {relativeTime(task.updatedAt)}
+            <time dateTime={answerTime} title={new Date(answerTime).toLocaleString("zh-CN")}>
+              {relativeTime(answerTime)}
             </time>
           </div>
           {summary ? (
@@ -929,7 +930,7 @@ function ProductDetailContent({
                 ? "已暂停自动更新"
                 : live.live
                   ? "实时更新中"
-                  : relativeTime(task.updatedAt)}
+                  : relativeTime(new Date(taskFinishedAt(task) ?? Date.parse(task.updatedAt)).toISOString())}
             </small>
           </span>
         </div>

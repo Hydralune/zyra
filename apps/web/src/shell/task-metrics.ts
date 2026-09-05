@@ -25,10 +25,29 @@ function timestamp(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+/** A terminal result is immutable; control commands may still update the task. */
+export function taskFinishedAt(task: TaskProjection): number | undefined {
+  if (!task.terminal) return undefined
+  const outcome = task.metadata.canonical_task_outcome
+  if (outcome && typeof outcome === "object" && !Array.isArray(outcome)) {
+    const result = outcome as Record<string, unknown>
+    if (result.schema === "zyra.task-outcome/v1" && result.task_id === task.taskId
+      && result.run_id === task.runId && result.terminal === true
+      && result.task_status === task.status && typeof result.confirmed_at === "string") {
+      const confirmed = timestamp(result.confirmed_at)
+      if (confirmed >= timestamp(task.createdAt) && confirmed > 0) return confirmed
+    }
+  }
+  // Older checkpoints have no outcome receipt. Their last execution node is
+  // still a better clock than a later rename or status command on the task.
+  const nodeTimes = task.planNodes.map((node) => timestamp(node.updatedAt ?? "")).filter((value) => value >= timestamp(task.createdAt) && value > 0)
+  return nodeTimes.length ? Math.max(...nodeTimes) : timestamp(task.updatedAt) || undefined
+}
+
 export function taskMetrics(task: TaskProjection, now = Date.now()): TaskMetrics {
   const created = timestamp(task.createdAt)
   const updated = timestamp(task.updatedAt)
-  const end = task.terminal ? updated : Math.max(updated, now)
+  const end = taskFinishedAt(task) ?? (task.terminal ? updated : Math.max(updated, now))
   const workers = new Set<string>()
   const nodes = new Map(task.planNodes.map((node) => [node.nodeId, node]))
   let completedNodeCount = 0
