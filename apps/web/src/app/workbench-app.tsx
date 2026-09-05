@@ -379,7 +379,7 @@ function TopBar({
   const runtimeLabel = !online
     ? "离线"
     : phase === "ready" && state.runtime.readiness?.ready
-      ? "运行时就绪"
+      ? "服务已就绪"
       : state.runtime.phase === "loading"
         ? "正在检查"
         : "运行时不可用"
@@ -561,7 +561,7 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
   }, [bootstrapKey])
 
   useEffect(() => {
-    if (state.runtime.phase === "ready") runtime.announcer.announce("Zyra 运行时就绪。")
+    if (state.runtime.phase === "ready") runtime.announcer.announce("Zyra 服务已就绪。")
     else if (state.runtime.phase === "reconnecting") runtime.announcer.announce("连接中断，正在重新连接 Zyra。")
     else if (state.runtime.phase === "error") {
       runtime.announcer.announce(

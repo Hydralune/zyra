@@ -73,7 +73,7 @@ function RuntimeStatus({ runtime, overlay }: { runtime: WorkbenchRuntime; overla
       <div className={`runtime-summary runtime-${state.phase}`}>
         <span className="connection-dot" aria-hidden="true" />
         <div>
-          <strong>{readiness?.ready ? "运行时就绪" : "运行时不可用"}</strong>
+          <strong>{readiness?.ready ? "服务已就绪" : "运行时不可用"}</strong>
           <p>{state.failure?.message ?? state.health?.service ?? "尚未收到服务响应"}</p>
         </div>
       </div>
