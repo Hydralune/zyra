@@ -391,7 +391,33 @@ def run(argv: list[str] | None = None) -> int:
     try:
         server.serve_forever(poll_interval=0.1)
     finally:
-        server.server_close()
+        try:
+            server.server_close()
+        finally:
+            # Request threads are daemons: their query-engine finally blocks
+            # may never run when this interpreter exits. The host owner keeps
+            # the actual Popen handles and fences concurrent process creation.
+            from zyra_runtime.sandbox_gateway.integration_host import (
+                GatewayHostProcessRuntime,
+            )
+
+            cleanup = GatewayHostProcessRuntime.shutdown_process_scope(
+                reason="deployment node stopped",
+            )
+            print(
+                json.dumps({
+                    "schema": "zyra.deployment-host-process-cleanup/v1",
+                    "node_id": arguments.node_id,
+                    "generation_id": arguments.generation_id,
+                    "processes": cleanup,
+                    "remaining_process_ids": [
+                        item["process_id"] for item in cleanup if not item["stopped"]
+                    ],
+                }),
+                flush=True,
+            )
+    if any(not item["stopped"] for item in cleanup):
+        return 1
     return 0
 
 

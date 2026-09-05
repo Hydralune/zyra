@@ -4,6 +4,7 @@ import os
 import subprocess
 import threading
 import time
+import weakref
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -78,6 +79,10 @@ class GatewayHostProcessRuntime:
     a task workspace, such as the TypeScript CodeWorker stdio entrypoint.
     """
 
+    _scope_lock = threading.RLock()
+    _scope_closed = False
+    _instances: weakref.WeakSet[GatewayHostProcessRuntime] = weakref.WeakSet()
+
     def __init__(
         self,
         policy_runtime: GatewayPolicyRuntime,
@@ -91,6 +96,56 @@ class GatewayHostProcessRuntime:
         self.process_tree = ProcessTreeController()
         self._lock = threading.RLock()
         self._active: dict[str, subprocess.Popen[Any]] = {}
+        self._closed = False
+        with GatewayHostProcessRuntime._scope_lock:
+            if GatewayHostProcessRuntime._scope_closed:
+                raise RuntimeError("host process scope is closed")
+            GatewayHostProcessRuntime._instances.add(self)
+
+    def _spawn(
+        self, command_id: str, *args: Any, **kwargs: Any
+    ) -> subprocess.Popen[Any]:
+        # Spawn and registration are one admission boundary. Closing a node
+        # cannot miss a process that is still being created on a request thread.
+        with GatewayHostProcessRuntime._scope_lock, self._lock:
+            if self._closed or GatewayHostProcessRuntime._scope_closed:
+                raise RuntimeError("host process runtime is closed")
+            process = subprocess.Popen(*args, **kwargs)
+            self._active[command_id] = process
+            return process
+
+    def close(
+        self, *, reason: str = "host process owner closed"
+    ) -> tuple[Mapping[str, Any], ...]:
+        with self._lock:
+            self._closed = True
+            active = tuple(self._active.items())
+        receipts = []
+        for command_id, process in active:
+            result = self.process_tree.terminate(
+                process, grace_seconds=3.0, reason=reason
+            )
+            receipts.append({"command_id": command_id, **result.to_dict()})
+            if result.stopped:
+                with self._lock:
+                    if self._active.get(command_id) is process:
+                        self._active.pop(command_id)
+        # Readers on live request threads own their pipe cleanup. Closing a
+        # stream here can block on their IO lock; terminating the process lets
+        # those readers reach EOF without an unbounded shutdown wait.
+        return tuple(receipts)
+
+    @staticmethod
+    def shutdown_process_scope(
+        *, reason: str
+    ) -> tuple[Mapping[str, Any], ...]:
+        """Permanently fence this node's host owners and stop their handles."""
+        with GatewayHostProcessRuntime._scope_lock:
+            GatewayHostProcessRuntime._scope_closed = True
+            instances = tuple(GatewayHostProcessRuntime._instances)
+        return tuple(
+            receipt for owner in instances for receipt in owner.close(reason=reason)
+        )
 
     def run(
         self,
@@ -146,7 +201,8 @@ class GatewayHostProcessRuntime:
             start_new_session = os.name != "nt"
             if os.name == "nt":
                 creationflags = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
-            process = subprocess.Popen(
+            process = self._spawn(
+                command_id,
                 [str(executable), *(str(item) for item in argv)],
                 cwd=root,
                 env={**_safe_base_environment(), **dict(environment or {})},
@@ -157,8 +213,6 @@ class GatewayHostProcessRuntime:
                 start_new_session=start_new_session,
                 creationflags=creationflags,
             )
-            with self._lock:
-                self._active[command_id] = process
             assert process.stdout is not None
             assert process.stderr is not None
             collector = OutputBudgetCollector(envelope.budget)
@@ -309,7 +363,8 @@ class GatewayHostProcessRuntime:
                 audience=audience,
                 required_scope="provider:model:dispatch",
             )
-        process = subprocess.Popen(
+        process = self._spawn(
+            command_id,
             [str(executable), *(str(item) for item in argv)],
             cwd=root,
             env=process_environment,
@@ -325,8 +380,6 @@ class GatewayHostProcessRuntime:
         )
         setattr(process, "_zyra_gateway_command_id", command_id)
         setattr(process, "_zyra_credential_relay_used", credential_relay_used)
-        with self._lock:
-            self._active[command_id] = process
         return process
 
     def release_interactive(
