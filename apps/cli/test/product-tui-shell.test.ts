@@ -358,11 +358,13 @@ describe("product TUI shell", () => {
     )
     expect(output.text).toContain("数据库选择")
 
+    const beforeDetach = output.text.length
     shell.detachInput()
 
     await expect(picking).resolves.toBeUndefined()
     expect(stdin.raw).toBe(false)
-    expect(output.text.slice(-600)).not.toContain("数据库选择")
+    expect(output.text.slice(beforeDetach)).toContain("\u001b[J")
+    expect(output.text.slice(beforeDetach)).not.toContain("数据库选择")
     shell.close()
   })
 

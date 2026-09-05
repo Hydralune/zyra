@@ -1326,6 +1326,35 @@ kbd {
   to { transform: rotate(360deg); }
 }
 
+.product-conversation-search {
+  width: calc(100% - 24px);
+  margin: 0 12px 10px;
+  padding: 9px 10px;
+  border: 1px solid #dce3de;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+
+.product-history-more {
+  width: 100%;
+  padding: 10px;
+  color: #397556;
+  font-size: 12px;
+}
+
+.product-artifact-library > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.product-artifact-library h1 { font-size: 22px; }
+.product-artifact-library h2 { font-size: 15px; overflow-wrap: anywhere; margin-top: 24px; }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

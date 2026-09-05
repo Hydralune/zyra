@@ -531,7 +531,7 @@ export class CommandCoordinator {
       const runtime = this.#workbench.getSnapshot().runtime
       this.#overlays.open({
         kind: "transport-status",
-        title: "Runtime status",
+        title: "运行时状态",
         replaceKind: true,
         payload: {
           phase: runtime.phase,
@@ -545,7 +545,7 @@ export class CommandCoordinator {
     if (definition.id === "command.help.commands") {
       this.#overlays.open({
         kind: "command-help",
-        title: "Command reference",
+        title: "命令与帮助",
         replaceKind: true,
         payload: { commands: this.#catalog.list() },
       })
@@ -554,15 +554,15 @@ export class CommandCoordinator {
     if (definition.id === "command.help.keyboard") {
       this.#overlays.open({
         kind: "keyboard-help",
-        title: "Keyboard shortcuts",
+        title: "快捷键",
         replaceKind: true,
         payload: {
           shortcuts: [
-            ["Enter", "Submit"],
-            ["Shift+Enter", "Insert newline"],
-            ["Escape", "Close overlay or cancel active request"],
-            ["Arrow Up/Down", "Navigate suggestions or history"],
-            ["Ctrl+K", "Focus command input"],
+            ["Enter", "发送消息"],
+            ["Shift+Enter", "换行"],
+            ["Escape", "收起菜单或取消当前请求"],
+            ["↑ / ↓", "选择补全或查看输入历史"],
+            ["Ctrl+K", "开始新任务"],
           ],
         },
       })

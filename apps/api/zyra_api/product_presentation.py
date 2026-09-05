@@ -239,6 +239,35 @@ def project_product_presentation(canonical: Mapping[str, Any]) -> dict[str, Any]
             _failure_fields(result, inline)
         return result
 
+    if event_type == "runtime.agent.message":
+        query = _mapping(inline.get("query_session"))
+        query_phase = query.get("phase")
+        if query_phase in {"tool_call_started", "tool_call_completed"}:
+            tool_call_id = _identity(query.get("tool_call_id"))
+            tool_name = _identity(query.get("tool_name"))
+            if (
+                query.get("canonical_owner") != "typescript"
+                or query.get("task_id") != identity.get("taskId")
+                or not tool_call_id or not tool_name
+            ):
+                return None
+            phase = "started"
+            if query_phase == "tool_call_completed":
+                commitment = _mapping(query.get("tool_result_commitment"))
+                if (
+                    commitment.get("schema") != "zyra.public-tool-result-commitment/v1"
+                    or commitment.get("tool_call_id") != tool_call_id
+                    or not isinstance(commitment.get("ok"), bool)
+                ):
+                    return None
+                phase = "completed" if commitment["ok"] else "failed"
+            result = _base(kind="tool", phase=phase, identity=tool_call_id, label=tool_name)
+            if phase == "failed":
+                result.update(severity="error", impact="local")
+            # Physical worker snapshots carry bounded result commitments, not
+            # inline output. Do not reconstruct arguments, content, or grants.
+            return result
+
     if event_type.startswith("runtime.tool."):
         phase = {
             "runtime.tool.called": "started",

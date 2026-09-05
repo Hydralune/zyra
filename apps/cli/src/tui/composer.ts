@@ -49,6 +49,8 @@ export class ProductComposer {
   #dispose: (() => void) | undefined
   #settle: ((value: ProductComposerResult) => void) | undefined
   #completion: CompletionState | undefined
+  #dismissedCompletion: string | undefined
+  #historyDraft: DraftSnapshot | undefined
   #pasteBurstTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(input: {
@@ -176,6 +178,14 @@ export class ProductComposer {
         this.#pasting = true
         continue
       }
+      const newlineKey = this.#pending.match(/^(?:\u001b\r|\u001b\[13;[23]u|\u001b\[27;[23];13~)/u)?.[0]
+      if (newlineKey) {
+        this.#flushPasteBurstBeforeControl()
+        this.#pending = this.#pending.slice(newlineKey.length)
+        this.draft.newline()
+        this.#changed()
+        continue
+      }
       const page = this.#pending.match(/^\u001b\[[56]~/)?.[0]
       if (page) {
         this.#flushPasteBurstBeforeControl()
@@ -194,11 +204,23 @@ export class ProductComposer {
           this.#completion = completionState(snapshot, this.#candidates(), this.#completion.selected + direction)
           this.#onCompletion(this.#completion)
         } else if (key === "\u001b[A") {
-          const prior = this.history.previous(position.current)
-          if (prior !== undefined) this.draft.set(prior)
+          if (position.current > 0) this.draft.moveLine(-1)
+          else {
+            const prior = this.history.previous(position.current)
+            if (prior !== undefined) {
+              this.#historyDraft ??= snapshot
+              this.draft.set(prior)
+            }
+          }
         } else if (key === "\u001b[B") {
-          const next = this.history.next(position.current, position.total)
-          if (next !== undefined) this.draft.set(next)
+          if (position.current < position.total - 1) this.draft.moveLine(1)
+          else {
+            const next = this.history.next(position.current, position.total)
+            if (next === "" && this.#historyDraft) {
+              this.draft.set(this.#historyDraft.text, this.#historyDraft.cursor)
+              this.#historyDraft = undefined
+            } else if (next !== undefined) this.draft.set(next)
+          }
         } else if (key === "\u001b[H" || key === "\u001b[1~") {
           this.draft.home()
         } else if (key === "\u001b[F" || key === "\u001b[4~") {
@@ -226,14 +248,16 @@ export class ProductComposer {
       if (this.#pending.startsWith("\u001b")) {
         this.#flushPasteBurstBeforeControl()
         this.#pending = this.#pending.slice(1)
+        if (this.#completion) {
+          const snapshot = this.draft.snapshot()
+          this.#dismissedCompletion = `${snapshot.cursor}:${snapshot.text}`
+          this.#completion = undefined
+          this.#onCompletion(undefined)
+          continue
+        }
         if (this.#running()) {
           this.#finish({ kind: "interrupt" })
           return
-        }
-        if (!this.draft.empty) {
-          this.draft.cancel()
-          this.#onNotice("草稿已暂存；Ctrl+R 或 /restore 可恢复")
-          this.#changed()
         }
         continue
       }
@@ -255,6 +279,7 @@ export class ProductComposer {
         const submitted = this.draft.submit()
         if (!submitted) { this.#changed(); continue }
         this.history.push(submitted)
+        this.#historyDraft = undefined
         this.#onNotice(undefined)
         this.#changed()
         this.#finish({ kind: "submit", text: submitted, queue: false })
@@ -401,8 +426,9 @@ export class ProductComposer {
 
   #changed(): void {
     const snapshot = this.draft.snapshot()
+    if (this.#dismissedCompletion !== `${snapshot.cursor}:${snapshot.text}`) this.#dismissedCompletion = undefined
     const prior = this.#completion?.matches[this.#completion.selected]
-    const next = completionState(snapshot, this.#candidates())
+    const next = this.#dismissedCompletion ? undefined : completionState(snapshot, this.#candidates())
     const selected = prior && next ? next.matches.indexOf(prior) : -1
     this.#completion = selected >= 0 ? completionState(snapshot, this.#candidates(), selected) : next
     this.#onChange(snapshot)

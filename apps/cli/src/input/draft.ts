@@ -145,7 +145,21 @@ export class PromptDraft {
   }
 
   home(): DraftSnapshot {
-    this.#cursor = (this.#text.lastIndexOf("\n", Math.max(0, this.#cursor - 1)) + 1)
+    this.#cursor = this.#cursor === 0 ? 0 : this.#text.lastIndexOf("\n", this.#cursor - 1) + 1
+    return this.snapshot()
+  }
+
+  moveLine(direction: -1 | 1): DraftSnapshot {
+    const start = this.#cursor === 0 ? 0 : this.#text.lastIndexOf("\n", this.#cursor - 1) + 1
+    const column = boundaries(this.#text.slice(start, this.#cursor)).length - 1
+    const end = this.#text.indexOf("\n", this.#cursor)
+    if ((direction < 0 && start === 0) || (direction > 0 && end < 0)) return this.snapshot()
+    const targetStart = direction < 0
+      ? (start <= 1 ? 0 : this.#text.lastIndexOf("\n", start - 2) + 1)
+      : end + 1
+    const targetEnd = direction < 0 ? start - 1 : this.#text.indexOf("\n", targetStart)
+    const points = boundaries(this.#text.slice(targetStart, targetEnd < 0 ? undefined : targetEnd))
+    this.#cursor = targetStart + points[Math.min(column, points.length - 1)]!
     return this.snapshot()
   }
 

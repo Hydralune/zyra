@@ -113,6 +113,21 @@ function detailState(overrides: Partial<TaskDetailState> = {}): TaskDetailState 
 }
 
 describe("product conversation rendering", () => {
+  test("opens a dedicated artifact view with previews and a way back to the conversation", () => {
+    const current = task()
+    const markup = renderToStaticMarkup(<ProductTaskDetail
+      runtime={fakeRuntime()}
+      state={{ taskId: current.taskId, task: current, phase: "ready", generation: 1 }}
+      tasks={[current]}
+      view="artifacts"
+    />)
+    expect(markup).toContain("会话交付物")
+    expect(markup).toContain("返回对话")
+    expect(markup).toContain("out/artifact_one.ts")
+    expect(markup).toContain('class="product-disclosure product-deliverables" open=""')
+    expect(markup).not.toContain('aria-label="会话消息"')
+  })
+
   test("renders a live turn with collapsed steps and selectable deliverables", () => {
     const markup = renderToStaticMarkup(
       <ProductTaskDetail runtime={fakeRuntime()} state={detailState()} tasks={[task()]} />,

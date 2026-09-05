@@ -594,13 +594,9 @@ export function renderProductFrame(state: ProductViewState, options: ProductRend
       visibleBody = [line(`… ${hidden} 行已隐藏${virtualization} · PageUp/PageDown 滚动`, "secondary"), ...body.slice(start, end)]
     }
   }
-  const spacer = height === undefined
-    ? []
-    : Array.from(
-        { length: Math.max(0, height - visibleBody.length - bottomPane.length) },
-        () => line(),
-      )
-  const visible = [...visibleBody, ...spacer, ...bottomPane].map((item) => ({ ...item, text: clipDisplay(item.text, width) }))
+  // Height is a limit, not a request to fill the terminal with blank lines.
+  // A short conversation keeps its input directly below the last message.
+  const visible = [...visibleBody, ...bottomPane].map((item) => ({ ...item, text: clipDisplay(item.text, width) }))
   const composerStart = visible.length - footer.length + 1
   const cursor = acceptingInput && !modalOverlay
     ? {

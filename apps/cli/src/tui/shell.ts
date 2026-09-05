@@ -389,7 +389,8 @@ export class ProductTuiShell {
 
   #completionOverlay(completion?: CompletionState): ProductOverlay | undefined {
     if (!completion) return undefined
-    const rows = completion.matches.slice(0, 8).map((value) => {
+    const start = Math.max(0, completion.selected - 7)
+    const rows = completion.matches.slice(start, start + 8).map((value) => {
       const command = value.startsWith("/")
         ? PRODUCT_COMMAND_REGISTRY.find((item) => `/${item.name}` === value)
         : undefined
@@ -399,8 +400,8 @@ export class ProductTuiShell {
       kind: "completion",
       title: completion.token.startsWith("/") ? "命令" : "工作区引用",
       rows,
-      selected: Math.min(completion.selected, rows.length - 1),
-      footer: "↑↓ 选择 · Tab/Enter 接受",
+      selected: completion.selected - start,
+      footer: "↑↓ 选择 · Tab/Enter 接受 · Esc 收起",
     }
   }
 

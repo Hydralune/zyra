@@ -354,17 +354,19 @@ function ArtifactPreview({
   runtime,
   task,
   turnId,
+  expanded = false,
 }: {
   runtime: WorkbenchRuntime
   task: TaskProjection
   turnId: string
+  expanded?: boolean
 }) {
   const artifacts = task.artifacts
   const [selectedId, setSelectedId] = useState<string>()
   const selected =
     artifacts.find((artifact) => artifact.artifactId === selectedId)
     ?? artifacts.at(-1)
-  const disclosure = useDisclosure(false)
+  const disclosure = useDisclosure(expanded)
   const [preview, setPreview] = useState<{
     phase: "idle" | "loading" | "ready" | "error"
     text?: string
@@ -543,7 +545,7 @@ function ConversationTurn({
               />
               <small>
                 {liveAssistant.settling
-                  ? "正在与 canonical 最终回答对账…"
+                  ? "正在确认最终回答…"
                   : liveAssistant.partial
                     ? "已从当前可用的实时片段继续显示"
                     : "实时生成中"}
@@ -693,14 +695,21 @@ function AdvancedRunDrawer({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (runtime.overlays.active()) return
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
       if (event.key === "Escape") {
+        event.preventDefault()
         event.stopPropagation()
         onClose()
       }
     }
     window.addEventListener("keydown", onKeyDown, true)
     return () => window.removeEventListener("keydown", onKeyDown, true)
-  }, [onClose])
+  }, [onClose, runtime])
 
   return (
     <div className="advanced-drawer">
@@ -738,13 +747,16 @@ function ProductDetailContent({
   state,
   task,
   tasks,
+  view,
 }: {
   runtime: WorkbenchRuntime
   state: TaskDetailState
   task: TaskProjection
   tasks: readonly TaskProjection[]
+  view?: "artifacts"
 }) {
   const [advanced, setAdvanced] = useState(false)
+  const artifactView = view === "artifacts"
   const command = useCommandSnapshot(runtime)
   const queue = useQueueSnapshot(runtime)
   const live = useLiveSyncSnapshot(runtime)
@@ -801,12 +813,15 @@ function ProductDetailContent({
 
   // Opening a different conversation always starts pinned to the newest turn.
   useEffect(() => {
-    followRef.current = true
-    setFollowing(true)
+    followRef.current = !artifactView
+    setFollowing(!artifactView)
     setUnseen(0)
-    const frame = requestAnimationFrame(() => settle("auto"))
+    const frame = requestAnimationFrame(() => {
+      if (artifactView) scrollRef.current?.scrollTo({ top: 0 })
+      else settle("auto")
+    })
     return () => cancelAnimationFrame(frame)
-  }, [settle, task.taskId])
+  }, [artifactView, settle, task.taskId])
 
   // Streaming answers and expanding disclosures grow the transcript without a
   // scroll event; keep the viewport pinned while the reader is following.
@@ -906,8 +921,22 @@ function ProductDetailContent({
           transcript; in-place answer edits stay silent, which is what a reader
           following a long run actually wants.
         */}
-        <div className="product-conversation" ref={contentRef} role="log" aria-label="会话消息">
-          {timeline.map((turn, index) => (
+        <div className="product-conversation" ref={contentRef} role={artifactView ? undefined : "log"} aria-label={artifactView ? "会话交付物" : "会话消息"}>
+          {artifactView ? (
+            <section className="product-artifact-library">
+              <header>
+                <h1>会话交付物</h1>
+                <button className="product-button product-button-quiet" type="button" onClick={() => runtime.router.openTask(task.taskId)}>返回对话</button>
+              </header>
+              {!timeline.some((turn) => turn.artifacts.length) ? <p className="product-muted">这个会话还没有生成文件或交付物。执行产生文件的任务后，可在这里查看。</p> : null}
+              {timeline.filter((turn) => turn.artifacts.length).map((turn) => (
+                <section key={turn.taskId}>
+                  <h2>{turn.userGoal}</h2>
+                  <ArtifactPreview runtime={runtime} task={turn} turnId={turn.taskId} expanded />
+                </section>
+              ))}
+            </section>
+          ) : timeline.map((turn, index) => (
             <ConversationTurn
               key={turn.taskId}
               runtime={runtime}
@@ -917,11 +946,11 @@ function ProductDetailContent({
               onInspect={inspectTurn}
             />
           ))}
-          {pending.map((turn) => <PendingTurn key={turn.id} turn={turn} />)}
+          {!artifactView && pending.map((turn) => <PendingTurn key={turn.id} turn={turn} />)}
         </div>
       </div>
 
-      {!following ? (
+      {!following && !artifactView ? (
         <button className="product-jump-latest" type="button" onClick={jumpToLatest}>
           ↓ 跳到最新{unseen ? ` · ${unseen} 条新消息` : ""}
         </button>
@@ -938,10 +967,12 @@ export function ProductTaskDetail({
   runtime,
   state,
   tasks = [],
+  view,
 }: {
   runtime: WorkbenchRuntime
   state: TaskDetailState
   tasks?: readonly TaskProjection[]
+  view?: "artifacts"
 }) {
   // A projection that is already on screen outranks any request phase: a
   // refresh, a reconnect, or a failed background poll must never blank out the
@@ -953,6 +984,7 @@ export function ProductTaskDetail({
         state={state}
         task={state.task}
         tasks={tasks}
+        view={view}
       />
     )
   }

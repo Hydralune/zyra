@@ -9,6 +9,8 @@ export type WorkbenchRoute =
   | { kind: "not-found"; path: string; attemptedPath: string; query: RouteQuery }
 
 export interface RouteQuery {
+  view?: "artifacts"
+  section?: string
   focus?: "command" | "task-list" | "task-detail"
   status?: string
   cursor?: string
@@ -91,7 +93,10 @@ export function parseRouteQuery(search: string): RouteQuery {
   const status = normalizeStatus(params.get("status"))
   const cursor = normalizeCursor(params.get("cursor"))
   const overlay = normalizeOverlay(params.get("overlay"))
+  const section = params.get("section")
   return {
+    ...(section && /^(?:evidence-[a-z-]+|(?:mcp|skill|subagent)-runtime-panel)$/.test(section) ? { section } : {}),
+    ...(params.get("view") === "artifacts" ? { view: "artifacts" as const } : {}),
     ...(focus ? { focus } : {}),
     ...(status ? { status } : {}),
     ...(cursor ? { cursor } : {}),
@@ -101,6 +106,8 @@ export function parseRouteQuery(search: string): RouteQuery {
 
 export function serializeRouteQuery(query: RouteQuery): string {
   const params = new URLSearchParams()
+  if (query.view) params.set("view", query.view)
+  if (query.section) params.set("section", query.section)
   if (query.focus) params.set("focus", query.focus)
   if (query.status) params.set("status", query.status)
   if (query.cursor) params.set("cursor", query.cursor)
@@ -291,14 +298,15 @@ export class WorkbenchRouter {
     })
   }
 
-  openTask(taskId: string, options: { replace?: boolean; focus?: RouteQuery["focus"] } = {}): WorkbenchRoute {
+  openTask(taskId: string, options: { replace?: boolean; focus?: RouteQuery["focus"]; view?: RouteQuery["view"] } = {}): WorkbenchRoute {
     return this.navigate(taskRoute(taskId, {
+      view: options.view,
       focus: options.focus ?? "task-detail",
     }), { replace: options.replace })
   }
 
-  openEvidence(taskId: string, options: { replace?: boolean } = {}): WorkbenchRoute {
-    return this.navigate(evidenceRoute(taskId, { focus: "task-detail" }), options)
+  openEvidence(taskId: string, options: { replace?: boolean; section?: string } = {}): WorkbenchRoute {
+    return this.navigate(evidenceRoute(taskId, { focus: "task-detail", section: options.section }), options)
   }
 
   openTasks(options: { replace?: boolean; status?: string; cursor?: string } = {}): WorkbenchRoute {

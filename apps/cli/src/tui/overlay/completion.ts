@@ -13,6 +13,8 @@ function activeToken(snapshot: DraftSnapshot): { token: string; tokenStart: numb
   const match = before.match(/(?:^|\s)([/@][^\s]*)$/u)
   const token = match?.[1]
   if (!token) return undefined
+  // A slash inside a normal message is a path, not a command invocation.
+  if (token.startsWith("/") && before.slice(0, -token.length).trim()) return undefined
   return { token, tokenStart: snapshot.cursor - token.length }
 }
 

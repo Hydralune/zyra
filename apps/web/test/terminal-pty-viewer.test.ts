@@ -1,4 +1,12 @@
 import { describe, expect, test } from "bun:test"
+
+test("redrawing CJK over a shifted wide-cell row preserves every glyph and combining mark", () => {
+  const screen = new TerminalScreen({ rows: 4, cols: 30 })
+  screen.write("x甲乙丙丁\r中文测试完成\u001b[K")
+  expect(terminalLineText(screen.snapshot().lines[0]!)).toStartWith("中文测试完成")
+  screen.write("\r甲\u0301乙\u001b[K")
+  expect(terminalLineText(screen.snapshot().lines[0]!)).toStartWith("甲\u0301乙")
+})
 import type { TaskApi } from "../src/api/task-api.ts"
 import {
   TERMINAL_PROTOCOL,

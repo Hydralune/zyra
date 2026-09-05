@@ -407,7 +407,8 @@ export class TerminalScreen {
     const width = codePointWidth(character)
     const buffer = this.#buffer()
     if (width === 0) {
-      const col = Math.max(0, buffer.cursorCol - 1)
+      let col = Math.max(0, buffer.cursorCol - 1)
+      if (buffer.lines[buffer.cursorRow]?.cells[col]?.width === 0 && col > 0) col -= 1
       const cell = buffer.lines[buffer.cursorRow]?.cells[col]
       if (cell && cell.width !== 0) {
         cell.text += character
@@ -430,6 +431,10 @@ export class TerminalScreen {
     const line = buffer.lines[buffer.cursorRow]!
     if (this.#insertMode) this.#insertCells(width)
     this.#clearWideAt(line, buffer.cursorCol)
+    // A wide replacement may overlap the head of an old wide character in
+    // its second cell. Clear that character's old tail before writing, or the
+    // next write mistakes it for a continuation of the newly written glyph.
+    if (width === 2 && buffer.cursorCol + 1 < this.#cols) this.#clearWideAt(line, buffer.cursorCol + 1)
     line.cells[buffer.cursorCol] = {
       text: character,
       width,

@@ -33,7 +33,7 @@ const LOCAL_COMMANDS: readonly ProductCommandDefinition[] = Object.freeze([
   { name: "skills", description: "查看当前任务可用的技能及调用状态", availability: "running" },
   { name: "mcp", description: "查看当前任务连接的 MCP 服务与工具", usage: "/mcp [详细]", availability: "running" },
   { name: "tools", description: "查看工具调用、耗时和输出", availability: "always" },
-  { name: "artifact", description: "按编号查看任务产物", usage: "/artifact <产物编号>", availability: "always" },
+  { name: "artifact", description: "选择并查看任务交付物", usage: "/artifact [产物编号]", availability: "always" },
   { name: "agents", aliases: ["subagents"], description: "查看协作代理及其进度", usage: "/agents [代理]", availability: "always" },
   { name: "permissions", description: "处理权限请求或管理当前权限模式", usage: "/permissions [mode|status]", availability: "always" },
   { name: "questions", description: "重新打开 Zyra 正在等待的用户问题", availability: "running" },

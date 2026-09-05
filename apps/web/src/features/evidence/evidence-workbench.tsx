@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import type { TaskProjection } from "../../../../../packages/core/typed-api-client/src/index.ts"
 import type { WorkbenchRuntime } from "../../app/runtime.ts"
 import type { TaskDetailState } from "../../shell/workbench-controller.ts"
@@ -252,11 +252,21 @@ function LoadedEvidenceWorkbench({
   runtime,
   state,
   task,
+  section,
 }: {
   runtime: WorkbenchRuntime
   state: TaskDetailState
   task: TaskProjection
+  section?: string
 }) {
+  useEffect(() => {
+    if (!section) return
+    const target = document.getElementById(section)
+    if (!target) return
+    target.scrollIntoView({ block: "start" })
+    target.tabIndex = -1
+    target.focus({ preventScroll: true })
+  }, [section, task.taskId])
   return (
     <section className="evidence-route" data-task-id={task.taskId}>
       <EvidenceLayerIndex runtime={runtime} task={task} />
@@ -279,9 +289,11 @@ function LoadedEvidenceWorkbench({
 export function EvidenceWorkbench({
   runtime,
   state,
+  section,
 }: {
   runtime: WorkbenchRuntime
   state: TaskDetailState
+  section?: string
 }) {
   if (state.task && state.task.taskId === state.taskId) {
     return (
@@ -289,6 +301,7 @@ export function EvidenceWorkbench({
         runtime={runtime}
         state={state}
         task={state.task}
+        section={section}
       />
     )
   }

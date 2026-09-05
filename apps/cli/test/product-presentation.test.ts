@@ -799,17 +799,17 @@ describe("product TUI render prototype", () => {
     expect(rendered.split("\n").every((line) => displayWidth(line) <= 120)).toBe(true)
   })
 
-  test("keeps a short transcript at the top and anchors the composer to the viewport bottom", () => {
+  test("keeps a short transcript and composer together without padding to the physical bottom", () => {
     const rendered = renderProductState(reduceProductEvents([]), {
       width: 80,
       height: 24,
       workspace: "G:\\agent-zoo\\zyra",
     })
     const lines = rendered.split("\n").slice(0, -1)
-    expect(lines).toHaveLength(24)
+    expect(lines.length).toBeLessThan(12)
     expect(lines[0]).toStartWith("╭")
-    expect(lines[22]).toBe("› 让 Zyra 处理任何任务")
-    expect(lines[23]).toContain("? 查看快捷键")
+    expect(lines.at(-2)).toBe("› 让 Zyra 处理任何任务")
+    expect(lines.at(-1)).toContain("? 查看快捷键")
   })
 
   test("keeps an oversized active choice and its footer inside the physical viewport", () => {

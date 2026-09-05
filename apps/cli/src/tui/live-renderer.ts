@@ -29,7 +29,10 @@ export class LiveProductRenderer {
   readonly #renderSnapshot: () => string | LiveRenderFrame
   #renderedLines = 0
   #cursorRowFromTop: number | undefined
+  #cursorColumn = 0
   #latest = ""
+  #previousLines: string[] = []
+  #previousSize = ""
   #closed = false
   #dirty = false
   #scheduled = false
@@ -116,17 +119,33 @@ export class LiveProductRenderer {
       this.#latest = frame.text
       this.#snapshots += 1
       if (!this.#tty && !force) return
-      const clear = this.#tty && this.#renderedLines > 0
-        ? `\r${(this.#cursorRowFromTop ?? this.#renderedLines) > 0 ? `\u001b[${this.#cursorRowFromTop ?? this.#renderedLines}A` : ""}\u001b[J`
-        : ""
+      const lines = this.#latest.split("\n")
+      const size = `${this.width}:${this.height}`
       const renderedLines = Math.max(1, this.#latest.split("\n").length - 1)
-      const cursor = frame.cursor && this.#tty
-        ? `\u001b[${Math.max(0, renderedLines - frame.cursor.row)}A\r${frame.cursor.column > 0 ? `\u001b[${frame.cursor.column}C` : ""}`
+      let firstChanged = 0
+      if (this.#tty && size === this.#previousSize) {
+        while (firstChanged < lines.length && lines[firstChanged] === this.#previousLines[firstChanged]) firstChanged += 1
+      }
+      const move = (from: number, to: number): string => `\r${from === to ? "" : `\u001b[${Math.abs(from - to)}${to < from ? "A" : "B"}`}`
+      const previousRow = this.#cursorRowFromTop ?? this.#renderedLines
+      const nextRow = frame.cursor?.row ?? renderedLines
+      const sameText = this.#tty && firstChanged === lines.length && lines.length === this.#previousLines.length
+      if (sameText && previousRow === nextRow && this.#cursorColumn === (frame.cursor?.column ?? 0)) return
+      // Keep committed history untouched during typing. Only repaint from the
+      // first changed line; a cursor move needs no erase or text output at all.
+      const clear = this.#tty && this.#renderedLines > 0
+        ? `${move(previousRow, sameText ? nextRow : Math.min(firstChanged, renderedLines))}${sameText ? "" : "\u001b[J"}`
         : ""
-      const writable = this.#output.write(`${clear}${this.#latest}${cursor}`)
+      const cursor = frame.cursor && this.#tty
+        ? `${sameText ? "" : move(renderedLines, frame.cursor.row)}${frame.cursor.column > 0 ? `\u001b[${frame.cursor.column}C` : ""}`
+        : ""
+      const writable = this.#output.write(`${clear}${sameText ? "" : this.#tty ? lines.slice(Math.min(firstChanged, renderedLines)).join("\n") : this.#latest}${cursor}`)
       this.#writes += 1
       this.#renderedLines = renderedLines
       this.#cursorRowFromTop = frame.cursor?.row
+      this.#cursorColumn = frame.cursor?.column ?? 0
+      this.#previousLines = lines
+      this.#previousSize = size
       if (!writable && !force) {
         this.#backpressured = true
         this.#backpressureCount += 1

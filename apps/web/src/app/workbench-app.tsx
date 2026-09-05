@@ -138,6 +138,7 @@ function AppNavigation({
   open,
   onNavigate,
   navigationRef,
+  listCursor,
 }: {
   runtime: WorkbenchRuntime
   routeKind: string
@@ -148,8 +149,14 @@ function AppNavigation({
   open: boolean
   onNavigate: () => void
   navigationRef: React.RefObject<HTMLElement | null>
+  listCursor?: string
 }) {
-  const recent = productConversationList(tasks).slice(0, 12)
+  const [query, setQuery] = useState("")
+  const [visibleCount, setVisibleCount] = useState(12)
+  const conversations = productConversationList(tasks).filter((conversation) =>
+    conversation.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
+  )
+  const recent = conversations.slice(0, visibleCount)
   const selectedTask = tasks.find((task) => task.taskId === selectedTaskId)
   const selectedConversationKey = selectedTask?.sessionId ?? (selectedTask ? `task:${selectedTask.taskId}` : undefined)
   const navigate = (action: () => void) => {
@@ -206,7 +213,7 @@ function AppNavigation({
           type="button"
           disabled={!selectedTaskId}
           title={selectedTaskId ? "打开当前任务的交付物" : "完成任务后可查看交付物"}
-          onClick={() => selectedTaskId && navigate(() => runtime.router.openTask(selectedTaskId))}
+          onClick={() => selectedTaskId && navigate(() => runtime.router.openTask(selectedTaskId, { view: "artifacts" }))}
         >
           <span aria-hidden="true">◇</span><span>交付物</span>
         </button>
@@ -231,6 +238,14 @@ function AppNavigation({
             ↻
           </button>
         </div>
+        <input
+          className="product-conversation-search"
+          type="search"
+          aria-label="搜索会话"
+          placeholder="搜索会话…"
+          value={query}
+          onChange={(event) => { setQuery(event.target.value); setVisibleCount(12) }}
+        />
         <div className="product-recent-list">
           {recent.map((conversation) => (
             <button
@@ -261,7 +276,14 @@ function AppNavigation({
             </p>
           ) : null}
           {!recent.length && !["loading", "error"].includes(listPhase) ? (
-            <p className="product-sidebar-empty">开始会话后会显示在这里。</p>
+            <p className="product-sidebar-empty">{query ? "没有匹配的会话。" : "开始会话后会显示在这里。"}</p>
+          ) : null}
+          {conversations.length > visibleCount ? (
+            <button className="product-history-more" type="button" onClick={() => setVisibleCount((count) => count + 12)}>显示更多会话</button>
+          ) : listCursor ? (
+            <button className="product-history-more" type="button" disabled={listPhase === "loading"} onClick={() => void runtime.workbench.refreshTasks({ cursor: listCursor, append: true, preserveOnError: true })}>
+              {listPhase === "loading" ? "正在读取…" : "加载更早的会话"}
+            </button>
           ) : null}
         </div>
       </section>
@@ -302,7 +324,7 @@ function TopBar({
   const title = task?.userGoal
     || (routeKind === "settings" ? "高级 Workbench" : "Zyra")
   const subtitle = task
-    ? live.live && !live.paused
+    ? task.active && live.live && !live.paused
       ? "进行中 · 实时更新"
       : statusText(task)
     : "动态异构多智能体工作空间"
@@ -359,13 +381,15 @@ function TopBar({
 
 function SettingsView({ runtime }: { runtime: WorkbenchRuntime }) {
   const snapshot = runtime.api.client.snapshot()
+  const [historyCount, setHistoryCount] = useState(() => runtime.history.list().length)
+  const [historyCleared, setHistoryCleared] = useState(false)
   return (
     <section className="settings-view advanced-center" aria-labelledby="settings-heading">
       <header className="advanced-center-heading">
         <div>
-          <p className="eyebrow">Advanced workbench</p>
-          <h1 id="settings-heading">系统与证据中心</h1>
-          <p>面向开发、调试和比赛审计的高级入口。日常任务请返回首页。</p>
+          <p className="eyebrow">Zyra 工作区</p>
+          <h1 id="settings-heading">系统与场景</h1>
+          <p>检查连接、管理本地输入历史，或运行场景与实验。</p>
         </div>
         <button className="product-button product-button-primary" type="button" onClick={() => runtime.router.openTasks()}>
           返回产品首页
@@ -374,29 +398,32 @@ function SettingsView({ runtime }: { runtime: WorkbenchRuntime }) {
       <div className="settings-grid">
         <article>
           <h2>API 与运行时</h2>
-          <p>检查当前 Web 与 Zyra typed API 的真实连接状态。</p>
+          <p>查看当前工作区连接的服务及其运行状态。</p>
           <dl className="fact-grid">
-            <div><dt>Base URL</dt><dd>{runtime.api.client.baseUrl}</dd></div>
-            <div><dt>Transport</dt><dd>{snapshot.registry.enabled ? "enabled" : "disabled"}</dd></div>
-            <div><dt>Normalizers</dt><dd>{snapshot.registry.normalizersEnabled ? "enabled" : "disabled"}</dd></div>
-            <div><dt>In flight</dt><dd>{snapshot.inFlight.length}</dd></div>
+            <div><dt>服务地址</dt><dd>{runtime.api.client.baseUrl}</dd></div>
+            <div><dt>连接服务</dt><dd>{snapshot.registry.enabled ? "已启用" : "已停用"}</dd></div>
+            <div><dt>待响应请求</dt><dd>{snapshot.inFlight.length}</dd></div>
           </dl>
           <button className="button button-secondary" type="button" onClick={() => void runtime.commands.submit("/status", { origin: "button" })}>
-            Inspect live status
+            查看运行状态
           </button>
         </article>
         <article>
           <h2>本地交互状态</h2>
           <p>命令历史、草稿和排队预览只保存在当前浏览器。</p>
           <dl className="fact-grid">
-            <div><dt>History</dt><dd>{runtime.history.list().length}</dd></div>
-            <div><dt>Queued</dt><dd>{runtime.queue.getSnapshot().pendingCount}</dd></div>
-            <div><dt>Commands</dt><dd>{runtime.catalog.list().length}</dd></div>
-            <div><dt>Policy</dt><dd>fail closed</dd></div>
+            <div><dt>输入历史</dt><dd>{historyCount}</dd></div>
+            <div><dt>待发送</dt><dd>{runtime.queue.getSnapshot().pendingCount}</dd></div>
+            <div><dt>可用命令</dt><dd>{runtime.catalog.list().length}</dd></div>
           </dl>
-          <button className="button button-secondary" type="button" onClick={() => runtime.history.clear()}>
-            Clear local history
+          <button className="button button-secondary" type="button" disabled={!historyCount} onClick={() => {
+            runtime.history.clear()
+            setHistoryCount(0)
+            setHistoryCleared(true)
+          }}>
+            清除输入历史
           </button>
+          {historyCleared ? <p role="status">输入历史已清除。任务和会话记录仍保留。</p> : null}
         </article>
       </div>
       <ScenarioWorkbench runtime={runtime.scenarioConsole} />
@@ -503,10 +530,10 @@ function MainRoute({
     )
   }
   if (route.kind === "task") {
-    return <ProductTaskDetail runtime={runtime} state={state.detail} tasks={state.list.tasks} />
+    return <ProductTaskDetail runtime={runtime} state={state.detail} tasks={state.list.tasks} view={route.query.view} />
   }
   if (route.kind === "evidence") {
-    return <EvidenceWorkbench runtime={runtime} state={state.detail} />
+    return <EvidenceWorkbench runtime={runtime} state={state.detail} section={route.query.section} />
   }
   return (
     <ProductHome
@@ -644,6 +671,7 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
         routeKind={route.kind}
         tasks={state.list.tasks}
         listPhase={state.list.phase}
+        listCursor={state.list.cursor}
         selectedTaskId={state.selectedTaskId}
         drawer={drawer}
         open={sidebarOpen}

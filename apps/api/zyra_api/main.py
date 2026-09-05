@@ -40,7 +40,7 @@ from .event_stream_ingress import (
     EventIngressError,
     sse_headers,
 )
-from .session_api import paginate_sessions, session_detail
+from .session_api import paginate_sessions, session_conversation_context, session_detail
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_PATHS = [
@@ -7572,6 +7572,7 @@ def _production_physical_dispatch_port(
         if provider_extra_body:
             provider_constraints["provider_extra_body"] = provider_extra_body
         payload["code_worker_context"] = {
+            "conversation": session_conversation_context(SQLiteStore(sqlite_path()), state),
             "project_root": str(PROJECT_ROOT),
             "artifact_root": str(artifact_root_path()),
             "backend_registry_path": str(

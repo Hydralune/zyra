@@ -766,6 +766,13 @@ def test_physical_code_worker_runs_model_tool_observation_model_loop(
                 "layer_index": 1,
                 "operator_ref": "code-worker",
                 "code_worker_context": {
+                    "conversation": {
+                        "schema": "zyra.session-conversation-context/v1",
+                        "session_id": workspace_session_id,
+                        "task_id": task_id,
+                        "truncated": False,
+                        "turns": [{"user": "Remember prior-turn-marker", "assistant": "prior-turn-marker"}],
+                    },
                     "project_root": str(ROOT),
                     "artifact_root": str(artifact_root),
                     "canonical_state_database_path": str(
@@ -885,6 +892,7 @@ def test_physical_code_worker_runs_model_tool_observation_model_loop(
     assert len(requests) == 3
     assert all(authorization_seen)
     assert "ZYRA_SMOKE_OK" in json.dumps(requests[0])
+    assert "prior-turn-marker" in json.dumps(requests[0])
     second_messages = requests[1]["messages"]
     assert isinstance(second_messages, list)
     assert any(

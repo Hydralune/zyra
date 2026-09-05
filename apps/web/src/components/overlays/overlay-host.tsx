@@ -65,7 +65,7 @@ function RuntimeStatus({ runtime, overlay }: { runtime: WorkbenchRuntime; overla
       <div className={`runtime-summary runtime-${state.phase}`}>
         <span className="connection-dot" aria-hidden="true" />
         <div>
-          <strong>{readiness?.ready ? "Runtime ready" : "Runtime unavailable"}</strong>
+          <strong>{readiness?.ready ? "运行时就绪" : "运行时不可用"}</strong>
           <p>{state.failure?.message ?? state.health?.service ?? "No health response"}</p>
         </div>
       </div>
@@ -97,7 +97,7 @@ function RuntimeStatus({ runtime, overlay }: { runtime: WorkbenchRuntime; overla
           })
         })}
       >
-        Refresh status
+        刷新状态
       </button>
     </div>
   )
@@ -148,14 +148,14 @@ function MutationConfirm({
     <div className="confirmation-content">
       <p>
         {action === "cancel"
-          ? "This asks the backend to cancel the active run and its owned children."
-          : "This asks the backend to resume from durable task state."}
+          ? "停止当前任务及其子任务。已有结果会保留，你可以稍后重新运行。"
+          : "从已保存的状态继续执行这个任务。"}
       </p>
       {goal ? <blockquote>{goal}</blockquote> : null}
       <code>{taskId}</code>
       {action === "cancel" ? (
         <label>
-          Cancellation reason
+          停止原因（可选）
           <textarea
             value={reason}
             rows={3}
@@ -173,7 +173,7 @@ function MutationConfirm({
           disabled={busy}
           onClick={() => runtime.overlays.close(overlay.id)}
         >
-          Keep task
+          返回
         </button>
         <button
           className={action === "cancel" ? "button button-danger" : "button button-primary"}
@@ -181,7 +181,7 @@ function MutationConfirm({
           disabled={busy || !taskId}
           onClick={() => void confirm()}
         >
-          {busy ? "Sending…" : action === "cancel" ? "Cancel task" : "Resume task"}
+          {busy ? "正在提交…" : action === "cancel" ? "停止任务" : "继续执行"}
         </button>
       </div>
     </div>
@@ -226,10 +226,10 @@ function CommandResultContent({
     .records(500)
     .find((record) => record.identity.commandId === result.commandId)
   const panelTarget = new Map([
-    ["/mcp", { id: "mcp-runtime-panel", label: "Open MCP panel" }],
-    ["/skills", { id: "skill-runtime-panel", label: "Open skills panel" }],
-    ["/agents", { id: "subagent-runtime-panel", label: "Open agents panel" }],
-    ["/tasks", { id: "subagent-runtime-panel", label: "Open subagent tasks" }],
+    ["/mcp", { id: "mcp-runtime-panel", label: "查看 MCP 服务" }],
+    ["/skills", { id: "skill-runtime-panel", label: "查看技能" }],
+    ["/agents", { id: "subagent-runtime-panel", label: "查看协作代理" }],
+    ["/tasks", { id: "subagent-runtime-panel", label: "查看子任务" }],
   ]).get(result.name)
   return (
     <div
@@ -302,25 +302,10 @@ function CommandResultContent({
             className="button button-primary"
             type="button"
             onClick={() => {
+              const taskId = operation?.context.taskId ?? runtime.workbench.getSnapshot().selectedTaskId
+              if (!taskId) return
               runtime.overlays.close(overlay.id)
-              requestAnimationFrame(() => {
-                const target = document.getElementById(panelTarget.id)
-                if (!target) {
-                  runtime.notifications.push({
-                    id: `panel-unavailable-${panelTarget.id}-${result.commandId}`,
-                    title: "Panel unavailable",
-                    message: "The command settled, but its task-scoped panel is not mounted.",
-                    tone: "warning",
-                    taskId: operation?.context.taskId,
-                  })
-                  return
-                }
-                target.scrollIntoView({ block: "start", behavior: "smooth" })
-                if (target instanceof HTMLElement) {
-                  target.tabIndex = -1
-                  target.focus({ preventScroll: true })
-                }
-              })
+              runtime.router.openEvidence(taskId, { section: panelTarget.id })
             }}
           >
             {panelTarget.label}
@@ -478,6 +463,7 @@ export function OverlayHost({ runtime }: { runtime: WorkbenchRuntime }) {
           if (event.key === "Tab" && trapRef.current?.handleTab(event.nativeEvent)) return
           if (event.key === "Escape" && overlay.dismissible) {
             event.preventDefault()
+            event.stopPropagation()
             runtime.overlays.close(overlay.id)
           }
         }}
@@ -488,7 +474,7 @@ export function OverlayHost({ runtime }: { runtime: WorkbenchRuntime }) {
             <button
               className="icon-button"
               type="button"
-              aria-label="Close dialog"
+              aria-label="关闭对话框"
               onClick={() => runtime.overlays.close(overlay.id)}
             >
               ×

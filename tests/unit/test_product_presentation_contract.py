@@ -24,6 +24,30 @@ def test_generic_agent_message_is_not_admitted_as_assistant_content() -> None:
     )
 
 
+def test_physical_worker_tool_history_requires_exact_task_and_result_commitment() -> None:
+    query = {
+        "canonical_owner": "typescript", "task_id": "task_1",
+        "phase": "tool_call_started", "tool_call_id": "call_1", "tool_name": "file_write",
+        "arguments": {"secret": "must-not-leak"},
+    }
+    event = {"eventType": "runtime.agent.message", "identity": {"taskId": "task_1"}, "inline": {"query_session": query}}
+    assert project_product_presentation(event) == {
+        "schema": PRODUCT_PRESENTATION_SCHEMA, "kind": "tool", "phase": "started",
+        "identity": "call_1", "label": "file_write", "severity": "info",
+    }
+    query["phase"] = "tool_call_completed"
+    assert project_product_presentation(event) is None
+    query["tool_result_commitment"] = {
+        "schema": "zyra.public-tool-result-commitment/v1", "tool_call_id": "call_1", "ok": True,
+    }
+    assert project_product_presentation(event)["phase"] == "completed"
+    assert "must-not-leak" not in str(project_product_presentation(event))
+    query["tool_result_commitment"]["ok"] = False
+    assert project_product_presentation(event)["phase"] == "failed"
+    query["task_id"] = "task_foreign"
+    assert project_product_presentation(event) is None
+
+
 def test_text_stream_projects_versioned_assistant_content_without_runtime_fields() -> None:
     started = project_product_presentation(
         {

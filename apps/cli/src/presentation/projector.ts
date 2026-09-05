@@ -52,13 +52,14 @@ function productText(value: unknown, maximum: number): string | undefined {
     "Execute": "执行",
     "Verify": "验证",
     "Finalize": "交付",
+    "Requirement Change Replan": "需求变更后重新规划",
     "Decompose the user goal into an executable task graph.": "将用户目标拆解为可执行任务计划。",
     "Select the worker and control route for the executable node.": "选择执行代理与控制路径。",
     "Run the current node through the selected worker runtime.": "通过选定的代理运行当前任务。",
     "Check node outputs, event coverage, and checkpoint readiness.": "检查任务输出、事件覆盖与检查点状态。",
     "Finalize the trace and mark the task ready for inspection.": "收敛执行记录并准备交付。",
   }
-  return canonicalLabels[selected] ?? selected
+  return canonicalLabels[selected] ?? canonicalLabels[`${selected}.`] ?? selected
 }
 
 function productToolName(value: unknown): string {
@@ -450,10 +451,13 @@ function workspaceChanges(task: TaskProjection): readonly UiFileChange[] {
 function taskFailure(task: TaskProjection): string {
   const outcome = object(task.metadata.canonical_task_outcome)
   const diagnostics = Array.isArray(outcome.diagnostics) ? outcome.diagnostics.map(object) : []
-  return text(task.metadata.failure_reason)
+  const reason = text(task.metadata.failure_reason)
     ?? text(task.metadata.error)
     ?? diagnostics.map((item) => text(item.message)).find(Boolean)
     ?? "任务未能完成。"
+  return reason.includes("no provider/model route")
+    ? "没有可执行本任务的模型。请用 /doctor 检查模型配置和连接，再用 /model 选择可用模型。"
+    : reason
 }
 
 function verificationSummary(task: TaskProjection): {
@@ -806,7 +810,9 @@ export function projectProductEvents(input: ProductProjectionInput): readonly Zy
       taskId: task.taskId,
       status: task.status === "blocked" || task.status === "killed" ? task.status : "failed",
       message: taskFailure(task),
-      recovery: "使用 /resume 选择并恢复该会话；也可以用 /status 查看技术详情。",
+      recovery: taskFailure(task).startsWith("没有可执行本任务的模型")
+        ? "配置恢复后，可以重新提交目标；已有对话仍保留。"
+        : "使用 /resume 选择并恢复该会话；也可以用 /status 查看技术详情。",
     })
   }
 

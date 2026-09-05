@@ -263,7 +263,7 @@ function planLines(view: ProductTuiShell["view"]): string[] {
     lines.push("", "步骤")
     for (const [index, step] of view.plan.steps.entries()) {
       const marker = step.status === "completed" ? "✓" : step.status === "running" ? "◌" : step.status === "failed" ? "!" : step.status === "superseded" ? "↻" : "○"
-      const details = [productTaskStatus(step.status), step.assignedAgentId ? "由协作代理处理" : undefined, step.dependsOn.length ? `等待 ${step.dependsOn.length} 个前置步骤` : undefined].filter(Boolean).join(" · ")
+      const details = [productTaskStatus(step.status), step.assignedAgentId ? "由协作代理处理" : undefined, step.dependsOn.length ? `依赖 ${step.dependsOn.length} 个前置步骤` : undefined].filter(Boolean).join(" · ")
       lines.push(`${marker} ${index + 1}. ${step.label} · ${details}`)
       if (step.description && step.description !== step.label) lines.push(`   ${step.description}`)
     }
@@ -291,6 +291,18 @@ function byteLabel(value: number | undefined): string {
   if (value < 1_024) return `${value} B`
   if (value < 1_024 * 1_024) return `${(value / 1_024).toFixed(1)} KiB`
   return `${(value / (1_024 * 1_024)).toFixed(1)} MiB`
+}
+
+async function pickTaskArtifact(shell: ProductTuiShell, task: TaskProjection): Promise<string | undefined> {
+  if (!task.artifacts.length) {
+    shell.notice("当前任务还没有生成文件或交付物。")
+    return undefined
+  }
+  return (await shell.pick("任务交付物", task.artifacts.map((artifact) => ({
+    id: artifact.artifactId,
+    label: artifact.title || artifact.path || artifact.kind || "任务产物",
+    detail: artifact.mediaType || artifact.kind,
+  }))))?.id
 }
 
 async function openToolBrowser(input: {
@@ -425,7 +437,7 @@ export function productWorkflowGoal(name: "review" | "init", focus = ""): string
 
 async function showProductHelp(shell: ProductTuiShell, running: boolean): Promise<void> {
   await shell.page("快捷键与命令", [
-    running ? "Enter 立即引导 · Tab 排队 · Esc 中断" : "Enter 提交 · Ctrl+J 换行 · Ctrl+E 外部编辑器",
+    running ? "Enter 立即引导 · Tab 排队 · Esc 收起菜单 / 中断" : "Enter 提交 · Alt+Enter / Ctrl+J 换行 · Ctrl+E 外部编辑器",
     "Ctrl+R 恢复草稿 · PageUp/PageDown 回看 · Ctrl+C 清空/退出",
     "",
     ...productCommandHelp(running).split("\n"),
@@ -889,8 +901,8 @@ async function runProductControlLoop(input: {
       }
       if (line === "/artifact" || line.startsWith("/artifact ")) {
         const artifactId = line.slice("/artifact".length).trim()
-        if (!artifactId) throw new CliTaskError("/artifact 需要一个产物编号。", "artifact_argument_missing")
-        await input.openArtifact(artifactId)
+          || await pickTaskArtifact(input.shell, await input.taskStatus())
+        if (artifactId) await input.openArtifact(artifactId)
         continue
       }
       if (line === "/ui") {
@@ -1928,8 +1940,9 @@ async function runProductSession(input: {
               continue
             }
             if (!command.args) {
-              input.shell.notice("用法：/artifact <产物编号>")
-              continue
+              const artifactId = await pickTaskArtifact(input.shell, await input.api.task(currentTaskId))
+              if (!artifactId) continue
+              command.args = artifactId
             }
             try {
               await openProductArtifact({ api: input.api, shell: input.shell, taskId: currentTaskId, artifactId: command.args, signal: input.signal })

@@ -227,7 +227,8 @@ describe("product task observer", () => {
 
     expect(result.status).toBe("failed")
     expect(result.exitCode).toBe(CliExitCode.TASK_FAILED)
-    expect(output.text).toContain("no provider/model route satisfies the request constraints")
+    expect(output.text).toContain("没有可执行本任务的模型")
+    expect(output.text).toContain("/doctor")
     expect(output.text).not.toContain("run rejected after canonical failure")
   })
 

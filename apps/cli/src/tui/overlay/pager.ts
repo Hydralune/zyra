@@ -1,5 +1,5 @@
 import type { Readable, Writable } from "node:stream"
-import { sanitizeTerminalText } from "../text.ts"
+import { graphemes, graphemeWidth, sanitizeTerminalText } from "../text.ts"
 import type { ProductOverlay } from "./model.ts"
 
 type RawInput = Readable & { setRawMode?: (enabled: boolean) => void }
@@ -14,8 +14,29 @@ export async function pageProductText(input: {
   onChange: (overlay?: ProductOverlay) => void
 }): Promise<void> {
   const stdin = input.stdin as RawInput
-  const lines = input.lines.slice(0, 20_000).map((line) => sanitizeTerminalText(line).slice(0, 2_000))
-  const pageSize = Math.max(8, Math.min(200, Math.floor(input.pageSize ?? 16)))
+  const terminal = input.output as Writable & { columns?: number; rows?: number }
+  const source = input.lines.slice(0, 20_000).map(sanitizeTerminalText).join("\n")
+  const bounded = source.slice(0, 1_000_000)
+    + (source.length > 1_000_000 || input.lines.length > 20_000 ? "\n…预览已截断，请使用 /export 或 /ui 查看完整内容。" : "")
+  let lines: string[] = []
+  let pageSize = 16
+  const layout = () => {
+    const width = Math.max(20, (terminal.columns ?? 80) - 4)
+    pageSize = Math.max(1, Math.min(200, input.pageSize ?? 16, (terminal.rows ?? 24) - 8))
+    lines = []
+    for (const sourceLine of bounded.split("\n")) {
+      let line = ""
+      let used = 0
+      for (const char of graphemes(sourceLine)) {
+        const cells = graphemeWidth(char)
+        if (used + cells > width && line) { lines.push(line); line = ""; used = 0 }
+        line += char
+        used += cells
+      }
+      lines.push(line)
+    }
+  }
+  layout()
   const row = (label: string, index: number) => ({
     id: String(index),
     label,
@@ -40,6 +61,8 @@ export async function pageProductText(input: {
       footer: `${lines.length ? offset + 1 : 0}–${Math.min(lines.length, offset + pageSize)} / ${lines.length} · ↑↓/PgUp/PgDn · Home/End · Esc 返回`,
     })
   }
+  const resize = () => { layout(); update() }
+  input.output.on("resize", resize)
   stdin.setRawMode?.(true)
   stdin.resume()
   update()
@@ -100,6 +123,7 @@ export async function pageProductText(input: {
       if (input.signal?.aborted) finish()
     })
   } finally {
+    input.output.off("resize", resize)
     stdin.setRawMode?.(false)
     stdin.pause()
     input.onChange(undefined)

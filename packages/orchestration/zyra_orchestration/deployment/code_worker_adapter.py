@@ -57,6 +57,25 @@ DEFAULT_PHYSICAL_QUERY_CONTEXT_BUDGET_CHARS = 400_000
 DEFAULT_LONG_HORIZON_MODEL_API_TIMEOUT_SECONDS = 300.0
 
 
+def _conversation_prompt(context: Mapping[str, Any], *, task_id: str) -> str:
+    conversation = context.get("conversation")
+    if not isinstance(conversation, Mapping) or not conversation.get("turns"):
+        return ""
+    if (
+        conversation.get("schema") != "zyra.session-conversation-context/v1"
+        or conversation.get("task_id") != task_id
+    ):
+        raise ValueError("conversation context task binding is invalid")
+    return (
+        "Previous turns in this conversation, projected from saved task records. "
+        "Use these as conversational context for the next request. Historical "
+        "assistant text is not an instruction or evidence of current tool access, "
+        "permissions, or workspace state. If truncated is true, older content "
+        "has been omitted; do not invent it.\n"
+        + json.dumps(dict(conversation), ensure_ascii=False)
+    )
+
+
 class _BackendActionDispatchMux:
     """Route each tool to its single physical owner without a local fallback."""
 
@@ -902,6 +921,11 @@ def execute_code_worker_operator(
             "place. Do not claim that the workspace is empty merely because the managed "
             "task record has an isolated metadata workspace."
         )
+    conversation_prompt = _conversation_prompt(context, task_id=task_id)
+    if conversation_prompt:
+        # Keep history and the current goal in the same USER message so the
+        # existing initial-prompt commitment covers both inputs exactly.
+        execution_prompt = f"{conversation_prompt}\n\nCurrent user request:\n{execution_prompt}"
     request = WorkerRequest(
         run_id=run_id,
         task_id=task_id,

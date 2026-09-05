@@ -28,6 +28,51 @@ def canonical_session_id(value: object) -> str:
     return rendered
 
 
+def session_conversation_context(store: Any, current: Any) -> dict[str, Any]:
+    """Project prior task turns without carrying execution or permission state."""
+    session_id = canonical_session_id(
+        current.metadata.get("query_session_id") or f"task:{current.task_id}"
+    )
+    candidates = [
+        task for task in store.list_tasks()
+        if _task_session_id(task) == session_id
+        and task["task_id"] != current.task_id
+        and str(task.get("created_at") or "") <= current.created_at
+        and _task_status(task) in TERMINAL_TASK_STATUSES
+    ]
+    candidates.sort(key=lambda task: (str(task.get("created_at") or ""), task["task_id"]))
+    turns: list[dict[str, str]] = []
+    remaining = 64_000
+    truncated = len(candidates) > 24
+    for candidate in reversed(candidates[-24:]):
+        prior = store.load_task(candidate["task_id"])
+        if prior is None:
+            continue
+        goal = prior.user_goal
+        answer = str(prior.metadata.get("final_answer") or "")
+        if len(goal) + len(answer) > remaining:
+            truncated = True
+            # Preserve the latest turn even if its answer exceeds the budget.
+            if turns:
+                break
+            goal = goal[:remaining // 2]
+            answer = answer[:remaining - len(goal)]
+        turns.append({
+            "task_id": prior.task_id,
+            "status": str(prior.status),
+            "user": goal,
+            "assistant": answer,
+        })
+        remaining -= len(goal) + len(answer)
+    return {
+        "schema": "zyra.session-conversation-context/v1",
+        "session_id": session_id,
+        "task_id": current.task_id,
+        "truncated": truncated,
+        "turns": list(reversed(turns)),
+    }
+
+
 def session_projection(tasks: Sequence[Mapping[str, Any]], session_id: str) -> dict[str, Any]:
     selected = [dict(task) for task in tasks if _task_session_id(task) == session_id]
     if not selected:
@@ -39,7 +84,8 @@ def session_projection(tasks: Sequence[Mapping[str, Any]], session_id: str) -> d
         for task in selected
         if _task_status(task) in ACTIVE_TASK_STATUSES
     ]
-    candidates = active_task_ids if active_task_ids else task_ids
+    terminal = all(_task_status(task) in TERMINAL_TASK_STATUSES for task in selected)
+    candidates = active_task_ids or (task_ids[:1] if terminal else task_ids)
     resolution = "resolved" if len(candidates) == 1 else "ambiguous"
     statuses = sorted({_task_status(task) for task in selected if _task_status(task)})
     created_values = sorted(
@@ -50,9 +96,6 @@ def session_projection(tasks: Sequence[Mapping[str, Any]], session_id: str) -> d
         for task in selected
         if task.get("updated_at") or task.get("created_at")
     )
-    terminal = bool(selected) and all(
-        _task_status(task) in TERMINAL_TASK_STATUSES for task in selected
-    )
     title = next(
         (
             str(task.get("session_title") or "").strip()
@@ -61,6 +104,8 @@ def session_projection(tasks: Sequence[Mapping[str, Any]], session_id: str) -> d
         ),
         "",
     )
+    first_task = min(selected, key=lambda task: str(task.get("created_at") or ""))
+    title = title or str(first_task.get("user_goal") or "").strip()[:120]
     return {
         "session_id": session_id,
         "task_ids": task_ids,
