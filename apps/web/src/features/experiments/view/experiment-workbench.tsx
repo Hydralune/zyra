@@ -88,7 +88,7 @@ export function ExperimentWorkbench({
 
   return (
     <section
-      className="detail-section"
+      className="detail-section experiment-tool"
       aria-labelledby="experiment-workbench-heading"
       data-experiment-connection={snapshot.connection}
       data-experiment-active-count={snapshot.activeCount}
@@ -97,15 +97,14 @@ export function ExperimentWorkbench({
     >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">实验分析</p>
-          <h2 id="experiment-workbench-heading">实验与指标</h2>
+          <h2 id="experiment-workbench-heading">实验结果</h2>
         </div>
         <span className="tag" data-phase={snapshot.connection}>
           {phaseLabel(snapshot.connection)}
         </span>
       </div>
       <p className="muted-copy">
-        集中查看实验对比、统计指标、原始样本和验收证据。实验由后端持续执行，关闭浏览器不会中断。
+        选择已有实验，查看各方案的完成情况、指标对比和验证证据。实验启动后会在后台继续执行。
       </p>
 
       {error ? <div className="plan-warning" role="alert">{error}</div> : null}
@@ -115,7 +114,7 @@ export function ExperimentWorkbench({
         </div>
       ))}
 
-      <div className="settings-grid">
+      <div className={`settings-grid experiment-records${snapshot.rows.length ? "" : " tool-records-empty"}`}>
         <article>
           <div className="section-heading">
             <h3>实验记录</h3>
@@ -162,13 +161,13 @@ export function ExperimentWorkbench({
             </ol>
           ) : (
             <p className="muted-copy">
-              还没有实验记录。
+              暂无实验记录。这里显示由实验服务创建的实验；创建后，点击“刷新”即可查看。
             </p>
           )}
         </article>
 
-        <article>
-          <h3>实验配置与存档</h3>
+        {snapshot.rows.length ? <article>
+          <h3>配置与结果</h3>
           {selected ? (
             <>
               <dl className="fact-grid">
@@ -221,7 +220,7 @@ export function ExperimentWorkbench({
           ) : (
             <p className="muted-copy">选择实验后查看配置与结果。</p>
           )}
-        </article>
+        </article> : null}
       </div>
 
       {snapshot.report ? (

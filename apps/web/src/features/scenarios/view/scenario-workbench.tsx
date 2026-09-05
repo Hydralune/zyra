@@ -40,7 +40,7 @@ export function ScenarioWorkbench({
   const [scenarioId, setScenarioId] = useState("live.software-delivery")
   const [busy, setBusy] = useState("")
   const [error, setError] = useState("")
-  const [mode, setMode] = useState<"sealed" | "interactive">("sealed")
+  const [mode, setMode] = useState<"sealed" | "interactive">("interactive")
   const selected = snapshot.selected
   const actions = selected
     ? formalActionPolicy(selected.run)
@@ -112,7 +112,7 @@ export function ScenarioWorkbench({
 
   return (
     <section
-      className="detail-section"
+      className="detail-section scenario-tool"
       aria-labelledby="scenario-workbench-heading"
       data-scenario-connection={snapshot.connection}
       data-scenario-active-count={snapshot.activeCount}
@@ -120,33 +120,25 @@ export function ScenarioWorkbench({
     >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">场景检查</p>
-          <h2 id="scenario-workbench-heading">长程场景</h2>
+          <h2 id="scenario-workbench-heading">任务试运行</h2>
         </div>
         <span className="tag" data-phase={snapshot.connection}>
           {phaseLabel(snapshot.connection)}
         </span>
       </div>
       <p className="muted-copy">
-        场景由后端持续执行，关闭浏览器后仍会运行。日常试运行请选择交互检查；正式验收会检查初始状态、有效步骤、故障恢复和执行位置迁移。
+        输入一个目标，创建后再启动，检查 Zyra 是否能完成它。启动后关闭此页面也会继续执行。
       </p>
 
-      <form className="settings-grid" onSubmit={create}>
+      <form className="scenario-create-form" onSubmit={create}>
         <label>
-          运行模式
-          <select value={mode} disabled={Boolean(busy)} onChange={(event) => setMode(event.currentTarget.value as "sealed" | "interactive")}>
-            <option value="sealed">正式验收（要求纯净状态）</option>
-            <option value="interactive">交互检查（允许已有状态）</option>
-          </select>
-        </label>
-        <p className="muted-copy">交互检查用于日常试运行，结果不作为正式验收证据。</p>
-        <label>
-          场景领域
+          任务类型
           <select
             value={definition?.scenario_id ?? ""}
             onChange={(event) => setScenarioId(event.currentTarget.value)}
-            disabled={Boolean(busy)}
+            disabled={Boolean(busy) || !snapshot.definitions.length}
           >
+            {!snapshot.definitions.length ? <option value="">{snapshot.connection === "online" ? "暂无可用任务类型" : error ? "任务类型加载失败" : "正在加载任务类型…"}</option> : null}
             {snapshot.definitions.map((item) => (
               <option key={`${item.scenario_id}:${item.version}`} value={item.scenario_id}>
                 {({ "foundation.short-owner-chain": "简短流程检查", "live.software-delivery": "软件交付", "live.cross-source-research": "跨源研究" } as Record<string, string>)[item.scenario_id] ?? item.title}
@@ -155,7 +147,7 @@ export function ScenarioWorkbench({
           </select>
         </label>
         <label>
-          任务要求
+          你希望完成什么？
           <textarea
             value={input}
             onChange={(event) => setInput(event.currentTarget.value)}
@@ -169,8 +161,18 @@ export function ScenarioWorkbench({
             disabled={Boolean(busy)}
           />
         </label>
-        <label>
-          随机种子
+        <details className="scenario-options">
+          <summary>验收与复现选项 <span>{mode === "sealed" ? "正式验收" : "日常试运行"}</span></summary>
+          <label>
+            检查方式
+            <select value={mode} disabled={Boolean(busy)} onChange={(event) => setMode(event.currentTarget.value as "sealed" | "interactive")}>
+              <option value="interactive">日常试运行</option>
+              <option value="sealed">正式验收</option>
+            </select>
+          </label>
+          <p className="muted-copy">{mode === "sealed" ? "用于正式评测：要求干净的初始状态和新输入，并检查故障恢复、执行位置与结果证据。" : "允许使用已有状态，适合日常检查。结果不作为正式验收证据。"}</p>
+          <label>
+          随机种子（用于复现）
           <input
             type="number"
             min="0"
@@ -179,14 +181,16 @@ export function ScenarioWorkbench({
             onChange={(event) => setSeed(event.currentTarget.value)}
             disabled={Boolean(busy)}
           />
-        </label>
-        <div>
+          </label>
+          <p className="muted-copy">相同种子用于复现相同的随机配置；一般保留 0 即可。</p>
+        </details>
+        <div className="settings-actions">
           <button
             className="button button-primary"
             type="submit"
             disabled={Boolean(busy) || !input.trim() || !definition}
           >
-            {busy === "create" ? "正在创建…" : mode === "sealed" ? "创建正式场景" : "创建交互检查"}
+            {busy === "create" ? "正在创建…" : mode === "sealed" ? "创建正式验收" : "创建试运行"}
           </button>
           <button
             className="button button-secondary"
@@ -194,18 +198,19 @@ export function ScenarioWorkbench({
             disabled={Boolean(busy)}
             onClick={() => void runtime.refresh("manual")}
           >
-            刷新
+            刷新记录
           </button>
         </div>
+        <p className="muted-copy">创建只保存配置。准备好后，在记录中点击“启动试运行”。</p>
       </form>
 
       {error ? (
         <div className="plan-warning" role="alert">{error}</div>
       ) : null}
 
-      <div className="settings-grid">
+      <div className={`settings-grid scenario-records${snapshot.rows.length ? "" : " tool-records-empty"}`}>
         <article>
-          <h3>场景记录</h3>
+          <h3>试运行记录</h3>
           {snapshot.rows.length ? (
             <ol className="plan-list">
               {snapshot.rows.map((row) => (
@@ -229,7 +234,7 @@ export function ScenarioWorkbench({
                     className="button button-secondary"
                     onClick={() => void runtime.select(row.run.scenario_run_id)}
                   >
-                    <strong>{row.run.configuration.scenario_id}</strong>
+                    <strong>{({ "foundation.short-owner-chain": "简短流程检查", "live.software-delivery": "软件交付", "live.cross-source-research": "跨源研究" } as Record<string, string>)[row.run.configuration.scenario_id] ?? row.run.configuration.scenario_id}</strong>
                     <span>{phaseLabel(row.run.phase)}</span>
                     <small>{row.run.scenario_run_id}</small>
                   </button>
@@ -238,19 +243,19 @@ export function ScenarioWorkbench({
             </ol>
           ) : (
             <p className="muted-copy">
-              还没有场景记录。
+              还没有试运行记录。填写上方目标并创建后，记录会显示在这里。
             </p>
           )}
         </article>
 
-        <article>
-          <h3>运行条件与证据</h3>
+        {snapshot.rows.length ? <article>
+          <h3>执行情况</h3>
           {selected ? (
             <>
               <dl className="fact-grid">
                 <div>
                   <dt>运行模式</dt>
-                  <dd>{selected.admission.formal ? "正式验收" : "交互检查"}</dd>
+                  <dd>{selected.admission.formal ? "正式验收" : "日常试运行"}</dd>
                 </div>
                 <div>
                   <dt>状态</dt>
@@ -262,7 +267,7 @@ export function ScenarioWorkbench({
                 </div>
                 <div>
                   <dt>初始状态检查</dt>
-                  <dd>{selected.admission.clean ? "已验证" : selected.admission.formal ? "failed" : "已有状态"}</dd>
+                  <dd>{selected.admission.clean ? "已验证" : selected.admission.formal ? "未通过" : "已有状态"}</dd>
                 </div>
                 <div>
                   <dt>新输入检查</dt>
@@ -302,7 +307,7 @@ export function ScenarioWorkbench({
                   disabled={Boolean(busy) || !actions?.mayStart}
                   onClick={() => void mutate("start")}
                 >
-                  {busy === "start" ? "正在启动…" : "启动场景"}
+                  {busy === "start" ? "正在启动…" : "启动试运行"}
                 </button>
                 <button
                   className="button button-secondary"
@@ -337,9 +342,9 @@ export function ScenarioWorkbench({
               ))}
             </>
           ) : (
-            <p className="muted-copy">选择场景后查看执行情况。</p>
+            <p className="muted-copy">选择一条记录，查看执行情况与结果证据。</p>
           )}
-        </article>
+        </article> : null}
       </div>
 
       {selected?.evidence.valid ? (
