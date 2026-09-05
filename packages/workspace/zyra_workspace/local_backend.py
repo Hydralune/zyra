@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import os
 import secrets
 import shutil
@@ -36,6 +39,9 @@ from .store import WorkspaceBindingStore
 
 
 WORKSPACE_MARKER_SCHEMA = "zyra.local-workspace.v1"
+_OBSERVATION_OPERATIONS = frozenset({
+    WorkspaceOperation.READ, WorkspaceOperation.LIST, WorkspaceOperation.QUOTA_QUERY,
+})
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,6 +180,9 @@ class LocalWorkspaceBackend:
         self.mount_policy = WorkspaceArtifactMount()
         self.file_state = WorkspaceFileStateRuntime(binding_store)
         self._locks = KeyedLockPool()
+        # An observation is an ephemeral read capability issued by this backend,
+        # not a copy of the active writer's secret or a second durable lease.
+        self._observation_key = secrets.token_bytes(32)
         # All canonical binding/lease rotations and local mutations must share
         # one workspace lock.  A backend-private path lock alone permits an
         # owner epoch to rotate after authorization but before os.replace(),
@@ -270,12 +279,67 @@ class LocalWorkspaceBackend:
             fence_token=fence_token,
         )
 
+    def observation_handle(
+        self,
+        binding: WorkspaceBinding,
+        lease: WorkspaceLease,
+        *,
+        operations: tuple[WorkspaceOperation, ...],
+    ) -> WorkspaceAccessHandle:
+        requested = tuple(dict.fromkeys(operations))
+        if not requested or not set(requested) <= _OBSERVATION_OPERATIONS:
+            raise WorkspaceError(
+                WorkspaceErrorCode.INVALID_ARGUMENT,
+                "Observation capabilities must be read-only.",
+                workspace_id=binding.workspace_id,
+                operation="observe_workspace",
+            )
+        for operation in requested:
+            self._validate_lease_state(binding, lease, operation=operation)
+        handle = WorkspaceAccessHandle(
+            workspace_id=binding.workspace_id,
+            task_id=binding.task_id,
+            session_id=binding.session_id,
+            worker_id=lease.worker_id,
+            lease_id=lease.lease_id,
+            owner_epoch=binding.owner_epoch,
+            capability_revision=binding.capability_revision,
+            operations=requested,
+            backend_id=self.backend_id,
+            mount_kinds=tuple(item.kind for item in self.binding_store.get_mounts(binding.workspace_id)),
+            internal_root=self.open(binding),
+        )
+        return replace(handle, fence_token=self._observation_token(handle))
+
+    def _observation_token(self, handle: WorkspaceAccessHandle) -> str:
+        # Authenticate the full public capability scope, including allowed
+        # operations. dataclasses.replace must not promote a list-only handle
+        # to read/write authority or transplant it to another lease/workspace.
+        payload = json.dumps(handle.to_public_dict(), sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return "observation:" + hmac.new(self._observation_key, payload, hashlib.sha256).hexdigest()
+
     def validate_lease(
         self,
         binding: WorkspaceBinding,
         lease: WorkspaceLease,
         *,
         fence_token: str,
+        operation: WorkspaceOperation | None = None,
+    ) -> None:
+        self._validate_lease_state(binding, lease, operation=operation)
+        if not secrets.compare_digest(binding.fence_token_hash, _fence_hash(fence_token)):
+            raise WorkspaceError(
+                WorkspaceErrorCode.FENCE_TOKEN_MISMATCH,
+                "The workspace fencing token does not match the canonical binding.",
+                workspace_id=binding.workspace_id,
+                operation=operation.value if operation else "validate_lease",
+            )
+
+    def _validate_lease_state(
+        self,
+        binding: WorkspaceBinding,
+        lease: WorkspaceLease,
+        *,
         operation: WorkspaceOperation | None = None,
     ) -> None:
         if lease.workspace_id != binding.workspace_id or lease.task_id != binding.task_id:
@@ -337,13 +401,6 @@ class LocalWorkspaceBackend:
             raise WorkspaceError(
                 WorkspaceErrorCode.CAPABILITY_STALE,
                 "The workspace lease capability revision is stale.",
-                workspace_id=binding.workspace_id,
-                operation=operation.value if operation else "validate_lease",
-            )
-        if not secrets.compare_digest(binding.fence_token_hash, _fence_hash(fence_token)):
-            raise WorkspaceError(
-                WorkspaceErrorCode.FENCE_TOKEN_MISMATCH,
-                "The workspace fencing token does not match the canonical binding.",
                 workspace_id=binding.workspace_id,
                 operation=operation.value if operation else "validate_lease",
             )
@@ -838,7 +895,15 @@ class LocalWorkspaceBackend:
                 workspace_id=handle.workspace_id,
                 operation=operation.value,
             )
-        self.validate_lease(binding, lease, fence_token=handle.fence_token, operation=operation)
+        if (
+            operation in _OBSERVATION_OPERATIONS
+            and handle.operations
+            and set(handle.operations) <= _OBSERVATION_OPERATIONS
+            and secrets.compare_digest(handle.fence_token, self._observation_token(handle))
+        ):
+            self._validate_lease_state(binding, lease, operation=operation)
+        else:
+            self.validate_lease(binding, lease, fence_token=handle.fence_token, operation=operation)
         if not handle.allows(operation):
             raise WorkspaceError(
                 WorkspaceErrorCode.LEASE_REVOKED,

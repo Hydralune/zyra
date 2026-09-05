@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -20,6 +21,52 @@ if str(ROOT) not in sys.path:
 
 
 class WorkspaceManagerApiTests(unittest.TestCase):
+    def test_http_observation_after_other_process_transfer_preserves_live_writer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            with _workspace_api(root) as base_url:
+                created = _post(base_url, "/tasks", {"goal": "Observe a separate writer", "auto_run": False})
+                task = created["task"]
+                workspace = task["metadata"]["workspace_ref"]
+                helper = "\n".join((
+                    "import json, sys",
+                    "from pathlib import Path",
+                    "sys.path.insert(0, sys.argv[1])",
+                    "from zyra_workspace import WorkspaceManagerConfig, WorkspaceManagerRuntime, WorkspaceKind",
+                    "root = Path(sys.argv[2])",
+                    "manager = WorkspaceManagerRuntime(WorkspaceManagerConfig(state_root=root/'workspace-state', data_root=root/'workspace-data'))",
+                    "writer = manager.acquire_for_worker(task_id=sys.argv[3], session_id=sys.argv[4], worker_id='separate-writer')",
+                    "manager.backend.read(writer, mount_kind=WorkspaceKind.TASK, path='notes.txt')",
+                    "manager.backend.write_after_read(writer, mount_kind=WorkspaceKind.TASK, path='notes.txt', content=b'before observation')",
+                    "print(json.dumps(writer.to_public_dict()), flush=True)",
+                    "input()",
+                    "manager.backend.read(writer, mount_kind=WorkspaceKind.TASK, path='notes.txt')",
+                    "manager.backend.write_after_read(writer, mount_kind=WorkspaceKind.TASK, path='notes.txt', content=b'after observation')",
+                    "print('writer-still-authorized', flush=True)",
+                ))
+                child = subprocess.Popen(
+                    [sys.executable, "-u", "-c", helper, str(ROOT/'packages'/'workspace'), str(root), task["task_id"], workspace["session_id"]],
+                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    text=True, encoding="utf-8",
+                )
+                try:
+                    writer = json.loads(child.stdout.readline())
+                    workspace_id = workspace["workspace_id"]
+                    read_url = f"/workspaces/{workspace_id}/files?path=notes.txt&read=true&encoding=utf-8"
+                    self.assertEqual(_get(base_url, read_url)["content"], "before observation")
+                    self.assertEqual(_get(base_url, f"/workspaces/{workspace_id}/files?path=.")["count"], 1)
+                    projected = _get(base_url, f"/workspaces/{workspace_id}")["workspace"]
+                    self.assertEqual(projected["lease_id"], writer["lease_id"])
+                    self.assertEqual(projected["owner_epoch"], writer["owner_epoch"])
+                    stdout, stderr = child.communicate("continue\n", timeout=15)
+                    self.assertEqual(child.returncode, 0, stderr)
+                    self.assertIn("writer-still-authorized", stdout)
+                    self.assertEqual(_get(base_url, read_url)["content"], "after observation")
+                finally:
+                    if child.poll() is None:
+                        child.kill()
+                    child.communicate(timeout=10)
+
     def test_task_creation_file_snapshot_restore_and_event_causality(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

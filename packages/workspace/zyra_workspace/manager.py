@@ -474,8 +474,7 @@ class WorkspaceManagerRuntime:
             with self._guard:
                 binding = self.store.require_binding(workspace_id)
                 lease = self.store.get_lease(binding.lease_id)
-                token = self._tokens.get(binding.lease_id, "")
-                if lease is None or not token:
+                if lease is None:
                     raise WorkspaceError(
                         WorkspaceErrorCode.LEASE_NOT_FOUND,
                         "The active workspace capability is unavailable for observation.",
@@ -489,8 +488,7 @@ class WorkspaceManagerRuntime:
                         workspace_id=workspace_id,
                         operation="observe_workspace",
                     )
-                current = self.backend.access_handle(binding, lease, fence_token=token)
-                return replace(current, operations=requested)
+                return self.backend.observation_handle(binding, lease, operations=requested)
 
     def project(self, workspace_id: str) -> WorkspacePublicProjection:
         binding = self.store.require_binding(workspace_id)

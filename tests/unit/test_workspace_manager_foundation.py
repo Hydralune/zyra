@@ -21,8 +21,10 @@ from zyra_workspace import (  # noqa: E402
     WorkspaceErrorCode,
     WorkspaceKind,
     WorkspaceLifecycleState,
+    WorkspaceLeaseState,
     WorkspaceManagerConfig,
     WorkspaceManagerRuntime,
+    WorkspaceOperation,
     WorkspaceQuota,
 )
 
@@ -74,6 +76,68 @@ class WorkspaceManagerFoundationTests(unittest.TestCase):
         self.assertEqual(first.projection.workspace_id, second.projection.workspace_id)
         self.assertFalse(second.created)
         self.assertEqual(len(self.runtime.store.list_bindings()), 1)
+
+    def test_observation_capability_cannot_be_promoted_or_forged(self) -> None:
+        writer = self.create().access
+        observer = WorkspaceManagerRuntime(self.config)
+        view = observer.observe_current(writer.workspace_id, operations=(WorkspaceOperation.LIST,))
+        self.assertNotEqual(view.fence_token, writer.fence_token)
+        self.assertNotIn(view.fence_token, json.dumps(view.to_public_dict()))
+        self.assertEqual(observer.backend.list_directory(view, mount_kind=WorkspaceKind.TASK, path="."), ())
+        for forged in (
+            replace(view, operations=(WorkspaceOperation.READ,)),
+            replace(view, operations=(WorkspaceOperation.WRITE,)),
+            replace(view, fence_token="observation:" + "0" * 64),
+        ):
+            operation = forged.operations[0]
+            with self.subTest(operation=operation, forged_token=forged.fence_token != view.fence_token):
+                with self.assertRaises(WorkspaceError):
+                    observer.backend._authorize(forged, operation)
+        binding = observer.store.require_binding(view.workspace_id)
+        lease = observer.store.get_lease(view.lease_id)
+        with self.assertRaises(WorkspaceError):
+            observer.backend.access_handle(binding, lease, fence_token=view.fence_token)
+        with self.assertRaises(WorkspaceError):
+            observer.renew_for_worker(view)
+        with self.assertRaises(WorkspaceError):
+            observer.observe_current(view.workspace_id, operations=(WorkspaceOperation.WRITE,))
+        self.runtime.renew_for_worker(writer)
+
+    def test_observation_restart_remints_without_rotating_writer_and_stale_view_fails(self) -> None:
+        writer = self.create().access
+        observer = WorkspaceManagerRuntime(self.config)
+        view = observer.observe_current(writer.workspace_id, operations=(WorkspaceOperation.READ,))
+        restarted = WorkspaceManagerRuntime(self.config)
+        with self.assertRaises(WorkspaceError):
+            restarted.backend.read(view, mount_kind=WorkspaceKind.TASK, path="missing.txt")
+        refreshed = restarted.observe_current(writer.workspace_id, operations=(WorkspaceOperation.READ,))
+        self.assertEqual(refreshed.lease_id, writer.lease_id)
+        self.assertEqual(refreshed.owner_epoch, writer.owner_epoch)
+        restarted.backend.read(refreshed, mount_kind=WorkspaceKind.TASK, path="missing.txt")
+        self.runtime.acquire_for_worker(task_id=writer.task_id, session_id=writer.session_id, worker_id="next-writer")
+        with self.assertRaises(WorkspaceError):
+            restarted.backend.read(refreshed, mount_kind=WorkspaceKind.TASK, path="missing.txt")
+
+    def test_observation_enforces_current_lease_scope_and_expiry(self) -> None:
+        writer = self.create().access
+        limited = self.runtime.acquire_for_worker(
+            task_id=writer.task_id, session_id=writer.session_id,
+            worker_id="limited-writer", operations=(WorkspaceOperation.LIST,),
+        )
+        observer = WorkspaceManagerRuntime(self.config)
+        with self.assertRaises(WorkspaceError):
+            observer.observe_current(limited.workspace_id, operations=(WorkspaceOperation.READ,))
+        view = observer.observe_current(limited.workspace_id, operations=(WorkspaceOperation.LIST,))
+        with mock.patch("zyra_workspace.local_backend.datetime") as clock:
+            clock.fromisoformat.side_effect = datetime.fromisoformat
+            clock.now.return_value = datetime.now(UTC) + timedelta(hours=1)
+            with self.assertRaises(WorkspaceError) as expired:
+                observer.backend.list_directory(view, mount_kind=WorkspaceKind.TASK, path=".")
+            self.assertEqual(expired.exception.code, WorkspaceErrorCode.LEASE_EXPIRED)
+        observer.store.revoke_workspace_leases(view.workspace_id, state_value=WorkspaceLeaseState.REVOKED)
+        with self.assertRaises(WorkspaceError) as revoked:
+            observer.backend.list_directory(view, mount_kind=WorkspaceKind.TASK, path=".")
+        self.assertEqual(revoked.exception.code, WorkspaceErrorCode.LEASE_REVOKED)
 
     def test_concurrent_create_has_one_canonical_task_workspace(self) -> None:
         barrier = threading.Barrier(2)
