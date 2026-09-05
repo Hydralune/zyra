@@ -154,7 +154,7 @@ function renderTool(tool: ProductToolState, width: number): RenderLine[] {
   if (tool.status === "running") return []
   const failed = tool.status === "failed"
   const lines: RenderLine[] = [line()]
-  pushWrapped(lines, `${failed ? "工具未完成" : toolVerb(tool.name, false)}${durationLabel(tool.durationMs)}`, failed ? "! " : "• ", width, failed ? "error" : "default")
+  pushWrapped(lines, `${failed ? "工具未完成" : toolVerb(tool.name, false)}${durationLabel(tool.durationMs)}`, failed ? "! " : "• ", width, failed ? "error" : "secondary")
   if (tool.summary) pushWrapped(lines, tool.summary, "  └ ", width, "secondary", "    ")
   if (failed && tool.impact === "local") pushWrapped(lines, "本次工具调用失败，但任务仍可继续。", "    ", width, "secondary")
   if (tool.recovery) pushWrapped(lines, tool.recovery, "    ", width, "secondary")
@@ -169,13 +169,13 @@ function renderPlan(state: ProductViewState, width: number): RenderLine[] {
     && !state.plan.changes.length
     && state.plan.steps.every((step) => step.status === "completed" || step.status === "superseded")
   ) return []
-  const lines: RenderLine[] = [line(), line("• 已更新计划")]
+  const lines: RenderLine[] = [line(), line("• 已更新计划", "secondary")]
   const latestChange = state.plan.changes.at(-1)
   if (latestChange) pushWrapped(lines, latestChange.summary, "  └ ", width, "secondary", "    ")
   const steps = state.plan.steps.filter((step) => step.status !== "superseded")
   for (const step of steps.slice(0, 8)) {
     const marker = step.status === "completed" ? "✔ " : step.status === "running" ? "→ " : step.status === "failed" ? "✘ " : step.status === "cancelled" ? "– " : "□ "
-    const tone: LineTone = step.status === "completed" ? "success" : step.status === "running" ? "accent" : step.status === "failed" ? "error" : "secondary"
+    const tone: LineTone = step.status === "running" ? "accent" : step.status === "failed" ? "error" : "secondary"
     pushWrapped(lines, step.label, `    ${marker}`, width, tone, "      ")
   }
   if (steps.length > 8) pushWrapped(lines, `另有 ${steps.length - 8} 个步骤，可用 /plan 查看`, "    … ", width, "secondary", "      ")
@@ -234,7 +234,7 @@ function changeLabel(kind: ProductViewState["changes"][number]["kind"]): string 
 
 function renderWorkspace(state: ProductViewState, width: number): RenderLine[] {
   if (!state.changes.length) return []
-  const lines: RenderLine[] = [line(), line(`• 已编辑 ${state.changes.length} 个文件`, "success")]
+  const lines: RenderLine[] = [line(), line(`• 已编辑 ${state.changes.length} 个文件`, "secondary")]
   for (const change of state.changes.slice(0, 8)) {
     const renamed = change.previousPath ? `${change.previousPath} → ${change.path}` : change.path
     pushWrapped(lines, `${changeLabel(change.kind)} ${renamed}`, "  └ ", width, change.kind === "deleted" ? "error" : "secondary", "    ")
@@ -247,7 +247,7 @@ function renderVerification(state: ProductViewState, width: number): RenderLine[
   const verification = state.verification
   if (!verification || verification.status === "not_run") return []
   const passed = verification.status === "passed"
-  const lines: RenderLine[] = [line(), line(`${passed ? "•" : "!"} ${verification.label}`, passed ? "success" : "error")]
+  const lines: RenderLine[] = [line(), line(`${passed ? "•" : "!"} ${verification.label}`, passed ? "secondary" : "error")]
   const commands = verification.checks.filter((check) => check.command)
   for (const check of commands.slice(0, 4)) {
     const result = check.exitCode === undefined ? check.status : `${check.status} · exit ${check.exitCode}`
