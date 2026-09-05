@@ -246,7 +246,9 @@ export class WorkbenchController {
     try {
       const [health, readiness] = await Promise.all([
         this.#tasks.health({ signal: controller.signal, timeoutMs: 10_000 }),
-        this.#tasks.readiness({ signal: controller.signal, timeoutMs: 12_000 }),
+        // Readiness probes all runtime owners and can take longer than a
+        // simple health request after restart. Wait for its actual verdict.
+        this.#tasks.readiness({ signal: controller.signal, timeoutMs: 30_000 }),
       ])
       if (!this.#isCurrent("runtime", controller, generation)) return this.#snapshot.runtime
       this.#replace({

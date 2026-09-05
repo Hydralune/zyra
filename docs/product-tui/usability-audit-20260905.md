@@ -74,6 +74,8 @@ node --env-file=.env.deepseek.local apps/cli/dist/zyra.js ui --base-url http://1
 
 浏览器 `pageerror` 在最后一轮为 `[]`。导航、停止和故意断网产生的取消请求不是成功网络请求，也不被算作应用异常。截图和页面文本保留在 `.tmp/ux-audit-20260905/web/`；最终包括 29 下载、31 记忆结果、32/33 队列、34 对话。
 
+提交后重启保留服务时又复现就绪误报：`/health` 和任务读取成功，完整 `/runtime/readiness` 实测 12.454 秒返回 ready=true，而 Web 的 12 秒截止时间提前报不可用。将就绪探测独立期限设为 30 秒，保留后端真实 ready 判定；真实浏览器刷新后显示“运行时就绪”，QUEUE_FINAL 回答仍可见。对应 workbench/runtime 配置回归 43 pass、0 fail，Web 构建通过。
+
 场景首次真实执行 `scenario_d537347cae684bcb85940fa949dbc275` 因 `preflight_clean_binding_invalid` 在证据阶段失败，不能记作成功。其相关取消仅针对本轮创建的失败任务，随后正式 daemon stop 检查 active_task_ids 为空并正常停止，没有强杀或清理用户记录。
 
 重启复验还发现固定 foundation worker ID 错误复用旧 PID 的身份；改为每个 API 进程注册独立身份，不刷新或冒领旧 worker。最终真实 `scenario_b37534bd368e435dab52b4756cd3c07d`：succeeded，4.6 秒、46 个有效步骤、0 个无效步骤、1 个产物、证据 verified；随后点击 Verify evidence 与 Archive。截图 `35-scenario-success.png` 明确保留“交互检查、不构成正式验收证据”的标识。
