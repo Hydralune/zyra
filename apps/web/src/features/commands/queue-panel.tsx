@@ -19,9 +19,9 @@ function QueueRow(input: {
       data-command-phase={input.item.phase}
       data-command-source={input.item.source}
     >
-      <span>{input.item.name ?? input.item.text ?? "Queued command"}</span>
-      <span>{input.item.phase}</span>
-      <span>{input.item.priority}</span>
+      <span>{input.item.name ?? input.item.text ?? "排队命令"}</span>
+      <span>{{ queued: "排队中", reserved: "准备中", running: "执行中", completed: "已完成", failed: "失败", cancelled: "已取消", expired: "已过期" }[input.item.phase]}</span>
+      <span>{{ now: "优先", next: "下一条", later: "稍后" }[input.item.priority] ?? input.item.priority}</span>
       {input.item.error ? <span role="alert">{input.item.error}</span> : null}
       {input.item.cancellable ? (
         <button
@@ -33,7 +33,7 @@ function QueueRow(input: {
             )
           }}
         >
-          Cancel
+          取消
         </button>
       ) : null}
       {input.item.retryable ? (
@@ -56,7 +56,7 @@ function QueueRow(input: {
             })()
           }}
         >
-          Retry
+          重试
         </button>
       ) : null}
     </li>
@@ -115,7 +115,7 @@ export function CommandQueuePanel(input: {
         ))}
       </ol>
         </>
-      ) : null}
+      ) : <p className="muted-copy">暂无命令记录。</p>}
     </section>
   )
 }

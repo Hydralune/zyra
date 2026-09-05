@@ -41,6 +41,15 @@ body { background: #fafafa; color: #202020; }
 .product-shell :is(button, input, textarea, select):focus-visible { outline: 2px solid #555; outline-offset: 3px; }
 .product-shell button:disabled { opacity: .48; cursor: not-allowed; }
 .product-shell :is(.product-status-dot, .product-recent-status, .connection-dot, .product-working-spinner) { color: #404040; background-color: #777; box-shadow: none; }
+/* Semantic status dots are the deliberate colour exception to the neutral theme. */
+.product-shell .product-status-dot[data-tone="success"],
+.product-shell .runtime-pill[data-phase="ready"] .connection-dot { background-color: #16803c; }
+.product-shell .product-status-dot[data-tone="danger"],
+.product-shell .runtime-pill[data-phase="error"] .connection-dot,
+.product-shell .runtime-pill[data-phase="offline"] .connection-dot { background-color: #dc2626; }
+.product-shell .product-status-dot[data-tone="active"] { background-color: #2563eb; }
+.product-shell .runtime-pill[data-phase="loading"] .connection-dot,
+.product-shell .runtime-pill[data-phase="reconnecting"] .connection-dot { background-color: #c27609; }
 .product-shell :is(.product-progress, .product-sync-bar) > span { background: #3b3b3b; }
 .product-shell .product-answer, .product-shell .product-message-user p { color: #252525; font-size: var(--answer-font-size, 16px); line-height: 1.8; }
 .product-shell .product-message-user p { background: #eee; }
@@ -114,6 +123,12 @@ body { background: #fafafa; color: #202020; }
 .advanced-drawer-panel :is(.plan-node-heading strong, .detail-heading h2) { color: #292929; }
 .advanced-drawer-panel :is(.detail-section, .evidence-panel) { border-color: #ddd; }
 .advanced-drawer-panel .evidence-panel > summary { color: #333; background: #f4f4f4; font-size: 14px; }
+.command-queue-panel > header, .command-queue-panel > ol > li { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.command-queue-panel > header { margin-bottom: 14px; }
+.command-queue-panel > header > button { margin-left: auto; }
+.command-queue-panel > ol { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.command-queue-panel > ol > li { padding: 12px; border: 1px solid #ddd; border-radius: 8px; color: #666; font-size: 13px; }
+.command-queue-panel > ol > li > span:first-child { flex: 1 1 180px; color: #252525; overflow-wrap: anywhere; }
 .product-shell .overlay-panel, .product-shell .notification { color: #252525; background: #fff; border-color: #bbb; }
 .product-shell .notification strong { font-size: 14px; }
 .product-shell .notification p { color: #606060; font-size: 13px; }

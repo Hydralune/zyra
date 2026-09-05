@@ -371,7 +371,7 @@ function TopBar({
 }) {
   const state = useWorkbenchSnapshot(runtime)
   const live = useLiveSyncSnapshot(runtime)
-  const phase = online ? state.runtime.phase : "reconnecting"
+  const phase = online ? state.runtime.phase : "offline"
   const preferences = useSyncExternalStore(runtime.preferences.subscribe, runtime.preferences.getSnapshot, runtime.preferences.getSnapshot)
   const title = (task ? preferences.titles[task.sessionId ?? `task:${task.taskId}`] || task.userGoal : undefined)
     || (routeKind === "settings" ? "设置" : "Zyra")
@@ -382,7 +382,7 @@ function TopBar({
     : "动态异构多智能体工作空间"
   const runtimeLabel = !online
     ? "离线"
-    : state.runtime.readiness?.ready
+    : phase === "ready" && state.runtime.readiness?.ready
       ? "运行时就绪"
       : state.runtime.phase === "loading"
         ? "正在检查"

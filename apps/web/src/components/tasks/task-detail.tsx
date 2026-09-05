@@ -29,6 +29,8 @@ import { McpWorkbench } from "../../features/mcp/index.ts"
 import { SkillWorkbench } from "../../features/skills/index.ts"
 import { SubagentWorkbench } from "../../features/subagents/index.ts"
 import { LoopXWorkbench } from "../../features/long-horizon/loopx/index.ts"
+import { CommandQueuePanel } from "../../features/commands/queue-panel.tsx"
+import { permissionDisplayActor } from "../../features/permissions/index.ts"
 
 function dateTime(value: string | undefined): string {
   if (!value) return "—"
@@ -321,6 +323,14 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
 
       <EvidencePanel runtime={runtime} id="evidence-controls" title="权限与控制">
         <PermissionWorkbench runtime={runtime} task={task} />
+      </EvidencePanel>
+
+      <EvidencePanel runtime={runtime} id="evidence-command-queue" title="命令队列">
+        <CommandQueuePanel
+          runtime={runtime.controlCommands}
+          permissionRuntime={runtime.permissionConsole}
+          actorId={permissionDisplayActor(task.metadata)}
+        />
       </EvidencePanel>
 
       <EvidencePanel runtime={runtime} id="evidence-continuity-placement" title="会话、记忆与执行位置">

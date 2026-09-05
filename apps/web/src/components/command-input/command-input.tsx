@@ -21,7 +21,6 @@ import {
   argumentSuggestions,
   type ArgumentSuggestion,
 } from "../../command/argument-completion.ts"
-import { CommandQueuePanel } from "../../features/commands/queue-panel.tsx"
 import {
   classifyPermissionSealedManualAction,
   permissionDisplayActor,
@@ -748,11 +747,6 @@ export function CommandInput({
           <span id="command-argument-hint">{hint}</span>
           <span aria-hidden="true">{value.length.toLocaleString()} 字符</span>
         </div>
-        <CommandQueuePanel
-          runtime={runtime.controlCommands}
-          permissionRuntime={runtime.permissionConsole}
-          actorId={permissionDisplayActor(selectedTask?.metadata)}
-        />
         {submissionError || command.lastError ? (
           <div className="command-error" role="alert">
             {submissionError ?? command.lastError}
