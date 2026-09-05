@@ -434,12 +434,8 @@ function TopBar({
 
 function ProductHome({
   runtime,
-  taskCount,
-  listPhase,
 }: {
   runtime: WorkbenchRuntime
-  taskCount: number
-  listPhase: string
 }) {
   const command = useCommandSnapshot(runtime)
   const creating =
@@ -495,14 +491,6 @@ function ProductHome({
           <span>动态多智能体</span>
           <span>端边云调度</span>
           <span>可追溯交付</span>
-          {/* Never present an unread list as "0 tasks". */}
-          {listPhase === "error" ? (
-            <strong data-tone="danger">历史会话读取失败</strong>
-          ) : listPhase === "loading" && !taskCount ? (
-            <strong>正在读取历史会话…</strong>
-          ) : taskCount ? (
-            <strong>{taskCount} 个历史任务</strong>
-          ) : null}
         </div>
       </div>
     </section>
@@ -538,8 +526,6 @@ function MainRoute({
   return (
     <ProductHome
       runtime={runtime}
-      taskCount={state.list.total}
-      listPhase={state.list.phase}
     />
   )
 }
