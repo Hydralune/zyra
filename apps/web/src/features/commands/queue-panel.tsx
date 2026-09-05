@@ -77,7 +77,8 @@ export function CommandQueuePanel(input: {
   if (!queue?.items.length && !input.permissionRuntime) return null
   return (
     <section
-      aria-label="Backend command queue"
+      aria-label="命令队列"
+      className="command-queue-panel"
       data-command-queue-owner="PromptQueueRuntime+CanonicalProjectionStore"
       data-command-queue-restored={queue?.restored ? "true" : "false"}
     >
@@ -88,18 +89,18 @@ export function CommandQueuePanel(input: {
           label="command"
         />
       ) : null}
-      {queue ? (
+      {queue?.items.length ? (
         <>
       <header>
-        <strong>Command queue</strong>
-        <span>{queue.pending.length} pending</span>
+        <strong>命令队列</strong>
+        <span>{queue.pending.length} 条待处理</span>
         <button
           type="button"
           onClick={() => {
             void input.runtime.restoreQueue({ includeTerminal: true })
           }}
         >
-          Refresh
+          刷新
         </button>
       </header>
       <ol>

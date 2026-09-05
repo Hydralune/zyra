@@ -150,6 +150,7 @@ export class WorkbenchRouteLoader {
 
   #operations(route: WorkbenchRoute): Promise<unknown>[] {
     const operations: Promise<unknown>[] = []
+    if (!["task", "evidence"].includes(route.kind)) this.#workbench.selectTask(undefined)
     const runtime = this.#workbench.getSnapshot().runtime
     if (runtime.phase === "idle") operations.push(this.#workbench.refreshRuntime())
     if (route.kind === "tasks") {
@@ -163,6 +164,8 @@ export class WorkbenchRouteLoader {
       if (this.#workbench.getSnapshot().list.phase === "idle") {
         operations.push(this.#workbench.refreshTasks({ preserveOnError: true }))
       }
+    } else if (this.#workbench.getSnapshot().list.phase === "idle") {
+      operations.push(this.#workbench.refreshTasks({ preserveOnError: true }))
     }
     return operations
   }

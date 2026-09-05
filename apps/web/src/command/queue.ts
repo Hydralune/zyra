@@ -216,14 +216,14 @@ export class CommandQueue {
     return cloneEntry(entry)
   }
 
-  popEditable(currentValue: string, cursor: number): {
+  popEditable(currentValue: string, cursor: number, id?: string): {
     value: string
     cursor: number
     removed: QueuedSubmission[]
   } | undefined {
     this.#assertOpen()
     const editable = this.#entries.filter(
-      (entry) => entry.phase === "queued" && entry.editable,
+      (entry) => entry.phase === "queued" && entry.editable && (!id || entry.id === id),
     )
     if (!editable.length) return undefined
     const ordered = this.#ordered(editable)

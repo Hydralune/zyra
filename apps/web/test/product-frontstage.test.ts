@@ -3,6 +3,7 @@ import type { PlanNodeProjection, TaskProjection } from "../../../packages/core/
 import { SIDEBAR_DRAWER_QUERY, productConversationList } from "../src/app/workbench-app.tsx"
 import {
   extractArtifactText,
+  orderedProductPlan,
   pendingConversationTurns,
   productConversationTasks,
   productTaskProgress,
@@ -46,6 +47,13 @@ function task(
 }
 
 describe("product frontstage", () => {
+  test("orders displayed steps by dependency rather than opaque task identifiers", () => {
+    const plan = node("node_plan", "completed")
+    const run = { ...node("node_run", "completed"), dependsOn: [plan.nodeId] }
+    const verify = { ...node("node_verify", "completed"), dependsOn: [run.nodeId] }
+    expect(orderedProductPlan([verify, run, plan]).map((entry) => entry.nodeId))
+      .toEqual([plan.nodeId, run.nodeId, verify.nodeId])
+  })
   test("projects plan completion without inventing runtime progress", () => {
     expect(productTaskProgress({
       terminal: false,

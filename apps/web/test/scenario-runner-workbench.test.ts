@@ -14,6 +14,7 @@ import {
   ScenarioWorkbenchRuntime,
   assessEvidence,
   assessScenarioAdmission,
+  canStartScenario,
   projectSourceAudit,
   validateScenarioRegistry,
 } from "../src/features/scenarios/index.ts"
@@ -296,6 +297,14 @@ class FakeScenarioApi {
 }
 
 describe("scenario admission and evidence", () => {
+  test("interactive admission matches the backend without weakening sealed checks", () => {
+    const base = run({ preflight_receipt: preflight(false, false) })
+    expect(canStartScenario(base).allowed).toBe(false)
+    const interactive = { ...base, configuration: { ...base.configuration, mode: "interactive" } }
+    expect(canStartScenario(interactive).allowed).toBe(true)
+    expect(assessScenarioAdmission(interactive).formal).toBe(false)
+    expect(assessScenarioAdmission(interactive).clean).toBe(false)
+  })
   test("accepts clean sealed admission and rejects dirty/manual state", () => {
     const accepted = assessScenarioAdmission(run())
     expect(accepted.valid).toBe(true)
@@ -455,6 +464,14 @@ describe("scenario admission and evidence", () => {
 })
 
 describe("scenario durable workbench runtime", () => {
+  test("preserves backend preflight rejection instead of dereferencing a missing run", async () => {
+    const client = new ZyraApiClient({ baseUrl: "http://scenario.test", fetch: (async (input: RequestInfo | URL, init?: RequestInit) => new Response(JSON.stringify({
+      ok: false, error: "scenario_preflight_dirty", message: "Formal scenario start rejected dirty state.",
+    }), { status: 409, headers: { "Content-Type": "application/json", "X-Zyra-Api-Version": "1.0", "X-Request-Id": new Request(input, init).headers.get("X-Request-Id") ?? "" } })) as typeof fetch })
+    try {
+      await expect(new TypedScenarioApi(client).create({ input: "isolated scenario" })).rejects.toThrow("交互检查")
+    } finally { client.close() }
+  })
   test("typed API routes registry and create to the scenario owner", async () => {
     const requests: Request[] = []
     const client = new ZyraApiClient({

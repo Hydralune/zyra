@@ -130,4 +130,30 @@ describe("retained Mnemopi retrieval algorithms", () => {
     expect(left).toBe(right);
     expect(left).toBeGreaterThan(0.3);
   });
+
+  test("incremental diversity matches the full MMR calculation", () => {
+    const candidates = Array.from({ length: 32 }, (_, index) => candidate(
+      `doc-${index.toString().padStart(2, "0")}`, 1 / (index + 1), "fts",
+      `共同 路由 group${index % 5} token${index % 9} evidence${index}`,
+    ));
+    const base = {
+      query: "memory", requestTime, candidates,
+      intent: classifyIntent("memory"), temporal: parseTemporalConstraint("memory", requestTime),
+      budget: { limit: 32, candidateLimit: 32, maximumOutputCharacters: 100000, maximumDocumentCharacters: 8000, mmrLambda: 1 },
+    };
+    const fused = rankRetrievalCandidates(base).hits;
+    for (const lambda of [0, 0.35, 0.72, 1]) {
+      const remaining = [...fused];
+      const selected: typeof fused[number][] = [];
+      const text = (id: string) => { const doc = candidates.find(item => item.documentId === id)!; return `${doc.title}\n${doc.content}`; };
+      while (remaining.length) {
+        const score = (item: typeof fused[number]) => lambda * item.score - (1 - lambda) * Math.max(0, ...selected.map(prior => lexicalSimilarity(text(item.documentId), text(prior.documentId))));
+        remaining.sort((a, b) => score(b) - score(a) || (a.documentId < b.documentId ? -1 : 1));
+        selected.push(remaining.shift()!);
+      }
+      const actual = rankRetrievalCandidates({ ...base, budget: { ...base.budget, mmrLambda: lambda } });
+      expect(actual.hits.map(item => item.documentId)).toEqual(selected.map(item => item.documentId));
+      expect(rankRetrievalCandidates({ ...base, candidates: [...candidates].reverse(), budget: { ...base.budget, mmrLambda: lambda } }).evidenceDigest).toBe(actual.evidenceDigest);
+    }
+  });
 });

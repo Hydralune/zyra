@@ -99,6 +99,16 @@ describe("task-backed session contract", () => {
     }])
   })
 
+  test("preserves the exact scenario owner session namespace", () => {
+    const id = `scenario:scenario_${"a".repeat(32)}`
+    const list = normalizeSessionList({
+      schema: CONTRACT_NAMES.sessionList, state_owner: "task_store_projection",
+      sessions: [session({ session_id: id })], total: 1,
+    })
+    expect(list.sessions[0]?.sessionId).toBe(id)
+    expect(list.degraded).toBeUndefined()
+  })
+
   test("still rejects a non-canonical list owner instead of degrading it", () => {
     expect(() => normalizeSessionList({
       state_owner: "local-cache",

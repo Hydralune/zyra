@@ -91,11 +91,20 @@ function surfaceData(
 
 function focusPermission(requestId: string): void {
   if (typeof document === "undefined") return
+  const panel = document.getElementById("evidence-controls") as HTMLDetailsElement | null
+  if (panel && !panel.open) {
+    panel.open = true
+    // The collapsed panel mounts its content in response to the toggle event.
+    panel.addEventListener("toggle", () => requestAnimationFrame(() => focusPermission(requestId)), { once: true })
+    return
+  }
   const escaped = escapeAttribute(requestId)
   const target = document.querySelector<HTMLElement>(
     `[data-permission-detail][data-permission-request-id="${escaped}"],`
       + `[data-permission-request-id="${escaped}"]`,
   )
+  const select = target?.matches("button") ? target : target?.querySelector<HTMLButtonElement>("button")
+  if (!target?.matches("[data-permission-detail]")) select?.click()
   target?.scrollIntoView({ behavior: "smooth", block: "center" })
   target?.focus({ preventScroll: true })
 }

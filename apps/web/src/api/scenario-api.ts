@@ -101,6 +101,26 @@ export interface ScenarioMutationOptions {
   idempotencyKey?: string
 }
 
+function scenarioResponse<T>(value: T): T {
+  const body = value as Record<string, any> | undefined
+  if (!body || typeof body !== "object") throw new TypeError("场景服务返回了无效响应。")
+  if (body.ok === false || body.error) {
+    const code = typeof body.error === "string" ? body.error : body.error?.code
+    const message = body.message || body.error?.message || "场景操作失败。"
+    if (code === "scenario_preflight_dirty") {
+      throw new Error("当前状态未通过正式场景的纯净检查，服务初始化记录也可能触发此限制。日常试运行可选择交互检查；正式验收需使用满足预检的专用环境。当前记录会保留。 (scenario_preflight_dirty)")
+    }
+    throw new Error(code ? `${message} (${code})` : message)
+  }
+  return value
+}
+
+function scenarioRun(value: { run: ScenarioRunProjection }): ScenarioRunProjection {
+  const body = scenarioResponse(value)
+  if (!body.run?.scenario_run_id) throw new TypeError("场景服务没有返回运行记录。")
+  return body.run
+}
+
 function scenarioId(value: string | undefined, fallback = ""): string {
   const selected = String(value ?? fallback).trim()
   if (
@@ -164,7 +184,7 @@ export class ScenarioApi {
         deduplicate: true,
       },
     )
-    return response.data
+    return scenarioResponse(response.data)
   }
 
   async list(options: {
@@ -191,7 +211,7 @@ export class ScenarioApi {
         latestWins: true,
       },
     )
-    return response.data
+    return scenarioResponse(response.data)
   }
 
   async get(
@@ -209,7 +229,7 @@ export class ScenarioApi {
         latestWins: true,
       },
     )
-    return response.data
+    return scenarioResponse(response.data)
   }
 
   async evidence(
@@ -227,7 +247,7 @@ export class ScenarioApi {
         latestWins: true,
       },
     )
-    return response.data
+    return scenarioResponse(response.data)
   }
 
   async create(input: ScenarioCreateInput): Promise<ScenarioRunProjection> {
@@ -267,7 +287,7 @@ export class ScenarioApi {
         coordinationKey: `scenario.create:${body.scenario_id}:${body.mode}:${body.seed}`,
       },
     )
-    return response.data.run
+    return scenarioRun(response.data)
   }
 
   async start(
@@ -334,7 +354,7 @@ export class ScenarioApi {
         coordinationKey: `scenario.verify:${selected}`,
       },
     )
-    return response.data
+    return scenarioResponse(response.data)
   }
 
   async #mutate(
@@ -360,6 +380,6 @@ export class ScenarioApi {
         coordinationKey: `${operation}:${selected}`,
       },
     )
-    return response.data.run
+    return scenarioRun(response.data)
   }
 }

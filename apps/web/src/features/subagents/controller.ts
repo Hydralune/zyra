@@ -289,7 +289,7 @@ export class SubagentPanelController {
   }
 
   setSealed(sealed: boolean): void {
-    this.#assertAvailable()
+    this.#assertEnabled()
     this.controls.setSealed(sealed)
     this.#replace({
       sealed,

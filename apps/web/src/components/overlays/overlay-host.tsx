@@ -24,14 +24,14 @@ function CommandHelp({ commands }: { commands: readonly CommandDefinition[] }) {
     <div className="overlay-scroll command-reference">
       {[...groups.entries()].map(([category, values]) => (
         <section key={category}>
-          <h3>{category}</h3>
+          <h3>{{ help: "帮助", navigation: "导航", runtime: "运行与工具", task: "任务" }[category] ?? category}</h3>
           <dl>
             {values.map((command) => (
               <div key={command.id}>
                 <dt>
                   <code>{commandUsage(command)}</code>
                   <span className={command.remoteSafe ? "tag" : "tag tag-muted"}>
-                    {command.remoteSafe ? "remote safe" : "local"}
+                    {command.remoteSafe ? "运行服务" : "界面操作"}
                   </span>
                 </dt>
                 <dd>{command.description}</dd>
@@ -66,23 +66,23 @@ function RuntimeStatus({ runtime, overlay }: { runtime: WorkbenchRuntime; overla
         <span className="connection-dot" aria-hidden="true" />
         <div>
           <strong>{readiness?.ready ? "运行时就绪" : "运行时不可用"}</strong>
-          <p>{state.failure?.message ?? state.health?.service ?? "No health response"}</p>
+          <p>{state.failure?.message ?? state.health?.service ?? "尚未收到服务响应"}</p>
         </div>
       </div>
       <dl className="fact-grid">
-        <div><dt>Phase</dt><dd>{state.phase}</dd></div>
-        <div><dt>API version</dt><dd>{state.health?.apiVersion ?? "—"}</dd></div>
-        <div><dt>Service</dt><dd>{state.health?.service ?? "—"}</dd></div>
-        <div><dt>Capabilities</dt><dd>{state.health?.capabilities.length ?? 0}</dd></div>
+        <div><dt>连接状态</dt><dd>{state.phase}</dd></div>
+        <div><dt>API 版本</dt><dd>{state.health?.apiVersion ?? "—"}</dd></div>
+        <div><dt>服务</dt><dd>{state.health?.service ?? "—"}</dd></div>
+        <div><dt>可用能力</dt><dd>{state.health?.capabilities.length ?? 0}</dd></div>
       </dl>
       {readiness ? (
         <section>
-          <h3>State owners</h3>
+          <h3>运行组件</h3>
           <ul className="owner-list">
             {Object.entries(readiness.owners).map(([owner, ready]) => (
               <li key={owner} data-ready={ready}>
                 <span>{owner}</span>
-                <strong>{ready ? "ready" : "blocked"}</strong>
+                <strong>{ready ? "就绪" : "不可用"}</strong>
               </li>
             ))}
           </ul>
@@ -128,7 +128,7 @@ function MutationConfirm({
         action === "cancel"
           ? `/cancel ${reason.trim() || "Cancelled from the Zyra web console."}`
           : "/resume"
-      await runtime.commands.submit(value, {
+      const pending = runtime.commands.submit(value, {
         origin: "overlay",
         taskId,
         runId,
@@ -136,6 +136,8 @@ function MutationConfirm({
         taskTerminal: action === "resume",
         allowQueue: false,
       })
+      if (action === "resume") runtime.overlays.close(overlay.id, { force: true })
+      await pending
       runtime.overlays.close(overlay.id, { force: true })
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))

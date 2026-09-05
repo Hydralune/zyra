@@ -1,81 +1,105 @@
-# Web / CLI 体验修复记录（2026-09-05）
+# Web / CLI 真实使用审查（2026-09-05）
 
-本轮已启动真实 Web、独立 daemon 和产品 CLI，修复下列问题。**完整浏览器逐功能验收尚未完成**：浏览器控制工具返回 `apps: [], browsers: []`，已请求用户允许改用 Playwright，尚未收到答复。本文不把组件测试记作浏览器实测。
+本次按用户要求实际启动产品 CLI、daemon 和 Web，使用真实 ConPTY 及 Playwright Chromium 操作。组件测试、真实界面操作和真实外部模型执行分别记录；不把成功构建等同于体验验收。前一提交为 `a6a8f2ec fix(product): repair session continuity and interactive UX`，本文也记录其后的浏览器复验与修复。
 
-## 修复
+## 文档调整
 
-| 问题 | 当前行为 | 证据 |
+工作区根目录 `G:\agent-zoo\PRODUCT_TUI_TASK.zh-CN.md` 从历史 Phase A～L 执行清单改为七部分：问题、参考方法、工作方式、用户旅程、优先级、Web/CLI 共同约束、完成标准。删除把旧 milestone、发布认证和人工盲测当作本次修复前置条件的写法。
+
+参考本地 Codex 的 `chat_composer.rs`、`textarea.rs`、`tui.rs`、`insert_history.rs`、`styles.md`、`history_cell.rs` 和选择器源码：重点是草稿、返回路径、内容高度、增量绘制和信息层次，不要求移植 Rust。实际启动的是 Zyra；没有声称本轮启动官方 Codex CLI 做实机对照。
+
+明确要求同尺寸真实终端复验、真实两轮问答、停止后等待迟到结果、队列逐条编辑、已结束任务的信息查看、真实 PTY 审批与输入，以及连续记忆查询。根文档不属于 Zyra Git 仓库，不能随本仓库 commit 提交。
+
+## 已修复的用户问题
+
+| 范围 | 原来表现 | 修复后的行为 |
 |---|---|---|
-| CLI Esc 清空补全草稿，并提示不存在的 `/restore` | Esc 先收起补全，保留内容；运行中无菜单时才中断 | 实际 TTY 复现、composer 回归、真实 ConPTY 屏幕 |
-| 多行上下键不移动；查看历史后草稿被清空 | 上下键在行间移动，历史返回恢复原草稿；修复首行 Home | 输入回归 |
-| Alt+Enter / 编码的 Shift+Enter 不换行 | 支持这些换行序列，Ctrl+J 继续保留 | 输入回归 |
-| 超过八项的补全选中项不可见 | 列表跟随选择滚动 | 真实 ConPTY 连续下移十四次 |
-| 每次按键重复擦写整屏；空白把输入框推至物理底部 | 相同帧不输出、光标移动不重写文字、从首个变更行重绘；高度作为上限 | 真实 80×24 / 120×40；重绘和缩放回归 |
-| `/artifact` 必须知道内部编号 | 运行中和结束后都可无参数选择；显示产物标题，支持预览与返回 | 真实任务产物选择、读取、End 查看末尾 |
-| 详情按原始行分页，并静默截断两千字符以后的内容 | 按显示宽度分页，缩放重排，超总量上限明确提示 | 单行 JSON 实机复现和修复后末尾屏幕；长中文行回归 |
-| 同会话追问没有上一轮内容 | 从保存的同会话终态任务投影历史问答，至多 24 轮 / 64,000 字符，截断明确标记 | 真实模型两轮问答；模型请求绑定、跨会话隔离回归 |
-| 多轮会话全部结束后无法恢复；列表只有内部编号 | 全部结束时恢复最近一轮；默认用首轮问题作标题；多个运行任务仍要求明确选择 | 真实恢复菜单；会话 API 回归 |
-| 文件读写已执行，但 `/tools` 显示没有调用 | 将物理 worker 已保存的工具事件投影到产品界面；完成/失败由同一调用的结果凭据决定 | 原真实任务的事件流复验；开始、成功、失败、缺失凭据及跨任务回归 |
-| 模型不可用只给英文错误和重复恢复建议 | 给出 `/doctor`、`/model` 和重新提交的说明，保留失败终态 | 实际任务失败、任务观察器回归 |
-| Web 最近会话固定十二项 | 搜索、显示更多、加载更早记录 | 构建、组件/路由回归；浏览器待验 |
-| Web “交付物”只跳回对话 | 会话交付物独立视图、展开预览、空状态和返回对话；链接可刷新 | 组件/路由回归；浏览器待验 |
-| 已结束任务仍可能显示“进行中” | 同时检查任务是否仍在执行 | 源码检查；浏览器待验 |
-| MCP/技能/代理结果按钮依赖面板已经挂载 | 跳转到对应任务的证据页并定位面板 | 类型检查、路由回归；浏览器待验 |
-| Web 弹层 Esc 可冒泡并触发第二个动作 | 当前弹层处理后停止传播；详情抽屉尊重上层弹窗 | 构建；嵌套弹层浏览器待验 |
-| 设置清除历史后数字不更新，无反馈 | 立即更新数量、反馈结果，并禁用空历史清除 | 构建；浏览器待验 |
-| Web 终端中文覆盖旧双宽字符后夹杂空格 | 同时清除被覆盖的两格所属旧字符，组合音标附着到字符头 | 真实 ConPTY 输出重放、独立 ANSI 屏幕回归 |
+| CLI 输入 | Esc 丢补全草稿；多行/历史上下键不正确；提示不存在的 `/restore` | Esc 先关闭菜单；恢复草稿和光标；补全随选择滚动；支持实际换行序列 |
+| CLI 绘制与详情 | 输入重复整屏擦写；空白撑到底行；长行详情被截断 | 相同帧不输出；按变更区域绘制；按显示宽度分页；End 可到末尾 |
+| CLI 会话 | 结束后不能恢复；追问收不到上一轮内容；工具详情为空 | 可恢复最新终态任务；真实历史进入模型请求；工具凭据正确投影 |
+| CLI 新建与检查 | `/new` 仍留着旧任务引用；结束后记忆/MCP/技能等不可读 | 清除旧任务和权限上下文；允许只读检查，修改动作仍检查运行状态 |
+| Web 启动 | API 跨源、事件流/PTY 连接和深链接刷新不可靠 | 正式 `zyra ui` 启动固定同源 HTTP/WS 代理；深链接资源使用绝对路径 |
+| Web 会话 | 创建时长时间没有任务；新任务继承旧会话；刷新丢回答或重复答案 | 创建回执立即可见，再异步执行；新会话隔离；详情缓存及历史水合；迟到流式片段不重复答案 |
+| Web 导航 | 交付物入口回到对话；面板和通知拥挤 | 独立交付物页面；13 类证据面板按需展开；通知不挡任务按钮 |
+| Web 命令 | 完整命令多按一次 Enter；旧参数补全残留 | 完整命令可直接提交；补全只对应当前输入；全局状态无需任务 |
+| Web 队列 | 第二条排队覆盖 busy；编辑取走全部条目并丢草稿；换轮切走草稿 | 保持当前执行状态；只编辑选中条目；同会话草稿贯穿换轮并可刷新恢复 |
+| 停止与恢复 | 停止不可用或只中止浏览器请求；之后被迟到成功覆盖 | 后端先提交取消状态；图执行检查取消；迟到结果不能覆盖取消；显式继续可以重开；输入及时恢复 |
+| Web 权限/PTY | 权限绑定反复重建；响应版本不匹配；需手工搬 permit；输入失败丢内容 | 稳定绑定、兼容 v2 的单次响应；自动关联精确请求凭据；输入哈希绑定审批字节；失败恢复输入；正常退出不报连接错误 |
+| Web 记忆 | 查询参数被当搜索词；排序超时；重复查询因时间戳变化丢结果 | 使用解析后的词/层/限额；分词一次并增量计算相似度；未变记录保持时间；索引版本覆盖时间字段；结果摘要优先显示 |
+| 导出和场景 | 结束后导出被禁；场景错误成缺字段异常；只提供正式模式；失败原因隐藏 | 终态可导出；显示后端错误；明确选择既有交互/正式模式并按后端规则启用按钮；展示失败原因 |
+| 场景身份与证据 | 场景 session ID 使任务列表整体被 typed client 拒绝；交互结果仍套正式纯净检查 | 精确支持既有 scenario session 命名；证据按 canonical mode 校验，交互结果不声明正式有效，默认正式校验拒收交互结果 |
 
-系统与确认弹窗的常用文案、快捷键说明也作了整理。高级证据面板仍保留技术信息。
-计划详情将“等待前置步骤”改为“依赖前置步骤”，避免完成的步骤仍显示等待。
+记忆排序回归用朴素全量 MMR 作独立对照，验证不同 lambda 下顺序一致和输入顺序不影响摘要；不是用新的实现反过来生成预期值。
 
-## 真实入口
+## 真实启动入口
 
-Web 由以下正式入口启动，测试状态位于 `.tmp/ux-audit-20260905/`：
+隔离状态位于 `.tmp/ux-audit-20260905/`，没有操作用户既有任务。主 Web 为 `http://127.0.0.1:18741`，API 为 `18740`；额外场景测试使用 `18743` / `18742` 及另一份状态。
 
 ```powershell
 $env:ZYRA_CLI_STATE_DIR='G:\agent-zoo\zyra\.tmp\ux-audit-20260905\cli'
 $env:ZYRA_STATE_ROOT='G:\agent-zoo\zyra\.tmp\ux-audit-20260905\runtime'
-node apps/cli/dist/zyra.js ui --base-url http://127.0.0.1:18740 --web-port 18741 --open=false
+node --env-file=.env.deepseek.local apps/cli/dist/zyra.js ui --base-url http://127.0.0.1:18740 --web-port 18741 --open=false
 ```
 
-CLI 实际操作包括启动、补全/筛选/滚动/取消、模型和推理强度选择、帮助返回、状态、空交付物和退出。另用真实 ConPTY 在 80×24 与 120×40 下分别采集十帧；经终端状态机还原后十二条屏幕断言通过，包括输入光标第八行、Esc 后草稿仍在、模型选择后菜单消失。原始记录和文本屏幕保留于 `.tmp/ux-audit-20260905/cli-*`，该目录不提交。
+现有 `.env.deepseek.local` 只用于已授权的真实模型测试，未打印或更改凭据。最初普通沙箱请求遭 `EACCES`，取得限定现有测试的执行权限后，真实 DeepSeek 请求通过。浏览器原控制工具没有可用浏览器，随后使用独立 Playwright Chromium；不存在仍在等待浏览器授权的阻断。
 
-最初两个真实提交均失败，不能将它们记作真实 provider 成功验证：
+## CLI 实际操作
 
-- `task_cb5c51f26176`：只要求两行文字，不调用工具。
-- `task_e82303dfdb90`：只要求回答“交互测试完成”，不调用工具。
+- 真实 80×24、120×40 ConPTY 启动、输入、补全筛选、超过一页的选择、模型/推理强度、帮助和返回；每个尺寸十帧，终端状态机还原后 12 条屏幕断言通过。
+- 真实两轮：`task_4aa732440e7e` 记住“青松七号”，`task_2dbb812954aa` 不提示标记地追问，答案仍为“青松七号”；同一 `session_01a06fe41b6d000_8bba1ccfe7d9ada30595`，两轮 completed。
+- 真实文件任务 `task_78b4eb4ed242` 使用 file_write/file_read 写读隔离目录的 `ux-smoke.txt`，进程外读取确认为 `ZYRA_UX_FILE_OK`；随后实际打开 diff、tools、plan、verification、artifact 列表和完整预览。
+- 22 个命令的实际启动/返回检查：`/pwd`、`/doctor`、`/status`、`/model status`、`/mode`、`/plan`、`/tools`、`/verification`、`/agents`、`/context`、`/memory`、`/skills`、`/mcp`、`/permissions status`、`/raw`、`/export cli-audit.md`、`/sessions`、`/resume`、无效命令、`/new`、新会话 `/rename`、无任务 `/context`。45 帧，退出码 0；导出文件实际生成，885 字节。
+- 结束任务的只读命令修复后，再次真实启动并检查 `/memory /skills /mcp /context /diff /tools`，13 帧、退出码 0。记忆返回真实数据；技能/MCP 返回真实空状态。
+- 首次脚本连续输入曾出现 `^[/tools`。后续 11 帧详情返回、45 帧命令检查、13 帧只读复查未复现；不声称定位了该偶发输入的根因。
 
-终态错误均为 `no provider/model route satisfies the request constraints`。进一步运行 `node --env-file=.env.deepseek.local --experimental-strip-types scripts/smoke_deepseek_provider.ts`，底层错误为 `connect EACCES ...:443`：本次执行沙箱限制了模型网络访问。取得限于现有 DeepSeek 测试的网络权限后，同一 smoke 一次请求返回 HTTP 200、113 tokens、固定标记匹配。未修改用户 provider 配置。仅为本轮独立 daemon 申请网络权限继续复验，随后 `task_a4fc16b632ca` 成功返回“交互测试完成”。
+原始记录、还原屏幕、隔离文件都在 `.tmp/ux-audit-20260905/cli-*`；未把每一帧都声明为自动断言。输入真实 Unicode 文本不等于人工 IME 候选窗测试。
 
-真实两轮复验发现会话缺陷：`task_f3b6bf8337d0` 已回答“青松七号”，但同会话的 `task_100739aad8e0` 声称没有上一轮上下文。两轮虽然都是 completed，内容验证失败，不能以终态代替体验验收。
+## Web 实际用户旅程
 
-修复并重启测试 daemon 后，以下真实两轮通过；第二轮提示词没有包含标记本身：
+| 入口 | 实际操作与结果 |
+|---|---|
+| 首页/命令 | 四类起步入口、中文/emoji/多行、帮助、状态、完整命令 Enter、Esc 保留草稿；新任务立即显示；最近会话搜索/选择 |
+| 对话/恢复 | “山茶六号”两轮真实模型问答，`task_59864f81cc8e` 追问正确；刷新后上一轮和最终回答仍在，无重复答案 |
+| 停止/继续 | `task_acfa35f9ccaf` 停止后立即恢复输入，等待一分钟刷新仍停止，显式继续后 completed；新回归检查迟到成功和迟到失败均不能覆盖取消 |
+| 排队/编辑 | 两条排队后取回甲条并保留中文草稿，乙条仍排队；停止前轮后乙条实际回答 QUEUE_B；最终复验 `task_59b8d7d8142e` 返回 QUEUE_FINAL，编辑草稿在自动换轮、完成、刷新后保留，补全数为 0 |
+| 交付物 | 独立页面、回对话、JSON 预览、深链接刷新；证据中搜索、bookmark、pin；实际下载 413 字节 Physical-MaAS-memory-continuity-result.json |
+| 拓扑/长程/计划 | 展开、节点搜索/无命中/清空/fit，7 个拓扑节点；计划依赖按顺序显示；长程刷新及没有目标时的禁用状态 |
+| 权限/工作区终端 | 实际 Create PTY → 请求 → 允许一次 → 创建成功；再次审批精确输入，PowerShell 输出 `ZYRA_WEB_PTY_OK_中文` 后 exit 0，PTY 输出游标 580。创建和输入用了不同的实际请求 |
+| 时间线/因果 | 展开恢复时间线，145 行事件的搜索与过滤；实际 Inspect 因果记录 |
+| 子代理/MCP/技能 | 真实空状态、筛选、范围切换、关闭和恢复 viewer；没有伪造子代理或连接器数据 |
+| 差异/浏览器记录 | 页面实际展开与空状态；本任务无 Web 可审查 patch、无浏览器 worker 会话，不声称执行 apply/reject 或浏览器控制 |
+| 会话/上下文/记忆 | Inspect context、Preview compact；真实记忆查询连续两次找到 12 条，约 1.2～1.3 秒；中文无命中也正常返回；已结束任务 Export run 生成实际 artifact_9d5b17d2103e |
+| 系统/场景/实验 | 状态检查、清历史数量立即更新；正式模式的脏状态拒绝显示说明；交互短场景执行及证据结果另见下方；实验没有正式数据，检查真实空状态及刷新 |
+| 窄屏/断线/弹层 | 390×844 下导航开关、首页与中文草稿，页面宽度 390 无横向溢出；离线提示、恢复联网和刷新保留草稿；嵌套 Esc 一次只关一层 |
 
-- 第一轮 `task_4aa732440e7e`：要求记住“青松七号”，最终回答“青松七号”。
-- 第二轮 `task_2dbb812954aa`：问上一轮的标记，最终回答仍为“青松七号”。
-- 同一会话 `session_01a06fe41b6d000_8bba1ccfe7d9ada30595`，两个任务都 completed。
-- 在同一真实 CLI 中继续打开计划、验证、工具空状态、产物列表与预览，End 到达完整 JSON 末尾，再检查会话列表和恢复选择器，退出码 0。十帧记录在 `cli-canonical-task-capture.json`，对应文本屏幕在 `cli-canonical-task-*.txt`。
+浏览器 `pageerror` 在最后一轮为 `[]`。导航、停止和故意断网产生的取消请求不是成功网络请求，也不被算作应用异常。截图和页面文本保留在 `.tmp/ux-audit-20260905/web/`；最终包括 29 下载、31 记忆结果、32/33 队列、34 对话。
 
-测试先等待任务真实终态和 CLI 回到输入状态，再发送追问。早期仅按流式回答匹配的脚本曾把当前任务的修订误记作第二轮，已废弃该结论。历史上下文作为用户级输入进入原有模型请求，原有 prompt 摘要绑定仍校验完整输入；不复用旧权限、工具执行状态或其他会话内容。
+场景首次真实执行 `scenario_d537347cae684bcb85940fa949dbc275` 因 `preflight_clean_binding_invalid` 在证据阶段失败，不能记作成功。其相关取消仅针对本轮创建的失败任务，随后正式 daemon stop 检查 active_task_ids 为空并正常停止，没有强杀或清理用户记录。
 
-真实文件任务 `task_78b4eb4ed242` 也已 completed：在隔离目录使用 `file_write` 创建 `ux-smoke.txt`，使用 `file_read` 校验内容为 `ZYRA_UX_FILE_OK`；进程外再次读取文件确认一致。`/diff` 显示新文件和正确内容。这次操作直接被现有策略放行，没有出现权限审批弹窗，因此不算审批交互实测。原始记录为 `cli-file-task-capture.json`。
+重启复验还发现固定 foundation worker ID 错误复用旧 PID 的身份；改为每个 API 进程注册独立身份，不刷新或冒领旧 worker。最终真实 `scenario_b37534bd368e435dab52b4756cd3c07d`：succeeded，4.6 秒、46 个有效步骤、0 个无效步骤、1 个产物、证据 verified；随后点击 Verify evidence 与 Archive。截图 `35-scenario-success.png` 明确保留“交互检查、不构成正式验收证据”的标识。
 
-该次连续自动输入曾有一帧出现 `^[/tools` 回显，未打开预期页面。随后单独恢复已结束任务，重复两次 diff → 返回 → tools，并检查 plan，详情均能退出，未复现同一异常；不能据此宣称已定位或修复偶发回显，保留为待复查项。这次复查另外确认并修复了工具历史为空的问题。加载修复后再次恢复原任务，实际工具选择器显示两条已完成的 `file_write` / `file_read`，退出详情恢复输入，十一帧保留于 `cli-detail-return-capture.json`。
+该 foundation 场景检查 owner 链路并注入需求变化/故障，关联任务 `task_6966385c6ed9` 保留 `needs_revision`，不能将场景证据通过等同于交付任务已完成。已在真实任务列表确认这个状态；保留记录供查看。
 
-## 验证与限制
+## 自动化验证
 
-- `bun run test:cli`：210 pass / 0 fail，997 expect；覆盖新的输入/分页回归、原任务/会话/权限/产物测试。最终计划文案调整后运行 `bun test ./apps/cli/test/product-presentation.test.ts ./apps/cli/test/product-task-observer.test.ts`：41 pass / 0 fail，172 expect。
-- `bun run test:web`：323 pass / 0 fail，1928 expect，包含 typed API client 和 Web 测试。
-- `.venv/Scripts/python.exe -m pytest tests/integration/test_product_conversation_context.py tests/integration/test_product_entry_session_api.py tests/integration/test_physical_code_worker_reasoning_loop.py -q --basetemp=.tmp/ux-audit-20260905/pytest-context-final -o cache_dir=.tmp/ux-audit-20260905/cache-context`：23 passed。使用工作区临时目录；模型链路集成测试使用本地协议服务，不能记作真实外部模型。
-- `.venv/Scripts/python.exe -m pytest tests/unit/test_product_presentation_contract.py -q --basetemp=.tmp/ux-audit-20260905/pytest-tool-presentation -o cache_dir=.tmp/ux-audit-20260905/cache-context`：8 passed；pytest 缓存写入出现访问拒绝警告，测试本身通过。
-- `bun run typecheck:cli`、`bun run build:cli`、`bun run build:web`：通过，Web 构建包含其 TypeScript 检查。
-- `.venv/Scripts/python.exe -m pytest tests/integration/test_product_tui_async_redraw_conpty.py -q --basetemp=.tmp/ux-audit-20260905/pytest-conpty-compact -o cache_dir=.tmp/ux-audit-20260905/cache-compact`：3 passed。包含中文输入与 1000 次 resize、异常退出、100 次强制结束。
-- 初次 pytest 使用默认临时目录时遇到 Windows 访问拒绝；改用本工作区独立临时目录后通过。
-- 测试中暴露的旧断言（固定物理底行、要求英文原始错误、按尾部字节判断菜单消失）按新的用户行为更新，未改变任务终态断言。
-- 历史上下文首次实现触发了原有模型输入摘要绑定校验；已将历史与当前请求共同纳入原有用户消息及摘要，保留校验，并通过集成和真实模型复验。
+- `bun test ./apps/web/test ./apps/cli/test ./packages/commands/test ./packages/memory/retrieval-algorithms/test`：555 pass、0 fail、3078 expect，52 文件，93.71 秒。
+- 最终输入/场景增量回归：`bun test ./apps/web/test/workbench-shell.test.tsx ./apps/web/test/product-frontstage.test.ts ./apps/web/test/scenario-runner-workbench.test.ts`：61 pass、0 fail。
+- `bun test ./packages/core/typed-api-client/test ./packages/core/typed-api-client/src`：31 pass、0 fail。
+- 最后场景失败说明与会话身份变更的增量检查：52 pass、0 fail；Web 再次构建通过。
+- `bun run build:web`（含 TypeScript 检查）、`bun run typecheck:cli`、`bun run build:cli`：通过。
+- Python 记忆、排序端口、索引基础/集成、Web HTTP/WS 代理、PTY 单元回归：42 passed。
+- `pytest tests/integration/test_worker_pool_api_main_path.py tests/integration/test_retrieval_api_main_path.py -q ...`：39 passed，290.12 秒；包括真实本地 HTTP 的取消/迟到结果竞争回归。
+- `pytest tests/scenarios/test_scenario_runner_foundation.py -q ...`：9 passed，包括交互模式不得通过默认正式证据校验。
+- `pytest tests/integration/test_scenario_runner_api_main_path.py -k 'not live_software' -q ...`：8 passed、1 deselected；`pytest tests/integration/test_cli_noninteractive_foundation.py -k 'scenario_calls_existing_http_lifecycle_directly' -q ...`：1 passed、7 deselected，实际执行 CLI/HTTP 的正式短场景链路。
+- `node --experimental-strip-types --test packages/runtime/runtime-event-spine/test/runtime-event-spine.test.ts`：20 passed。
+- 前一提交的真实 ConPTY 集成：3 passed；会话/历史/物理 worker 集成：23 passed；产品工具投影：8 passed。它们的范围不等于外部 provider 全量测试。
 
-未运行：浏览器所有页面的真实点击/输入/截图、移动端实测、真实等待权限/提问的完整流程、人工 IME 候选窗、长程 soak、发布 clean-install、其他操作系统。CLI 实测覆盖上文列出的旅程，不声称所有有状态命令都已逐项实测。另需复查上文的一次偶发输入回显。
+pytest 使用本轮工作区 `--basetemp` 和 `-p no:cacheprovider`；需要 tempfile 的测试将 TMP/TEMP 指向隔离目录。初次默认临时目录遇到访问拒绝，换用工作区后通过。曾出现的新回归断言错误（取消 resume 的 changed 标记、记忆重复查询、可选 degraded 字段、异常详情属性）均修复或按真实契约校正后重跑；没有忽略失败来报通过。
 
-下一步为浏览器用户旅程检查，并继续修复新发现的问题。本轮尚不能声明用户要求的 Web 全功能审查完成。
+扩展运行 `pytest tests/scenarios/test_scenario_runner_foundation.py tests/scenarios/test_m2_s05_02_live_scenarios.py ...`：15 passed、3 failed。三个失败分别为 software delivery、research delivery、cross-domain comparison，均在 `DualDomainScenarioExecutor` 执行阶段报 `live_analysis_owner_unbound`；旧 `LiveOwnerHarness` 没有提供当前实现要求的 `bindings.analysis`。检查确认这个测试文件和 `dual_domain.py` 相对 HEAD 均无改动，失败发生在本次修改的证据收集之前。本轮没有修改这套正式 2,000 步测试桩，也没有将这三个失败隐藏在通过总数中；该测试桩与正式长程证据校验需要后续专门处理。
 
-根目录 `G:\agent-zoo\PRODUCT_TUI_TASK.zh-CN.md` 已重写为本轮可执行的用户旅程和验收标准。它不属于 `zyra` Git 仓库，因此不会包含在本轮提交中。
+## 边界
+
+未执行：正式 2,000+ 步双域场景/消融实验、8 小时 soak、clean-install、其他操作系统、人工 IME 候选窗、无现成数据的 MCP OAuth/技能执行/子代理消息/浏览器 worker 控制/Web patch 应用，以及每一个 CLI 有状态命令的完整后端流程。真实权限已覆盖 Web PTY 的申请、单次允许和执行；没有把 CLI 文件任务的自动放行说成 CLI 审批弹窗测试。
+
+本轮已对现有页面入口进行真实浏览器操作，对可执行的主用户旅程进行真实后端验证；空状态和未配置的能力如实保留。这里的验收不代表已达到 Codex 的全部成熟度，也不代表所有可能后端状态均已穷尽。

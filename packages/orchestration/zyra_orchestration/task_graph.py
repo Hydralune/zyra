@@ -110,6 +110,7 @@ class GraphExecutionContext:
         ]
         | None
     ) = None
+    cancellation_requested: Callable[[TaskState], bool] | None = None
 
     @classmethod
     def from_paths(
@@ -118,6 +119,7 @@ class GraphExecutionContext:
         project_root: str | Path,
         workspace_root: str | Path,
         artifact_root: str | Path,
+        cancellation_requested: Callable[[TaskState], bool] | None = None,
         permission_store_path: str | Path | None = None,
         workspace_runtime_resolver: (
             Callable[[TaskState, PlanNode, str], tuple[Path, Mapping[str, Any]]] | None
@@ -160,6 +162,7 @@ class GraphExecutionContext:
             project_root=Path(project_root).resolve(),
             workspace_root=Path(workspace_root).resolve(),
             artifact_root=Path(artifact_root).resolve(),
+            cancellation_requested=cancellation_requested,
             permission_store_path=None if permission_store_path is None else Path(permission_store_path).resolve(),
             workspace_runtime_resolver=workspace_runtime_resolver,
             topology_policy_trigger=topology_policy_trigger,
@@ -394,6 +397,9 @@ def run_task_graph(
     stage_results = {spec.stage: spec.result_summary for spec in DEFAULT_STAGE_SPECS}
     keeper, router = _symbolic_runtime(execution_context)
     for node_id in list(state.metadata.get("stage_order", [])):
+        if execution_context and execution_context.cancellation_requested and execution_context.cancellation_requested(state):
+            events.extend(cancel_task_graph(state, "Cancellation committed by task control."))
+            return events
         node = state.plan_nodes.get(str(node_id))
         if node is None or node.status in {PlanNodeStatus.COMPLETED, PlanNodeStatus.SUPERSEDED}:
             continue
@@ -439,6 +445,10 @@ def run_task_graph(
             events.extend(_run_verify_node(state, node, keeper))
         else:
             events.extend(_run_node(state, node, stage_results.get(stage, "")))
+
+    if execution_context and execution_context.cancellation_requested and execution_context.cancellation_requested(state):
+        events.extend(cancel_task_graph(state, "Cancellation committed by task control."))
+        return events
 
     replan = _consume_execution_retry_request(state)
     if replan is not None:

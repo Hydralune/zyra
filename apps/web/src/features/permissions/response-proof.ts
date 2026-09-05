@@ -9,6 +9,7 @@ import {
 import {
   PERMISSION_CANONICAL_OWNER,
   PERMISSION_RESPONSE_VERSION,
+  LEGACY_PERMISSION_RESPONSE_VERSION,
   type PermissionRequestProjection,
   type PermissionResponseDraft,
   type PermissionResponseEffect,
@@ -71,7 +72,7 @@ export async function createPermissionResponseProof(
 ): Promise<PermissionResponseProof> {
   assertRespondableRequest(draft.request, now)
   const challenge = draft.request.responseChallenge
-  if (challenge.version !== PERMISSION_RESPONSE_VERSION) {
+  if (![PERMISSION_RESPONSE_VERSION, LEGACY_PERMISSION_RESPONSE_VERSION].includes(challenge.version)) {
     throw responseProofError(
       "permission_response_version_mismatch",
       "Permission request uses an unsupported response version.",
@@ -96,7 +97,8 @@ export async function createPermissionResponseProof(
   )
   const proof = await sha256PermissionValue(material)
   return Object.freeze({
-    version: PERMISSION_RESPONSE_VERSION,
+    version: challenge.version,
+    ...(challenge.version === PERMISSION_RESPONSE_VERSION ? { decision_scope: "once" as const } : {}),
     nonce: challenge.nonce,
     canonical_owner: PERMISSION_CANONICAL_OWNER,
     envelope_id: draft.request.envelopeId,
@@ -139,6 +141,7 @@ export function permissionResponseMaterial(
     request_id: request.requestId,
     response_id: responseId,
     effect,
+    ...(challenge.version === PERMISSION_RESPONSE_VERSION ? { decision_scope: "once" } : {}),
     run_id: request.runId,
     task_id: request.taskId,
     session_id: request.sessionId,
@@ -158,7 +161,8 @@ export async function verifyLocalPermissionResponseProof(
   proof: PermissionResponseProof,
 ): Promise<boolean> {
   if (
-    proof.version !== PERMISSION_RESPONSE_VERSION
+    proof.version !== request.responseChallenge.version
+    || (proof.version === PERMISSION_RESPONSE_VERSION && proof.decision_scope !== "once")
     || proof.canonical_owner !== PERMISSION_CANONICAL_OWNER
     || proof.nonce !== request.responseChallenge.nonce
     || proof.envelope_id !== request.envelopeId

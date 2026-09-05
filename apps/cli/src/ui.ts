@@ -61,7 +61,7 @@ export interface UiLauncherEnvironment {
   removeState(): Promise<void>
   processAlive(pid: number): boolean
   buildWeb(): Promise<void>
-  startWeb(port: number): Promise<{ pid: number }>
+  startWeb(port: number, apiOrigin: string): Promise<{ pid: number }>
   stopWeb(pid: number): Promise<void>
   openBrowser(url: string): Promise<boolean>
   now(): number
@@ -120,6 +120,7 @@ export async function launchUi(
 ): Promise<UiLaunchReceipt> {
   const api = normalizeOrigin(options.baseUrl, "API URL")
   const prior = await environment.readState()
+  let requestedPort = options.webPort
   if (prior && environment.processAlive(prior.pid)) {
     const priorOrigin = normalizeOrigin(prior.web_origin, "Recorded Web URL")
     const priorPort = Number(priorOrigin.port || 80)
@@ -146,28 +147,38 @@ export async function launchUi(
         },
       )
     }
-    const url = buildProductUrl({
-      webOrigin: priorOrigin.origin,
-      apiOrigin: api.origin,
-      taskId: options.taskId,
-    })
-    const browserOpened = options.open
-      ? await environment.openBrowser(url)
-      : false
-    return Object.freeze({
-      schema: UI_RESULT_SCHEMA,
-      url,
-      web_origin: priorOrigin.origin,
-      api_origin: api.origin,
-      pid: prior.pid,
-      generation: prior.generation,
-      started: false,
-      already_running: true,
-      browser_opened: browserOpened,
-    })
+    if (prior.api_origin !== api.origin) {
+      await environment.stopWeb(prior.pid)
+      const deadline = environment.now() + options.startupTimeoutMs
+      while (await environment.probe(priorOrigin.origin) !== "unavailable") {
+        if (environment.now() >= deadline) throw new CliDaemonError("The previous Zyra Web server did not stop.")
+        await sleep(50)
+      }
+      requestedPort = priorPort
+    } else {
+      const url = buildProductUrl({
+        webOrigin: priorOrigin.origin,
+        apiOrigin: api.origin,
+        taskId: options.taskId,
+      })
+      const browserOpened = options.open
+        ? await environment.openBrowser(url)
+        : false
+      return Object.freeze({
+        schema: UI_RESULT_SCHEMA,
+        url,
+        web_origin: priorOrigin.origin,
+        api_origin: api.origin,
+        pid: prior.pid,
+        generation: prior.generation,
+        started: false,
+        already_running: true,
+        browser_opened: browserOpened,
+      })
+    }
   }
   if (prior) await environment.removeState()
-  const port = await environment.reservePort(options.webPort)
+  const port = await environment.reservePort(requestedPort)
   const webOrigin = `http://127.0.0.1:${port}`
   const url = buildProductUrl({
     webOrigin,
@@ -200,7 +211,7 @@ export async function launchUi(
   }
 
   await environment.buildWeb()
-  const child = await environment.startWeb(port)
+  const child = await environment.startWeb(port, api.origin)
   if (!Number.isSafeInteger(child.pid) || child.pid <= 0) {
     throw new CliDaemonError("The Zyra Web launcher did not expose a process id.")
   }
@@ -432,7 +443,7 @@ export function defaultUiEnvironment(): UiLauncherEnvironment {
       })
       await commandOutput(child, "Zyra Web build", 5 * 60_000)
     },
-    async startWeb(port) {
+    async startWeb(port, apiOrigin) {
       const python = await resolvePythonCommand(projectRoot)
       const child = spawn(python, [join(projectRoot, "scripts", "dev_web.py")], {
         cwd: projectRoot,
@@ -443,6 +454,7 @@ export function defaultUiEnvironment(): UiLauncherEnvironment {
           ...process.env,
           ZYRA_WEB_HOST: "127.0.0.1",
           ZYRA_WEB_PORT: String(port),
+          ZYRA_WEB_API_ORIGIN: apiOrigin,
         },
       })
       if (!child.pid) throw new CliDaemonError("The Zyra Web process did not expose a pid.")

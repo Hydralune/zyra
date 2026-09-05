@@ -8,6 +8,7 @@ from typing import Any, Iterable, Mapping, Sequence
 from zyra_core import ArtifactKind, ArtifactRef, TaskState, to_jsonable
 
 from .models import CompactPolicy, CompactResult, MemoryLayer, MemoryRecord, MemorySnapshot, TrajectoryFrame
+from .retrieval_models import RetrievalBudget, RetrievalFilter
 
 SOURCE_MODULES = {
     "claude-code-best": [
@@ -72,6 +73,20 @@ class MemoryFabric:
         records.extend(self._episodic_records(state, normalized_events))
         records.extend(self._semantic_records(state))
         records.extend(self._skill_records(state, normalized_events))
+        if self.store is not None:
+            existing = {record.memory_id: record for record in self.store.task_memory_records(state.task_id)}
+            for record in records:
+                prior = existing.get(record.memory_id)
+                if prior is None:
+                    continue
+                record.created_at = prior.created_at
+                # Viewing unchanged memory must not make its indexed timestamp
+                # stale or turn old evidence into freshly created evidence.
+                current_value, prior_value = to_jsonable(record), to_jsonable(prior)
+                current_value.pop("updated_at", None)
+                prior_value.pop("updated_at", None)
+                if current_value == prior_value:
+                    record.updated_at = prior.updated_at
         snapshot = MemorySnapshot(
             run_id=state.run_id,
             task_id=state.task_id,
@@ -92,6 +107,7 @@ class MemoryFabric:
         *,
         query: str = "",
         limit: int = 12,
+        layers: Sequence[MemoryLayer] = (),
     ) -> dict[str, Any]:
         snapshot = self.refresh_task_memory(state, events, persist=True)
         stored = self.store.task_memory_records(state.task_id) if self.store is not None else snapshot.records
@@ -99,11 +115,18 @@ class MemoryFabric:
         retrieval: dict[str, Any] | None = None
         if query.strip() and self.index_runtime is not None:
             self.index_runtime.synchronize_task(state.task_id, records=stored, process=True)
-            hydrated = self.index_runtime.retrieve(state.task_id, query)
+            hydrated = self.index_runtime.retrieve(
+                state.task_id, query,
+                filters=RetrievalFilter(task_ids=(state.task_id,), layers=tuple(layers)),
+                budget=RetrievalBudget(limit=limit, candidate_limit=max(limit * 8, limit)),
+            )
             search_results = list(hydrated.records[:limit])
             retrieval = hydrated.to_dict()
         return {
-            "summary": "MemoryFabric task memory view.",
+            "summary": (
+                f"记忆查询「{query}」：找到 {len(search_results)} 条结果。"
+                if query.strip() else f"任务记忆：共 {len(stored)} 条记录。"
+            ),
             "data": {
                 "task_id": state.task_id,
                 "run_id": state.run_id,

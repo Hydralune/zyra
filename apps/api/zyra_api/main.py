@@ -218,6 +218,7 @@ from zyra_memory import (
     CompactPolicy,
     MemoryFabric,
     MemoryIndexRuntime,
+    MemoryLayer,
     MemoryIndexWorkerProcessSupervisor,
     ProcedureContractError,
     ReusableProcedureRuntime,
@@ -2017,6 +2018,19 @@ def _prepare_task_for_explicit_resume(
     plan_id = ""
     failure_signal_id = ""
     changed = False
+    if state.status == PlanNodeStatus.CANCELLED:
+        # An explicit resume is the only operation allowed to reopen a user's
+        # cancellation. Reacquire placement and permission custody below.
+        recoverable_nodes = [node for node in state.plan_nodes.values()
+                             if node.status == PlanNodeStatus.CANCELLED]
+        for node in recoverable_nodes:
+            node.status = PlanNodeStatus.PENDING
+        state.status = PlanNodeStatus.PENDING
+        state.metadata.pop("task_execution_cancellation", None)
+        selected_action = "resume_checkpoint"
+        plan_id = "explicit-resume:cancelled-task"
+        _reopen_task_for_recovery_continuation(state, selected_action, plan_id=plan_id)
+        changed = True
     if isinstance(plan, Mapping) and plan.get("can_continue") is True:
         affected_ids = {
             str(item)
@@ -3469,6 +3483,11 @@ def _terminal_permission(
         "await_approval_delivery": True,
     }
     permit_id = str(getattr(request, "permission_permit_id", "") or "")
+    if action == "input":
+        # Approval of one terminal input must not authorize different bytes.
+        material["arguments"]["input_sha256"] = hashlib.sha256(
+            str(getattr(request, "data", "") or "").encode("utf-8")
+        ).hexdigest()
     if permit_id:
         material["permit_id"] = permit_id
     port = get_mcp_runtime()
@@ -3513,6 +3532,8 @@ def _terminal_permission(
         request_id=str(
             decision.get("request_id")
             or decision.get("requestId")
+            or decision.get("continuationRequestId")
+            or decision.get("continuation_request_id")
             or response.get("request_id")
             or ""
         ),
@@ -7211,6 +7232,7 @@ def graph_execution_context() -> GraphExecutionContext:
         project_root=PROJECT_ROOT,
         workspace_root=tool_workspace_path(),
         artifact_root=artifact_root_path(),
+        cancellation_requested=_task_cancellation_requested,
         permission_store_path=permission_store_path(),
         workspace_runtime_resolver=_graph_workspace_runtime_binding,
         topology_policy_trigger=topology_policy,
@@ -9206,6 +9228,12 @@ class JsonRequestError(ValueError):
 _TASK_LOCKS_GUARD = threading.Lock()
 _TASK_LOCKS: dict[str, threading.RLock] = {}
 _TASK_EXECUTION_INSTANCE_ID = f"api_{uuid.uuid4().hex}"
+
+
+def _task_cancellation_requested(state: Any) -> bool:
+    canonical = get_store().load_task(state.task_id)
+    return bool(canonical is not None and canonical.run_id == state.run_id
+                and canonical.status == PlanNodeStatus.CANCELLED)
 
 
 class _TaskExecutionOwner:
@@ -13670,9 +13698,12 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                     canonical is not None
                     and str(canonical.status)
                     in {"completed", "failed", "cancelled"}
-                    and isinstance(reconciliation, Mapping)
-                    and str(reconciliation.get("execution_owner_token") or "")
-                    == execution_owner.owner_token
+                    and (
+                        str(canonical.status) == "cancelled"
+                        or (isinstance(reconciliation, Mapping)
+                            and str(reconciliation.get("execution_owner_token") or "")
+                            == execution_owner.owner_token)
+                    )
                 ):
                     # A deadline observer already committed the terminal fact.
                     # The old synchronous stack may eventually unwind, but it
@@ -13743,6 +13774,21 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             if receipt_reservation is False:
                 return
             reason = str(payload.get("reason") or "Cancelled by control API.")
+            # Publish the fence before cancelling physical leases. Cancellation
+            # can arrive before placement has created a lease; the executing
+            # graph must observe it before dispatching any subsequent stage.
+            with _task_lock(state.task_id):
+                state = store.load_task(state.task_id) or state
+                events = cancel_task_graph(state, reason=reason)
+                if state.status == PlanNodeStatus.CANCELLED:
+                    owner = _TASK_EXECUTION_OWNERS.get(state.task_id)
+                    state.metadata["task_execution_cancellation"] = {
+                        "reason": reason, "cancelled_at": now_iso(),
+                        "execution_owner_token": owner.owner_token if owner else "",
+                    }
+                    state.metadata.pop("execution_in_flight", None)
+                persist_events(store, events)
+                store.save_checkpoint(state)
             backend_cancel = cancel_pending_dispatches(
                 store_path=backend_registry_path(artifact_root_path()),
                 run_id=state.run_id,
@@ -13751,7 +13797,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 requested_by="task-control-api",
                 idempotency_key=f"task-cancel:{state.run_id}:{state.task_id}:{reason}",
             )
-            events = cancel_task_graph(state, reason=reason)
+            events = []
             pool_api = get_worker_pool_api()
             pool_cancel = pool_api.integration.control.submit_and_apply(
                 ControlKind.CANCEL,
@@ -19370,10 +19416,15 @@ def _command_result_for_event(state: Any, event: EventRecord, store: SQLiteStore
             )
         )
     elif name == "/memory":
+        arguments = command.get("arguments") if isinstance(command.get("arguments"), dict) else {}
+        query = str(arguments.get("query") or "") if "action" in arguments else str(arguments.get("query") or event.payload.get("raw") or "")
+        layer = str(arguments.get("layer") or "all")
         memory = _memory_fabric(store).memory_view(
             state,
             store.task_events(state.task_id),
-            query=str(event.payload.get("raw") or ""),
+            query=query,
+            limit=min(500, max(1, int(arguments.get("limit") or 12))),
+            layers=() if layer == "all" else (MemoryLayer(layer),),
         )
         result.update(memory)
     elif name in {"/verify", "/eval"}:

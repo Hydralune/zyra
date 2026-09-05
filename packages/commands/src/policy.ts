@@ -6,6 +6,7 @@ import type {
   ParsedCommand,
 } from "./contracts.ts"
 import type { CommandRegistry } from "./registry.ts"
+import { isReadOnlyCommandAction } from "./registry.ts"
 
 export interface CommandPolicyInput {
   parsed: ParsedCommand
@@ -76,6 +77,7 @@ export class CommandExecutionPolicy {
       }
     }
     const descriptor = input.parsed.descriptor
+    const action = String(input.parsed.arguments.values.action ?? "")
     const sealedReason = sealedMutationReason(input.parsed, input.context)
     if (sealedReason) {
       return {
@@ -90,6 +92,7 @@ export class CommandExecutionPolicy {
     const availability = this.#registry.availability(
       descriptor,
       input.context,
+      action,
     )
     if (!availability.allowed) {
       return {
@@ -103,7 +106,7 @@ export class CommandExecutionPolicy {
     }
     if (
       input.mode === "interrupt" &&
-      descriptor.mutation === "read-only" &&
+      isReadOnlyCommandAction(descriptor, action) &&
       descriptor.name !== "/btw"
     ) {
       return {

@@ -90,16 +90,16 @@ export class CommandExecutionPolicy {
     const definition = input.parsed.kind === "command" ? input.parsed.definition : undefined
     if (definition && input.availability && !input.availability.enabled) {
       const reason = input.availability.reason ?? "Command is disabled."
-      if (reason.toLowerCase().includes("transport")) {
+      if (definition.remoteSafe && !input.context.transportEnabled) {
         return denied("transport-unavailable", reason, effect)
       }
-      if (reason.toLowerCase().includes("active task")) {
+      if (definition.availability === "requires-active-task" && !input.context.taskActive) {
         return denied("active-task-required", reason, effect)
       }
-      if (reason.toLowerCase().includes("terminal")) {
+      if (definition.availability === "requires-terminal-task" && !input.context.taskTerminal) {
         return denied("terminal-task-required", reason, effect)
       }
-      if (reason.toLowerCase().includes("select a task")) {
+      if (definition.availability === "requires-task" && !input.context.taskId) {
         return denied("task-required", reason, effect)
       }
       return denied("disabled", reason, effect)

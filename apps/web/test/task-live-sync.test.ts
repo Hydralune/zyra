@@ -216,6 +216,10 @@ describe("task live sync", () => {
     value.state.current.metadata = { final_answer: "你好 world\n" }
     value.sync.observeBatch(ingressBatch(1, "completed", "你好 world\n"))
     expect(value.sync.getSnapshot().assistant?.settling).toBe(true)
+    value.sync.observeLive(liveFrame(3, " world\n"))
+    value.sync.observeBatch(ingressBatch(1, "started"))
+    expect(value.sync.getSnapshot().assistant?.text).toBe("你好 world\n")
+    expect(value.sync.getSnapshot().assistant?.settling).toBe(true)
     await value.environment.advance(75)
     expect(value.workbench.getSnapshot().detail.task?.metadata.final_answer)
       .toBe("你好 world\n")

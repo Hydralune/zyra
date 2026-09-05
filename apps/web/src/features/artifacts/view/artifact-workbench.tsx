@@ -397,7 +397,7 @@ export function ArtifactWorkbench({
                 {download ? (
                   <a
                     className={`artifact-download ${canDownload ? "" : "is-disabled"}`}
-                    href={canDownload ? download.href : undefined}
+                    href={canDownload ? `${runtime.api.client.baseUrl.replace(/\/$/, "")}${download.href}` : undefined}
                     aria-disabled={!canDownload}
                     download
                     onClick={(event) => {

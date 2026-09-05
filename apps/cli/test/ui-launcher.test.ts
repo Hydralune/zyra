@@ -13,6 +13,7 @@ function environment(probes: UiProbe[]) {
   let state: UiState | undefined
   let builds = 0
   let starts = 0
+  const upstreams: string[] = []
   const opened: string[] = []
   const value: UiLauncherEnvironment = {
     async reservePort(requested) {
@@ -36,8 +37,9 @@ function environment(probes: UiProbe[]) {
     async buildWeb() {
       builds += 1
     },
-    async startWeb() {
+    async startWeb(_port, apiOrigin) {
       starts += 1
+      upstreams.push(apiOrigin)
       return { pid: 4123 }
     },
     async stopWeb() {},
@@ -53,6 +55,7 @@ function environment(probes: UiProbe[]) {
     get builds() { return builds },
     get starts() { return starts },
     opened,
+    upstreams,
     seed(next: UiState) { state = next },
   }
 }
@@ -108,6 +111,7 @@ describe("FE-S05 zyra ui launcher", () => {
     expect(receipt.url).toContain("/tasks/task_demo_001?api=")
     expect(harness.builds).toBe(1)
     expect(harness.starts).toBe(1)
+    expect(harness.upstreams).toEqual(["http://127.0.0.1:8000"])
     expect(harness.state).toMatchObject({
       schema: UI_STATE_SCHEMA,
       pid: 4123,
@@ -151,8 +155,8 @@ describe("FE-S05 zyra ui launcher", () => {
     }, occupied.value)).rejects.toMatchObject({ code: "ui_port_conflict" })
   })
 
-  test("reuses the recorded generation before reserving another ephemeral port", async () => {
-    const harness = environment(["zyra"])
+  test("rebinds the recorded Web port when changing the API instead of connecting to the old daemon", async () => {
+    const harness = environment(["zyra", "unavailable", "unavailable", "zyra"])
     harness.seed({
       schema: UI_STATE_SCHEMA,
       pid: 4123,
@@ -172,11 +176,10 @@ describe("FE-S05 zyra ui launcher", () => {
       web_origin: "http://127.0.0.1:43127",
       api_origin: "http://127.0.0.1:8010",
       pid: 4123,
-      generation: "generation-recorded",
-      started: false,
-      already_running: true,
+      started: true,
+      already_running: false,
     })
-    expect(harness.starts).toBe(0)
-    expect(harness.builds).toBe(0)
+    expect(harness.starts).toBe(1)
+    expect(harness.upstreams).toEqual(["http://127.0.0.1:8010"])
   })
 })

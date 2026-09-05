@@ -75,6 +75,19 @@ function draft(
   };
 }
 
+test("workspace terminal lifecycle, output and control reach the canonical API projection", () => {
+  withSpine((spine) => {
+    for (const eventType of ["terminal_session_lifecycle", "terminal_output", "terminal_control"]) {
+      const receipt = spine.appendLegacy({ event_id: `event-${eventType}`, event_type: eventType,
+        task_id: "task-terminal", run_id: "run-terminal", timestamp: "2026-09-05T00:00:00Z",
+        payload: { binding: { terminal_id: "terminal-test", task_id: "task-terminal", run_id: "run-terminal" },
+          event_type: "terminal.created" },
+      })
+      assert.ok(receipt)
+    }
+  })
+})
+
 function subscription(
   subscriptionId: string,
   recipientId: string,

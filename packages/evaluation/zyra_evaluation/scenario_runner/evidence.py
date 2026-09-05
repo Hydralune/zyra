@@ -20,7 +20,7 @@ from .effective_steps import StepBatch
 from .causal import CausalEvidenceValidator
 from .errors import conflict, invalid, unavailable
 from .metrics import ScenarioMetricCollector, verify_metric_dimensions
-from .models import MetricSample, OwnerExecutionResult, ScenarioConfiguration
+from .models import MetricSample, OwnerExecutionResult, ScenarioConfiguration, ScenarioMode
 
 
 class EvidenceCollector:
@@ -121,6 +121,7 @@ class EvidenceCollector:
             "manifest_id": new_identity("manifest"),
             "scenario_run_id": scenario_run_id,
             "scenario_id": configuration.scenario_id,
+            "mode": configuration.mode.value,
             "definition_version": configuration.definition_version,
             "definition_digest": configuration.definition_digest,
             "configuration_digest": configuration.configuration_digest,
@@ -163,7 +164,7 @@ class EvidenceCollector:
                 "tier_count": len(tier_counts),
             },
             "claims": {
-                "formal_foundation": True,
+                "formal_foundation": configuration.mode is ScenarioMode.SEALED,
                 "human_intervention_count": 0,
                 "legacy_demo_fallback": False,
                 "replay_evidence": False,
@@ -213,11 +214,11 @@ class EvidenceCollector:
                 },
             )
         manifest["manifest_digest"] = digest(manifest)
-        verification = self.verify(manifest)
+        verification = self.verify(manifest, mode=configuration.mode)
         manifest["verification_receipt"] = verification
         return manifest
 
-    def verify(self, manifest: Mapping[str, Any]) -> dict[str, Any]:
+    def verify(self, manifest: Mapping[str, Any], *, mode: ScenarioMode = ScenarioMode.SEALED) -> dict[str, Any]:
         self._require_enabled()
         copy = dict(manifest)
         expected = require_digest(
@@ -237,6 +238,12 @@ class EvidenceCollector:
             )
         claims = manifest.get("claims")
         claims = claims if isinstance(claims, Mapping) else {}
+        # The caller supplies mode from canonical configuration. A manifest
+        # cannot downgrade a formal verification by changing its own label.
+        if str(manifest.get("mode") or "sealed") != mode.value:
+            failures.append({"code": "scenario_mode_binding_mismatch"})
+        if "mode" in manifest and claims.get("formal_foundation") is not (mode is ScenarioMode.SEALED):
+            failures.append({"code": "formal_claim_mode_mismatch"})
         if int(claims.get("human_intervention_count") or 0) != 0:
             failures.append({"code": "human_intervention_count_nonzero"})
         if claims.get("legacy_demo_fallback") is not False:
@@ -304,7 +311,7 @@ class EvidenceCollector:
         source_audit = manifest.get("source_audit")
         if not isinstance(source_audit, Mapping) or source_audit.get("valid") is not True:
             failures.append({"code": "source_role_audit_invalid"})
-        failures.extend(self._verify_owner_bindings(manifest))
+        failures.extend(self._verify_owner_bindings(manifest, mode=mode))
         failures.extend(self._verify_metric_receipts(manifest))
         receipt = {
             "schema": "zyra.scenario-evidence-verification/v1",
@@ -529,6 +536,7 @@ class EvidenceCollector:
     def _verify_owner_bindings(
         self,
         manifest: Mapping[str, Any],
+        *, mode: ScenarioMode = ScenarioMode.SEALED,
     ) -> list[dict[str, Any]]:
         failures: list[dict[str, Any]] = []
         scenario_run_id = str(manifest.get("scenario_run_id") or "")
@@ -555,9 +563,9 @@ class EvidenceCollector:
                 failures.append(
                     {"code": "evidence_binding_missing", "field": field}
                 )
-        if preflight.get("clean") is not True:
+        if mode is ScenarioMode.SEALED and preflight.get("clean") is not True:
             failures.append({"code": "preflight_clean_binding_invalid"})
-        if preflight.get("new_input") is not True:
+        if mode is ScenarioMode.SEALED and preflight.get("new_input") is not True:
             failures.append({"code": "preflight_input_binding_invalid"})
         if str(preflight.get("scenario_run_id") or "") != scenario_run_id:
             failures.append({"code": "preflight_run_binding_mismatch"})

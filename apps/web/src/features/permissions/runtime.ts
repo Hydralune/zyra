@@ -57,6 +57,8 @@ export class PermissionConsoleRuntime {
   readonly #maximumReceipts: number
   readonly #disabled: boolean
   #bindingInput?: PermissionTaskBindingInput
+  #bindingPromise?: Promise<PermissionConsoleSnapshot>
+  readonly #consoleSessions = new Map<string, string>()
   #generation = 0
   #refreshCount = 0
   #reconnectCount = 0
@@ -142,11 +144,38 @@ export class PermissionConsoleRuntime {
   subscribe = (listener: () => void): (() => void) =>
     this.#store.subscribe(listener)
 
+  consoleSessionId(taskId: string): string {
+    const task = identifier(taskId, "permission task id")
+    let session = this.#consoleSessions.get(task)
+    if (!session) {
+      session = freshPermissionId("session_permission_console", this.#now())
+      this.#consoleSessions.set(task, session)
+    }
+    return session
+  }
+
   async bindTask(
     input: PermissionTaskBindingInput,
   ): Promise<PermissionConsoleSnapshot> {
+    if (this.#bindingPromise && JSON.stringify(normalizeBindingInput(input)) === JSON.stringify(this.#bindingInput)) {
+      return this.#bindingPromise
+    }
+    const pending = this.#bindTask(input)
+    this.#bindingPromise = pending
+    try { return await pending } finally {
+      if (this.#bindingPromise === pending) this.#bindingPromise = undefined
+    }
+  }
+
+  async #bindTask(input: PermissionTaskBindingInput): Promise<PermissionConsoleSnapshot> {
     this.#assertAvailable()
     const bindingInput = normalizeBindingInput(input)
+    if (JSON.stringify(bindingInput) === JSON.stringify(this.#bindingInput)
+      && this.getSnapshot().phase !== "error") {
+      if (this.#refresh) return this.#refresh
+      if (this.getSnapshot().phase === "binding") return this.getSnapshot()
+      return this.refresh("manual")
+    }
     const generation = ++this.#generation
     this.#bindingInput = bindingInput
     this.#reconnect.bind(generation)

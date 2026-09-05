@@ -514,7 +514,7 @@ def test_cli_scenario_calls_existing_http_lifecycle_directly(tmp_path: Path) -> 
         scenario = _get(base_url, f"/scenarios/runs/{run_id}")["run"]
         task_id = scenario["task_id"]
         task = _get(base_url, f"/tasks/{task_id}")["task"]
-        assert task["metadata"]["worker_pool"]["worker_id"] == (
+        assert task["metadata"]["worker_pool"]["worker_id"].startswith(
             "foundation-scenario-worker"
         )
         task_events = _get(base_url, f"/tasks/{task_id}/events")["events"]

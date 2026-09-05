@@ -649,7 +649,12 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
           event.preventDefault()
           return
         }
-        if (runtime.commands.getSnapshot().busy && runtime.commands.cancelActive()) event.preventDefault()
+        const task = runtime.workbench.selectedTask()
+        if (task?.active) {
+          event.preventDefault()
+          runtime.overlays.open({ kind: "task-cancel", title: "停止任务", replaceKind: true,
+            payload: { taskId: task.taskId, runId: task.runId, goal: task.userGoal } })
+        } else if (runtime.commands.getSnapshot().busy && runtime.commands.cancelActive()) event.preventDefault()
       }
     }
     window.addEventListener("keydown", handleGlobalKey)

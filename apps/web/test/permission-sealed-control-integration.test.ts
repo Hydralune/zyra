@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { permissionResponseChallenge as ownerChallenge, verifyPermissionResponseProof as verifyOwnerProof } from "../../../packages/runtime/claude-runtime/src/permission/response-proof.ts"
 
 import type { PermissionApi } from "../src/api/permission-api.ts"
 import type { TaskApi } from "../src/api/task-api.ts"
@@ -204,6 +205,29 @@ class FakeTaskApi {
 }
 
 describe("permission projection safety", () => {
+  test("browser proofs interoperate with the owner for v1 and v2 without expanding the once scope", async () => {
+    const envelope = { envelopeId: "approval-envelope-1", requestId: "approval-request-1", runId: "run-1",
+      taskId: "task-1", sessionId: "permission-console:task-1", sessionRevision: 7,
+      workerRequestId: "worker-request-1", toolCallId: "tool-call-1", argumentsDigest: "a".repeat(64),
+      policyRevision: 3, modeRevision: 2, expiresAt: EXPIRES, metadata: { request_fingerprint: "b".repeat(64) } }
+    for (const version of ["zyra.permission-response/v1", "zyra.permission-response/v2"] as const) {
+      const challenge = ownerChallenge(envelope, version)
+      const projection = projectPermissionBackend(summaryBody({ requests: { items: [requestItem({
+        response_challenge: { version, nonce: challenge.nonce, canonical_owner: challenge.canonicalOwner,
+          challenge_digest: "c".repeat(64) },
+      })] } }), { now: NOW, productMode: "interactive", policyFrozen: false })
+      const draft = createPermissionResponseDraft(projection.requests[0]!, {
+        effect: "allow", displayResponder: "test-operator", now: NOW, responseId: "response-test",
+      })
+      const proof = await createPermissionResponseProof(draft, NOW)
+      expect(verifyOwnerProof(envelope, proof, { requestId: envelope.requestId,
+        responseId: "response-test", effect: "allow", now: NOW }).verified).toBe(true)
+      if (version.endsWith("v2")) expect(verifyOwnerProof(envelope, { ...proof, decision_scope: "workspace" }, {
+        requestId: envelope.requestId, responseId: "response-test", effect: "allow", now: NOW,
+      }).verified).toBe(false)
+    }
+  })
+
   test("manual sealed controls classify before command transport", () => {
     expect(
       classifyPermissionSealedManualAction({

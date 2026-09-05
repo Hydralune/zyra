@@ -357,8 +357,9 @@ export function SessionConsoleWorkbench({
           <button
             className="button button-secondary"
             type="button"
-            disabled={Boolean(busy) || !snapshot.connected}
+            disabled={Boolean(busy) || !snapshot.connected || !task.active}
             onClick={() => void act("curator", () => runtime.sessionConsole.curateMemory({ action: "curate" }))}
+            title={task.active ? undefined : "任务已结束；继续执行任务后可整理记忆"}
           >
             Run curator
           </button>

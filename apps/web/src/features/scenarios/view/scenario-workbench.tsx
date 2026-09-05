@@ -39,6 +39,7 @@ export function ScenarioWorkbench({
   const [scenarioId, setScenarioId] = useState("live.software-delivery")
   const [busy, setBusy] = useState("")
   const [error, setError] = useState("")
+  const [mode, setMode] = useState<"sealed" | "interactive">("sealed")
   const selected = snapshot.selected
   const actions = selected
     ? formalActionPolicy(selected.run)
@@ -67,7 +68,7 @@ export function ScenarioWorkbench({
       const run = await runtime.create({
         scenarioId: definition?.scenario_id,
         definitionVersion: definition?.version,
-        mode: "sealed",
+        mode,
         input,
         seed: Number(seed),
         labels: {
@@ -129,11 +130,19 @@ export function ScenarioWorkbench({
         Runs are owned by the backend and continue after this browser closes.
         Formal software-delivery and cross-source research runs require 2,000+
         effective transitions, representative recovery and canonical
-        route/placement migration. Authenticated provider/model CLI execution
-        is excluded by the M2-S05-02 user boundary.
+          route/placement migration. Available execution modes are reported by
+          the current scenario runtime.
       </p>
 
       <form className="settings-grid" onSubmit={create}>
+        <label>
+          运行模式
+          <select value={mode} disabled={Boolean(busy)} onChange={(event) => setMode(event.currentTarget.value as "sealed" | "interactive")}>
+            <option value="sealed">正式验收（要求纯净状态）</option>
+            <option value="interactive">交互检查（允许已有状态）</option>
+          </select>
+        </label>
+        <p className="muted-copy">交互检查用于日常试运行，结果不作为正式验收证据。</p>
         <label>
           Scenario domain
           <select
@@ -180,7 +189,7 @@ export function ScenarioWorkbench({
             type="submit"
             disabled={Boolean(busy) || !input.trim() || !definition}
           >
-            {busy === "create" ? "Admitting…" : "Create sealed run"}
+            {busy === "create" ? "正在创建…" : mode === "sealed" ? "Create sealed run" : "创建交互检查"}
           </button>
           <button
             className="button button-secondary"
@@ -243,6 +252,10 @@ export function ScenarioWorkbench({
             <>
               <dl className="fact-grid">
                 <div>
+                  <dt>运行模式</dt>
+                  <dd>{selected.admission.formal ? "正式验收" : "交互检查"}</dd>
+                </div>
+                <div>
                   <dt>Phase</dt>
                   <dd>{selected.run.phase}</dd>
                 </div>
@@ -252,7 +265,7 @@ export function ScenarioWorkbench({
                 </div>
                 <div>
                   <dt>Clean state</dt>
-                  <dd>{selected.admission.clean ? "verified" : "failed"}</dd>
+                  <dd>{selected.admission.clean ? "verified" : selected.admission.formal ? "failed" : "已有状态"}</dd>
                 </div>
                 <div>
                   <dt>New input</dt>
@@ -313,6 +326,12 @@ export function ScenarioWorkbench({
               </div>
               {actions?.warning ? (
                 <p className="plan-warning">{actions.warning}</p>
+              ) : null}
+              {selected.run.failure ? (
+                <div className="plan-warning" role="alert">
+                  <strong>场景执行未完成</strong>
+                  <p>{String(selected.run.failure.message ?? selected.run.failure.code ?? "后端未提供失败说明。")}</p>
+                </div>
               ) : null}
               {selected.admission.findings.map((item) => (
                 <p className="plan-warning" key={item.code}>

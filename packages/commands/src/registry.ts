@@ -15,7 +15,7 @@ const COMMANDS: readonly CommandDescriptor[] = Object.freeze([
     description: "Inspect task, run, worker, scheduler, and runtime health.",
     category: "observability",
     mutation: "read-only",
-    availability: "active-task",
+    availability: "enabled",
     queueable: true,
     remoteSafe: true,
     immediate: true,
@@ -49,7 +49,7 @@ const COMMANDS: readonly CommandDescriptor[] = Object.freeze([
     description: "Inspect the canonical dynamic task graph and current routes.",
     category: "observability",
     mutation: "read-only",
-    availability: "active-task",
+    availability: "enabled",
     queueable: true,
     remoteSafe: true,
     immediate: true,
@@ -83,7 +83,7 @@ const COMMANDS: readonly CommandDescriptor[] = Object.freeze([
     description: "Inspect canonical causal events and reverse-linked effects.",
     category: "observability",
     mutation: "read-only",
-    availability: "active-task",
+    availability: "enabled",
     queueable: true,
     remoteSafe: true,
     immediate: true,
@@ -118,7 +118,7 @@ const COMMANDS: readonly CommandDescriptor[] = Object.freeze([
     description: "Inspect canonical task artifacts and revision lineage.",
     category: "artifact",
     mutation: "read-only",
-    availability: "active-task",
+    availability: "enabled",
     queueable: true,
     remoteSafe: true,
     immediate: true,
@@ -191,7 +191,7 @@ const COMMANDS: readonly CommandDescriptor[] = Object.freeze([
     description: "Inspect the active session context, compact epoch, retained sources, and token budget.",
     category: "session",
     mutation: "read-only",
-    availability: "active-task",
+    availability: "enabled",
     queueable: true,
     remoteSafe: true,
     immediate: true,
@@ -518,7 +518,7 @@ const COMMANDS: readonly CommandDescriptor[] = Object.freeze([
     description: "Inspect canonical child-task hierarchy, lifecycle, checkpoints, results, and failures.",
     category: "agent",
     mutation: "read-only",
-    availability: "active-task",
+    availability: "enabled",
     queueable: true,
     remoteSafe: true,
     immediate: true,
@@ -648,7 +648,7 @@ const COMMANDS: readonly CommandDescriptor[] = Object.freeze([
     description: "Write a canonical task/session export artifact with lineage references.",
     category: "artifact",
     mutation: "session",
-    availability: "active-task",
+    availability: "enabled",
     queueable: true,
     remoteSafe: true,
     immediate: false,
@@ -682,7 +682,7 @@ const COMMANDS: readonly CommandDescriptor[] = Object.freeze([
     description: "Ask one independent, tool-disabled side question.",
     category: "side-question",
     mutation: "read-only",
-    availability: "active-task",
+    availability: "enabled",
     queueable: false,
     remoteSafe: true,
     immediate: true,
@@ -854,7 +854,7 @@ const COMMANDS: readonly CommandDescriptor[] = Object.freeze([
     description: "Run real runtime, owner, dependency, and path diagnostics.",
     category: "health",
     mutation: "read-only",
-    availability: "active-task",
+    availability: "enabled",
     queueable: true,
     remoteSafe: true,
     immediate: true,
@@ -900,9 +900,21 @@ function normalizeTrigger(value: string): string {
   return normalized.startsWith("/") ? normalized : `/${normalized}`
 }
 
+export function isReadOnlyCommandAction(descriptor: CommandDescriptor, action = ""): boolean {
+  if (descriptor.mutation === "read-only") return true
+  const actions: Record<string, readonly string[]> = {
+    "/memory": ["", "search", "inspect"],
+    "/mcp": ["", "list", "show"],
+    "/skills": ["", "list", "show"],
+    "/agents": ["", "list", "show"],
+  }
+  return actions[descriptor.name]?.includes(action.trim().toLowerCase()) ?? false
+}
+
 function availability(
   descriptor: CommandDescriptor,
   context: CommandTaskContext,
+  action = "",
 ): CommandAvailabilityDecision {
   if (!context.transportEnabled) {
     return {
@@ -925,7 +937,7 @@ function availability(
       reason: "This command is disabled.",
     }
   }
-  if (descriptor.availability === "active-task" && !context.active) {
+  if (descriptor.availability === "active-task" && !context.active && !isReadOnlyCommandAction(descriptor, action)) {
     return {
       allowed: false,
       code: "active-task-required",
@@ -1128,6 +1140,7 @@ export class CommandRegistry {
   availability(
     descriptor: CommandDescriptor,
     context: CommandTaskContext,
+    action = "",
   ): CommandAvailabilityDecision {
     if (!this.#enabled) {
       return {
@@ -1136,7 +1149,7 @@ export class CommandRegistry {
         reason: this.#disabledReason,
       }
     }
-    return availability(descriptor, context)
+    return availability(descriptor, context, action)
   }
 
   search(

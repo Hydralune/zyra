@@ -41,6 +41,30 @@ from zyra_workers.terminal import (  # noqa: E402
 from zyra_api.terminal_api import TerminalApiService  # noqa: E402
 
 
+def test_api_terminal_permission_binds_input_bytes_and_returns_request_id(monkeypatch):
+    from zyra_api import main
+
+    observed = []
+
+    class PermissionPort:
+        def permission_claim(self, material):
+            return {"claimed": False}
+
+        def permission_enforce(self, material):
+            observed.append(material)
+            return {"canonical_owner": "typescript.PermissionCoordinator", "decision": {
+                "effect": "ask", "continuationRequestId": "permission-request-test",
+            }}
+
+    monkeypatch.setattr(main, "get_mcp_runtime", lambda: PermissionPort())
+    first = main._terminal_permission("input", Harness.control("terminal-test", "input", sequence=1, data="echo first\r"))
+    main._terminal_permission("input", Harness.control("terminal-test", "input", sequence=2, data="echo second\r"))
+    assert first.request_id == "permission-request-test"
+    assert observed[0]["arguments"]["input_sha256"] != observed[1]["arguments"]["input_sha256"]
+    assert "echo first" not in str(observed[0])
+    assert observed[0]["await_approval_delivery"] is True
+
+
 class FakePty(PtyProcess):
     def __init__(self, options: PtySpawnOptions, *, output: bytes = b"") -> None:
         self.options = options

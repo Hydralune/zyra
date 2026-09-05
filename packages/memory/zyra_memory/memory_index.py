@@ -455,5 +455,6 @@ class MemoryIndexRuntime:
             "artifact_ids": sorted(record.artifact_ids),
             "evidence_ids": sorted(record.evidence_ids),
             "score": record.score,
+            "event_at": record.updated_at or record.created_at,
             "metadata": record.metadata,
         }

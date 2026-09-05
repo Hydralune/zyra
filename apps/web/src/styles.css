@@ -2318,12 +2318,15 @@ kbd {
 .notification-tray {
   position: fixed;
   z-index: 90;
-  top: 70px;
+  bottom: 160px;
   right: 18px;
   display: grid;
   width: min(360px, calc(100vw - 36px));
   gap: 8px;
+  pointer-events: none;
 }
+
+.notification-tray button { pointer-events: auto; }
 
 .notification {
   display: grid;
@@ -2716,7 +2719,7 @@ kbd {
   }
 
   .notification-tray {
-    top: 62px;
+    bottom: 180px;
     right: 8px;
     width: calc(100vw - 16px);
   }
@@ -7100,6 +7103,17 @@ kbd {
   gap: 2px;
 }
 
+.product-topbar-title { flex: 1; overflow: hidden; }
+.product-topbar-actions { flex-shrink: 0; white-space: nowrap; }
+
+.evidence-panel { margin-block: 12px; border: 1px solid var(--border); border-radius: 10px; }
+.evidence-panel > summary { cursor: pointer; padding: 14px 16px; font-weight: 650; }
+.evidence-panel > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.evidence-panel-content { padding: 0 16px 16px; min-width: 0; }
+.command-queue-panel:empty { display: none; }
+.command-queue-panel header { display: flex; align-items: center; gap: 12px; padding: 10px 0; font-size: 12px; }
+.command-queue-panel header button { margin-left: auto; }
+
 .product-topbar-title strong,
 .product-topbar-title small {
   overflow: hidden;
@@ -8415,6 +8429,10 @@ kbd {
 .product-shell .command-suggestion[aria-selected="true"] {
   background: #f1f5f3;
 }
+
+.product-shell .suggestion-command { color: #14754f; }
+.product-shell .suggestion-copy > span { color: #53655c; }
+.product-shell .command-suggestion[aria-selected="true"] { box-shadow: inset 3px 0 #168458; }
 
 .product-shell .queue-preview {
   max-width: 880px;

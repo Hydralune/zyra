@@ -1761,6 +1761,8 @@ async function runProductSession(input: {
           case "new":
             sessionId = newProductSessionId()
             currentTaskId = undefined
+            currentTask = undefined
+            currentPermissionSession = undefined
             input.shell.clearTranscript()
             input.shell.notice("已开始新会话。")
             continue
@@ -1888,6 +1890,24 @@ async function runProductSession(input: {
           case "compact":
             input.shell.notice("/compact 只能在任务运行期间使用。")
             continue
+          case "context":
+          case "memory":
+          case "skills":
+          case "mcp": {
+            if (!currentTask) {
+              input.shell.notice("当前还没有任务；创建或恢复会话后可查看这些信息。")
+              continue
+            }
+            try {
+              const controls = new CliControlSession({ api: input.api, task: currentTask })
+              const receipt = await controls.submit(command.raw, { mode: "enqueue", priority: "next", signal: input.signal })
+              const titles = { context: "上下文与预算", memory: "记忆", skills: "技能", mcp: "MCP" }
+              await input.shell.page(titles[command.definition.name], commandResultLines(receipt))
+            } catch (error) {
+              input.shell.notice(`暂时无法读取 · ${controlError(error)}`)
+            }
+            continue
+          }
           case "copy": {
             try {
               const copied = await copyLatestAssistantMessage(input.shell.view)

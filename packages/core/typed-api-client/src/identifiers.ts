@@ -144,7 +144,11 @@ export function parseIdentity(value: unknown, expected?: IdentityKind): ParsedId
   // Product TUI builds before the canonical session generator shipped used
   // this exact bounded alias. Preserve it as an input/binding value so those
   // durable tasks remain resumable, while every new session is canonical.
-  const legacyProductSession = expected === "session" && /^product:[0-9a-f]{32}$/i.test(normalized)
+  // Scenario owner sessions are a separate durable namespace. Preserve their
+  // exact value so listing/resuming a scenario cannot break every task row.
+  const legacyProductSession = expected === "session" && (
+    /^product:[0-9a-f]{32}$/i.test(normalized) || /^scenario:scenario_[0-9a-f]{32}$/i.test(normalized)
+  )
   const prefix = normalized.split(/[_:-]/, 1)[0] ?? ""
   const inferred = legacyProductSession ? "session" : KIND_BY_PREFIX.get(prefix)
   const kind = expected ?? inferred

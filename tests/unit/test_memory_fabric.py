@@ -51,6 +51,20 @@ class MemoryFabricTests(unittest.TestCase):
             self.assertGreaterEqual(counts[str(MemoryLayer.SKILL)], 1)
             self.assertEqual(len(store.task_memory_records(state.task_id, MemoryLayer.WORKING)), 1)
             self.assertTrue(fabric.memory_view(state, store.task_events(state.task_id), query="verification")["data"]["search_results"])
+            filtered = fabric.memory_view(
+                state, store.task_events(state.task_id), query="failure",
+                limit=1, layers=(MemoryLayer.EPISODIC,),
+            )["data"]
+            self.assertEqual(len(filtered["search_results"]), 1)
+            self.assertEqual(filtered["search_results"][0]["layer"], "episodic")
+            self.assertEqual(filtered["retrieval"]["retrieval"]["query"]["text"], "failure")
+            repeated = fabric.memory_view(
+                state, store.task_events(state.task_id), query="failure",
+                limit=1, layers=(MemoryLayer.EPISODIC,),
+            )["data"]
+            self.assertEqual(repeated["search_results"], filtered["search_results"])
+            self.assertEqual(repeated["retrieval"]["stale_document_ids"], [])
+            self.assertEqual(repeated["retrieval"]["retrieval"]["diagnostics"]["index_generation"], filtered["retrieval"]["retrieval"]["diagnostics"]["index_generation"])
 
             compact = fabric.compact_context(
                 state,

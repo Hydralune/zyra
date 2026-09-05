@@ -19,7 +19,7 @@ import type { CommandQueue, QueueOrigin, QueuedSubmission } from "./queue.ts"
 import { CommandExecutionPolicy } from "./execution-policy.ts"
 import type { CommandSurfaceRuntime } from "../features/commands/runtime.ts"
 
-export type SubmissionPhase = "idle" | "validating" | "queued" | "dispatching" | "committed" | "failed" | "cancelled"
+export type SubmissionPhase = "idle" | "validating" | "queued" | "dispatching" | "running" | "committed" | "failed" | "cancelled"
 
 export interface SubmissionRecord {
   id: string
@@ -148,6 +148,7 @@ export class CommandCoordinator {
     enabled: true,
   })
   #activeController?: AbortController
+  readonly #acknowledgedCancels = new Map<string, MutationResult>()
   #closed = false
   #disabledReason = "Command coordinator is disabled."
   #draining = false
@@ -190,7 +191,12 @@ export class CommandCoordinator {
   }
 
   context(options: SubmitOptions = {}): CommandContext {
-    return activeContext(this.#workbench, options)
+    const context = activeContext(this.#workbench, options)
+    if (!options.taskId && !["task", "evidence"].includes(this.#router.current.kind)) {
+      return { ...context, taskId: undefined, runId: undefined, sessionId: undefined,
+        taskActive: false, taskTerminal: false }
+    }
+    return context
   }
 
   availability(definition: CommandDefinition, options: SubmitOptions = {}): CommandAvailabilityResult {
@@ -204,15 +210,19 @@ export class CommandCoordinator {
     }
     const normalized = value.trim()
     if (!normalized) return Promise.resolve({ status: "ignored" })
-    if (this.#controls?.resolve(normalized)) {
+    const context = this.context(options)
+    const parsed = this.parse(normalized)
+    const globalStatus = parsed.kind === "command"
+      && parsed.definition?.id === "command.runtime.status" && !context.taskId
+    const lifecycleCommand = parsed.kind === "command"
+      && ["task-cancel", "task-resume"].includes(parsed.definition?.execution ?? "")
+    if (this.#controls?.resolve(normalized) && !globalStatus && !lifecycleCommand) {
       return this.#controls
         .submit(normalized, { mode: options.controlMode })
         .then((receipt) => ({
           status: receipt.phase === "queued" ? "queued" as const : "committed" as const,
         }))
     }
-    const context = this.context(options)
-    const parsed = this.parse(normalized)
     try {
       this.#policy.assert({
         parsed,
@@ -227,6 +237,24 @@ export class CommandCoordinator {
       })
     } catch (error) {
       return Promise.reject(error)
+    }
+    if (this.#snapshot.busy && parsed.kind === "command"
+      && parsed.definition?.execution === "task-cancel" && context.taskId) {
+      // Cancellation must remain available while the execution HTTP request
+      // is in flight. It does not replace that request's input/queue owner.
+      return this.#lifecycle.cancel({ taskId: context.taskId, runId: context.runId,
+        idempotencyKey: submissionId(hashValue(`${context.taskId}:cancel`)),
+        reason: parsed.arguments.join(" ").trim() || "用户停止任务" }).then((mutation) => {
+        if (this.#workbench.selectedTask()?.taskId === mutation.mutation.task.taskId) {
+          this.#workbench.applyMutation(mutation.mutation.task)
+        }
+        const active = this.#snapshot.active
+        if (active && active.taskId === context.taskId && this.#activeController) {
+          this.#acknowledgedCancels.set(active.id, mutation)
+          this.#activeController.abort("任务已停止")
+        }
+        return { status: "committed", mutation }
+      })
     }
     const fingerprint = hashValue(`${context.taskId ?? "new"}:${normalized}`)
     const existing = this.#inflight.get(fingerprint)
@@ -418,16 +446,20 @@ export class CommandCoordinator {
     try {
       let mutation: MutationResult | undefined
       if (parsed.kind === "prompt") {
-        mutation = await this.#createTask(parsed, controller.signal, context.sessionId)
+        mutation = await this.#createTask(parsed, controller.signal, record, context.sessionId)
       } else {
-        mutation = await this.#dispatchCommand(parsed, context, controller.signal)
+        mutation = await this.#dispatchCommand(parsed, context, controller.signal, record)
       }
+      if (controller.signal.aborted) throw controller.signal.reason
       if (mutation) {
         record.taskId = mutation.mutation.task.taskId
         record.runId = mutation.mutation.task.runId
         record.receiptId = mutation.receipt.receiptId
-        this.#workbench.applyMutation(mutation.mutation.task)
-        this.#router.openTask(mutation.mutation.task.taskId, { focus: "task-detail" })
+        const creating = parsed.kind === "prompt" || parsed.definition?.execution === "task-create"
+        if (!creating) {
+          this.#workbench.applyMutation(mutation.mutation.task)
+          this.#router.openTask(mutation.mutation.task.taskId, { focus: "task-detail" })
+        }
       }
       record.phase = "committed"
       record.updatedAt = Date.now()
@@ -438,14 +470,17 @@ export class CommandCoordinator {
     } catch (error) {
       if (controller.signal.aborted) {
         record.phase = "cancelled"
-        record.error = errorMessage(controller.signal.reason ?? error)
+        const cancellation = this.#acknowledgedCancels.get(record.id)
+        record.error = cancellation ? undefined : errorMessage(controller.signal.reason ?? error)
         record.updatedAt = Date.now()
         this.#remember(record)
         this.#publish(record)
+        if (cancellation) return { status: "committed", record: cloneRecord(record), mutation: cancellation }
         throw error
       }
       return this.#fail(record, error)
     } finally {
+      this.#acknowledgedCancels.delete(record.id)
       if (this.#activeController === controller) this.#activeController = undefined
     }
   }
@@ -453,29 +488,54 @@ export class CommandCoordinator {
   async #createTask(
     parsed: ParsedInput,
     signal: AbortSignal,
+    record: SubmissionRecord,
     sessionId?: string,
   ): Promise<MutationResult> {
     const input = createGoal(parsed)
-    return this.#lifecycle.create({
+    const created = await this.#lifecycle.create({
       goal: input.goal,
-      autoRun: input.autoRun,
+      autoRun: false,
       sessionId,
       signal,
+      idempotencyKey: `${record.id}:create`,
     })
+    const task = created.mutation.task
+    this.#workbench.applyMutation(task)
+    this.#router.openTask(task.taskId, { focus: "task-detail" })
+    if (!input.autoRun) return created
+    record.taskId = task.taskId
+    record.runId = task.runId
+    record.phase = "running"
+    this.#publish(record)
+    // The creation receipt makes the task visible before its long-running
+    // execution request. Live ingress can now show progress and accept stop.
+    const result = await this.#lifecycle.resume({ taskId: task.taskId, runId: task.runId, signal,
+      idempotencyKey: `${record.id}:run` })
+    if (signal.aborted) throw signal.reason
+    const route = this.#router.current
+    if ((route.kind === "task" || route.kind === "evidence") && route.taskId === task.taskId) {
+      this.#workbench.applyMutation(result.mutation.task)
+    } else {
+      void this.#workbench.refreshTasks({ preserveOnError: true })
+    }
+    return result
   }
 
   async #dispatchCommand(
     parsed: Extract<ParsedInput, { kind: "command" }>,
     context: CommandContext,
     signal: AbortSignal,
+    record: SubmissionRecord,
   ): Promise<MutationResult | undefined> {
-    if (this.#controls?.resolve(parsed.raw)) {
+    if (this.#controls?.resolve(parsed.raw)
+      && !(parsed.definition?.id === "command.runtime.status" && !context.taskId)
+      && !["task-cancel", "task-resume"].includes(parsed.definition?.execution ?? "")) {
       await this.#controls.submit(parsed.raw)
       return undefined
     }
     const definition = parsed.definition!
     if (definition.execution === "task-create") {
-      return this.#createTask(parsed, signal)
+      return this.#createTask(parsed, signal, record)
     }
     if (definition.execution === "task-cancel") {
       if (!context.taskId) throw new TypeError("Select a task before cancelling.")
@@ -485,15 +545,26 @@ export class CommandCoordinator {
         runId: context.runId,
         reason,
         signal,
+        idempotencyKey: `${record.id}:cancel`,
       })
     }
     if (definition.execution === "task-resume") {
       if (!context.taskId) throw new TypeError("Select a task before resuming.")
-      return this.#lifecycle.resume({
-        taskId: context.taskId,
-        runId: context.runId,
-        signal,
-      })
+      const taskId = context.taskId
+      record.phase = "running"
+      this.#publish(record)
+      // A stopped task has no live subscription. Observe the newly admitted
+      // execution while its HTTP response remains in flight.
+      const timer = setInterval(() => {
+        const snapshot = this.#workbench.getSnapshot()
+        if (snapshot.selectedTaskId === taskId && !snapshot.detail.syncing) {
+          void this.#workbench.loadTask(taskId, { background: true }).catch(() => undefined)
+        }
+      }, 750)
+      try {
+        return await this.#lifecycle.resume({ taskId, runId: context.runId, signal,
+          idempotencyKey: `${record.id}:resume` })
+      } finally { clearInterval(timer) }
     }
     if (definition.execution === "navigation") {
       this.#navigate(definition, parsed)
@@ -507,7 +578,7 @@ export class CommandCoordinator {
     definition: CommandDefinition,
     parsed: Extract<ParsedInput, { kind: "command" }>,
   ): void {
-    if (definition.id === "command.navigation.tasks") {
+    if (definition.id === "command.navigation.home") {
       const status = parsed.arguments[0]
       this.#router.openTasks({ status: status && status !== "all" ? status : undefined })
       return
@@ -527,9 +598,8 @@ export class CommandCoordinator {
 
   async #openOverlay(definition: CommandDefinition): Promise<void> {
     if (definition.id === "command.runtime.status") {
-      await this.#workbench.refreshRuntime()
       const runtime = this.#workbench.getSnapshot().runtime
-      this.#overlays.open({
+      const overlay = this.#overlays.open({
         kind: "transport-status",
         title: "运行时状态",
         replaceKind: true,
@@ -540,6 +610,8 @@ export class CommandCoordinator {
           failure: runtime.failure,
         },
       })
+      await this.#workbench.refreshRuntime()
+      this.#overlays.update(overlay.id, { payload: { refreshedAt: Date.now() } })
       return
     }
     if (definition.id === "command.help.commands") {
@@ -606,7 +678,11 @@ export class CommandCoordinator {
   }
 
   #publish(active: SubmissionRecord): void {
-    const busy = active.phase === "validating" || active.phase === "dispatching"
+    if (active.phase === "queued" && this.#snapshot.busy) {
+      this.#replace({})
+      return
+    }
+    const busy = ["validating", "dispatching", "running"].includes(active.phase)
     this.#replace({
       active: cloneRecord(active),
       phase: active.phase,

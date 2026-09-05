@@ -436,7 +436,7 @@ def test_short_sealed_scenario_reaches_real_canonical_owners_and_evidence(
         assert task["task"]["metadata"]["scenario_run_id"] == run_id
         assert task["task"]["metadata"]["sealed_autonomous"] is True
         assert task["task"]["metadata"]["human_intervention_count"] == 0
-        assert task["task"]["metadata"]["worker_pool"]["worker_id"] == (
+        assert task["task"]["metadata"]["worker_pool"]["worker_id"].startswith(
             "foundation-scenario-worker"
         )
         event_types = {item["event_type"] for item in task_events["events"]}

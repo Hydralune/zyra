@@ -268,7 +268,8 @@ describe("command catalog, parsing, and completion", () => {
       const definition = catalog.resolve(trigger)
       expect(definition?.id).toBe(id)
       expect(definition?.execution).toBe("local-overlay")
-      expect(definition?.availability).toBe("requires-active-task")
+      expect(definition?.availability).toBe("requires-task")
+      expect(catalog.availability(definition!, { taskId: "task_done_001", taskActive: false, taskTerminal: true, transportEnabled: true }).enabled).toBe(true)
     }
     expect(catalog.resolve("home")?.id).toBe("command.navigation.home")
   })
@@ -422,9 +423,36 @@ describe("command keyboard, history, drafts, and queue", () => {
     expect(popped?.value).toBe("one\ntwo\ndraft")
     expect(queue.getSnapshot().entries.map((entry) => entry.value)).toEqual(["system"])
   })
+
+  test("editing one queued message preserves other messages and the current draft", () => {
+    const queue = new CommandQueue()
+    const first = queue.enqueue({ value: "one", editable: true })
+    queue.enqueue({ value: "two", editable: true })
+    expect(queue.popEditable("draft", 5, first.id)?.value).toBe("one\ndraft")
+    expect(queue.getSnapshot().entries.map((entry) => entry.value)).toEqual(["two"])
+  })
 })
 
 describe("workbench controller and route loader", () => {
+  test("list summaries cannot erase loaded answers and prior session turns are hydrated", async () => {
+    const first = task("task_first_001", "completed", { sessionId: "session_chat_001" })
+    const second = task("task_second_001", "completed", { sessionId: "session_chat_001" })
+    first.metadata = { final_answer: "previous answer" }
+    second.metadata = { final_answer: "latest answer" }
+    const api = fakeTaskApi({ tasks: [first, second] })
+    api.list = async () => ({ tasks: [first, second].map((value) => ({
+      ...value, metadata: {}, planNodes: [], artifacts: [],
+    })), total: 2 })
+    const controller = new WorkbenchController(api)
+    await controller.loadTask(second.taskId)
+    await controller.refreshTasks()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(controller.selectedTask()?.metadata.final_answer).toBe("latest answer")
+    expect(controller.getSnapshot().list.tasks.find((row) => row.taskId === first.taskId)?.metadata.final_answer).toBe("previous answer")
+    await controller.refreshTasks()
+    expect(controller.selectedTask()?.planNodes.length).toBe(1)
+    controller.close()
+  })
   test("loads real projections, selects detail, and applies receipt-backed mutation", async () => {
     const api = fakeTaskApi({ tasks: [task("task_demo_001"), task("task_demo_002", "completed")] })
     const controller = new WorkbenchController(api)
@@ -480,7 +508,7 @@ describe("command coordinator integration", () => {
     for (const cleanup of cleanups.splice(0)) cleanup()
   })
 
-  function harness(options: { deferred?: boolean; fail?: boolean } = {}) {
+  function harness(options: { deferred?: boolean; runDeferred?: boolean; fail?: boolean } = {}) {
     const browser = new FakeWindow()
     const router = new WorkbenchRouter(browser)
     router.start()
@@ -491,11 +519,13 @@ describe("command coordinator integration", () => {
     const catalog = new CommandCatalog()
     let calls = 0
     const createInputs: Array<{ goal: string; sessionId?: string }> = []
+    const createKeys: string[] = []
     let release: (() => void) | undefined
     const lifecycle = {
-      create: async (input: { goal: string; sessionId?: string; signal?: AbortSignal }) => {
+      create: async (input: { goal: string; sessionId?: string; signal?: AbortSignal; idempotencyKey?: string }) => {
         calls += 1
         createInputs.push({ goal: input.goal, sessionId: input.sessionId })
+        createKeys.push(input.idempotencyKey ?? "")
         if (options.deferred) {
           await new Promise<void>((resolve, reject) => {
             release = resolve
@@ -517,6 +547,7 @@ describe("command coordinator integration", () => {
         }
       },
       resume: async (input: { taskId: string }) => {
+        if (options.runDeferred) await new Promise<void>((resolve) => { release = resolve })
         const value = task(input.taskId, "running")
         return {
           mutation: { task: value, events: [], receipt: {}, controls: {}, raw: {} },
@@ -548,6 +579,7 @@ describe("command coordinator integration", () => {
       browser,
       calls: () => calls,
       createInputs,
+      createKeys,
       release: () => release?.(),
     }
   }
@@ -570,12 +602,46 @@ describe("command coordinator integration", () => {
     const first = value.commands.submit("First task")
     const queued = await value.commands.submit("Second task")
     expect(queued.status).toBe("queued")
+    expect(value.commands.getSnapshot().busy).toBe(true)
     expect(value.queue.getSnapshot()).toMatchObject({
       pendingCount: 1,
       visible: [{ value: "Second task", phase: "queued" }],
     })
     value.release()
     await first
+  })
+
+  test("shows a created task while execution is pending and accepts stop immediately", async () => {
+    const value = harness({ runDeferred: true })
+    const pending = value.commands.submit("Run an observable task")
+    await Promise.resolve()
+    expect(value.browser.location.pathname).toBe("/tasks/task_created_001")
+    expect(value.commands.getSnapshot().phase).toBe("running")
+    const stopped = await value.commands.submit("/cancel Stop this task")
+    expect(stopped.mutation?.mutation.task.status).toBe("cancelled")
+    expect(value.commands.getSnapshot().busy).toBe(true)
+      value.release()
+      const completed = await pending
+      expect(completed.mutation?.mutation.task.status).toBe("cancelled")
+      expect(value.workbench.selectedTask()?.status).toBe("cancelled")
+      expect(value.commands.getSnapshot().busy).toBe(false)
+  })
+
+  test("separate identical new-task submissions receive different mutation keys", async () => {
+    const value = harness()
+    await value.commands.submit("/new Identical goal --no-run")
+    await value.commands.submit("/new Identical goal --no-run")
+    expect(value.createKeys.every(Boolean)).toBe(true)
+    expect(new Set(value.createKeys).size).toBe(2)
+  })
+
+  test("global status does not require a selected task when shared controls are attached", async () => {
+    const value = harness()
+    value.commands.attachControls({ resolve: () => true,
+      submit: () => { throw new Error("Task-scoped transport must not run") },
+    } as unknown as Parameters<CommandCoordinator["attachControls"]>[0])
+    await value.commands.submit("/status")
+    expect(value.overlays.active()?.kind).toBe("transport-status")
   })
 
   test("keeps plain follow-ups in the selected canonical session", async () => {
@@ -597,6 +663,14 @@ describe("command coordinator integration", () => {
       goal: "Start separately",
       sessionId: undefined,
     })
+  })
+
+  test("new-task route cannot inherit a task left selected by the previous page", async () => {
+    const value = harness()
+    value.workbench.applyMutation(task("task_previous_001", "completed", { sessionId: "session_previous_001" }))
+    value.browser.pop("/tasks/new")
+    await value.commands.submit("An independent task")
+    expect(value.createInputs[0]?.sessionId).toBeUndefined()
   })
 
   test("restores failure as an error and local overlay does not call lifecycle", async () => {

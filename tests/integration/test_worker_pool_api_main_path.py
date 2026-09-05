@@ -318,6 +318,41 @@ def test_late_execution_failure_cannot_overwrite_cancelled_task(tmp_path: Path) 
         assert stored is not None and stored.status.value == "cancelled"
 
 
+def test_late_execution_success_cannot_overwrite_cancelled_task(tmp_path: Path) -> None:
+    with _api(tmp_path) as base_url:
+        task = _post(base_url, "/tasks", {"goal": "Fence a late success after user stop.", "auto_run": False})["task"]
+        entered, release = threading.Event(), threading.Event()
+        responses = []
+
+        def late_success(state, execution_context=None):
+            entered.set()
+            assert release.wait(10)
+            state.status = PlanNodeStatus.COMPLETED
+            state.updated_at = api_main.now_iso()
+            return []
+
+        with patch.object(api_main, "graph_execution_context", return_value=None), patch.object(api_main, "run_task_graph", side_effect=late_success):
+            runner = threading.Thread(target=lambda: responses.append(_post_with_status(base_url, f"/tasks/{task['task_id']}/run", {})))
+            runner.start()
+            try:
+                assert entered.wait(10)
+                cancelled = _post(base_url, f"/tasks/{task['task_id']}/cancel", {"reason": "User pressed Stop."})
+                assert cancelled["task"]["status"] == "cancelled"
+            finally:
+                release.set()
+                runner.join(15)
+            assert not runner.is_alive()
+        assert responses[0][0] == 200
+        assert responses[0][1]["task"]["status"] == "cancelled"
+        stored = api_main.get_store().load_task(task["task_id"])
+        assert stored.status == PlanNodeStatus.CANCELLED
+        assert api_main._task_cancellation_requested(stored)
+        resumed = api_main._prepare_task_for_explicit_resume(stored, {})
+        assert resumed and resumed["changed"]
+        assert stored.status == PlanNodeStatus.PENDING
+        assert all(node.status != PlanNodeStatus.CANCELLED for node in stored.plan_nodes.values())
+
+
 def test_parent_cancel_uses_a_fenced_control_checkpoint_writer(tmp_path: Path) -> None:
     with _api(tmp_path) as base_url:
         task = _post(

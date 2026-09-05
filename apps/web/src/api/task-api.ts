@@ -1343,7 +1343,7 @@ export class TaskApi {
     if (!safePath.includes(normalizedTaskId)) {
       throw new TypeError("Event WebSocket path is not bound to the requested task")
     }
-    const url = new URL(safePath, this.#client.baseUrl)
+    const url = new URL(`${this.#client.baseUrl.replace(/\/$/, "")}${safePath}`)
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined) url.searchParams.set(key, String(value))
@@ -1552,7 +1552,7 @@ export class TaskApi {
       || !safePath.includes(encodeURIComponent(normalizedTaskId))
       || !safePath.includes(encodeURIComponent(selectedTerminal))
     ) throw new TypeError("Terminal WebSocket path is unsafe or cross-bound.")
-    const url = new URL(safePath, this.#client.baseUrl)
+    const url = new URL(`${this.#client.baseUrl.replace(/\/$/, "")}${safePath}`)
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
     url.searchParams.set("ticket", query.ticket)
     url.searchParams.set("cursor", String(query.cursor))

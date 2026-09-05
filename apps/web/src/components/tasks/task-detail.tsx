@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import type {
   PlanNodeProjection,
   TaskProjection,
@@ -15,7 +15,6 @@ import {
   selectEventsForTask,
   selectRevision,
 } from "../../state/selectors.ts"
-import { selectArtifactPanel } from "../../state/panel-selectors.ts"
 import { TopologyWorkbench } from "../../features/topology/view/topology-workbench.tsx"
 import { WorkerCausalTimelineWorkbench } from "../../features/timeline/view/timeline-workbench.tsx"
 import { ArtifactWorkbench } from "../../features/artifacts/view/artifact-workbench.tsx"
@@ -86,13 +85,13 @@ function TaskActions({
   task: TaskProjection
 }) {
   const actions = taskActionSet(task, {
-    lifecycleBusy: runtime.api.lifecycle.inFlight().length > 0,
+    lifecycleBusy: runtime.api.lifecycle.inFlight().some((record) => record.taskId === task.taskId && record.action === "cancel"),
     transportEnabled: runtime.workbench.getSnapshot().transportEnabled,
   })
   const cancel = () => {
     runtime.overlays.open({
       kind: "task-cancel",
-      title: "Cancel task",
+      title: "停止任务",
       replaceKind: true,
       payload: { taskId: task.taskId, runId: task.runId, goal: task.userGoal },
     })
@@ -100,7 +99,7 @@ function TaskActions({
   const resume = () => {
     runtime.overlays.open({
       kind: "task-resume",
-      title: "Resume task",
+      title: "继续任务",
       replaceKind: true,
       payload: { taskId: task.taskId, runId: task.runId, goal: task.userGoal },
     })
@@ -173,6 +172,31 @@ function BoundSubagentWorkbench({
   return <SubagentWorkbench controller={runtime.subagentConsole} />
 }
 
+function EvidencePanel({ id, title, runtime, children }: {
+  id: string; title: string; runtime: WorkbenchRuntime; children: ReactNode
+}) {
+  const [open, setOpen] = useState(() => runtime.router.current.query.section === id
+    || (typeof location !== "undefined" && location.hash === `#${id}`))
+  const ref = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    const reveal = () => {
+      if (runtime.router.current.query.section !== id && window.location.hash !== `#${id}`) return
+      setOpen(true)
+      requestAnimationFrame(() => ref.current?.scrollIntoView({ block: "start" }))
+    }
+    const unsubscribe = runtime.router.listen(reveal)
+    window.addEventListener("hashchange", reveal)
+    return () => { unsubscribe(); window.removeEventListener("hashchange", reveal) }
+  }, [id, runtime])
+  return (
+    <details ref={ref} id={id} className="evidence-panel" open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>{title}</summary>
+      {open ? <div className="evidence-panel-content">{children}</div> : null}
+    </details>
+  )
+}
+
 function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: TaskProjection }) {
   const tree = useMemo(() => buildTaskTree(task), [task])
   const metrics = useMemo(() => taskMetrics(task), [task])
@@ -182,10 +206,6 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
     selectEventsForTask(task.taskId, { limit: 8 }),
   )
   const projectionRevision = useProjectionSelector(runtime, selectRevision())
-  const artifactPanel = useProjectionSelector(
-    runtime,
-    selectArtifactPanel(task.taskId),
-  )
   return (
     <div className="task-detail-scroll" data-task-id={task.taskId}>
       <header className="task-detail-header">
@@ -286,49 +306,49 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
         )}
       </section>
 
-      <div id="evidence-topology" className="evidence-section-anchor">
+      <EvidencePanel runtime={runtime} id="evidence-topology" title="任务拓扑与协作">
         <TopologyWorkbench runtime={runtime} task={task} />
-      </div>
+      </EvidencePanel>
 
-      <div id="evidence-long-horizon" className="evidence-section-anchor">
+      <EvidencePanel runtime={runtime} id="evidence-long-horizon" title="长程任务">
         <LoopXWorkbench runtime={runtime} task={task} />
-      </div>
+      </EvidencePanel>
 
-      <div id="evidence-controls" className="evidence-section-anchor">
+      <EvidencePanel runtime={runtime} id="evidence-controls" title="权限与控制">
         <PermissionWorkbench runtime={runtime} task={task} />
-      </div>
+      </EvidencePanel>
 
-      <div id="evidence-continuity-placement" className="evidence-section-anchor">
+      <EvidencePanel runtime={runtime} id="evidence-continuity-placement" title="会话、记忆与执行位置">
         <SessionConsoleWorkbench runtime={runtime} task={task} />
-      </div>
+      </EvidencePanel>
 
-      <div id="mcp-runtime-panel">
+      <EvidencePanel runtime={runtime} id="mcp-runtime-panel" title="MCP 服务">
         <McpWorkbench
           controller={runtime.mcpConsole}
           taskId={task.taskId}
           runId={task.runId}
         />
-      </div>
+      </EvidencePanel>
 
-      <div id="skill-runtime-panel">
+      <EvidencePanel runtime={runtime} id="skill-runtime-panel" title="技能">
         <SkillWorkbench
           controller={runtime.skillConsole}
           taskId={task.taskId}
           runId={task.runId}
         />
-      </div>
+      </EvidencePanel>
 
-      <div id="subagent-runtime-panel">
+      <EvidencePanel runtime={runtime} id="subagent-runtime-panel" title="子代理">
         <BoundSubagentWorkbench runtime={runtime} task={task} />
-      </div>
+      </EvidencePanel>
 
-      <div id="evidence-recovery" className="evidence-section-anchor">
+      <EvidencePanel runtime={runtime} id="evidence-recovery" title="时间线与故障恢复">
         <WorkerCausalTimelineWorkbench runtime={runtime} task={task} />
-      </div>
+      </EvidencePanel>
 
-      <div id="evidence-causal-trace" className="evidence-section-anchor">
+      <EvidencePanel runtime={runtime} id="evidence-causal-trace" title="事件追踪">
         <CausalTraceWorkbench runtime={runtime} task={task} />
-      </div>
+      </EvidencePanel>
 
       <section className="detail-section" aria-labelledby="plan-heading">
         <div className="section-heading">
@@ -359,23 +379,23 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
         )}
       </section>
 
-      <section
+      <EvidencePanel runtime={runtime} title="交付物与内容校验"
         id="evidence-artifacts"
-        className="detail-section"
-        aria-label="Artifact projection and viewer"
-        data-artifact-selector-count={artifactPanel.rows.length}
-        data-artifact-selector-missing-producers={artifactPanel.missingProducerIds.length}
       >
         <ArtifactWorkbench runtime={runtime} taskId={task.taskId} />
-      </section>
+      </EvidencePanel>
 
-      <DiffReviewWorkbench runtime={runtime} task={task} />
+      <EvidencePanel runtime={runtime} id="evidence-diff" title="代码差异与变更审查">
+        <DiffReviewWorkbench runtime={runtime} task={task} />
+      </EvidencePanel>
 
-      <BrowserWorkbench runtime={runtime} task={task} />
+      <EvidencePanel runtime={runtime} id="evidence-browser" title="浏览器执行记录">
+        <BrowserWorkbench runtime={runtime} task={task} />
+      </EvidencePanel>
 
-      <div id="evidence-terminal" className="evidence-section-anchor">
+      <EvidencePanel runtime={runtime} id="evidence-terminal" title="工作区终端">
         <TerminalWorkbench runtime={runtime} task={task} />
-      </div>
+      </EvidencePanel>
     </div>
   )
 }

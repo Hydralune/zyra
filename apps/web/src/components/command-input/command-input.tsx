@@ -72,7 +72,7 @@ function SuggestionList({
   if (!suggestions.length) {
     return (
       <div className="command-suggestions command-suggestions-empty" role="status">
-        No matching commands
+        没有匹配的命令
       </div>
     )
   }
@@ -104,7 +104,7 @@ function SuggestionList({
               <span>{definition.description}</span>
             </span>
             <span className="suggestion-badges">
-              {definition.remoteSafe ? <span className="tag">remote safe</span> : <span className="tag tag-muted">local</span>}
+              {definition.remoteSafe ? <span className="tag">运行服务</span> : <span className="tag tag-muted">界面操作</span>}
               {!suggestion.availability.enabled ? (
                 <span className="tag tag-danger">{suggestion.availability.reason}</span>
               ) : null}
@@ -206,9 +206,13 @@ function ControlArgumentList({
 function QueuePreview({
   runtime,
   selectedTask,
+  currentDraft,
+  currentCursor,
 }: {
   runtime: WorkbenchRuntime
   selectedTask?: TaskProjection
+  currentDraft: string
+  currentCursor: number
 }) {
   const queue = useQueueSnapshot(runtime)
   const visible = queue.visible.slice(0, 8)
@@ -232,12 +236,12 @@ function QueuePreview({
           <li key={entry.id} data-phase={entry.phase}>
             <span className={`queue-phase queue-phase-${entry.phase}`} aria-hidden="true" />
             <span className="queue-value">{entry.value}</span>
-            <span className="queue-meta">{entry.priority} · {entry.phase}</span>
+            <span className="queue-meta">{{ now: "优先", next: "下一条", later: "稍后" }[entry.priority]} · {{ queued: "排队中", dispatching: "发送中", committed: "已发送", failed: "失败", cancelled: "已取消" }[entry.phase]}</span>
             {entry.phase === "queued" && entry.editable ? (
               <button
                 type="button"
                 onClick={() => {
-                  const popped = runtime.queue.popEditable("", 0)
+                  const popped = runtime.queue.popEditable(currentDraft, currentCursor, entry.id)
                   if (!popped) return
                   window.dispatchEvent(new CustomEvent("zyra:restore-command-draft", {
                     detail: { value: popped.value, cursor: popped.cursor },
@@ -320,6 +324,7 @@ export function CommandInput({
   const showSuggestions =
     !suggestionsDismissed &&
     completion.kind === "command" &&
+    !(parsed.kind === "command" && parsed.definition && `/${parsed.definition.trigger}` === value.trim()) &&
     value.trimStart().startsWith("/")
   const showArgumentSuggestions =
     !suggestionsDismissed &&
@@ -332,6 +337,8 @@ export function CommandInput({
   )
   const showControlArgumentSuggestions =
     !suggestionsDismissed &&
+    value.trimStart().startsWith("/") &&
+    control.palette.query === value &&
     Boolean(control.palette.parsed.descriptor) &&
     control.palette.completion.kind !== "command" &&
     control.palette.entries.length > 0
@@ -347,7 +354,9 @@ export function CommandInput({
     if (selectedSuggestion >= count) setSelectedSuggestion(0)
   }, [argumentOptions.length, selectedSuggestion, showArgumentSuggestions, suggestions.length])
 
-  const draftScope = selectedTask?.taskId ?? "new"
+  // Follow-up tasks share one conversation composer. Advancing a queued turn
+  // must not replace the draft the person is currently editing.
+  const draftScope = selectedTask?.sessionId ?? selectedTask?.taskId ?? "new"
   useEffect(() => {
     const draft = runtime.drafts.get(draftScope)
     setValue(draft?.value ?? "")
@@ -364,11 +373,12 @@ export function CommandInput({
       const position = detail.cursor ?? detail.value.length
       setCursor(position)
       setSuggestionsDismissed(false)
+      runtime.drafts.set(draftScope, detail.value, position)
       if (textareaRef.current) setSelection(textareaRef.current, position)
     }
     window.addEventListener("zyra:restore-command-draft", restore)
     return () => window.removeEventListener("zyra:restore-command-draft", restore)
-  }, [])
+  }, [draftScope, runtime])
 
   useEffect(() => {
     autoSizeComposer(textareaRef.current)
@@ -554,6 +564,12 @@ export function CommandInput({
         event.stopPropagation()
         return
       }
+      if (selectedTask?.active) {
+        runtime.overlays.open({ kind: "task-cancel", title: "停止任务",
+          payload: { taskId: selectedTask.taskId, runId: selectedTask.runId, goal: selectedTask.userGoal } })
+        event.stopPropagation()
+        return
+      }
       if (runtime.controlCommands.cancelActive()) {
         event.stopPropagation()
         return
@@ -638,7 +654,7 @@ export function CommandInput({
       : "Enter 发送 · Shift+Enter 换行 · 输入 / 查看命令")
   return (
     <footer className="command-dock">
-      <QueuePreview runtime={runtime} selectedTask={selectedTask} />
+      <QueuePreview runtime={runtime} selectedTask={selectedTask} currentDraft={value} currentCursor={cursor} />
       <div className="command-input-wrap" data-busy={command.busy || undefined}>
         {showSuggestions ? (
           <SuggestionList

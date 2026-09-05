@@ -703,6 +703,25 @@ function specializedSections(
 ): CommandResultSection[] {
   const data = record(receipt.data)
   switch (receipt.name) {
+    case "/memory": {
+      const retrieval = record(record(data.retrieval).retrieval)
+      const query = stringValue(record(retrieval.query).text)
+      if (!query) return []
+      return [section({
+        id: "memory-results", title: "记忆查询结果", description: query,
+        tone: "neutral", collapsed: false,
+        rows: array(data.search_results).slice(0, options.maximumRows).map((value, index) => {
+          const item = record(value)
+          return row({
+            id: `memory:${stringValue(item.memory_id) || index}`, kind: "property",
+            title: stringValue(item.summary) || "记忆记录",
+            summary: stringValue(item.source_type), tone: "neutral",
+            fields: [field(`memory-layer:${index}`, "层级", item.layer), field(`memory-source:${index}`, "来源", item.source_id)],
+            links: [],
+          })
+        }),
+      })]
+    }
     case "/graph":
       return [...graphSections(data, options.maximumRows), ...traceSections(options.trace)]
     case "/trace":

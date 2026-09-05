@@ -168,6 +168,8 @@ export class WorkbenchController {
   readonly #listeners = new Set<() => void>()
   readonly #controllers = new Map<"list" | "detail" | "runtime", AbortController>()
   readonly #retry = new RetrySupervisor()
+  readonly #details = new Map<string, TaskProjection>()
+  readonly #conversationRequests = new Map<string, AbortController>()
   #snapshot: WorkbenchSnapshot
   #reconnectTimer?: unknown
   #closed = false
@@ -340,6 +342,7 @@ export class WorkbenchController {
         },
       })
       this.#reconcileSelectedTask(tasks)
+      void this.#hydrateConversation()
       return this.#snapshot.list
     } catch (error) {
       if (!this.#isCurrent("list", controller, generation)) return this.#snapshot.list
@@ -408,6 +411,7 @@ export class WorkbenchController {
         timeoutMs: 15_000,
       })
       if (!this.#isCurrent("detail", controller, generation)) return this.#snapshot.detail
+      this.#rememberDetail(task)
       this.#replace({
         selectedTaskId: task.taskId,
         detail: {
@@ -422,6 +426,7 @@ export class WorkbenchController {
           tasks: Object.freeze(this.#mergeTasks(this.#snapshot.list.tasks, [task])),
         },
       })
+      void this.#hydrateConversation()
       return this.#snapshot.detail
     } catch (error) {
       if (!this.#isCurrent("detail", controller, generation)) return this.#snapshot.detail
@@ -491,6 +496,7 @@ export class WorkbenchController {
   applyMutation(task: TaskProjection): void {
     this.#assertUsable()
     const cloned = cloneTask(task)
+    this.#rememberDetail(task)
     this.#replace({
       selectedTaskId: task.taskId,
       detail: {
@@ -545,6 +551,7 @@ export class WorkbenchController {
   disable(reason = "Workbench data source disabled."): void {
     if (!this.#snapshot.transportEnabled) return
     for (const controller of this.#controllers.values()) controller.abort(reason)
+    for (const controller of this.#conversationRequests.values()) controller.abort(reason)
     this.#clearReconnectTimer()
     this.#retry.reset()
     const failure: RequestFailure = {
@@ -612,15 +619,52 @@ export class WorkbenchController {
     const values = new Map<string, TaskProjection>()
     for (const task of current) values.set(task.taskId, cloneTask(task))
     for (const task of incoming) {
+      const detail = this.#details.get(task.taskId)
+      const candidate = detail && Date.parse(detail.updatedAt) >= Date.parse(task.updatedAt) ? detail : task
       const previous = values.get(task.taskId)
-      if (!previous || Date.parse(task.updatedAt) >= Date.parse(previous.updatedAt)) {
-        values.set(task.taskId, cloneTask(task))
+      if (!previous || Date.parse(candidate.updatedAt) >= Date.parse(previous.updatedAt)) {
+        values.set(task.taskId, cloneTask(candidate))
       }
     }
     return [...values.values()].sort((left, right) => {
       const updated = Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
       return updated || left.taskId.localeCompare(right.taskId)
     })
+  }
+
+  #rememberDetail(task: TaskProjection): void {
+    this.#details.delete(task.taskId)
+    this.#details.set(task.taskId, cloneTask(task))
+    if (this.#details.size > 250) this.#details.delete(this.#details.keys().next().value!)
+  }
+
+  async #hydrateConversation(): Promise<void> {
+    const selected = this.#snapshot.detail.task
+    if (!selected?.sessionId) return
+    // History rows are summaries too. Restore prior answers from their real
+    // task endpoints, with one request at a time and no cross-session reads.
+    for (const row of this.#snapshot.list.tasks) {
+      if (this.#closed || this.#snapshot.detail.task?.sessionId !== selected.sessionId) return
+      if (row.sessionId !== selected.sessionId || row.taskId === selected.taskId) continue
+      const cached = this.#details.get(row.taskId)
+      if ((cached && Date.parse(cached.updatedAt) >= Date.parse(row.updatedAt))
+        || this.#conversationRequests.has(row.taskId)) continue
+      const controller = new AbortController()
+      this.#conversationRequests.set(row.taskId, controller)
+      try {
+        const task = await this.#tasks.get(row.taskId, { signal: controller.signal, timeoutMs: 15_000 })
+        if (this.#closed || task.sessionId !== selected.sessionId) continue
+        this.#rememberDetail(task)
+        this.#replace({ list: {
+          ...this.#snapshot.list,
+          tasks: Object.freeze(this.#mergeTasks(this.#snapshot.list.tasks, [task])),
+        } })
+      } catch {
+        // Keep the known history row; a later list refresh can retry.
+      } finally {
+        this.#conversationRequests.delete(row.taskId)
+      }
+    }
   }
 
   #reconcileSelectedTask(tasks: readonly TaskProjection[]): void {
@@ -632,11 +676,12 @@ export class WorkbenchController {
     if (this.#controllers.has("detail")) return
     const task = tasks.find((candidate) => candidate.taskId === selected)
     if (!task) return
-    if (
-      this.#snapshot.detail.phase === "ready" &&
-      this.#snapshot.detail.task &&
-      Date.parse(this.#snapshot.detail.task.updatedAt) > Date.parse(task.updatedAt)
-    ) {
+    if (this.#snapshot.detail.task?.taskId === selected) {
+      // List rows omit answers, plan nodes and artifacts. They must never
+      // replace an already loaded detail, even at the same update timestamp.
+      if (Date.parse(task.updatedAt) > Date.parse(this.#snapshot.detail.task.updatedAt)) {
+        void this.loadTask(selected, { background: true })
+      }
       return
     }
     this.#replace({

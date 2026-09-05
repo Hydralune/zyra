@@ -47,6 +47,33 @@ const context: CommandTaskContext = {
   expectedRevision: 4,
 }
 
+test("terminal tasks allow inspection while mutations still require active execution", () => {
+  const registry = createCommandRegistry()
+  const policy = new CommandExecutionPolicy(registry)
+  const ended = { ...context, active: false, terminal: true, taskStatus: "completed" }
+  for (const text of ["/context", "/memory", "/memory search audit", "/skills list", "/mcp list", "/agents list", "/export"]) {
+    const parsed = parseCommand(text, registry)
+    expect(policy.decide({ parsed, context: ended, mode: "enqueue", busy: false }).allowed).toBe(true)
+    expect(policy.decide({ parsed, context: { ...ended, taskId: undefined }, mode: "enqueue", busy: false }).allowed).toBe(false)
+  }
+  for (const text of ["/memory curate", "/skills invoke demo", "/mcp reconnect demo", "/agents kill demo"]) {
+    expect(policy.decide({ parsed: parseCommand(text, registry), context: ended, mode: "enqueue", busy: false }).allowed).toBe(false)
+  }
+})
+
+test("memory search results remain visible ahead of verbose diagnostic fields", () => {
+  const submitted = request("/memory search 山茶")
+  const receipt = admitCommandReceipt(rawReceipt(submitted, { data: {
+    episodic: Array.from({ length: 120 }, () => ({ detail: "diagnostic" })),
+    retrieval: { retrieval: { query: { text: "山茶" } } },
+    search_results: [{ memory_id: "memory-1", summary: "记住山茶六号", layer: "semantic", source_id: "event-1" }],
+  } }), submitted)
+  const model = buildCommandResultModel(receipt, { maximumRows: 10 })
+  expect(model.sections[0]?.id).toBe("memory-results")
+  expect(model.sections[0]?.collapsed).toBe(false)
+  expect(model.sections[0]?.rows[0]?.title).toBe("记住山茶六号")
+})
+
 function request(text = "/status --scope all"): CommandTransportRequest {
   const registry = createCommandRegistry()
   return buildCommandRequest({

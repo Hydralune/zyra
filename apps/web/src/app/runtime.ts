@@ -57,6 +57,7 @@ export interface WorkbenchRuntime {
 
 export interface WorkbenchClientConfiguration {
   apiBaseUrl?: string
+  apiProxy?: boolean
   apiToken?: string
   pageUrl?: string
 }
@@ -67,7 +68,9 @@ export function resolveWorkbenchClientOptions(
   const queryBaseUrl = configuration.pageUrl
     ? new URL(configuration.pageUrl).searchParams.get("api")?.trim()
     : undefined
-  const baseUrl = queryBaseUrl || configuration.apiBaseUrl?.trim()
+  const baseUrl = configuration.apiProxy && configuration.pageUrl
+    ? new URL("/api", configuration.pageUrl).toString()
+    : queryBaseUrl || configuration.apiBaseUrl?.trim()
   const token = configuration.apiToken?.trim()
   return {
     ...(baseUrl ? { baseUrl } : {}),
@@ -82,6 +85,7 @@ function configuredClientOptions(): ZyraClientOptions {
   const root = document.documentElement
   return resolveWorkbenchClientOptions({
     apiBaseUrl: root.dataset.apiBaseUrl,
+    apiProxy: root.dataset.apiProxy === "true",
     apiToken: root.dataset.apiToken,
     pageUrl: typeof window === "undefined" ? undefined : window.location.href,
   })

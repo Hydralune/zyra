@@ -88,8 +88,9 @@ export function assessScenarioAdmission(
     findings.push(
       finding(
         "preflight_dirty",
-        "One or more owner roots were dirty at admission.",
+        formal ? "One or more owner roots were dirty at admission." : "交互检查使用已有状态；此运行不构成正式验收证据。",
         {
+          severity: formal ? "error" : "warning",
           field: "preflight",
           detail: {
             kinds: dirty.map((check) => String(object(check).kind || "")),

@@ -6,7 +6,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "bun test ./test",
-    "build": "bun run typecheck && bun build index.html --outdir dist --target browser --sourcemap=linked",
+    "build": "bun run typecheck && bun build index.html --outdir dist --target browser --sourcemap=linked --public-path /",
     "start": "bun index.html"
   },
   "dependencies": {

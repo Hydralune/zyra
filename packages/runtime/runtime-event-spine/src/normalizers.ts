@@ -85,6 +85,9 @@ const LEGACY_MAP: Record<string, LegacyMapping> = {
   browser_target_lifecycle: { eventType: "runtime.browser.observation", intent: MessageIntent.OBSERVATION, senderKind: SenderKind.WORKER, senderId: "browser-worker", effective: true, stateDomain: "browser", stateOperation: "transition", targetKind: RecipientKind.API, targetId: "api-projection" },
   browser_cdp_request: { eventType: "runtime.browser.observation", intent: MessageIntent.OBSERVATION, senderKind: SenderKind.WORKER, senderId: "browser-worker", effective: false, stateDomain: "browser", stateOperation: "none", targetKind: RecipientKind.API, targetId: "api-projection" },
   browser_runtime_diagnostic: { eventType: "runtime.browser.observation", intent: MessageIntent.OBSERVATION, senderKind: SenderKind.WORKER, senderId: "browser-worker", effective: false, stateDomain: "browser", stateOperation: "none", targetKind: RecipientKind.API, targetId: "api-projection" },
+  terminal_session_lifecycle: { eventType: "runtime.agent.message", intent: MessageIntent.OBSERVATION, senderKind: SenderKind.RUNTIME, senderId: "terminal-runtime", effective: true, stateDomain: "terminal", stateOperation: "transition", targetKind: RecipientKind.API, targetId: "api-projection" },
+  terminal_output: { eventType: "runtime.agent.message", intent: MessageIntent.OBSERVATION, senderKind: SenderKind.RUNTIME, senderId: "terminal-runtime", effective: false, stateDomain: "terminal", stateOperation: "none", targetKind: RecipientKind.API, targetId: "api-projection" },
+  terminal_control: { eventType: "runtime.agent.message", intent: MessageIntent.OBSERVATION, senderKind: SenderKind.RUNTIME, senderId: "terminal-runtime", effective: true, stateDomain: "terminal", stateOperation: "transition", targetKind: RecipientKind.API, targetId: "api-projection" },
 };
 
 function payloadSummary(payload: Readonly<Record<string, JsonValue>>, eventType: string): string {

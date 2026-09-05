@@ -3,6 +3,16 @@ import { describe, expect, test } from "bun:test"
 import { resolveWorkbenchClientOptions } from "../src/app/runtime.ts"
 
 describe("workbench API configuration", () => {
+  test("managed Web uses its fixed same-origin proxy after navigation and refresh", () => {
+    for (const pageUrl of [
+      "http://127.0.0.1:43127/tasks?api=http://127.0.0.1:8010",
+      "http://127.0.0.1:43127/tasks/task_demo_001?view=artifacts",
+    ]) {
+      expect(resolveWorkbenchClientOptions({ apiProxy: true, pageUrl })).toMatchObject({
+        baseUrl: "http://127.0.0.1:43127/api",
+      })
+    }
+  })
   test("uses the API origin embedded in the production page", async () => {
     const index = await Bun.file(new URL("../index.html", import.meta.url)).text()
     expect(index).toContain('data-api-base-url="http://127.0.0.1:8000"')

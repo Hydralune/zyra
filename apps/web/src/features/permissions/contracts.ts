@@ -1,7 +1,9 @@
 import type { PermissionSessionBinding } from "../../api/permission-api.ts"
 
 export const PERMISSION_CONSOLE_SCHEMA = "zyra.permission-console/v1" as const
-export const PERMISSION_RESPONSE_VERSION = "zyra.permission-response/v1" as const
+export const PERMISSION_RESPONSE_VERSION = "zyra.permission-response/v2" as const
+export const LEGACY_PERMISSION_RESPONSE_VERSION = "zyra.permission-response/v1" as const
+export type PermissionResponseVersion = typeof PERMISSION_RESPONSE_VERSION | typeof LEGACY_PERMISSION_RESPONSE_VERSION
 export const PERMISSION_CANONICAL_OWNER =
   "typescript.PermissionCoordinator" as const
 
@@ -40,7 +42,7 @@ export type PermissionSourceSurface =
   | "unknown"
 
 export interface PermissionResponseChallenge {
-  version: typeof PERMISSION_RESPONSE_VERSION
+  version: PermissionResponseVersion
   nonce: string
   canonicalOwner: typeof PERMISSION_CANONICAL_OWNER
   challengeDigest: string
@@ -210,7 +212,8 @@ export interface PermissionResponseDraft {
 }
 
 export interface PermissionResponseProof {
-  version: typeof PERMISSION_RESPONSE_VERSION
+  version: PermissionResponseVersion
+  decision_scope?: "once"
   nonce: string
   canonical_owner: typeof PERMISSION_CANONICAL_OWNER
   envelope_id: string

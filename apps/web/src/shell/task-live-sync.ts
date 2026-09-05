@@ -294,6 +294,9 @@ export class TaskLiveSync {
       && current.messageId === messageId
       && current.streamId === streamId,
     )
+    // Durable completion can overtake the final live chunk on the two
+    // transports. Its full text already includes that chunk.
+    if (sameStream && current?.settling) return
     const combined = `${sameStream ? current?.text ?? "" : ""}${delta}`
     const bounded = boundedUtf8Tail(combined, this.#assistantTextBytes)
     const now = this.#environment.now()
@@ -342,6 +345,7 @@ export class TaskLiveSync {
         )
         const now = this.#environment.now()
         if (phase === "started") {
+          if (sameStream && current?.settling) continue
           this.#publish({
             assistant: Object.freeze({
               messageId,

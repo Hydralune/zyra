@@ -113,6 +113,9 @@ function defaultOrigin(): string {
 function terminalProjectionValue(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value
   const input = value as Record<string, unknown>
+  if (typeof input.error === "string") {
+    throw new Error(typeof input.message === "string" ? input.message : input.error)
+  }
   return input.terminal ?? value
 }
 
@@ -137,6 +140,18 @@ export class TerminalRuntime {
   async create(input: TerminalCreateInput): Promise<TerminalRuntimeSnapshot> {
     const response = await this.#taskApi.terminalCreate(input)
     const projection = parseTerminalSession(terminalProjectionValue(response))
+    if (projection.permission.effect === "allow") {
+      for (const [id, pending] of this.#sessions) {
+        const previous = pending.projection
+        if (id !== projection.binding.terminalId && previous?.status.phase === "permission_pending"
+          && previous.binding.taskId === projection.binding.taskId
+          && previous.binding.sessionId === projection.binding.sessionId
+          && previous.binding.toolCallId === projection.binding.toolCallId) {
+          this.closeTab(id)
+          this.dispose(id)
+        }
+      }
+    }
     const session = this.#ensure(projection.binding.terminalId, {
       binding: projection.binding,
       rows: projection.status.rows,
@@ -279,6 +294,7 @@ export class TerminalRuntime {
     const session = this.#require(terminalId)
     const projection = this.#projection(session)
     if (projection.status.phase !== "running") throw new Error("Terminal is not running.")
+    session.error = undefined
     const reservation = session.inputBudget.reserve(data, { paste: options.paste, now: this.#now() })
     if (!reservation.accepted) {
       throw new RangeError(`Terminal input rejected: ${reservation.reason}; retry=${reservation.retryAfterMs}ms.`)
@@ -545,7 +561,8 @@ export class TerminalRuntime {
       session.connectionId = undefined
       session.socketCleanup?.()
       session.socketCleanup = undefined
-      const state = session.reconnect.disconnected({
+      const ended = ["exited", "killed", "timed_out", "crashed"].includes(session.projection?.status.phase ?? "")
+      const state = ended ? session.reconnect.close(event.code) : session.reconnect.disconnected({
         code: event.code,
         reason: event.reason,
         retryable: event.code !== 1000 && event.code !== 1008 && event.code !== 4001,

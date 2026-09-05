@@ -42,8 +42,10 @@ function words(value: string): Set<string> {
 }
 
 export function lexicalSimilarity(left: string, right: string): number {
-  const leftWords = words(left);
-  const rightWords = words(right);
+  return tokenSimilarity(words(left), words(right));
+}
+
+function tokenSimilarity(leftWords: ReadonlySet<string>, rightWords: ReadonlySet<string>): number {
   if (leftWords.size === 0 || rightWords.size === 0) return 0;
   let intersection = 0;
   for (const word of leftWords) if (rightWords.has(word)) intersection += 1;
@@ -124,22 +126,18 @@ function fuseCandidates(request: RankingRequest): MutableAggregate[] {
   });
 }
 
-function maximumSimilarity(candidate: MutableAggregate, selected: readonly MutableAggregate[]): number {
-  const candidateText = `${candidate.candidate.title}\n${candidate.candidate.content}`;
-  let maximum = 0;
-  for (const prior of selected) {
-    const priorText = `${prior.candidate.title}\n${prior.candidate.content}`;
-    maximum = Math.max(maximum, lexicalSimilarity(candidateText, priorText));
-  }
-  return maximum;
-}
-
 function mmrRerank(
   values: readonly MutableAggregate[],
   limit: number,
   lambdaValue: number,
 ): MutableAggregate[] {
-  const remaining = [...values];
+  // Tokenize each document once, and compare each pair only once. Updating
+  // the running maximum preserves the original MMR ordering and tie breaks.
+  const remaining = values.map((value) => ({
+    value,
+    tokens: words(`${value.candidate.title}\n${value.candidate.content}`),
+    maximumSimilarity: 0,
+  }));
   const selected: MutableAggregate[] = [];
   const safeLimit = Math.max(0, Math.trunc(limit));
   const lambda = clamp(lambdaValue);
@@ -150,16 +148,20 @@ function mmrRerank(
     for (let index = 0; index < remaining.length; index += 1) {
       const candidate = remaining[index];
       if (!candidate) continue;
-      const similarity = maximumSimilarity(candidate, selected);
-      const score = lambda * candidate.score - (1 - lambda) * similarity;
-      if (score > bestScore || (score === bestScore && candidate.candidate.documentId < bestIdentity)) {
+      const score = lambda * candidate.value.score - (1 - lambda) * candidate.maximumSimilarity;
+      if (score > bestScore || (score === bestScore && candidate.value.candidate.documentId < bestIdentity)) {
         bestIndex = index;
         bestScore = score;
-        bestIdentity = candidate.candidate.documentId;
+        bestIdentity = candidate.value.candidate.documentId;
       }
     }
     const chosen = remaining.splice(bestIndex, 1)[0];
-    if (chosen) selected.push(chosen);
+    if (chosen) {
+      selected.push(chosen.value);
+      for (const candidate of remaining) {
+        candidate.maximumSimilarity = Math.max(candidate.maximumSimilarity, tokenSimilarity(candidate.tokens, chosen.tokens));
+      }
+    }
   }
   return selected;
 }

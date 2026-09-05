@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 import os
 import sys
 from pathlib import Path
@@ -35,6 +36,7 @@ from zyra_evaluation.scenario_runner.metrics import (  # noqa: E402
 )
 from zyra_evaluation.scenario_runner.models import (  # noqa: E402
     ScenarioRun,
+    ScenarioMode,
     StepEffect,
 )
 from zyra_evaluation.scenario_runner.preflight import (  # noqa: E402
@@ -282,8 +284,10 @@ def test_effective_step_disable_has_no_fallback(
     )
 
 
-def test_evidence_manifest_checksums_events_metrics_and_tamper(tmp_path: Path) -> None:
+@pytest.mark.parametrize("mode", [ScenarioMode.SEALED, ScenarioMode.INTERACTIVE])
+def test_evidence_manifest_checksums_events_metrics_and_tamper(tmp_path: Path, mode: ScenarioMode) -> None:
     _, selected = configuration(tmp_path)
+    selected = replace(selected, mode=mode)
     artifact_root = tmp_path / "artifacts"
     artifact_path = artifact_root / "run" / "task" / "artifact.json"
     artifact_path.parent.mkdir(parents=True)
@@ -349,8 +353,8 @@ def test_evidence_manifest_checksums_events_metrics_and_tamper(tmp_path: Path) -
         policy_receipt=policy.assert_formal_invariants(),
         preflight_receipt={
             "scenario_run_id": "scenario_owner",
-            "clean": True,
-            "new_input": True,
+            "clean": mode is ScenarioMode.SEALED,
+            "new_input": mode is ScenarioMode.SEALED,
             "input_digest": selected.input_digest,
         },
         metric_samples=samples,
@@ -362,10 +366,16 @@ def test_evidence_manifest_checksums_events_metrics_and_tamper(tmp_path: Path) -
     assert manifest["verification_receipt"]["valid"] is True
     assert manifest["claims"]["human_intervention_count"] == 0
     assert manifest["claims"]["m2_exit_complete"] is False
+    assert manifest["claims"]["formal_foundation"] is (mode is ScenarioMode.SEALED)
+    assert collector.verify(manifest, mode=mode)["valid"] is True
+    if mode is ScenarioMode.INTERACTIVE:
+        with pytest.raises(Exception) as formal_failure:
+            collector.verify(manifest)
+        assert "scenario_mode_binding_mismatch" in str(formal_failure.value.fault.detail)
 
     tampered = {**manifest, "seed": 999}
     with pytest.raises(Exception) as failure:
-        collector.verify(tampered)
+        collector.verify(tampered, mode=mode)
     assert getattr(failure.value, "code", "") == (
         "scenario_evidence_verification_failed"
     )

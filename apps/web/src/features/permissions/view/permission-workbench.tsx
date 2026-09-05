@@ -33,7 +33,7 @@ export function PermissionWorkbench(input: {
     [input.task],
   )
   useEffect(() => {
-    const sessionId = `permission-console:${input.task.taskId}`
+    const sessionId = consoleRuntime.consoleSessionId(input.task.taskId)
     void consoleRuntime.bindTask({
       taskId: input.task.taskId,
       runId: input.task.runId,
@@ -56,7 +56,9 @@ export function PermissionWorkbench(input: {
     consoleRuntime,
     input.task.taskId,
     input.task.runId,
-    input.task.metadata,
+    input.task.metadata.permission_policy_hash,
+    input.task.metadata.permission_policy_revision,
+    input.task.metadata.human_intervention_count,
     productMode,
   ])
   useEffect(() => {

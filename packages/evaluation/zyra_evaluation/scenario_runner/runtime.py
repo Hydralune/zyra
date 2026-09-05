@@ -367,7 +367,7 @@ class ScenarioRunnerService:
                 phase="evidence",
             )
         collector = EvidenceCollector(artifact_root=self.artifact_root)
-        receipt = collector.verify(run.evidence_manifest)
+        receipt = collector.verify(run.evidence_manifest, mode=run.configuration.mode)
         self.store.append_receipt(
             scenario_run_id,
             kind="evidence_reverification",

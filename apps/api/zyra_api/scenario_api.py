@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -19,7 +20,9 @@ from zyra_evaluation.scenario_runner import (
 _LOCK = threading.RLock()
 _API: ScenarioRunnerApi | None = None
 _KEY: tuple[str, str, str] | None = None
-_FOUNDATION_WORKER_ID = "foundation-scenario-worker"
+# This worker executes inside the API process. A restarted API must register
+# a fresh identity rather than heartbeat a persisted worker owned by an old PID.
+_FOUNDATION_WORKER_ID = f"foundation-scenario-worker-{uuid.uuid4().hex[:12]}"
 
 
 @dataclass(frozen=True, slots=True)

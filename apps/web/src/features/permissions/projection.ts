@@ -15,6 +15,7 @@ import {
 import {
   PERMISSION_CANONICAL_OWNER,
   PERMISSION_RESPONSE_VERSION,
+  LEGACY_PERMISSION_RESPONSE_VERSION,
   type PermissionDecisionProjection,
   type PermissionDecisionReceipt,
   type PermissionEffect,
@@ -362,7 +363,7 @@ export function projectPermissionRequest(
       status === "delivered"
       && !terminal
       && !stale
-      && challenge.version === PERMISSION_RESPONSE_VERSION
+      && [PERMISSION_RESPONSE_VERSION, LEGACY_PERMISSION_RESPONSE_VERSION].includes(challenge.version)
       && challenge.nonce.length > 0,
     raw: safeRequestAudit(item, binding, challenge),
   })
@@ -609,10 +610,10 @@ function permissionResponseChallenge(
     challenge.challenge_digest ?? challenge.challengeDigest,
   ) ?? "0".repeat(64)
   const compatible =
-    version === PERMISSION_RESPONSE_VERSION
+    (version === PERMISSION_RESPONSE_VERSION || version === LEGACY_PERMISSION_RESPONSE_VERSION)
     && owner === PERMISSION_CANONICAL_OWNER
   return Object.freeze({
-    version: PERMISSION_RESPONSE_VERSION,
+    version: version === LEGACY_PERMISSION_RESPONSE_VERSION ? LEGACY_PERMISSION_RESPONSE_VERSION : PERMISSION_RESPONSE_VERSION,
     nonce: compatible ? nonce : "",
     canonicalOwner: PERMISSION_CANONICAL_OWNER,
     challengeDigest: digest,

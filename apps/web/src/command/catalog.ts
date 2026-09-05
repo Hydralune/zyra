@@ -45,8 +45,8 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.task.new",
     trigger: "new",
     aliases: ["create", "task"],
-    title: "Create task",
-    description: "Create a task and optionally start its first run.",
+    title: "新建任务",
+    description: "描述目标并创建任务；默认立即执行。",
     category: "task",
     execution: "task-create",
     remoteSafe: true,
@@ -74,8 +74,8 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.task.cancel",
     trigger: "cancel",
     aliases: ["stop", "abort"],
-    title: "Cancel active task",
-    description: "Cancel the selected task through the typed lifecycle endpoint.",
+    title: "停止任务",
+    description: "停止当前任务，保留已有结果。",
     category: "task",
     execution: "task-cancel",
     remoteSafe: true,
@@ -96,8 +96,8 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.task.resume",
     trigger: "resume",
     aliases: ["continue", "retry"],
-    title: "Resume task",
-    description: "Resume the selected task from its durable backend state.",
+    title: "继续任务",
+    description: "从已保存的状态继续执行。",
     category: "task",
     execution: "task-resume",
     remoteSafe: true,
@@ -110,13 +110,13 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.tasks",
     trigger: "tasks",
     aliases: ["agent-tasks", "background"],
-    title: "Subagent tasks",
-    description: "Inspect canonical child-task lifecycle, checkpoints, results, and failures.",
+    title: "子代理任务",
+    description: "查看子任务的进度、结果和失败原因。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
     queueable: true,
-    availability: "requires-active-task",
+    availability: "requires-task",
     arguments: [
       {
         name: "scope",
@@ -132,8 +132,8 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.navigation.home",
     trigger: "home",
     aliases: ["list"],
-    title: "Open task list",
-    description: "Navigate to the canonical task list.",
+    title: "返回首页",
+    description: "返回首页并查看历史会话。",
     category: "navigation",
     execution: "navigation",
     remoteSafe: false,
@@ -154,8 +154,8 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.navigation.task",
     trigger: "open",
     aliases: ["goto", "show"],
-    title: "Open task",
-    description: "Navigate to a task identity returned by the backend.",
+    title: "打开任务",
+    description: "按任务编号打开指定任务。",
     category: "navigation",
     execution: "navigation",
     remoteSafe: false,
@@ -175,8 +175,8 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.navigation.settings",
     trigger: "settings",
     aliases: ["config"],
-    title: "Open settings",
-    description: "Open local transport and workbench settings.",
+    title: "系统与场景",
+    description: "检查连接、管理输入历史和运行场景。",
     category: "navigation",
     execution: "navigation",
     remoteSafe: false,
@@ -189,8 +189,8 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.help.commands",
     trigger: "help",
     aliases: ["commands", "?"],
-    title: "Command reference",
-    description: "Open the local command reference overlay.",
+    title: "命令帮助",
+    description: "查看可用命令及使用方法。",
     category: "help",
     execution: "local-overlay",
     remoteSafe: false,
@@ -203,8 +203,8 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.help.keyboard",
     trigger: "keys",
     aliases: ["keyboard", "shortcuts"],
-    title: "Keyboard shortcuts",
-    description: "Open the local keyboard shortcut overlay.",
+    title: "快捷键",
+    description: "查看输入、导航和返回的快捷键。",
     category: "help",
     execution: "local-overlay",
     remoteSafe: false,
@@ -217,8 +217,8 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.status",
     trigger: "status",
     aliases: ["health", "runtime"],
-    title: "Runtime status",
-    description: "Refresh health and readiness, then open the status overlay.",
+    title: "运行状态",
+    description: "检查服务连接及运行状态。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
@@ -231,13 +231,13 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.graph",
     trigger: "graph",
     aliases: ["topology", "dag"],
-    title: "Task graph",
-    description: "Inspect the canonical dynamic task graph and current routes.",
+    title: "任务拓扑",
+    description: "查看任务步骤、依赖和执行资源。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
     queueable: true,
-    availability: "requires-active-task",
+    availability: "requires-task",
     arguments: [
       {
         name: "focus",
@@ -252,13 +252,13 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.trace",
     trigger: "trace",
     aliases: ["events", "timeline"],
-    title: "Causal trace",
-    description: "Inspect canonical causal events and reverse-linked effects.",
+    title: "事件追踪",
+    description: "查找执行事件，追踪原因与结果。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
     queueable: true,
-    availability: "requires-active-task",
+    availability: "requires-task",
     arguments: [
       {
         name: "query",
@@ -274,13 +274,13 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.artifacts",
     trigger: "artifacts",
     aliases: ["files", "outputs"],
-    title: "Artifacts",
-    description: "Inspect canonical task artifacts and revision lineage.",
+    title: "交付物",
+    description: "查看生成的文件、结果及版本。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
     queueable: true,
-    availability: "requires-active-task",
+    availability: "requires-task",
     arguments: [
       {
         name: "query",
@@ -296,13 +296,13 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.permissions",
     trigger: "permissions",
     aliases: ["permission", "policy"],
-    title: "Permissions",
-    description: "Inspect permission policy, requests, decisions, and receipts.",
+    title: "权限请求",
+    description: "查看待处理请求、策略和已做出的决定。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
     queueable: true,
-    availability: "requires-active-task",
+    availability: "requires-task",
     arguments: [
       {
         name: "action",
@@ -324,13 +324,13 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.mcp",
     trigger: "mcp",
     aliases: ["mcp-servers", "tools"],
-    title: "MCP servers",
-    description: "Inspect and control canonical MCP lifecycle, auth, tools, resources, prompts, and elicitation.",
+    title: "MCP 服务",
+    description: "查看服务状态、工具与资源，管理连接。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
     queueable: true,
-    availability: "requires-active-task",
+    availability: "requires-task",
     arguments: [
       {
         name: "action",
@@ -352,13 +352,13 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.skills",
     trigger: "skills",
     aliases: ["skill", "extensions"],
-    title: "Skills",
-    description: "Inspect, update, approve, or invoke canonical skills and supply-chain evidence.",
+    title: "技能",
+    description: "查看可用技能、更新及调用记录。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
     queueable: true,
-    availability: "requires-active-task",
+    availability: "requires-task",
     arguments: [
       {
         name: "action",
@@ -380,13 +380,13 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.agents",
     trigger: "agents",
     aliases: ["subagents", "children"],
-    title: "Agents and subagents",
-    description: "Inspect child runs or request permission-bound kill and steer controls.",
+    title: "子代理",
+    description: "查看子代理运行，或对指定代理发出控制请求。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
     queueable: true,
-    availability: "requires-active-task",
+    availability: "requires-task",
     arguments: [
       {
         name: "action",
@@ -408,13 +408,13 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.btw",
     trigger: "btw",
     aliases: ["side", "aside"],
-    title: "Side question",
-    description: "Ask one independent, tool-disabled side question.",
+    title: "旁支提问",
+    description: "提出独立问题；不会调用工具。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
     queueable: false,
-    availability: "requires-active-task",
+    availability: "requires-task",
     arguments: [
       {
         name: "question",
@@ -430,8 +430,8 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.inject",
     trigger: "inject",
     aliases: ["fault", "fail"],
-    title: "Inject fault",
-    description: "Inject a typed failure through the task graph owner.",
+    title: "故障测试",
+    description: "向当前测试任务注入指定故障。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
@@ -459,8 +459,8 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.change",
     trigger: "change",
     aliases: ["requirement"],
-    title: "Requirement change",
-    description: "Apply a requirement change through the task graph owner.",
+    title: "修改要求",
+    description: "向当前任务补充或修改执行要求。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
@@ -481,13 +481,13 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.verify",
     trigger: "verify",
     aliases: ["check", "validate"],
-    title: "Verify task",
-    description: "Run task verification through the canonical verifier.",
+    title: "验证任务",
+    description: "检查任务结果、交付物或执行记录。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
     queueable: true,
-    availability: "requires-active-task",
+    availability: "requires-task",
     arguments: [
       {
         name: "scope",
@@ -503,13 +503,13 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.eval",
     trigger: "eval",
     aliases: ["evaluate", "score"],
-    title: "Evaluate trace",
-    description: "Evaluate the current task trace and competition evidence.",
+    title: "评估结果",
+    description: "评估当前任务的执行记录与结果。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
     queueable: true,
-    availability: "requires-active-task",
+    availability: "requires-task",
     arguments: [
       {
         name: "profile",
@@ -524,13 +524,13 @@ const DEFINITIONS: readonly CommandDefinition[] = Object.freeze([
     id: "command.runtime.doctor",
     trigger: "doctor",
     aliases: ["diagnose", "diagnostics"],
-    title: "Runtime doctor",
-    description: "Run real runtime, owner, dependency, and path diagnostics.",
+    title: "诊断运行环境",
+    description: "检查运行服务、依赖及工作路径。",
     category: "runtime",
     execution: "local-overlay",
     remoteSafe: true,
     queueable: true,
-    availability: "requires-active-task",
+    availability: "requires-task",
     arguments: [
       {
         name: "scope",
@@ -623,19 +623,19 @@ export class CommandCatalog {
   availability(definition: CommandDefinition, context: CommandContext): CommandAvailabilityResult {
     if (!this.#enabled) return { enabled: false, reason: this.#disabledReason }
     if (definition.remoteSafe && !context.transportEnabled) {
-      return { enabled: false, reason: "Typed API transport is unavailable." }
+      return { enabled: false, reason: "运行服务暂时不可用。" }
     }
     if (definition.availability === "disabled") {
-      return { enabled: false, reason: "This command is disabled." }
+      return { enabled: false, reason: "此命令当前不可用。" }
     }
     if (definition.availability === "requires-task" && !context.taskId) {
-      return { enabled: false, reason: "Select a task first." }
+      return { enabled: false, reason: "请先选择任务。" }
     }
     if (definition.availability === "requires-active-task" && !context.taskActive) {
-      return { enabled: false, reason: "Select an active task first." }
+      return { enabled: false, reason: "请先选择正在执行的任务。" }
     }
     if (definition.availability === "requires-terminal-task" && !context.taskTerminal) {
-      return { enabled: false, reason: "Select a terminal or interrupted task first." }
+      return { enabled: false, reason: "请先选择已结束或中断的任务。" }
     }
     return { enabled: true }
   }

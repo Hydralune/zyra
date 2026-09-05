@@ -21,7 +21,7 @@ import { SafeMarkdown } from "../content/safe-markdown.tsx"
 
 const COMPLETED_NODE_STATES = new Set(["completed", "succeeded", "verified"])
 const RUNNING_NODE_STATES = new Set(["running", "active", "dispatched"])
-const FAILED_NODE_STATES = new Set(["failed", "error", "cancelled", "canceled"])
+const FAILED_NODE_STATES = new Set(["failed", "error"])
 const FOLLOW_THRESHOLD_PX = 72
 
 export interface ProductTaskProgress {
@@ -193,7 +193,10 @@ export function statusCopy(task: TaskProjection): ProductStatusCopy {
       tone: "success",
     }
   }
-  if (["failed", "error", "cancelled", "canceled"].includes(normalized)) {
+  if (["cancelled", "canceled"].includes(normalized)) {
+    return { eyebrow: "已停止", title: "任务已停止", detail: "已有结果已保留。你可以继续对话，或重新运行任务。", tone: "idle" }
+  }
+  if (["failed", "error"].includes(normalized)) {
     return {
       eyebrow: "需要处理",
       title: normalized.includes("cancel") ? "任务已取消" : "任务未能完成",
@@ -231,7 +234,36 @@ function relativeTime(value: string): string {
 }
 
 function nodeLabel(node: PlanNodeProjection): string {
-  return node.title || node.nodeId
+  const labels: Record<string, string> = { "Root task": "任务目标", Plan: "规划", Route: "选择执行资源", Execute: "执行", Verify: "验证", Finalize: "整理结果" }
+  return labels[node.title] ?? (node.title || node.nodeId)
+}
+
+export function orderedProductPlan(nodes: readonly PlanNodeProjection[]): PlanNodeProjection[] {
+  const byId = new Map(nodes.map((node) => [node.nodeId, node]))
+  const visited = new Set<string>()
+  const visiting = new Set<string>()
+  const result: PlanNodeProjection[] = []
+  const visit = (node: PlanNodeProjection) => {
+    if (visited.has(node.nodeId) || visiting.has(node.nodeId)) return
+    visiting.add(node.nodeId)
+    for (const id of node.dependsOn) { const dependency = byId.get(id); if (dependency) visit(dependency) }
+    visiting.delete(node.nodeId)
+    visited.add(node.nodeId)
+    result.push(node)
+  }
+  nodes.forEach(visit)
+  return result
+}
+
+function nodeDescription(node: PlanNodeProjection): string {
+  const descriptions: Record<string, string> = {
+    "Decompose the user goal into an executable task graph.": "将目标拆分为可执行的步骤。",
+    "Select the worker and control route for the executable node.": "选择适合当前步骤的执行资源。",
+    "Run the current node through the selected worker runtime.": "执行当前步骤并记录结果。",
+    "Check node outputs, event coverage, and checkpoint readiness.": "检查步骤结果与恢复状态。",
+    "Finalize the trace and mark the task ready for inspection.": "整理执行记录和交付结果。",
+  }
+  return descriptions[node.description] ?? node.description
 }
 
 function artifactLabel(artifact: ArtifactProjection): string {
@@ -241,7 +273,8 @@ function artifactLabel(artifact: ArtifactProjection): string {
 function nodeStateLabel(status: string): string {
   const normalized = status.toLowerCase()
   if (COMPLETED_NODE_STATES.has(normalized)) return "已完成"
-  if (RUNNING_NODE_STATES.has(normalized)) return "进行中"
+    if (RUNNING_NODE_STATES.has(normalized)) return "进行中"
+    if (["cancelled", "canceled"].includes(normalized)) return "已停止"
   if (FAILED_NODE_STATES.has(normalized)) return "未完成"
   return "待执行"
 }
@@ -289,7 +322,7 @@ function TaskControls({
   advancedRef: React.RefObject<HTMLButtonElement | null>
 }) {
   const actions = taskActionSet(task, {
-    lifecycleBusy: runtime.api.lifecycle.inFlight().length > 0,
+    lifecycleBusy: runtime.api.lifecycle.inFlight().some((record) => record.taskId === task.taskId && record.action === "cancel"),
     transportEnabled: runtime.workbench.getSnapshot().transportEnabled,
   })
   const completed = ["completed", "succeeded", "verified"].includes(task.status.toLowerCase())
@@ -309,7 +342,7 @@ function TaskControls({
           type="button"
           onClick={() => runtime.overlays.open({
             kind: "task-cancel",
-            title: "Cancel task",
+            title: "停止任务",
             replaceKind: true,
             payload: { taskId: task.taskId, runId: task.runId, goal: task.userGoal },
           })}
@@ -323,7 +356,7 @@ function TaskControls({
           type="button"
           onClick={() => runtime.overlays.open({
             kind: "task-resume",
-            title: "Resume task",
+            title: "继续任务",
             replaceKind: true,
             payload: { taskId: task.taskId, runId: task.runId, goal: task.userGoal },
           })}
@@ -570,7 +603,7 @@ function ConversationTurn({
           >
             <summary>
               <span className="product-disclosure-icon" data-tone={copy.tone} aria-hidden="true">
-                {task.active ? "◴" : copy.tone === "danger" ? "!" : "✓"}
+                {task.active ? "◴" : copy.tone === "danger" ? "!" : copy.tone === "success" ? "✓" : "○"}
               </span>
               <span>
                 <strong>执行过程</strong>
@@ -600,7 +633,7 @@ function ConversationTurn({
               </div>
               {task.planNodes.length ? (
                 <ol className="product-plan-list">
-                  {task.planNodes.map((node) => {
+                  {orderedProductPlan(task.planNodes).map((node) => {
                     const normalized = node.status.toLowerCase()
                     const tool = nodeToolLabel(node)
                     return (
@@ -619,7 +652,7 @@ function ConversationTurn({
                           <small>
                             <span className="product-step-state">{nodeStateLabel(node.status)}</span>
                             {tool ? <span className="product-step-tool">{tool}</span> : null}
-                            {node.description ? <span>{node.description}</span> : null}
+                            {node.description ? <span>{nodeDescription(node)}</span> : null}
                           </small>
                         </span>
                       </li>

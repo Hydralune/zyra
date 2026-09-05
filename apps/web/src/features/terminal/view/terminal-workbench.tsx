@@ -207,6 +207,7 @@ export function TerminalWorkbench({
   const [tabState, setTabState] = useState(() => initialTabState(tabs))
   const [draft, setDraft] = useState(() => defaultDraft(task))
   const [input, setInput] = useState("")
+  const pendingInput = useRef<{ terminalId: string; value: string; sequence: number } | undefined>(undefined)
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -287,10 +288,20 @@ export function TerminalWorkbench({
     setBusy(true)
     setError(undefined)
     try {
+      const sessionId = runtime.permissionConsole.consoleSessionId(task.taskId)
+      const permission = runtime.permissionConsole.getSnapshot()
+      const request = permission.requests.find((item) => item.toolCallId === draft.toolCallId
+        && item.sessionId === sessionId && item.taskId === task.taskId)
+      const permit = permission.receipts.find((item) => item.requestId === request?.requestId
+        && item.accepted && item.effect === "allow")?.permitId
+      const sealed = task.metadata.sealed === true || task.metadata.sealed_autonomous === true
+        || task.metadata.competition_mode === "sealed_autonomous"
+      await runtime.permissionConsole.bindTask({ taskId: task.taskId, runId: task.runId,
+        sessionId, productMode: sealed ? "sealed" : "interactive" })
       const snapshot = await terminal.create({
         taskId: task.taskId,
         runId: task.runId,
-        sessionId: draft.sessionId,
+        sessionId,
         workerId: draft.workerId,
         commandId: draft.commandId,
         toolCallId: draft.toolCallId,
@@ -300,12 +311,15 @@ export function TerminalWorkbench({
         cwd: draft.cwd,
         shell: draft.shell || undefined,
         actorId: "zyra-web-terminal",
-        permissionPermitId: draft.permitId || undefined,
+        permissionPermitId: draft.permitId || permit || undefined,
+        // A deliberate retry after approval is a new operation. Transport retries
+        // still share this key, while the permission remains bound to the exact call.
+        idempotencyKey: token("terminal_create"),
+        sealed,
       })
       if (snapshot.terminal?.permission.effect === "ask") {
         setError(
-          `Approval required: ${snapshot.terminal.permission.requestId ?? "pending request"}. `
-          + "Approve it in Permissions, paste the resulting permit below, then retry.",
+          "等待本次终端操作的权限审批。点击上方权限请求，批准后再点 Create PTY；批准凭据会自动带入。",
         )
       } else if (snapshot.terminal?.permission.effect === "deny") {
         setError(snapshot.terminal.permission.reason)
@@ -348,12 +362,34 @@ export function TerminalWorkbench({
     }
   }
 
+  useEffect(() => {
+    const pending = pendingInput.current
+    if (!pending || pending.terminalId !== activeId) return
+    if (active?.error) {
+      setInput((current) => current || pending.value)
+      pendingInput.current = undefined
+    } else if ((active?.status?.inputSequence ?? 0) >= pending.sequence) {
+      pendingInput.current = undefined
+    }
+  }, [active?.error, active?.status?.inputSequence, activeId])
+
+  const approvedPermit = (operation: "input" | "kill") => {
+    const permission = runtime.permissionConsole.getSnapshot()
+    const requestIds = new Set(permission.requests.filter((request) =>
+      request.operation === operation && request.taskId === task.taskId
+      && request.sessionId === active?.binding?.sessionId
+      && request.toolCallId === active?.binding?.toolCallId).map((request) => request.requestId))
+    return [...permission.receipts].reverse().find((receipt) =>
+      requestIds.has(receipt.requestId) && receipt.accepted && receipt.effect === "allow")?.permitId
+  }
+
   const send = () => {
     if (!activeId || !input || !active?.connected) return
     try {
-      terminal.input(activeId, `${input}\r`, {
-        permissionPermitId: draft.permitId || undefined,
+      const sequences = terminal.input(activeId, `${input}\r`, {
+        permissionPermitId: draft.permitId || approvedPermit("input"),
       })
+      pendingInput.current = { terminalId: activeId, value: input, sequence: sequences.at(-1)! }
       setInput("")
       setError(undefined)
     } catch (failure) {
@@ -402,7 +438,8 @@ export function TerminalWorkbench({
         spanId: projection.binding.spanId,
         actorId: "zyra-web-terminal",
         reason: "Killed from the task terminal workbench.",
-        permissionPermitId: draft.permitId || undefined,
+        permissionPermitId: draft.permitId || approvedPermit("kill"),
+        idempotencyKey: token("terminal_kill"),
       })
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure))
@@ -530,7 +567,7 @@ export function TerminalWorkbench({
         ) : null}
       </div>
 
-      {error ? <div className="terminal-error" role="alert">{error}</div> : null}
+      {error || active?.error ? <div className="terminal-error" role="alert">{error || active?.error?.message}</div> : null}
 
       {active ? (
         <div className="terminal-stage">
