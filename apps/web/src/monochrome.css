@@ -38,7 +38,7 @@ body { background: #fafafa; color: #202020; }
   color: #fff; border: 1px solid #202020; background: #202020; box-shadow: none;
 }
 .product-shell .product-new-task { color: var(--text); background: #fff; border-color: #d4d4d4; }
-.product-primary-nav button[aria-current="page"], .product-recent-task[aria-current="page"] { color: #171717; background: #e9e9e9; }
+.product-primary-nav button[aria-current="page"] { color: #171717; background: #e9e9e9; }
 .product-shell .product-primary-nav button { color: #171717; font-size: 16px; }
 .product-shell .product-primary-nav button:disabled { color: #171717; opacity: 1; }
 .product-shell .product-primary-nav button:disabled > span:first-child { opacity: .45; }
@@ -79,8 +79,11 @@ body { background: #fafafa; color: #202020; }
 .product-answer-loading strong { color: #3e3e3e; font-size: 14px; }
 .product-shell :is(.product-error-copy, .error-banner, .command-error, .state-error) { color: var(--danger); background: var(--danger-bg); border: 1px solid var(--danger-border); border-left-width: 3px; padding: 10px 14px; border-radius: 8px; font-size: 14px; }
 .product-shell .plan-warning { color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border); border-left-width: 3px; padding: 10px 14px; border-radius: 8px; }
-.product-recent-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 28px; align-items: center; }
-.product-recent-row .product-recent-task { min-width: 0; width: 100%; }
+.product-recent-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 28px; align-items: center; border-radius: 10px; }
+.product-recent-row:hover { background: #e7e7e7; }
+.product-recent-row:has(> .product-recent-task[aria-current="page"]) { background: #e9e9e9; }
+.product-recent-row .product-recent-task { min-width: 0; width: 100%; background: transparent; }
+.product-recent-row .product-recent-task[aria-current="page"] { color: #171717; }
 .product-conversation-more { background: transparent; border: 0; color: #656565; cursor: pointer; font-size: 13px; }
 .product-conversation-more { height: 34px; font-size: 21px; border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
 .product-recent-row:hover .product-conversation-more,
