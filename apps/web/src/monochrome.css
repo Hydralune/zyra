@@ -82,7 +82,10 @@ body { background: #fafafa; color: #202020; }
 .product-recent-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 28px; align-items: center; }
 .product-recent-row .product-recent-task { min-width: 0; width: 100%; }
 .product-conversation-more { background: transparent; border: 0; color: #656565; cursor: pointer; font-size: 13px; }
-.product-conversation-more { height: 34px; font-size: 21px; border-radius: 6px; }
+.product-conversation-more { height: 34px; font-size: 21px; border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
+.product-recent-row:hover .product-conversation-more,
+.product-recent-row:has(:focus-visible) .product-conversation-more,
+.product-conversation-more[aria-expanded="true"] { opacity: 1; pointer-events: auto; }
 .product-conversation-more:hover { background: #e5e5e5; }
 .product-conversation-popover { position: fixed; z-index: 300; width: min(256px, calc(100vw - 16px)); box-sizing: border-box; padding: 8px; border: 1px solid #e0e0e0; border-radius: 14px; background: #fff; color: #202020; box-shadow: 0 8px 28px rgb(0 0 0 / 12%); font: 15px/1.5 "Segoe UI", "Microsoft YaHei UI", sans-serif; }
 .product-conversation-popover > button { width: 100%; text-align: left; }
@@ -110,9 +113,11 @@ body { background: #fafafa; color: #202020; }
 .product-starter-grid small { font-size: 11px; opacity: 0; transform: translateY(4px); transition: opacity 160ms ease, transform 160ms ease; }
 .product-starter-grid button:is(:hover, :focus-visible) small { opacity: 1; transform: translateY(0); }
 @media (hover: none) {
+  .product-conversation-more { opacity: 1; pointer-events: auto; }
   .product-starter-grid small { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .product-conversation-more { transition: none; }
   .product-starter-grid small { transition: none; }
 }
 .product-orbit { transition: transform 200ms ease, box-shadow 200ms ease; }
