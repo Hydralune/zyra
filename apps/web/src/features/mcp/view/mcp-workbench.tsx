@@ -1,3 +1,4 @@
+import { recordLabel } from "../../evidence/record-copy.ts"
 import {
   useCallback,
   useEffect,
@@ -94,7 +95,7 @@ export function McpWorkbench({
             <h2>MCP</h2>
           </div>
         </header>
-        <div className="empty-state">Select a task to inspect canonical MCP state.</div>
+        <div className="empty-state">选择一个任务，查看它的 MCP 服务。</div>
       </section>
     )
   }
@@ -112,19 +113,19 @@ export function McpWorkbench({
           <span className="eyebrow">Runtime extensions</span>
           <h2>MCP 服务</h2>
           <p className="muted">
-            Canonical projection revision{" "}
+            记录版本{" "}
             {snapshot.projection?.authority.projectionRevision ?? "—"}
           </p>
         </div>
         <div className="status-cluster" aria-label="MCP status summary">
-          <Status label="transport" value={snapshot.connected ? "connected" : "offline"} />
-          <Status label="mode" value={snapshot.sealed ? "sealed" : "interactive"} />
+          <Status label="连接" value={snapshot.connected ? "已连接" : "离线"} />
+          <Status label="模式" value={snapshot.sealed ? "全自主" : "交互"} />
           <Status
-            label="servers"
+            label="服务"
             value={String(snapshot.projection?.servers.length ?? 0)}
           />
           <Status
-            label="needs auth"
+            label="待认证"
             value={String(snapshot.projection?.needsAuth ?? 0)}
           />
         </div>
@@ -153,8 +154,8 @@ export function McpWorkbench({
       <div className="workbench-grid">
         <aside className="panel-subsection mcp-server-list" aria-label="MCP servers">
           <div className="subsection-header">
-            <h3>Servers</h3>
-            <span>{snapshot.projection?.connectedServers ?? 0} connected</span>
+            <h3>服务列表</h3>
+            <span>{snapshot.projection?.connectedServers ?? 0} 个已连接</span>
           </div>
           <div className="stack-list">
             {snapshot.projection?.servers.map((server) => (
@@ -174,13 +175,13 @@ export function McpWorkbench({
                   <small>{server.config.source} · {server.config.transport}</small>
                 </span>
                 <span className={`status-pill status-${server.state}`}>
-                  {server.state}
+                  {recordLabel(server.state)}
                 </span>
               </button>
             ))}
             {!snapshot.projection?.servers.length ? (
               <div className="empty-state">
-                No authoritative MCP server facts were admitted.
+                此任务暂无 MCP 服务记录。
               </div>
             ) : null}
           </div>
@@ -240,7 +241,7 @@ export function McpWorkbench({
               />
             </>
           ) : (
-            <div className="empty-state">Select an admitted MCP server.</div>
+            <div className="empty-state">选择左侧服务，查看工具、资源和连接详情。</div>
           )}
         </main>
       </div>
@@ -316,26 +317,26 @@ function ServerFacts({ server }: { server: McpServerProjection }) {
     .map(([path]) => path)
   return (
     <div className="fact-grid">
-      <Fact label="Connection" value={server.state} />
-      <Fact label="Epoch" value={String(server.connectionEpoch)} />
-      <Fact label="Config source" value={server.config.source} />
-      <Fact label="Config revision" value={String(server.config.configRevision)} />
-      <Fact label="Transport" value={server.config.transport} />
-      <Fact label="Endpoint class" value={server.config.endpointClass ?? "unknown"} />
-      <Fact label="Authentication" value={server.auth.state} tone={urgency.level} />
-      <Fact label="Auth provider" value={server.auth.provider ?? "—"} />
-      <Fact label="Expires" value={server.auth.expiresAt ?? "not projected"} />
-      <Fact label="Credential fields" value={presence.length ? `${presence.length} present` : "none"} />
-      <Fact label="Capability revision" value={String(server.capabilities.revision)} />
+      <Fact label="连接状态" value={recordLabel(server.state)} />
+      <Fact label="运行批次" value={String(server.connectionEpoch)} />
+      <Fact label="配置来源" value={server.config.source} />
+      <Fact label="配置版本" value={String(server.config.configRevision)} />
+      <Fact label="传输方式" value={server.config.transport} />
+      <Fact label="端点类型" value={server.config.endpointClass ?? "unknown"} />
+      <Fact label="认证状态" value={server.auth.state} tone={urgency.level} />
+      <Fact label="认证服务" value={server.auth.provider ?? "—"} />
+      <Fact label="到期时间" value={server.auth.expiresAt ?? "not projected"} />
+      <Fact label="凭据字段" value={presence.length ? `${presence.length} present` : "none"} />
+      <Fact label="能力版本" value={String(server.capabilities.revision)} />
       <Fact
-        label="Catalog"
+        label="目录"
         value={`${server.tools.length} tools · ${server.resources.length} resources · ${server.prompts.length} prompts`}
       />
       {server.disabledReason ? (
-        <Fact label="Disabled reason" value={server.disabledReason} tone="warning" />
+        <Fact label="不可用原因" value={server.disabledReason} tone="warning" />
       ) : null}
       {server.lastErrorMessage ? (
-        <Fact label="Last error" value={server.lastErrorMessage} tone="critical" />
+        <Fact label="最近错误" value={server.lastErrorMessage} tone="critical" />
       ) : null}
     </div>
   )
@@ -405,7 +406,7 @@ function Catalog({
             {page.offset + 1}-{page.offset + page.items.length} of {page.total}
           </span>
           <button type="button" disabled={!page.hasNext} onClick={onNext}>
-            Next page
+            下一页
           </button>
         </footer>
       ) : null}
@@ -430,7 +431,7 @@ function Elicitations({
   return (
     <section className="mcp-elicitations" aria-label="MCP elicitations">
       <div className="subsection-header">
-        <h3>Elicitations</h3>
+        <h3>待补充信息</h3>
         <span>{pending.length} pending</span>
       </div>
       {pending.map((request) => (
@@ -492,7 +493,7 @@ function ElicitationForm({
         </label>
       ))}
       <button type="submit" disabled={disabled}>
-        Submit through permission
+        提交审批
       </button>
     </form>
   )
@@ -504,7 +505,7 @@ function OperationLedger({ controller }: { controller: McpConsoleController }) {
   return (
     <section className="panel-subsection mcp-operation-ledger" aria-label="MCP operations">
       <div className="subsection-header">
-        <h3>Owner settlement</h3>
+        <h3>执行回执</h3>
         <span>{snapshot.operations.length} controls</span>
       </div>
       <div className="stack-list">

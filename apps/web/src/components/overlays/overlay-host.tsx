@@ -1,3 +1,4 @@
+import { recordLabel } from "../../features/evidence/record-copy.ts"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import type { WorkbenchRuntime } from "../../app/runtime.ts"
 import { useOverlaySnapshot } from "../../app/hooks.ts"
@@ -77,14 +78,14 @@ function RuntimeStatus({ runtime, overlay }: { runtime: WorkbenchRuntime; overla
         </div>
       </div>
       <dl className="fact-grid">
-        <div><dt>连接状态</dt><dd>{state.phase}</dd></div>
+        <div><dt>连接状态</dt><dd>{{ ready: "已连接", loading: "正在连接", reconnecting: "正在重连", error: "连接失败", idle: "尚未连接", empty: "尚未连接" }[state.phase] ?? state.phase}</dd></div>
         <div><dt>API 版本</dt><dd>{state.health?.apiVersion ?? "—"}</dd></div>
         <div><dt>服务</dt><dd>{state.health?.service ?? "—"}</dd></div>
         <div><dt>可用能力</dt><dd>{state.health?.capabilities.length ?? 0}</dd></div>
       </dl>
       {readiness ? (
-        <section>
-          <h3>运行组件</h3>
+        <details>
+          <summary>运行组件 · {Object.keys(readiness.owners).length} 项</summary>
           <ul className="owner-list">
             {Object.entries(readiness.owners).map(([owner, ready]) => (
               <li key={owner} data-ready={ready}>
@@ -93,7 +94,7 @@ function RuntimeStatus({ runtime, overlay }: { runtime: WorkbenchRuntime; overla
               </li>
             ))}
           </ul>
-        </section>
+        </details>
       ) : null}
       <button
         className="button button-secondary"
@@ -217,7 +218,7 @@ function CommandResultContent({
   if (!result) {
     return (
       <div className="command-error" role="alert">
-        Command result payload is unavailable or invalid.
+        命令结果暂时无法读取。
       </div>
     )
   }
@@ -250,27 +251,27 @@ function CommandResultContent({
       <div className={`runtime-summary runtime-${result.tone}`}>
         <span className="connection-dot" aria-hidden="true" />
         <div>
-          <strong>{result.summary || result.title}</strong>
+          <strong>{recordLabel(result.summary || result.title)}</strong>
           {result.displayText && result.displayText !== result.summary ? (
             <p>{result.displayText}</p>
           ) : null}
         </div>
       </div>
       <dl className="fact-grid">
-        <div><dt>Phase</dt><dd>{result.phase}</dd></div>
-        <div><dt>Command</dt><dd><code>{result.name}</code></dd></div>
-        <div><dt>Durable</dt><dd>{result.durable ? "yes" : "no"}</dd></div>
-        <div><dt>Replayed</dt><dd>{result.replayed ? "yes" : "no"}</dd></div>
-        <div><dt>Events</dt><dd>{result.eventIds.length}</dd></div>
-        <div><dt>Elapsed</dt><dd>{result.elapsedMs === undefined ? "—" : `${result.elapsedMs} ms`}</dd></div>
+        <div><dt>执行状态</dt><dd>{recordLabel(result.phase)}</dd></div>
+        <div><dt>命令</dt><dd><code>{result.name}</code></dd></div>
+        <div><dt>记录已保存</dt><dd>{result.durable ? "是" : "否"}</dd></div>
+        <div><dt>历史回放</dt><dd>{result.replayed ? "是" : "否"}</dd></div>
+        <div><dt>关联事件</dt><dd>{result.eventIds.length}</dd></div>
+        <div><dt>处理用时</dt><dd>{result.elapsedMs === undefined ? "—" : `${result.elapsedMs} ms`}</dd></div>
       </dl>
       <div className="dialog-actions">
         <label>
-          Filter result
+          筛选结果
           <input
             type="search"
             value={query}
-            placeholder="event, owner, status, identity…"
+            placeholder="搜索内容、状态或编号…"
             onChange={(event) => {
               setQuery(event.target.value)
               setLimit(100)
@@ -290,10 +291,10 @@ function CommandResultContent({
           }}
         >
           {copyState === "copied"
-            ? "Copied"
+            ? "已复制"
             : copyState === "failed"
-              ? "Copy failed"
-              : "Copy summary"}
+              ? "复制失败"
+              : "复制摘要"}
         </button>
         {result.retryable && operation ? (
           <button
@@ -303,7 +304,7 @@ function CommandResultContent({
               void runtime.controlCommands.retry(operation.operationId)
             }}
           >
-            Retry command
+            重试命令
           </button>
         ) : null}
         {panelTarget ? (
@@ -328,12 +329,13 @@ function CommandResultContent({
         </div>
       ) : null}
       {filtered.sections.map((section) => (
-        <section
+        <details
           key={section.id}
           data-result-section={section.id}
           data-result-tone={section.tone}
+          open={Boolean(query) || section.id === "details"}
         >
-          <h3>{section.title} <span className="tag tag-muted">{section.count}</span></h3>
+          <summary>{recordLabel(section.title)} <span className="tag tag-muted">{section.count}</span></summary>
           {section.description ? <p>{section.description}</p> : null}
           <ol className="owner-list">
             {section.rows.map((row) => (
@@ -356,10 +358,10 @@ function CommandResultContent({
               </li>
             ))}
           </ol>
-        </section>
+        </details>
       ))}
       {!totalRows ? (
-        <p role="status">No result rows match this filter.</p>
+        <p role="status">没有匹配的结果。</p>
       ) : null}
       {totalRows >= limit ? (
         <button
@@ -367,18 +369,18 @@ function CommandResultContent({
           type="button"
           onClick={() => setLimit((value) => Math.min(5000, value + 100))}
         >
-          Show more
+          显示更多
         </button>
       ) : null}
       {result.diagnostics.length ? (
-        <section>
-          <h3>Diagnostics</h3>
+        <details>
+          <summary>诊断信息</summary>
           <ul>
             {result.diagnostics.map((diagnostic) => (
               <li key={diagnostic}>{diagnostic}</li>
             ))}
           </ul>
-        </section>
+        </details>
       ) : null}
     </div>
   )

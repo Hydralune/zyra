@@ -1,3 +1,4 @@
+import { recordLabel } from "../../evidence/record-copy.ts"
 import {
   useEffect,
   useMemo,
@@ -237,27 +238,27 @@ function HealthStrip({ health }: { health: BrowserHealth }) {
   return (
     <dl className="browser-health-strip" data-browser-health={health.phase}>
       <div>
-        <dt>Session</dt>
+        <dt>会话</dt>
         <dd>{health.phase}</dd>
       </div>
       <div>
-        <dt>Reconnects</dt>
+        <dt>重连次数</dt>
         <dd>{health.reconnectCount}</dd>
       </div>
       <div>
-        <dt>Process epoch</dt>
+        <dt>进程批次</dt>
         <dd>{health.processEpoch ?? "—"}</dd>
       </div>
       <div>
-        <dt>Heartbeat</dt>
+        <dt>心跳</dt>
         <dd>{formatTime(health.lastHeartbeatAt)}</dd>
       </div>
       <div>
-        <dt>Recovery</dt>
+        <dt>恢复</dt>
         <dd>{health.recoveryIds.length}</dd>
       </div>
       <div>
-        <dt>Signals</dt>
+        <dt>信号</dt>
         <dd>{health.signalIds.length}</dd>
       </div>
     </dl>
@@ -274,7 +275,7 @@ function SessionRail({
   return (
     <aside className="browser-session-rail" aria-label="Browser sessions">
       <div className="browser-subheading">
-        <h4>Sessions</h4>
+        <h4>浏览器会话</h4>
         <span>{state.projection.sessions.length}</span>
       </div>
       {state.projection.sessions.length ? (
@@ -307,7 +308,7 @@ function SessionRail({
         </ol>
       ) : (
         <p className="browser-empty-copy">
-          No BrowserWorker session is present in the admitted observability views.
+          此任务暂无浏览器会话。
         </p>
       )}
     </aside>
@@ -346,7 +347,7 @@ function TargetTree({
   return (
     <section className="browser-target-tree" aria-labelledby="browser-target-tree-heading">
       <div className="browser-subheading">
-        <h4 id="browser-target-tree-heading">Targets & frames</h4>
+        <h4 id="browser-target-tree-heading">目标与页面框架</h4>
         <span>{targets.length + frames.length}</span>
       </div>
       <ol>
@@ -462,7 +463,7 @@ function StepHistory({
       <div style={{ height: `${state.window.afterHeight}px` }} aria-hidden="true" />
       {!result.steps.length ? (
         <p className="browser-empty-copy">
-          No steps match the current search and filters.
+          没有匹配的操作步骤。
         </p>
       ) : null}
     </div>
@@ -480,11 +481,11 @@ function HistoryToolbar({
   return (
     <div className="browser-history-toolbar">
       <label className="browser-search-field">
-        <span>Search history</span>
+        <span>搜索操作记录</span>
         <input
           type="search"
           value={state.filters.query}
-          placeholder="URL, action, result, error…"
+          placeholder="搜索网址、操作、结果或错误…"
           onChange={(event) => viewer.setFilters({ query: event.currentTarget.value })}
         />
       </label>
@@ -497,7 +498,7 @@ function HistoryToolbar({
               viewer.setFilters({ failuresOnly: event.currentTarget.checked })
             }
           />
-          Failures
+          失败
         </label>
         <label>
           <input
@@ -507,7 +508,7 @@ function HistoryToolbar({
               viewer.setFilters({ downloadsOnly: event.currentTarget.checked })
             }
           />
-          Downloads
+          下载
         </label>
         <label>
           <input
@@ -517,7 +518,7 @@ function HistoryToolbar({
               viewer.setFilters({ popupsOnly: event.currentTarget.checked })
             }
           />
-          Popups
+          弹出窗口
         </label>
         <label>
           <input
@@ -525,14 +526,14 @@ function HistoryToolbar({
             checked={state.selection.followLive}
             onChange={(event) => viewer.followLive(event.currentTarget.checked)}
           />
-          Follow live
+          跟随实时更新
         </label>
         <button
           className="button button-secondary button-compact"
           type="button"
           onClick={() => viewer.clearFilters()}
         >
-          Clear
+          清除
         </button>
       </div>
       <div className="browser-history-navigation">
@@ -543,7 +544,7 @@ function HistoryToolbar({
           onClick={() => viewer.previousStep()}
           aria-label="Previous browser step"
         >
-          Previous
+          上一步
         </button>
         <span>
           {result.steps.length} visible
@@ -556,7 +557,7 @@ function HistoryToolbar({
           onClick={() => viewer.nextStep()}
           aria-label="Next browser step"
         >
-          Next
+          下一步
         </button>
       </div>
     </div>
@@ -615,7 +616,7 @@ function BrowserArtifactPreview({
       data-browser-screenshot-integrity={screenshot?.integrity}
     >
       <div className="browser-subheading">
-        <h4 id="browser-screenshot-heading">Verified screenshot</h4>
+        <h4 id="browser-screenshot-heading">已校验截图</h4>
         {screenshot ? (
           <button
             className="button button-secondary button-compact"
@@ -626,13 +627,13 @@ function BrowserArtifactPreview({
               focus: true,
             })}
           >
-            Open in Artifact viewer
+            查看产物详情
           </button>
         ) : null}
       </div>
       {!screenshot ? (
         <p className="browser-empty-copy">
-          The selected step has no screenshot artifact association.
+          此步骤没有关联截图。
         </p>
       ) : model?.kind === "image" ? (
         <>
@@ -648,21 +649,21 @@ function BrowserArtifactPreview({
           </div>
           <dl className="browser-artifact-facts">
             <div>
-              <dt>Artifact</dt>
+              <dt>产物</dt>
               <dd title={screenshot.artifactId}>
                 {compactIdentity(screenshot.artifactId, 28)}
               </dd>
             </div>
             <div>
-              <dt>Integrity</dt>
+              <dt>完整性</dt>
               <dd>{screenshot.integrity}</dd>
             </div>
             <div>
-              <dt>Size</dt>
+              <dt>大小</dt>
               <dd>{byteSize(screenshot.sizeBytes)}</dd>
             </div>
             <div>
-              <dt>Dimensions</dt>
+              <dt>尺寸</dt>
               <dd>
                 {screenshot.width && screenshot.height
                   ? `${screenshot.width}×${screenshot.height}`
@@ -673,7 +674,7 @@ function BrowserArtifactPreview({
         </>
       ) : state.phase === "failed" || state.error ? (
         <div className="browser-preview-refusal" role="alert">
-          <strong>Screenshot preview refused</strong>
+          <strong>截图暂时无法预览</strong>
           <p>
             {state.error?.message
               ?? "Artifact integrity, trust, or MIME admission failed."}
@@ -689,7 +690,7 @@ function BrowserArtifactPreview({
         </div>
       ) : (
         <div className="browser-preview-loading" role="status">
-          Verifying immutable screenshot bytes…
+          正在校验截图内容…
         </div>
       )}
     </section>
@@ -733,7 +734,7 @@ function DomInspector({
   return (
     <section className="browser-dom-inspector" aria-labelledby="browser-dom-heading">
       <div className="browser-subheading">
-        <h4 id="browser-dom-heading">DOM / accessibility summary</h4>
+        <h4 id="browser-dom-heading">页面结构与无障碍摘要</h4>
         <span>
           {summary
             ? `${summary.interactiveCount}/${summary.nodeCount} interactive`
@@ -742,7 +743,7 @@ function DomInspector({
       </div>
       {!summary ? (
         <p className="browser-empty-copy">
-          No bounded DOM or accessibility summary was projected for this step.
+          此步骤没有页面结构摘要。
         </p>
       ) : (
         <>
@@ -775,10 +776,10 @@ function DomInspector({
             <table>
               <thead>
                 <tr>
-                  <th>Role</th>
-                  <th>Name / text</th>
-                  <th>Selector / node</th>
-                  <th>State</th>
+                  <th>角色</th>
+                  <th>名称或文字</th>
+                  <th>选择器或节点</th>
+                  <th>状态</th>
                 </tr>
               </thead>
               <tbody>
@@ -806,65 +807,65 @@ function ActionInspector({
   return (
     <section className="browser-action-inspector" aria-labelledby="browser-action-heading">
       <div className="browser-subheading">
-        <h4 id="browser-action-heading">Action / result</h4>
+        <h4 id="browser-action-heading">操作与结果</h4>
         <span>{action?.name ?? "no action"}</span>
       </div>
       {!action ? (
         <p className="browser-empty-copy">
-          Select a step with an admitted BrowserWorker action.
+          选择一个操作步骤，查看执行详情。
         </p>
       ) : (
         <div className="browser-action-grid">
           <div>
             <dl className="browser-detail-facts">
               <div>
-                <dt>Action ID</dt>
+                <dt>操作编号</dt>
                 <dd>{action.actionId}</dd>
               </div>
               <div>
-                <dt>Tool call</dt>
+                <dt>工具调用</dt>
                 <dd>{action.toolCallId ?? "—"}</dd>
               </div>
               <div>
-                <dt>Span</dt>
+                <dt>追踪片段</dt>
                 <dd>{action.spanId ?? "—"}</dd>
               </div>
               <div>
-                <dt>Permission</dt>
+                <dt>权限</dt>
                 <dd>{action.permissionDecision ?? "—"}</dd>
               </div>
               <div>
-                <dt>Sequence</dt>
+                <dt>记录序号</dt>
                 <dd>{action.sequence}</dd>
               </div>
               <div>
-                <dt>Status</dt>
+                <dt>状态</dt>
                 <dd>{action.status}</dd>
               </div>
             </dl>
-            <h5>Arguments</h5>
+            <h5>参数</h5>
             <pre>{safeJson(action.arguments)}</pre>
           </div>
           <div>
             <dl className="browser-detail-facts">
               <div>
-                <dt>Result</dt>
+                <dt>结果</dt>
                 <dd>{result?.resultId ?? "—"}</dd>
               </div>
               <div>
-                <dt>Outcome</dt>
+                <dt>结果</dt>
                 <dd>{result ? (result.ok ? "ok" : "failed") : "—"}</dd>
               </div>
               <div>
-                <dt>Mutation</dt>
+                <dt>变更</dt>
                 <dd>{result?.mutationIds.length ?? step?.mutationIds.length ?? 0}</dd>
               </div>
               <div>
-                <dt>Artifacts</dt>
+                <dt>产物</dt>
                 <dd>{result?.artifactIds.length ?? 0}</dd>
               </div>
             </dl>
-            <h5>Observation</h5>
+            <h5>观察结果</h5>
             <p className="browser-result-summary">
               {result?.summary || result?.errorMessage || "No correlated result."}
             </p>
@@ -901,7 +902,7 @@ function DownloadRow({
         type="button"
         onClick={open}
       >
-        Inspect artifact
+        查看产物
       </button>
     </li>
   )
@@ -929,7 +930,7 @@ function ArtifactHistory({
   return (
     <section className="browser-artifact-history" aria-labelledby="browser-artifacts-heading">
       <div className="browser-subheading">
-        <h4 id="browser-artifacts-heading">Step artifacts</h4>
+        <h4 id="browser-artifacts-heading">步骤产物</h4>
         <span>{screenshots.length} screenshot · {downloads.length} download</span>
       </div>
       {screenshots.length ? (
@@ -970,7 +971,7 @@ function ArtifactHistory({
       ) : null}
       {!screenshots.length && !downloads.length ? (
         <p className="browser-empty-copy">
-          No immutable screenshot or download artifact is linked to this step.
+          此步骤没有关联的截图或下载文件。
         </p>
       ) : null}
     </section>
@@ -1073,7 +1074,7 @@ function BrowserControls({
       )}
       <form className="browser-navigate-form" onSubmit={submitNavigate}>
         <label>
-          <span>Navigate URL</span>
+          <span>目标网址</span>
           <input
             type="url"
             inputMode="url"
@@ -1097,11 +1098,11 @@ function BrowserControls({
         </button>
       </form>
       <label className="browser-control-reason">
-        <span>Reason</span>
+        <span>原因</span>
         <input
           type="text"
           maxLength={2_048}
-          placeholder="Operator intent for the audit receipt"
+          placeholder="说明此次操作的目的"
           value={draft.reason}
           onChange={(event) =>
             setDraft((value) => ({ ...value, reason: event.currentTarget.value }))
@@ -1152,7 +1153,7 @@ function BrowserControls({
           ))}
         </ol>
       ) : (
-        <p className="browser-empty-copy">No viewer control receipt in this session.</p>
+        <p className="browser-empty-copy">此会话暂无控制回执。</p>
       )}
     </section>
   )
@@ -1279,13 +1280,12 @@ export function BrowserWorkbench({
           <div className="browser-heading-line">
             <h3 id="browser-workbench-heading">浏览器执行记录</h3>
             <span className={`browser-phase-badge ${phaseTone(state.projection.phase)}`}>
-              {state.projection.phase}
+              {recordLabel(state.projection.phase)}
             </span>
             {!online ? <span className="tag tag-danger">offline</span> : null}
           </div>
           <p>
-            Read-only BrowserWorker observability projection with verified
-            artifacts and typed, auditable controls.
+            查看浏览器操作、页面截图和下载文件。
           </p>
         </div>
         <button
@@ -1295,8 +1295,8 @@ export function BrowserWorkbench({
           onClick={() => void browser.refresh({ force: true, reason: "operator_refresh" })}
         >
           {state.projection.phase === BrowserViewerPhase.LOADING
-            ? "Refreshing…"
-            : "Refresh browser"}
+            ? "正在刷新…"
+            : "刷新记录"}
         </button>
       </header>
 
@@ -1308,27 +1308,27 @@ export function BrowserWorkbench({
 
       <dl className="browser-summary-grid">
         <div>
-          <dt>Sessions</dt>
+          <dt>浏览器会话</dt>
           <dd>{state.projection.sessions.length}</dd>
         </div>
         <div>
-          <dt>Steps</dt>
+          <dt>步骤</dt>
           <dd>{state.projection.totalSteps}</dd>
         </div>
         <div>
-          <dt>Actions</dt>
+          <dt>操作</dt>
           <dd>{state.projection.totalActions}</dd>
         </div>
         <div>
-          <dt>Screenshots</dt>
+          <dt>截图</dt>
           <dd>{state.projection.totalScreenshots}</dd>
         </div>
         <div>
-          <dt>Downloads</dt>
+          <dt>下载</dt>
           <dd>{state.projection.totalDownloads}</dd>
         </div>
         <div>
-          <dt>Projection revision</dt>
+          <dt>记录版本</dt>
           <dd>{state.projection.projectionRevision}</dd>
         </div>
       </dl>
@@ -1346,7 +1346,7 @@ export function BrowserWorkbench({
                 reason: "viewer_error_retry",
               })}
             >
-              Retry
+              重试
             </button>
           ) : null}
         </div>
@@ -1391,14 +1391,13 @@ export function BrowserWorkbench({
             </>
           ) : state.projection.phase === BrowserViewerPhase.LOADING ? (
             <div className="browser-loading-state" role="status">
-              Loading BrowserWorker history, trace, health, and artifact lineage…
+              正在加载浏览器操作记录…
             </div>
           ) : (
             <div className="browser-empty-state">
-              <strong>No browser session projected</strong>
+              <strong>暂无浏览器记录</strong>
               <p>
-                Start a BrowserWorker task or inspect the causality findings for
-                missing task/run/session correlations.
+                任务使用浏览器后，操作步骤与截图会显示在这里。
               </p>
             </div>
           )}

@@ -18,7 +18,6 @@ import {
   useQueueSnapshot,
 } from "../../app/hooks.ts"
 import { EmptyState, ErrorState, LoadingState } from "../status/request-state.tsx"
-import { TaskDetail } from "./task-detail.tsx"
 import { SafeMarkdown } from "../content/safe-markdown.tsx"
 import { CopyButton } from "../content/copy-button.tsx"
 import { productArtifacts } from "../../features/artifacts/product-artifacts.ts"
@@ -714,6 +713,14 @@ function AdvancedRunDrawer({
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const trapRef = useRef<FocusTrap | undefined>(undefined)
+  const task = state.task
+  const metrics = task ? taskMetrics(task) : undefined
+  const status = task ? statusCopy(task) : undefined
+  const openEvidence = (section: string) => {
+    if (!task) return
+    onClose()
+    runtime.router.openEvidence(task.taskId, { section })
+  }
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -765,13 +772,24 @@ function AdvancedRunDrawer({
       >
         <header className="advanced-drawer-header">
           <div>
-            <p>高级详情</p>
-            <h2 id="advanced-drawer-title">运行详情与证据</h2>
+            <h2 id="advanced-drawer-title">运行详情</h2>
           </div>
           <button type="button" onClick={onClose} aria-label="关闭运行详情">×</button>
         </header>
         <div className="advanced-drawer-content">
-          <TaskDetail runtime={runtime} state={state} />
+          {task && metrics && status ? <div className="run-summary">
+            <div className="run-summary-status"><span className="evidence-state" data-state={task.status}>{status.eyebrow}</span><span>{status.title}</span></div>
+            <h3>{task.userGoal}</h3>
+            <dl className="run-summary-metrics"><div><dt>执行用时</dt><dd>{formatDuration(metrics.elapsedMs)}</dd></div><div><dt>完成节点</dt><dd>{metrics.completedNodeCount}<small> / {metrics.nodeCount}</small></dd></div><div><dt>交付文件</dt><dd>{productArtifacts(task.artifacts).length}</dd></div></dl>
+            <section className="run-summary-links"><h4>查看执行记录</h4><p>按内容打开证据中心中的对应页面。</p>{[
+              ["evidence-process", "执行过程", "步骤、状态与事件"],
+              ["evidence-artifacts", "产物与验证", "文件内容、版本与校验"],
+              ["evidence-topology", "任务关系图", "节点、依赖与协作"],
+              ["evidence-recovery", "故障与恢复", "异常记录与恢复过程"],
+            ].map(([section, title, detail]) => <button key={section} type="button" onClick={() => openEvidence(section!)}><span><strong>{title}</strong><small>{detail}</small></span><span aria-hidden="true">→</span></button>)}</section>
+            <details className="run-summary-identifiers"><summary>运行标识与时间</summary><dl className="evidence-record-facts"><div><dt>任务编号</dt><dd>{task.taskId}</dd></div><div><dt>运行编号</dt><dd>{task.runId}</dd></div><div><dt>创建时间</dt><dd>{new Date(task.createdAt).toLocaleString("zh-CN")}</dd></div><div><dt>结束时间</dt><dd>{taskFinishedAt(task) ? new Date(taskFinishedAt(task)!).toLocaleString("zh-CN") : "尚未结束"}</dd></div></dl></details>
+            <button className="product-button product-button-quiet" type="button" onClick={() => openEvidence("evidence-overview")}>打开完整证据中心 →</button>
+          </div> : <p className="product-muted" role="status">正在读取运行信息…</p>}
         </div>
       </div>
     </div>
@@ -964,7 +982,7 @@ function ProductDetailContent({
                 <h1>会话交付物</h1>
                 <button className="product-button product-button-quiet" type="button" onClick={() => runtime.router.openTask(task.taskId)}>返回对话</button>
               </header>
-              {!timeline.some((turn) => productArtifacts(turn.artifacts).length) ? <p className="product-muted">这个会话没有单独交付的文件。回答保留在对话中，内部运行记录可在证据中心查看。</p> : null}
+              {!timeline.some((turn) => productArtifacts(turn.artifacts).length) ? <div className="product-artifact-empty"><span aria-hidden="true">◇</span><h2>暂无交付文件</h2><p>这次的回答保留在对话中。任务生成文件后，会集中显示在这里。</p><button className="product-button product-button-quiet" type="button" onClick={() => runtime.router.openTask(task.taskId)}>回到对话查看回答</button></div> : null}
               {timeline.filter((turn) => productArtifacts(turn.artifacts).length).map((turn) => (
                 <section key={turn.taskId}>
                   <h2>{turn.userGoal}</h2>
@@ -1032,7 +1050,7 @@ export function ProductTaskDetail({
       </section>
     )
   }
-  if (state.phase === "not-found") {
+  if (state.phase === "not-found" || (state.phase === "error" && state.failure?.message === "task_not_found")) {
     return (
       <section className="product-route-state">
         <EmptyState

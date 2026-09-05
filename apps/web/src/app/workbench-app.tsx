@@ -413,11 +413,12 @@ function TopBar({
           </button>
         ) : null}
         <button
+          id="runtime-status-trigger"
           className="runtime-pill"
           type="button"
           data-phase={phase}
           title={`${runtimeLabel} · 查看运行时状态`}
-          onClick={() => void runtime.commands.submit("/status", { origin: "button" })}
+          onClick={() => runtime.overlays.open({ kind: "transport-status", title: "运行时连接", replaceKind: true })}
         >
           <span className="connection-dot" aria-hidden="true" />
           <span>{runtimeLabel}</span>

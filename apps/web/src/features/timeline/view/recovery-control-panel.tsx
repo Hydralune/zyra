@@ -225,19 +225,19 @@ function ReceiptRow({
       {sealed ? (
         <dl>
           <div>
-            <dt>Manual mutation</dt>
+            <dt>手动操作</dt>
             <dd>{sealed.manualMutationApplied ? "unexpected" : "blocked"}</dd>
           </div>
           <div>
-            <dt>Operator attempts</dt>
+            <dt>操作尝试</dt>
             <dd>{sealed.operatorInterventionAttemptCount ?? "recorded once"}</dd>
           </div>
           <div>
-            <dt>Human intervention</dt>
+            <dt>人工介入</dt>
             <dd>{sealed.humanInterventionCount ?? 0}</dd>
           </div>
           <div>
-            <dt>Autonomous outcome</dt>
+            <dt>自动处理结果</dt>
             <dd>{sealed.automaticRecoveryAction ?? (sealed.failClosed ? "failed closed" : "pending")}</dd>
           </div>
         </dl>
@@ -355,10 +355,9 @@ export function RecoveryControlPanel({
       <header>
         <div>
           <p className="eyebrow">Recovery control</p>
-          <h4 id="timeline-control-heading">Canonical runtime commands</h4>
+          <h4 id="timeline-control-heading">运行控制</h4>
           <p>
-            Kill, steer, retry, reassign and exact resume are fenced by the
-            currently observed owner identities.
+            对选定的执行者进行停止、调整、重试或恢复操作。
           </p>
         </div>
         <span className={`timeline-control-mode ${sealed ? "is-sealed" : ""}`}>
@@ -374,7 +373,7 @@ export function RecoveryControlPanel({
       ) : null}
       <form onSubmit={submit}>
         <label>
-          Action
+          操作
           <select
             value={action}
             onChange={(event) =>
@@ -389,7 +388,7 @@ export function RecoveryControlPanel({
           </select>
         </label>
         <label>
-          Actor
+          操作人
           <input
             value={actorId}
             onChange={(event) => setActorId(event.target.value)}
@@ -397,7 +396,7 @@ export function RecoveryControlPanel({
           />
         </label>
         <label className="timeline-control-reason">
-          Reason
+          原因
           <input
             value={reason}
             onChange={(event) => setReason(event.target.value)}
@@ -406,11 +405,11 @@ export function RecoveryControlPanel({
         </label>
         {action === RecoveryControlAction.STEER ? (
           <label className="timeline-control-instruction">
-            New requirement
+            新要求
             <textarea
               value={instruction}
               onChange={(event) => setInstruction(event.target.value)}
-              placeholder="Describe the new goal, constraint or route."
+              placeholder="描述新的目标、约束或执行路径。"
               required
             />
           </label>
@@ -441,7 +440,7 @@ export function RecoveryControlPanel({
       </form>
       <div className="timeline-control-ledger">
         <div>
-          <strong>Durable receipt ledger</strong>
+          <strong>操作回执</strong>
           <span>{snapshot.connection}</span>
           <span>{snapshot.ledger.pendingCount} pending</span>
         </div>
@@ -452,7 +451,7 @@ export function RecoveryControlPanel({
             ))}
           </ol>
         ) : (
-          <p>No recovery control has been submitted from this timeline.</p>
+          <p>此时间线暂无手动控制记录。</p>
         )}
       </div>
     </section>

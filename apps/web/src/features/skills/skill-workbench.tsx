@@ -1,3 +1,4 @@
+import { recordLabel } from "../evidence/record-copy.ts"
 import {
   useEffect,
   useMemo,
@@ -108,18 +109,18 @@ export function SkillWorkbench({
           <p className="eyebrow">Canonical SkillTool custody</p>
           <h3 id="skill-workbench-heading">{view.headline}</h3>
         </div>
-        <span className={`tag tag-${view.tone}`}>{view.status}</span>
+        <span className={`tag tag-${view.tone}`}>{recordLabel(view.status)}</span>
       </div>
 
       {error ? <p className="plan-warning" role="alert">{error}</p> : null}
       {view.controlReason ? (
-        <p className="muted-copy" role="status">Controls unavailable: {view.controlReason}</p>
+        <p className="muted-copy" role="status">{recordLabel(view.controlReason)}</p>
       ) : null}
 
       <dl className="fact-grid">
         {view.catalogSummary.map((fact) => (
           <div key={fact.label}>
-            <dt>{fact.label}</dt>
+            <dt>{recordLabel(fact.label)}</dt>
             <dd>{fact.value}</dd>
           </div>
         ))}
@@ -142,13 +143,13 @@ export function SkillWorkbench({
       <div className="settings-grid">
         <article aria-labelledby="skill-catalog-heading">
           <div className="section-heading">
-            <h4 id="skill-catalog-heading">Canonical skills</h4>
+            <h4 id="skill-catalog-heading">技能列表</h4>
             <span>{page?.total ?? 0}</span>
           </div>
           <div className="filter-row">
             <input
               value={query}
-              placeholder="Search skill, tool, source, dependency…"
+              placeholder="搜索技能、工具、来源或依赖…"
               onChange={(event) => setQuery(event.currentTarget.value)}
             />
             <label>
@@ -157,11 +158,11 @@ export function SkillWorkbench({
                 checked={blockedOnly}
                 onChange={(event) => setBlockedOnly(event.currentTarget.checked)}
               />
-              Blocked only
+              仅显示受限技能
             </label>
           </div>
           <p className="muted-copy" aria-live="polite">
-            {page ? pageAnnouncement(page) : "Awaiting canonical skill projection."}
+            {page ? (page.total ? pageAnnouncement(page) : "暂无匹配的技能记录。") : "正在读取技能记录…"}
           </p>
           <ol className="compact-list">
             {(page?.rows ?? []).map((skill) => (
@@ -184,7 +185,7 @@ export function SkillWorkbench({
                 >
                   <strong>{skill.displayName}</strong>
                   <span className={`tag tag-${skill.ready ? "success" : "danger"}`}>
-                    {skill.ready ? "ready" : "blocked"}
+                    {skill.ready ? "可用" : "受限"}
                   </span>
                   <span className="tag tag-muted">{skill.approval.stage}</span>
                   <small>
@@ -199,20 +200,20 @@ export function SkillWorkbench({
 
         <article aria-labelledby="skill-detail-heading">
           <div className="section-heading">
-            <h4 id="skill-detail-heading">Skill detail</h4>
-            <span>{selected?.availability ?? "none"}</span>
+            <h4 id="skill-detail-heading">技能详情</h4>
+            <span>{selected ? recordLabel(selected.availability) : "未选择"}</span>
           </div>
           {selected && view.selected ? (
             <>
               <h5>{view.selected.title}</h5>
               <p>{view.selected.subtitle}</p>
               <dl className="fact-grid">
-                <div><dt>Identity</dt><dd>{view.selected.identity}</dd></div>
-                <div><dt>Version</dt><dd>{view.selected.version}</dd></div>
-                <div><dt>Content hash</dt><dd title={selected.version.contentHash}>{view.selected.hash}</dd></div>
-                <div><dt>Descriptor</dt><dd title={selected.version.descriptorDigest}>{compactHash(selected.version.descriptorDigest)}</dd></div>
-                <div><dt>Updated</dt><dd>{relativeSkillTime(selected.lastUpdatedAt)}</dd></div>
-                <div><dt>Owner</dt><dd>{selected.canonicalOwner}</dd></div>
+                <div><dt>标识</dt><dd>{view.selected.identity}</dd></div>
+                <div><dt>版本</dt><dd>{view.selected.version}</dd></div>
+                <div><dt>内容摘要</dt><dd title={selected.version.contentHash}>{view.selected.hash}</dd></div>
+                <div><dt>描述文件</dt><dd title={selected.version.descriptorDigest}>{compactHash(selected.version.descriptorDigest)}</dd></div>
+                <div><dt>更新时间</dt><dd>{relativeSkillTime(selected.lastUpdatedAt)}</dd></div>
+                <div><dt>执行方</dt><dd>{selected.canonicalOwner}</dd></div>
               </dl>
               <div className="console-operation">
                 <span className={`tag tag-${view.selected.provenanceTone}`}>provenance</span>
@@ -228,7 +229,7 @@ export function SkillWorkbench({
               </div>
             </>
           ) : (
-            <p className="muted-copy">Select a canonical skill.</p>
+            <p className="muted-copy">选择左侧技能，查看内容、权限与调用记录。</p>
           )}
         </article>
       </div>
@@ -238,7 +239,7 @@ export function SkillWorkbench({
           <div className="settings-grid">
             <article aria-labelledby="skill-body-heading">
               <div className="section-heading">
-                <h4 id="skill-body-heading">Body & resources</h4>
+                <h4 id="skill-body-heading">内容与资源</h4>
                 <span>{selected.body.sections.length} sections</span>
               </div>
               <p>{selected.body.summary}</p>
@@ -289,16 +290,16 @@ export function SkillWorkbench({
 
             <article aria-labelledby="skill-tools-heading">
               <div className="section-heading">
-                <h4 id="skill-tools-heading">Allowed tools & dependencies</h4>
+                <h4 id="skill-tools-heading">允许的工具与依赖</h4>
                 <span>{selected.toolScope.allowed.length} tools</span>
               </div>
               <dl className="fact-grid">
-                <div><dt>Allowed</dt><dd>{selected.toolScope.allowed.length}</dd></div>
-                <div><dt>Denied</dt><dd>{selected.toolScope.denied.length}</dd></div>
-                <div><dt>Approval</dt><dd>{selected.toolScope.requireApproval.length}</dd></div>
-                <div><dt>Max calls</dt><dd>{selected.toolScope.maximumCalls ?? "owner default"}</dd></div>
-                <div><dt>Parallel</dt><dd>{selected.toolScope.maximumParallel}</dd></div>
-                <div><dt>Read-only</dt><dd>{selected.toolScope.readOnly ? "yes" : "no"}</dd></div>
+                <div><dt>允许</dt><dd>{selected.toolScope.allowed.length}</dd></div>
+                <div><dt>拒绝</dt><dd>{selected.toolScope.denied.length}</dd></div>
+                <div><dt>审批</dt><dd>{selected.toolScope.requireApproval.length}</dd></div>
+                <div><dt>调用上限</dt><dd>{selected.toolScope.maximumCalls ?? "owner default"}</dd></div>
+                <div><dt>并发</dt><dd>{selected.toolScope.maximumParallel}</dd></div>
+                <div><dt>只读</dt><dd>{selected.toolScope.readOnly ? "yes" : "no"}</dd></div>
               </dl>
               <div className="tag-list">
                 {selected.toolScope.allowed.map((tool) => (
@@ -338,14 +339,14 @@ export function SkillWorkbench({
           <div className="settings-grid">
             <article aria-labelledby="skill-supply-heading">
               <div className="section-heading">
-                <h4 id="skill-supply-heading">Supply-chain audit</h4>
+                <h4 id="skill-supply-heading">来源审计</h4>
                 <span>{selected.supplyChain.browserDisposition}</span>
               </div>
               <dl className="fact-grid">
-                <div><dt>Risk</dt><dd>{selected.supplyChain.riskScore}/100</dd></div>
-                <div><dt>Owner allowed</dt><dd>{String(selected.supplyChain.allowedByOwner ?? "unknown")}</dd></div>
-                <div><dt>Receipt</dt><dd>{selected.supplyChain.receiptId ?? "absent"}</dd></div>
-                <div><dt>Policy</dt><dd>{selected.supplyChain.policyRevision ?? "unknown"}</dd></div>
+                <div><dt>风险</dt><dd>{selected.supplyChain.riskScore}/100</dd></div>
+                <div><dt>执行方授权</dt><dd>{String(selected.supplyChain.allowedByOwner ?? "unknown")}</dd></div>
+                <div><dt>回执</dt><dd>{selected.supplyChain.receiptId ?? "absent"}</dd></div>
+                <div><dt>策略</dt><dd>{selected.supplyChain.policyRevision ?? "unknown"}</dd></div>
               </dl>
               <ol className="compact-list">
                 {selected.supplyChain.findings.map((finding) => (
@@ -366,7 +367,7 @@ export function SkillWorkbench({
 
             <article aria-labelledby="skill-invocations-heading">
               <div className="section-heading">
-                <h4 id="skill-invocations-heading">Invocations & settlement</h4>
+                <h4 id="skill-invocations-heading">调用与结果</h4>
                 <span>{selected.invocations.length}</span>
               </div>
               <ol className="compact-list">
@@ -397,7 +398,7 @@ export function SkillWorkbench({
                 ))}
               </ol>
               <label>
-                Public invocation arguments
+                调用参数
                 <textarea
                   value={argumentsJson}
                   rows={6}

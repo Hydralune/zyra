@@ -63,15 +63,14 @@ export function SubagentWorkbench(props: {
         <header className="subagent-workbench__header">
           <div>
             <p className="eyebrow">AgentTool</p>
-            <h2>Subagent viewer closed</h2>
+            <h2>子代理查看器已关闭</h2>
           </div>
           <button type="button" onClick={() => props.controller.openViewer()}>
-            Restore from canonical state
+            重新打开查看器
           </button>
         </header>
         <p>
-          Closing this viewer detached browser subscriptions only. Child runs continue under
-          their canonical runtime owner.
+          关闭查看器后，子代理任务仍会继续执行。
         </p>
       </section>
     )
@@ -91,19 +90,19 @@ export function SubagentWorkbench(props: {
           <h2>子代理</h2>
           <p role="status" aria-live="polite">
             {projection
-              ? `${projection.activeIds.length} active · ${projection.settledIds.length} settled · revision ${projection.canonicalRevision}`
-              : "Select a task to inspect canonical child runs."}
+              ? `${projection.activeIds.length} 个运行中 · ${projection.settledIds.length} 个已结束 · 记录版本 ${projection.canonicalRevision}`
+              : "选择一个任务，查看它委派的子代理。"}
           </p>
         </div>
         <div className="subagent-workbench__header-actions">
           <StatusBadge
             tone={!snapshot.enabled ? "danger" : snapshot.connected ? "success" : "warning"}
           >
-            {!snapshot.enabled ? "disabled" : snapshot.connected ? "connected" : "disconnected"}
+            {!snapshot.enabled ? "不可用" : snapshot.connected ? "已连接" : "未连接"}
           </StatusBadge>
           {snapshot.sealed ? <StatusBadge tone="warning">sealed · read only</StatusBadge> : null}
           <button type="button" onClick={() => props.controller.closeViewer()}>
-            Close viewer
+            关闭查看器
           </button>
         </div>
       </header>
@@ -115,39 +114,39 @@ export function SubagentWorkbench(props: {
       ) : null}
       {!projection?.ready && projection ? (
         <div className="request-state request-state--warning" role="status">
-          Strict admission has unresolved errors. Mutating controls remain fail-closed.
+          部分记录未通过校验，相关控制暂不可用。
         </div>
       ) : null}
 
       <div className="subagent-workbench__toolbar" role="toolbar" aria-label="Subagent filters">
         <label>
-          Scope
+          范围
           <select
             value={snapshot.filter}
             onChange={(event) =>
               props.controller.setFilter(event.currentTarget.value as SubagentPanelFilter)}
           >
-            <option value="active">Active</option>
-            <option value="settled">Settled</option>
-            <option value="failed">Failed</option>
-            <option value="quarantined">Quarantined</option>
-            <option value="all">All</option>
+            <option value="active">运行中</option>
+            <option value="settled">已结束</option>
+            <option value="failed">失败</option>
+            <option value="quarantined">已隔离</option>
+            <option value="all">全部</option>
           </select>
         </label>
         <label>
-          Search
+          搜索
           <input
             type="search"
             value={snapshot.query}
             onChange={(event) => props.controller.setQuery(event.currentTarget.value)}
-            placeholder="identity, owner, scope, result…"
+            placeholder="搜索名称、执行者、范围或结果…"
           />
         </label>
         <button type="button" onClick={() => props.controller.expandAll()}>
-          Expand all
+          全部展开
         </button>
         <button type="button" onClick={() => props.controller.collapseAll()}>
-          Collapse all
+          全部收起
         </button>
       </div>
 
@@ -155,11 +154,11 @@ export function SubagentWorkbench(props: {
         <div className="subagent-workbench__tree" role="tree" aria-label="Subagent hierarchy">
           {snapshot.visibleRows.length === 0 ? (
             <EmptyState
-              title="No admitted subagents in this view"
+              title="暂无匹配的子代理"
               detail={
                 projection?.rejectedWorkerIds.length
                   ? `${projection.rejectedWorkerIds.length} worker rows failed strict admission.`
-                  : "Canonical worker and AgentTool events will appear here."
+                  : "此任务委派子代理后，执行进度和结果会显示在这里。"
               }
             />
           ) : (
@@ -235,8 +234,8 @@ export function SubagentWorkbench(props: {
             </>
           ) : (
             <EmptyState
-              title="Select a subagent"
-              detail="Inspect exact parent, scope, budget, heartbeat, checkpoint, result, error, and canonical evidence."
+              title="选择子代理"
+              detail="选择左侧子代理，查看任务范围、进度与执行结果。"
             />
           )}
         </div>
@@ -292,7 +291,7 @@ function SubagentDetail(props: { row: SubagentRow }): ReactNode {
       </dl>
 
       <details open>
-        <summary>Scope and custody</summary>
+        <summary>执行范围与来源</summary>
         <dl className="subagent-detail__identity">
           <Fact term="Scope digest" value={row.scope.digest ?? "missing"} />
           <Fact term="Permission mode" value={row.scope.permissionMode ?? "missing"} />
@@ -300,15 +299,15 @@ function SubagentDetail(props: { row: SubagentRow }): ReactNode {
           <Fact term="Isolation" value={row.scope.isolation ?? "none"} />
           <Fact term="Memory scope" value={row.scope.memoryScope ?? "none"} />
         </dl>
-        <TokenList title="Allowed child tools" values={row.scope.childTools} />
-        <TokenList title="Denied tools" values={row.scope.deniedTools} />
-        <TokenList title="Skills" values={row.scope.skills} />
+        <TokenList title="允许使用的工具" values={row.scope.childTools} />
+        <TokenList title="禁止使用的工具" values={row.scope.deniedTools} />
+        <TokenList title="技能" values={row.scope.skills} />
         <TokenList title="MCP servers" values={row.scope.mcpServers} />
-        <TokenList title="Lineage" values={row.scope.lineage} />
+        <TokenList title="委派关系" values={row.scope.lineage} />
       </details>
 
       <details open>
-        <summary>Budget</summary>
+        <summary>用量预算</summary>
         <div className="subagent-budget-grid">
           {row.budget.metrics.map((metric) => (
             <BudgetGauge key={metric.key} metric={metric} />
@@ -322,7 +321,7 @@ function SubagentDetail(props: { row: SubagentRow }): ReactNode {
       </details>
 
       <details open>
-        <summary>Heartbeat and recovery</summary>
+        <summary>连接与恢复</summary>
         <dl className="subagent-detail__identity">
           <Fact term="Heartbeat" value={row.heartbeat.phase} />
           <Fact term="Last observed" value={formatTime(row.heartbeat.lastAt)} />
@@ -335,13 +334,13 @@ function SubagentDetail(props: { row: SubagentRow }): ReactNode {
       </details>
 
       <details open={Boolean(row.result || row.error)}>
-        <summary>Settlement</summary>
+        <summary>执行结果</summary>
         {row.result ? (
           <div className="subagent-result">
-            <h4>Result</h4>
+            <h4>结果</h4>
             <p>{row.result.summary ?? "Canonical result committed without a display summary."}</p>
             <Fact term="Digest" value={row.result.digest ?? "none"} />
-            <TokenList title="Artifacts" values={row.result.artifactIds} />
+            <TokenList title="产物" values={row.result.artifactIds} />
           </div>
         ) : null}
         {row.error ? (
@@ -352,7 +351,7 @@ function SubagentDetail(props: { row: SubagentRow }): ReactNode {
         ) : null}
         {row.lateResults.length ? (
           <div className="request-state request-state--warning" role="alert">
-            <strong>Late result quarantine</strong>
+            <strong>延迟结果隔离</strong>
             <ul>
               {row.lateResults.map((late) => (
                 <li key={late.id}>
@@ -387,7 +386,7 @@ function SubagentControlForm(props: {
   return (
     <form className="subagent-controls">
       <header>
-        <h3>Scoped control</h3>
+        <h3>子代理控制</h3>
         <p>
           Bound to revision {props.row.revision}, attempt {props.row.attempt}, owner{" "}
           <code>{props.row.ownerId ?? "missing"}</code>.
@@ -400,7 +399,7 @@ function SubagentControlForm(props: {
         </div>
       ) : null}
       <label>
-        Steering instruction
+        调整指令
         <textarea
           value={props.instruction}
           onChange={(event) => props.onInstruction(event.currentTarget.value)}
@@ -410,7 +409,7 @@ function SubagentControlForm(props: {
         />
       </label>
       <label>
-        Audit reason
+        操作原因
         <input
           value={props.reason}
           onChange={(event) => props.onReason(event.currentTarget.value)}
@@ -453,7 +452,7 @@ function IncidentList(props: {
   if (!props.incidents.length) return null
   return (
     <section className="subagent-incidents">
-      <h3>Lifecycle incidents</h3>
+      <h3>运行事件</h3>
       <ul>
         {props.incidents.map((incident) => (
           <li key={incident.id} data-severity={incident.severity}>
@@ -469,7 +468,7 @@ function IncidentList(props: {
             </div>
             {!incident.acknowledged ? (
               <button type="button" onClick={() => props.onAcknowledge(incident.id)}>
-                Acknowledge
+                确认已读
               </button>
             ) : (
               <span>acknowledged</span>

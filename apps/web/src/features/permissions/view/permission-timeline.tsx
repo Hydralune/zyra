@@ -1,3 +1,4 @@
+import { recordLabel } from "../../evidence/record-copy.ts"
 import type { PermissionTimelineEntry } from "../contracts.ts"
 
 export function PermissionTimeline(input: {
@@ -49,14 +50,15 @@ export function PermissionTimeline(input: {
               />
               <div>
                 <div className="permission-timeline-title">
-                  <strong>{entry.title}</strong>
-                  <span className="tag tag-muted">{entry.phase}</span>
+                  <strong>{entry.phase === "allow" ? "允许执行" : entry.phase === "deny" ? "拒绝执行" : entry.title}</strong>
+                  <span className={`tag tag-${entry.phase === "allow" ? "success" : entry.phase === "deny" ? "danger" : "muted"}`}>{recordLabel(entry.phase)}</span>
                   {entry.canonical ? (
                     <span className="tag">后端记录</span>
                   ) : null}
                 </div>
-                <p>{entry.detail}</p>
-                <PermissionTimelineRefs refs={entry.refs} />
+                <details><summary>查看说明与来源</summary><p>{entry.title}</p><p>{entry.detail}</p>
+                  <PermissionTimelineRefs refs={entry.refs} />
+                </details>
                 <time dateTime={entry.createdAt}>
                   {formatTimestamp(entry.createdAt)}
                 </time>
@@ -82,8 +84,8 @@ function PermissionTimelineRefs(input: {
     <dl className="permission-timeline-refs">
       {refs.map(([name, value]) => (
         <div key={name}>
-          <dt>{name.replaceAll("_", " ")}</dt>
-          <dd className="mono">{short(value)}</dd>
+          <dt>{{ decision_id: "审批编号", tool_call_id: "工具调用", request_id: "请求编号", rule_id: "规则编号" }[name] ?? name.replaceAll("_", " ")}</dt>
+          <dd className="mono" title={value}>{short(value)}</dd>
         </div>
       ))}
     </dl>

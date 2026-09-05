@@ -1,3 +1,4 @@
+import { recordLabel, recordTitle, recordSummary } from "../../evidence/record-copy.ts"
 import {
   useEffect,
   useMemo,
@@ -32,19 +33,19 @@ function formatDuration(value: number): string {
 function targetLabel(target: TraceNavigationTarget): string {
   switch (target.view) {
     case TraceViewKind.TIMELINE:
-      return "Timeline"
+      return "执行过程"
     case TraceViewKind.TOPOLOGY:
-      return "Topology"
+      return "关系图"
     case TraceViewKind.TERMINAL:
-      return "Terminal"
+      return "终端"
     case TraceViewKind.BROWSER:
-      return "Browser"
+      return "浏览器"
     case TraceViewKind.ARTIFACT:
-      return "Artifact"
+      return "产物"
     case TraceViewKind.DIFF:
-      return "Diff"
+      return "代码差异"
     default:
-      return "Trace"
+      return "事件追踪"
   }
 }
 
@@ -103,29 +104,29 @@ function TraceToolbar({ controller }: { controller: TraceWorkbenchController }) 
   return (
     <div className="trace-toolbar" role="group" aria-label="Causal trace filters">
       <label className="trace-search">
-        <span>Search trace</span>
+        <span>搜索追踪记录</span>
         <input
           type="search"
           value={snapshot.filter.search ?? ""}
-          placeholder="event, span:, worker:, artifact:"
+          placeholder="搜索事件、执行者或产物…"
           onChange={onSearch}
         />
       </label>
       <div className="trace-toolbar-actions">
-        <SemanticToggle controller={controller} semantic={TraceSemanticKind.PERMISSION} label="Permission" />
-        <SemanticToggle controller={controller} semantic={TraceSemanticKind.PLACEMENT} label="Placement" />
-        <SemanticToggle controller={controller} semantic={TraceSemanticKind.FAULT} label="Fault" />
-        <SemanticToggle controller={controller} semantic={TraceSemanticKind.RECOVERY} label="Recovery" />
+        <SemanticToggle controller={controller} semantic={TraceSemanticKind.PERMISSION} label="权限" />
+        <SemanticToggle controller={controller} semantic={TraceSemanticKind.PLACEMENT} label="执行位置" />
+        <SemanticToggle controller={controller} semantic={TraceSemanticKind.FAULT} label="故障" />
+        <SemanticToggle controller={controller} semantic={TraceSemanticKind.RECOVERY} label="恢复" />
         <SemanticToggle controller={controller} semantic={TraceSemanticKind.MCP} label="MCP" />
-        <SemanticToggle controller={controller} semantic={TraceSemanticKind.SKILL} label="Skill" />
-        <SemanticToggle controller={controller} semantic={TraceSemanticKind.SUBAGENT} label="Subagent" />
+        <SemanticToggle controller={controller} semantic={TraceSemanticKind.SKILL} label="技能" />
+        <SemanticToggle controller={controller} semantic={TraceSemanticKind.SUBAGENT} label="子代理" />
         <button
           type="button"
           className="button button-secondary"
           aria-pressed={snapshot.filter.criticalOnly === true}
           onClick={() => controller.patchFilter({ criticalOnly: !snapshot.filter.criticalOnly })}
         >
-          Critical path
+          关键路径
         </button>
         <button
           type="button"
@@ -133,25 +134,25 @@ function TraceToolbar({ controller }: { controller: TraceWorkbenchController }) 
           aria-pressed={snapshot.filter.failuresOnly === true}
           onClick={() => controller.patchFilter({ failuresOnly: !snapshot.filter.failuresOnly })}
         >
-          Failures
+          失败
         </button>
         <button type="button" className="button button-secondary" onClick={() => controller.resetFilter()}>
-          Reset
+          重置
         </button>
       </div>
       <div className="trace-toolbar-actions">
         <label>
-          <span>Fold by </span>
+          <span>折叠方式 </span>
           <select
             value={snapshot.fold.mode}
             onChange={(event) => controller.patchFold({
               mode: event.currentTarget.value as "manual" | "span" | "worker" | "semantic",
             })}
           >
-            <option value="span">Span</option>
-            <option value="worker">Worker</option>
-            <option value="semantic">Semantic</option>
-            <option value="manual">Hierarchy</option>
+            <option value="span">追踪片段</option>
+            <option value="worker">执行者</option>
+            <option value="semantic">语义</option>
+            <option value="manual">层级</option>
           </select>
         </label>
         <button
@@ -160,7 +161,7 @@ function TraceToolbar({ controller }: { controller: TraceWorkbenchController }) 
           aria-pressed={snapshot.fold.preserveCritical}
           onClick={() => controller.patchFold({ preserveCritical: !snapshot.fold.preserveCritical })}
         >
-          Preserve critical
+          保留关键路径
         </button>
         <button
           type="button"
@@ -168,7 +169,7 @@ function TraceToolbar({ controller }: { controller: TraceWorkbenchController }) 
           aria-pressed={snapshot.fold.preserveFailures}
           onClick={() => controller.patchFold({ preserveFailures: !snapshot.fold.preserveFailures })}
         >
-          Preserve faults
+          保留故障
         </button>
       </div>
     </div>
@@ -183,7 +184,7 @@ function TraceIntegrity({ controller }: { controller: TraceWorkbenchController }
   return (
     <aside className="trace-integrity" aria-label="Trace integrity and reconciliation">
       <div className="section-heading">
-        <h4>Integrity and late reconciliation</h4>
+        <h4>完整性与延迟记录</h4>
         <span>{diagnostics.quarantineCount} quarantined</span>
       </div>
       {diagnostics.warnings.length ? (
@@ -205,7 +206,7 @@ function TraceIntegrity({ controller }: { controller: TraceWorkbenchController }
       ) : null}
       {projection.quarantine.length ? (
         <details>
-          <summary>Quarantined records</summary>
+          <summary>隔离记录</summary>
           <ol>
             {projection.quarantine.slice(0, 40).map((record) => (
               <li key={record.id} data-trace-quarantine-code={record.code}>
@@ -223,10 +224,10 @@ function CriticalPathSummary({ controller }: { controller: TraceWorkbenchControl
   const path = controller.getSnapshot().projection.criticalPath
   if (!path.nodeKeys.length) return null
   return (
-    <aside className="trace-critical-path" aria-label="Critical causal path">
+    <aside className="trace-critical-path" aria-label="关键因果路径">
       <div className="section-heading">
-        <h4>Critical path</h4>
-        <span>{path.nodeKeys.length} nodes · {formatDuration(path.durationMs)}</span>
+        <h4>关键路径</h4>
+        <span>{path.nodeKeys.length} 个节点 · {formatDuration(path.durationMs)}</span>
       </div>
       <div className="trace-path-strip">
         {path.nodeKeys.slice(0, 24).map((key, index) => {
@@ -264,16 +265,16 @@ function CriticalPathSummary({ controller }: { controller: TraceWorkbenchControl
 function TraceEvidence({ node }: { node: TraceNode }) {
   return (
     <dl className="inline-facts trace-evidence">
-      <dt>Event</dt><dd>{node.primaryEventId ?? "—"}</dd>
-      {node.refs.spanId ? <><dt>Span</dt><dd>{node.refs.spanId}</dd></> : null}
-      {node.refs.workerId ? <><dt>Worker</dt><dd>{node.refs.workerId}</dd></> : null}
-      {node.refs.toolCallId ? <><dt>Tool call</dt><dd>{node.refs.toolCallId}</dd></> : null}
-      {node.refs.providerId ? <><dt>Provider</dt><dd>{node.refs.providerId}</dd></> : null}
-      {node.refs.permissionId ? <><dt>Permission</dt><dd>{node.refs.permissionId}</dd></> : null}
-      {node.refs.failureId ? <><dt>Failure</dt><dd>{node.refs.failureId}</dd></> : null}
-      {node.refs.recoveryId ? <><dt>Recovery</dt><dd>{node.refs.recoveryId}</dd></> : null}
-      {node.refs.mutationId ? <><dt>Mutation</dt><dd>{node.refs.mutationId}</dd></> : null}
-      {node.refs.artifactIds.length ? <><dt>Artifacts</dt><dd>{node.refs.artifactIds.join(", ")}</dd></> : null}
+      <dt>事件</dt><dd>{node.primaryEventId ?? "—"}</dd>
+      {node.refs.spanId ? <><dt>追踪片段</dt><dd>{node.refs.spanId}</dd></> : null}
+      {node.refs.workerId ? <><dt>执行者</dt><dd>{node.refs.workerId}</dd></> : null}
+      {node.refs.toolCallId ? <><dt>工具调用</dt><dd>{node.refs.toolCallId}</dd></> : null}
+      {node.refs.providerId ? <><dt>服务商</dt><dd>{node.refs.providerId}</dd></> : null}
+      {node.refs.permissionId ? <><dt>权限</dt><dd>{node.refs.permissionId}</dd></> : null}
+      {node.refs.failureId ? <><dt>失败</dt><dd>{node.refs.failureId}</dd></> : null}
+      {node.refs.recoveryId ? <><dt>恢复</dt><dd>{node.refs.recoveryId}</dd></> : null}
+      {node.refs.mutationId ? <><dt>变更</dt><dd>{node.refs.mutationId}</dd></> : null}
+      {node.refs.artifactIds.length ? <><dt>产物</dt><dd>{node.refs.artifactIds.join(", ")}</dd></> : null}
     </dl>
   )
 }
@@ -295,14 +296,17 @@ function TraceRow({
   useEffect(() => {
     const element = ref.current
     if (!element || typeof ResizeObserver === "undefined") return
-    const observer = new ResizeObserver((entries) => {
-      const measured = entries[0]?.borderBoxSize?.[0]?.blockSize
-      controller.measure(node.key, measured ?? element.getBoundingClientRect().height)
+    // The virtual item includes the spacing around the article. Measuring only
+    // the article makes every following row overlap by the wrapper's padding.
+    const item = element.closest<HTMLElement>(".trace-virtual-item") ?? element
+    const observer = new ResizeObserver(() => {
+      controller.measure(node.key, Math.ceil(item.getBoundingClientRect().height))
     })
-    observer.observe(element)
+    observer.observe(item)
     return () => observer.disconnect()
   }, [controller, node.key])
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) return
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault()
       controller.toggleExpanded(node.key)
@@ -333,28 +337,28 @@ function TraceRow({
       <header className="trace-row-heading">
         <div>
           <span className={`status-marker status-${node.terminal ? "completed" : "running"}`} aria-hidden="true" />
-          <strong>{node.title}</strong>
-          <span className="tag tag-muted">{node.identity.kind}</span>
+          <strong title={node.title}>{recordTitle(node.title)}</strong>
+          <span className="tag tag-muted">{recordLabel(node.identity.kind)}</span>
           <span className={`tag${node.completeness === TraceCompleteness.COMPLETE ? " tag-muted" : " tag-danger"}`}>
-            {node.completeness}
+            {recordLabel(node.completeness)}
           </span>
-          {node.critical ? <span className="tag">critical</span> : null}
+          {node.critical ? <span className="tag">关键路径</span> : null}
           {node.retryCount ? <span className="tag tag-danger">retry {node.retryCount}</span> : null}
         </div>
         <span>#{node.sequence}{node.endSequence !== node.sequence ? `–${node.endSequence}` : ""}</span>
       </header>
-      <p>{node.summary}</p>
+      <p>{recordSummary(node.summary)}</p>
       <div className="trace-tags">
-        {node.semantics.map((semantic) => <span className="tag tag-muted" key={semantic}>{semantic}</span>)}
+        {node.semantics.map((semantic) => <span className="tag tag-muted" key={semantic}>{recordLabel(semantic)}</span>)}
       </div>
       <div className="trace-row-actions">
         <button type="button" onClick={(event) => { event.stopPropagation(); controller.toggleExpanded(node.key) }}>
-          {expanded ? "Less" : "Inspect"}
+          {expanded ? "收起详情" : "查看详情"}
         </button>
         <button type="button" onClick={(event) => { event.stopPropagation(); controller.togglePin(node.key) }}>
-          {pinned ? "Unpin" : "Pin for report"}
+          {pinned ? "移除报告引用" : "加入报告引用"}
         </button>
-        {targets.slice(0, 8).map((target) => (
+        {targets.length ? <details className="trace-linked-views"><summary>关联页面</summary>{targets.slice(0, 8).map((target) => (
           <button
             type="button"
             key={target.id}
@@ -366,16 +370,17 @@ function TraceRow({
           >
             {targetLabel(target)}
           </button>
-        ))}
+        ))}</details> : null}
       </div>
       {expanded ? (
         <div className="trace-row-details">
+          <p className="trace-original-copy">{node.title}<br />{node.summary}</p>
           <TraceEvidence node={node} />
           <dl className="inline-facts">
-            <dt>Duration</dt><dd>{formatDuration(node.durationMs)}</dd>
-            <dt>Contribution</dt><dd>{node.contributionScore.toFixed(1)}</dd>
-            <dt>Incoming / outgoing</dt><dd>{node.incomingEdgeIds.length} / {node.outgoingEdgeIds.length}</dd>
-            <dt>Events</dt><dd>{node.eventIds.length}</dd>
+            <dt>用时</dt><dd>{formatDuration(node.durationMs)}</dd>
+            <dt>影响</dt><dd>{node.contributionScore.toFixed(1)}</dd>
+            <dt>前置与后续</dt><dd>{node.incomingEdgeIds.length} / {node.outgoingEdgeIds.length}</dd>
+            <dt>事件</dt><dd>{node.eventIds.length}</dd>
           </dl>
           {node.diagnostics.length ? (
             <ul className="trace-diagnostics">
@@ -384,7 +389,7 @@ function TraceRow({
           ) : null}
           {Object.keys(node.safeAttributes).length ? (
             <details>
-              <summary>Safe canonical attributes</summary>
+              <summary>原始属性</summary>
               <dl className="inline-facts">
                 {Object.entries(node.safeAttributes).map(([key, value]) => (
                   <div key={key}><dt>{key}</dt><dd>{String(value)}</dd></div>
@@ -406,7 +411,7 @@ function VirtualTraceList({ controller }: { controller: TraceWorkbenchController
     if (element) controller.setViewport(element.scrollTop, element.clientHeight)
   }
   if (!snapshot.folded.nodes.length) {
-    return <p className="muted-copy">No trace nodes match the active filters.</p>
+    return <p className="muted-copy">没有匹配的追踪记录。</p>
   }
   return (
     <div
@@ -444,9 +449,9 @@ function PinnedReferences({ controller }: { controller: TraceWorkbenchController
   const pins = controller.getSnapshot().pins
   if (!pins.length) return null
   return (
-    <aside className="trace-pins" aria-label="Pinned final report references">
+    <aside className="trace-pins" aria-label="已固定的报告引用">
       <div className="section-heading">
-        <h4>Final report references</h4>
+        <h4>报告引用</h4>
         <span>{pins.length}</span>
       </div>
       <ol>
@@ -455,12 +460,12 @@ function PinnedReferences({ controller }: { controller: TraceWorkbenchController
             <button type="button" onClick={() => controller.reveal(reference.nodeKey)}>
               {reference.label}{reference.stale ? " · stale" : ""}
             </button>
-            <button type="button" onClick={() => controller.unpin(reference.nodeKey)}>Remove</button>
+            <button type="button" onClick={() => controller.unpin(reference.nodeKey)}>移除</button>
           </li>
         ))}
       </ol>
       <details>
-        <summary>Report-ready Markdown</summary>
+        <summary>Markdown 报告</summary>
         <pre>{controller.exportReport().markdown}</pre>
       </details>
     </aside>
@@ -515,7 +520,7 @@ export function CausalTraceWorkbench({
             返回上一视图
           </button>
           <button type="button" className="button button-secondary" onClick={() => setCollapsed((value) => !value)}>
-            {collapsed ? "Open trace" : "关闭查看器"}
+            {collapsed ? "打开查看器" : "关闭查看器"}
           </button>
         </div>
       </div>
@@ -527,10 +532,9 @@ export function CausalTraceWorkbench({
         <>
           <TraceMetrics controller={controller} />
           <TraceToolbar controller={controller} />
-          <TraceIntegrity controller={controller} />
-          <CriticalPathSummary controller={controller} />
+          <details className="record-advanced-options"><summary>完整性检查与关键路径</summary><TraceIntegrity controller={controller} /><CriticalPathSummary controller={controller} /></details>
           <p className="muted-copy">
-            Cross-view joins use canonical event, span, worker, tool, artifact, mutation, PTY, browser, and provider IDs. Focus a typed row in another view and press Alt+Enter to return here.
+            选择一条记录，可查看来源并跳转到对应的执行过程、关系图或产物。
           </p>
           <VirtualTraceList controller={controller} />
           <PinnedReferences controller={controller} />

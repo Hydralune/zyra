@@ -495,16 +495,15 @@ export function TerminalWorkbench({
         <div>
           <h3 id="terminal-workbench-heading">工作区终端</h3>
           <p>
-            Real workspace PTY with cursor replay. Closing a tab detaches the viewer;
-            Kill is the only process-ending control.
+            查看工作区终端输出。关闭标签只收起查看器；终止进程才会停止命令。
           </p>
         </div>
         <div className="terminal-workbench-actions">
           <button className="button button-secondary" disabled={!activeId || busy} onClick={() => void refresh()} type="button">
-            Refresh
+            刷新
           </button>
           <button className="button button-danger" disabled={!active || active.status?.phase !== "running" || busy} onClick={() => void kill()} type="button">
-            Kill
+            终止进程
           </button>
         </div>
       </header>
@@ -526,14 +525,14 @@ export function TerminalWorkbench({
         </label>
         <label>
           <span>指定 Shell</span>
-          <input placeholder="platform default" value={draft.shell} onChange={(event) => setDraft({ ...draft, shell: event.target.value })} />
+          <input placeholder="使用系统默认值" value={draft.shell} onChange={(event) => setDraft({ ...draft, shell: event.target.value })} />
         </label>
         <label>
           <span>审批凭据</span>
-          <input placeholder="optional approval permit" value={draft.permitId} onChange={(event) => setDraft({ ...draft, permitId: event.target.value })} />
+          <input placeholder="审批凭据（可选）" value={draft.permitId} onChange={(event) => setDraft({ ...draft, permitId: event.target.value })} />
         </label>
         <button className="button button-primary" disabled={busy || !draft.command.trim()} onClick={() => void create()} type="button">
-          {busy ? "Working…" : "启动终端"}
+          {busy ? "正在处理…" : "启动终端"}
         </button>
       </div>
 
@@ -563,7 +562,7 @@ export function TerminalWorkbench({
           </div>
         ))}
         {!tabState.tabs.length && !loading ? (
-          <span className="terminal-tabs-empty">No PTY sessions for this task.</span>
+          <span className="terminal-tabs-empty">此任务暂无终端会话。</span>
         ) : null}
       </div>
 
@@ -596,7 +595,7 @@ export function TerminalWorkbench({
                 : `${active.transcript.entries.length} transcript entries`}
             </span>
             <button className="button button-secondary" onClick={() => void copyTranscript()} type="button">
-              Copy transcript
+              复制终端输出
             </button>
           </div>
           <div
@@ -620,15 +619,15 @@ export function TerminalWorkbench({
                   send()
                 }
               }}
-              placeholder={active.connected ? "Send input and press Enter" : "Reconnect to send input"}
+              placeholder={active.connected ? "输入内容，按 Enter 发送" : "连接恢复后可输入"}
               value={input}
             />
             <button className="button button-primary" disabled={!input || !active.connected} onClick={send} type="button">
-              Send
+              发送
             </button>
           </div>
           <details className="terminal-structured">
-            <summary>Structured output ({active.structured.length})</summary>
+            <summary>结构化输出（{active.structured.length}）</summary>
             <ol>
               {active.structured.slice(-100).map((line, index) => (
                 <li data-terminal-line-kind={line.kind} key={`${index}:${line.kind}:${line.text}`}>
@@ -641,7 +640,7 @@ export function TerminalWorkbench({
         </div>
       ) : (
         <div className="terminal-empty">
-          {loading ? "Loading terminal projections…" : "Create or select a terminal to open its viewer."}
+          {loading ? "正在读取终端记录…" : "创建或选择终端后，可在这里查看输出。"}
         </div>
       )}
     </section>

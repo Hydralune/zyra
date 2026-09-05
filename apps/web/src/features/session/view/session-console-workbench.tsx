@@ -1,3 +1,4 @@
+import { recordLabel } from "../../evidence/record-copy.ts"
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import type { TaskProjection } from "../../../../../../packages/core/typed-api-client/src/index.ts"
 import type { WorkbenchRuntime } from "../../../app/runtime.ts"
@@ -98,7 +99,7 @@ export function SessionConsoleWorkbench({
           <h3 id="session-console-heading">会话、记忆与执行位置</h3>
         </div>
         <span className={`tag tag-${projection?.connected ? "success" : "danger"}`}>
-          {projection?.connected ? "live" : "disconnected"}
+          {projection?.connected ? "已同步" : "未连接"}
         </span>
       </div>
 
@@ -114,13 +115,12 @@ export function SessionConsoleWorkbench({
       ) : null}
 
       <div className="settings-grid">
-        <article aria-labelledby="session-lineage-heading">
-          <div className="section-heading">
+        <details className="session-record-group" aria-labelledby="session-lineage-heading"><summary>
             <h4 id="session-lineage-heading">会话关系</h4>
             <span>{projection?.lineage.length ?? 0}</span>
-          </div>
+          </summary>
           <label>
-            Active session
+            当前会话
             <select
               value={projection?.activeSessionId ?? ""}
               onChange={(event) => {
@@ -134,7 +134,7 @@ export function SessionConsoleWorkbench({
             >
               {(projection?.lineage ?? []).map((entry) => (
                 <option key={entry.id} value={entry.id}>
-                  {"· ".repeat(entry.depth)}{entry.id} · {entry.lifecycle}
+                  {"· ".repeat(entry.depth)}{entry.id} · {recordLabel(entry.lifecycle)}
                 </option>
               ))}
             </select>
@@ -144,11 +144,11 @@ export function SessionConsoleWorkbench({
               <li key={entry.id} data-session-id={entry.id} data-active={entry.active}>
                 <button type="button" onClick={() => runtime.sessionConsole.setSession(entry.id)}>
                   <strong>{entry.id}</strong>
-                  <span>{entry.forked ? "fork" : "root"} · epoch {entry.compactEpoch}</span>
+                  <span>{entry.forked ? "分支会话" : "主会话"} · 压缩 {entry.compactEpoch} 次</span>
                 </button>
                 <small>
                   {humanTokens(entry.contextTokens)}/{humanTokens(entry.contextLimit)} tokens ·
-                  {entry.workerIds.length} workers · {entry.childIds.length} children
+                  {entry.workerIds.length} 个执行者 · {entry.childIds.length} 个子会话
                 </small>
               </li>
             ))}
@@ -159,19 +159,18 @@ export function SessionConsoleWorkbench({
           {projection?.cycles.length ? (
             <p className="plan-warning">{projection.cycles.length} cyclic lineage node(s)</p>
           ) : null}
-        </article>
+        </details>
 
-        <article aria-labelledby="context-budget-heading">
-          <div className="section-heading">
+        <details className="session-record-group" aria-labelledby="context-budget-heading" open><summary>
             <h4 id="context-budget-heading">上下文与压缩</h4>
-            <span>{context?.pressure ?? "unavailable"}</span>
-          </div>
+            <span>{recordLabel(context?.pressure ?? "unavailable")}</span>
+          </summary>
           <dl className="fact-grid">
             <div><dt>已使用</dt><dd>{humanTokens(context?.used ?? 0)}</dd></div>
             <div><dt>上限</dt><dd>{humanTokens(context?.limit ?? 0)}</dd></div>
             <div><dt>预留</dt><dd>{humanTokens(context?.reserve ?? 0)}</dd></div>
             <div><dt>压缩轮次</dt><dd>{context?.compactEpoch ?? 0}</dd></div>
-            <div><dt>恢复来源</dt><dd>{projection?.restoreSource ?? "none"}</dd></div>
+            <div><dt>恢复来源</dt><dd>{recordLabel(projection?.restoreSource ?? "none")}</dd></div>
             <div><dt>待写入</dt><dd>{projection?.pendingWriteCount ?? 0}</dd></div>
           </dl>
           <div className="context-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={(context?.percentage ?? 0) * 100}>
@@ -180,13 +179,13 @@ export function SessionConsoleWorkbench({
           <ol className="compact-list">
             {(context?.categories ?? []).map((category) => (
               <li key={category.id}>
-                <strong>{category.label}</strong>
+                <strong>{recordLabel(category.label)}</strong>
                 <span>{humanTokens(category.tokens)} · {(category.percentage * 100).toFixed(1)}%</span>
               </li>
             ))}
           </ol>
           <label>
-            Post-compact target
+            压缩后的目标用量
             <input
               type="number"
               min={512}
@@ -208,7 +207,7 @@ export function SessionConsoleWorkbench({
                 }
               }}
             >
-              Preview compact
+              预览压缩
             </button>
             <button
               className="button button-primary"
@@ -219,7 +218,7 @@ export function SessionConsoleWorkbench({
                 previewFingerprint: preview?.fingerprint,
               }))}
             >
-              {busy === "compact" ? "Compacting…" : "Execute compact"}
+              {busy === "compact" ? "正在压缩…" : "执行压缩"}
             </button>
             <button
               className="button button-secondary"
@@ -232,21 +231,20 @@ export function SessionConsoleWorkbench({
           </div>
           {preview ? (
             <dl className="fact-grid">
-              <div><dt>Projected</dt><dd>{humanTokens(preview.projectedTokens)}</dd></div>
-              <div><dt>Saved</dt><dd>{humanTokens(preview.savedTokens)}</dd></div>
-              <div><dt>Retained refs</dt><dd>{preview.retainedSourceIds.length}</dd></div>
-              <div><dt>Dropped refs</dt><dd>{preview.droppedSourceIds.length}</dd></div>
+              <div><dt>预计用量</dt><dd>{humanTokens(preview.projectedTokens)}</dd></div>
+              <div><dt>节省用量</dt><dd>{humanTokens(preview.savedTokens)}</dd></div>
+              <div><dt>保留引用</dt><dd>{preview.retainedSourceIds.length}</dd></div>
+              <div><dt>移除引用</dt><dd>{preview.droppedSourceIds.length}</dd></div>
             </dl>
           ) : null}
-        </article>
+        </details>
       </div>
 
       <div className="settings-grid">
-        <article aria-labelledby="checkpoint-heading">
-          <div className="section-heading">
+        <details className="session-record-group" aria-labelledby="checkpoint-heading"><summary>
             <h4 id="checkpoint-heading">检查点与恢复</h4>
             <span>{projection?.checkpoints.length ?? 0}</span>
-          </div>
+          </summary>
           <ol className="compact-list">
             {(projection?.checkpoints ?? []).slice(0, 20).map((checkpoint) => (
               <li key={checkpoint.id} data-disposition={checkpoint.disposition}>
@@ -266,7 +264,7 @@ export function SessionConsoleWorkbench({
                     disabled={!checkpoint.exactResumeEligible || Boolean(busy) || !snapshot.connected}
                     onClick={() => void act("resume", () => runtime.sessionConsole.resume(checkpoint.id))}
                   >
-                    Resume
+                    恢复
                   </button>
                   <button
                     className="button button-secondary"
@@ -274,7 +272,7 @@ export function SessionConsoleWorkbench({
                     disabled={!checkpoint.exactResumeEligible || Boolean(busy) || !snapshot.connected}
                     onClick={() => void act("rewind", () => runtime.sessionConsole.rewind(checkpoint.id))}
                   >
-                    Rewind
+                    回到检查点
                   </button>
                 </div>
                 {checkpoint.conflictReason || checkpoint.staleReason ? (
@@ -289,15 +287,14 @@ export function SessionConsoleWorkbench({
             disabled={Boolean(busy) || !snapshot.connected}
             onClick={() => void act("export", () => runtime.sessionConsole.exportSession({ include: "all" }))}
           >
-            Export run
+            导出运行记录
           </button>
-        </article>
+        </details>
 
-        <article aria-labelledby="memory-heading">
-          <div className="section-heading">
+        <details className="session-record-group" aria-labelledby="memory-heading"><summary>
             <h4 id="memory-heading">记忆管理</h4>
             <span>{memory.totalRows}</span>
-          </div>
+          </summary>
           <div className="filter-row">
             <input
               value={memoryQuery}
@@ -306,10 +303,10 @@ export function SessionConsoleWorkbench({
             />
             <select value={memoryLayer} onChange={(event) => setMemoryLayer(event.currentTarget.value as MemoryLayer | "all")}>
               <option value="all">全部记忆层</option>
-              <option value="working">Working</option>
-              <option value="episodic">Episodic</option>
-              <option value="semantic">Semantic</option>
-              <option value="skill">Skill</option>
+              <option value="working">工作记忆</option>
+              <option value="episodic">经历记忆</option>
+              <option value="semantic">语义</option>
+              <option value="skill">技能</option>
             </select>
             <button
               className="button button-secondary"
@@ -320,13 +317,13 @@ export function SessionConsoleWorkbench({
                 layer: memoryLayer,
               }))}
             >
-              Query backend
+              查询记忆
             </button>
           </div>
           <dl className="fact-grid">
             {memory.layerSummaries.map((layer) => (
               <div key={layer.layer}>
-                <dt>{layer.layer}</dt>
+                <dt>{recordLabel(layer.layer)}</dt>
                 <dd>{layer.count} · {humanTokens(layer.tokens)} tokens</dd>
               </div>
             ))}
@@ -361,22 +358,21 @@ export function SessionConsoleWorkbench({
             onClick={() => void act("curator", () => runtime.sessionConsole.curateMemory({ action: "curate" }))}
             title={task.active ? undefined : "任务已结束；继续执行任务后可整理记忆"}
           >
-            Run curator
+            整理记忆
           </button>
-        </article>
+        </details>
       </div>
 
       <div className="settings-grid">
-        <article aria-labelledby="provider-heading">
-          <div className="section-heading">
+        <details className="session-record-group" aria-labelledby="provider-heading"><summary>
             <h4 id="provider-heading">服务商与模型</h4>
             <span>{providers.providers.length} / {providers.models.length}</span>
-          </div>
+          </summary>
           <label>
-            Required capability
+            所需能力
             <input
               value={requiredCapability}
-              placeholder="tools, vision, reasoning…"
+              placeholder="例如 tools、vision、reasoning"
               onChange={(event) => setRequiredCapability(event.currentTarget.value.trim())}
             />
           </label>
@@ -409,7 +405,7 @@ export function SessionConsoleWorkbench({
               <li key={candidate.id}>
                 <div>
                   <strong>#{candidate.rank} {candidate.providerId}/{candidate.modelId}</strong>
-                  <span className="tag tag-muted">{candidate.admission}</span>
+                  <span className="tag tag-muted">{recordLabel(candidate.admission)}</span>
                 </div>
                 <small>score {(candidate.score * 100).toFixed(0)} · {candidate.reasons.join("; ") || "eligible"}</small>
                 {candidate.admission === "eligible" ? (
@@ -424,38 +420,37 @@ export function SessionConsoleWorkbench({
                       purpose: requiredCapability || "general",
                     }))}
                   >
-                    Select route
+                    选择执行路径
                   </button>
                 ) : null}
               </li>
             ))}
           </ol>
           <dl className="fact-grid">
-            <div><dt>Input</dt><dd>{humanTokens(providers.totalInputTokens)}</dd></div>
-            <div><dt>Output</dt><dd>{humanTokens(providers.totalOutputTokens)}</dd></div>
-            <div><dt>Cost</dt><dd>${providers.totalCostUsd.toFixed(4)}</dd></div>
-            <div><dt>Failures</dt><dd>{providers.totalFailures}</dd></div>
+            <div><dt>输入用量</dt><dd>{humanTokens(providers.totalInputTokens)}</dd></div>
+            <div><dt>输出用量</dt><dd>{humanTokens(providers.totalOutputTokens)}</dd></div>
+            <div><dt>费用</dt><dd>${providers.totalCostUsd.toFixed(4)}</dd></div>
+            <div><dt>失败</dt><dd>{providers.totalFailures}</dd></div>
           </dl>
-        </article>
+        </details>
 
-        <article aria-labelledby="placement-heading">
-          <div className="section-heading">
+        <details className="session-record-group" aria-labelledby="placement-heading"><summary>
             <h4 id="placement-heading">设备、边缘与云端执行</h4>
-            <span>{placement.selectedTier ?? "unplaced"}</span>
-          </div>
+            <span>{recordLabel(placement.selectedTier ?? "unplaced")}</span>
+          </summary>
           <dl className="fact-grid">
-            <div><dt>Sensitivity</dt><dd>{placement.constraints.sensitivity}</dd></div>
-            <div><dt>Privacy</dt><dd>{placement.privacyCompliant ? "compliant" : "violation"}</dd></div>
-            <div><dt>SLA</dt><dd>{placement.slaCompliant ? "compliant" : "violation"}</dd></div>
-            <div><dt>Cost</dt><dd>{placement.costCompliant ? "compliant" : "violation"}</dd></div>
+            <div><dt>敏感级别</dt><dd>{recordLabel(placement.constraints.sensitivity)}</dd></div>
+            <div><dt>隐私约束</dt><dd>{placement.privacyCompliant ? "符合要求" : "不符合要求"}</dd></div>
+            <div><dt>服务要求</dt><dd>{placement.slaCompliant ? "符合要求" : "不符合要求"}</dd></div>
+            <div><dt>费用</dt><dd>{placement.costCompliant ? "符合要求" : "不符合要求"}</dd></div>
           </dl>
           <ol className="compact-list">
             {placement.profiles.map((profile) => (
               <li key={profile.id}>
                 <div>
                   <strong>{profile.label}</strong>
-                  <span className="tag tag-muted">{profile.tier}</span>
-                  <span className="tag tag-muted">{profile.online ? "online" : "offline"}</span>
+                  <span className="tag tag-muted">{recordLabel(profile.tier)}</span>
+                  <span className="tag tag-muted">{profile.online ? "在线" : "离线"}</span>
                 </div>
                 <small>
                   CPU {profile.capacity.cpuCores} · GPU {profile.capacity.gpuCount}/{profile.capacity.gpuMemoryMb} MiB ·
@@ -470,7 +465,7 @@ export function SessionConsoleWorkbench({
               <li key={candidate.id}>
                 <div>
                   <strong>#{candidate.rank} {candidate.profileId}</strong>
-                  <span className="tag tag-muted">{candidate.admission}</span>
+                  <span className="tag tag-muted">{recordLabel(candidate.admission)}</span>
                 </div>
                 <small>
                   score {(candidate.score * 100).toFixed(0)} · privacy {(candidate.privacyScore * 100).toFixed(0)} ·
@@ -482,7 +477,7 @@ export function SessionConsoleWorkbench({
           </ol>
           {placement.modelSplit.length ? (
             <div>
-              <strong>Model split</strong>
+              <strong>模型分布</strong>
               <ol className="compact-list">
                 {placement.modelSplit.map((leg) => (
                   <li key={leg.id}>
@@ -495,7 +490,7 @@ export function SessionConsoleWorkbench({
           ) : null}
           {placement.migrations.length ? (
             <div>
-              <strong>Migration history</strong>
+              <strong>迁移记录</strong>
               <ol className="compact-list">
                 {placement.migrations.slice(0, 10).map((migration) => (
                   <li key={migration.id}>
@@ -513,7 +508,7 @@ export function SessionConsoleWorkbench({
               ))}
             </div>
           ) : null}
-        </article>
+        </details>
       </div>
     </section>
   )

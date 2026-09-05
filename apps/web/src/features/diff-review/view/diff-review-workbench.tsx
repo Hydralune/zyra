@@ -348,8 +348,7 @@ export function DiffReviewWorkbench({
         <div>
           <h3 id="diff-review-heading">代码变更审查</h3>
           <p>
-            Revision-bound diffs with permission-gated apply, verification,
-            rollback, and transaction receipts.
+            查看文件差异、审查意见和变更记录。
           </p>
         </div>
         <div className="diff-review-header-actions">
@@ -359,7 +358,7 @@ export function DiffReviewWorkbench({
               type="button"
               onClick={() => workbench.cancel()}
             >
-              Cancel
+              取消
             </button>
           ) : null}
           <button
@@ -462,10 +461,10 @@ export function DiffReviewWorkbench({
       ) : (
         <div className="diff-review-empty">
           {state.patchArtifacts.length
-            ? phaseMessage(state) || "Select a patch artifact."
+            ? phaseMessage(state) || "选择一个补丁文件，查看代码差异。"
             : state.phase === "catalog-loading"
               ? "正在加载代码变更…"
-              : "No verified text patch artifact is attached to this task."}
+              : "此任务没有可查看的代码变更。"}
         </div>
       )}
 
@@ -493,7 +492,7 @@ function ArtifactSelector({
   if (!artifacts.length) return null
   return (
     <div className="diff-review-artifact-selector">
-      <label htmlFor="diff-review-artifact">Patch artifact</label>
+      <label htmlFor="diff-review-artifact">补丁文件</label>
       <select
         id="diff-review-artifact"
         value={selected ? `${selected.artifactId}:${selected.revision}` : ""}
@@ -552,13 +551,13 @@ function DiffSidebar({
       style={{ width: `${review.preferences.sidebarWidth}px` }}
     >
       <div className="diff-review-sidebar-heading">
-        <strong>Changed files</strong>
+        <strong>变更文件</strong>
         <span>{review.filteredFiles.length}/{review.files.length}</span>
       </div>
       <input
         type="search"
         value={review.filter}
-        placeholder="Filter paths, language, or risk"
+        placeholder="筛选路径、语言或风险"
         onChange={(event) => onFilter(event.currentTarget.value)}
       />
       <div className="diff-review-file-list" role="listbox">
@@ -644,7 +643,7 @@ function DiffToolbar({
     || state.phase === "rolling-back"
   return (
     <div className="diff-review-toolbar">
-      <div className="diff-review-toggle-group" aria-label="Diff layout">
+      <div className="diff-review-toggle-group" aria-label="差异布局">
         {(["unified", "split"] as const).map((layout) => (
           <button
             type="button"
@@ -657,7 +656,7 @@ function DiffToolbar({
           </button>
         ))}
       </div>
-      <div className="diff-review-toggle-group" aria-label="Content view">
+      <div className="diff-review-toggle-group" aria-label="内容视图">
         {(["old", "diff", "new"] as const).map((mode) => (
           <button
             type="button"
@@ -674,7 +673,7 @@ function DiffToolbar({
         <input
           type="search"
           value={searchQuery}
-          placeholder="Search loaded hunks"
+          placeholder="搜索已加载的差异"
           onChange={(event) => onSearchQuery(event.currentTarget.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") onSearch()
@@ -710,7 +709,7 @@ function DiffToolbar({
           disabled={!transaction?.committed || sealed}
           onClick={onRollback}
         >
-          Roll back
+          回滚
         </button>
       </div>
     </div>
@@ -823,7 +822,7 @@ function DiffRow({
         tabIndex={0}
         onFocus={() => onFocus(row.rowId)}
       >
-        <strong>Binary file</strong>
+        <strong>二进制文件</strong>
         <span>{row.message}</span>
       </div>
     )
@@ -1033,7 +1032,7 @@ function ReviewComposer({
   onClear(): void
 }) {
   return (
-    <section className="diff-review-comments" aria-label="Review comments">
+    <section className="diff-review-comments" aria-label="审查意见">
       <div className="diff-review-comments-list">
         {comments.length ? (
           comments.map((comment) => (
@@ -1050,7 +1049,7 @@ function ReviewComposer({
             </article>
           ))
         ) : (
-          <p>No review comments for this file.</p>
+          <p>此文件暂无审查意见。</p>
         )}
       </div>
       <div className="diff-review-comment-composer">
@@ -1059,7 +1058,7 @@ function ReviewComposer({
             ? `${selection.side} lines ${selection.startLine}–${selection.endLine}`
             : "Select one or more diff lines to comment."}
           {selection ? (
-            <button type="button" onClick={onClear}>Clear</button>
+            <button type="button" onClick={onClear}>清除</button>
           ) : null}
         </div>
         <textarea
@@ -1100,7 +1099,7 @@ function TransactionPanel({
   const preflight = state.preflightReceipts
   if (!receipt && !preflight.length) return null
   return (
-    <section className="diff-review-transaction" aria-label="Patch transaction">
+    <section className="diff-review-transaction" aria-label="变更事务">
       {preflight.length ? (
         <div className="diff-review-preflight-grid">
           {preflight.map((item) => (
@@ -1120,26 +1119,26 @@ function TransactionPanel({
       {receipt ? (
         <Fragment>
           <dl className="diff-review-transaction-facts">
-            <div><dt>Phase</dt><dd>{receipt.phase}</dd></div>
-            <div><dt>Transaction</dt><dd>{receipt.transactionId}</dd></div>
-            <div><dt>Receipt</dt><dd>{receipt.receiptId}</dd></div>
-            <div><dt>Permission</dt><dd>{receipt.permission.effect}</dd></div>
-            <div><dt>Snapshot</dt><dd>{receipt.snapshotId || "—"}</dd></div>
-            <div><dt>Events</dt><dd>{receipt.eventIds.length}</dd></div>
-            <div><dt>Artifacts</dt><dd>{receipt.artifactRefs.length}</dd></div>
-            <div><dt>Human intervention</dt><dd>{receipt.humanInterventionCount}</dd></div>
+            <div><dt>状态</dt><dd>{receipt.phase}</dd></div>
+            <div><dt>事务</dt><dd>{receipt.transactionId}</dd></div>
+            <div><dt>回执</dt><dd>{receipt.receiptId}</dd></div>
+            <div><dt>权限</dt><dd>{receipt.permission.effect}</dd></div>
+            <div><dt>快照</dt><dd>{receipt.snapshotId || "—"}</dd></div>
+            <div><dt>事件</dt><dd>{receipt.eventIds.length}</dd></div>
+            <div><dt>产物</dt><dd>{receipt.artifactRefs.length}</dd></div>
+            <div><dt>人工介入</dt><dd>{receipt.humanInterventionCount}</dd></div>
           </dl>
           <p>{receipt.message}</p>
           {receipt.phase === "permission_pending" ? (
             <div className="diff-review-permit">
               <label htmlFor="diff-review-permit-id">
-                Approved exact-call permit
+                本次操作的审批凭据
               </label>
               <input
                 id="diff-review-permit-id"
                 value={permitId}
                 onChange={(event) => onPermitId(event.currentTarget.value)}
-                placeholder="permit id from Permissions"
+                placeholder="填写权限审批提供的凭据"
               />
               <button
                 className="button button-primary"
@@ -1147,7 +1146,7 @@ function TransactionPanel({
                 disabled={!permitId.trim()}
                 onClick={onRetryPermission}
               >
-                Retry exact request
+                重试此次请求
               </button>
             </div>
           ) : null}

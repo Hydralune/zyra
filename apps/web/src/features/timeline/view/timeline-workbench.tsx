@@ -1,3 +1,4 @@
+import { recordLabel, recordTitle, recordSummary } from "../../evidence/record-copy.ts"
 import {
   Fragment,
   useEffect,
@@ -128,10 +129,10 @@ function StatusBanner({ snapshot }: { snapshot: TimelineWorkbenchSnapshot }) {
             ? "Restoring canonical worker history"
             : snapshot.reconnecting
               ? "Canonical stream is catching up"
-              : "Timeline contains partial evidence"}
+              : "部分时间线记录尚不完整"}
       </strong>
       {snapshot.error ? <p>{snapshot.error}</p> : null}
-      {warnings.length ? <p>{warnings.join(" · ")}</p> : null}
+      {warnings.length ? <details><summary>查看 {warnings.length} 项来源提示</summary><p>{warnings.join(" · ")}</p></details> : null}
     </div>
   )
 }
@@ -186,16 +187,16 @@ function TimelineToolbar({
   return (
     <div className="timeline-toolbar" aria-label="Timeline filters and navigation">
       <label className="timeline-search">
-        <span>Search timeline</span>
+        <span>搜索时间线</span>
         <input
           type="search"
           value={filter.search ?? ""}
-          placeholder="worker, event, tool, failure…"
+          placeholder="搜索执行者、事件、工具或故障…"
           onChange={(event) => controller.setSearch(event.currentTarget.value)}
         />
       </label>
       <div className="timeline-filter-group" aria-label="Worker filters">
-        <span className="timeline-filter-label">Workers</span>
+        <span className="timeline-filter-label">执行者</span>
         <div>
           {workers.slice(0, 12).map((worker) => (
             <ToggleChip
@@ -211,7 +212,7 @@ function TimelineToolbar({
         </div>
       </div>
       <div className="timeline-filter-group" aria-label="Worker phase filters">
-        <span className="timeline-filter-label">Phase</span>
+        <span className="timeline-filter-label">状态</span>
         <div>
           {phases.map(({ phase, count }) => (
             <ToggleChip
@@ -220,13 +221,13 @@ function TimelineToolbar({
               count={count}
               onClick={() => controller.togglePhase(phase as never)}
             >
-              {phase}
+              {recordLabel(phase)}
             </ToggleChip>
           ))}
         </div>
       </div>
       <details className="timeline-more-filters">
-        <summary>Event types</summary>
+        <summary>事件类型</summary>
         <div className="timeline-filter-group">
           <div>
             {kinds.map(({ kind, count }) => (
@@ -236,7 +237,7 @@ function TimelineToolbar({
                 count={count}
                 onClick={() => controller.toggleKind(kind as never)}
               >
-                {kind}
+                {recordLabel(kind)}
               </ToggleChip>
             ))}
           </div>
@@ -247,20 +248,20 @@ function TimelineToolbar({
           active={filter.criticalOnly === true}
           onClick={() => controller.toggleCritical()}
         >
-          Critical path
+          关键路径
         </ToggleChip>
         <ToggleChip
           active={filter.failuresOnly === true}
           onClick={() => controller.toggleFailures()}
         >
-          Failure + recovery
+          故障与恢复
         </ToggleChip>
         <ToggleChip
           active={filter.includePartial === false}
           onClick={() => controller.togglePartial()}
           title="Hide rows whose canonical evidence is incomplete"
         >
-          Complete evidence only
+          仅显示完整记录
         </ToggleChip>
         {snapshot.view.filtered.activeFilterCount ? (
           <button
@@ -279,7 +280,7 @@ function TimelineToolbar({
           disabled={snapshot.view.window.beforeCount === 0}
           onClick={() => controller.showEarlier()}
         >
-          Earlier
+          上一段
         </button>
         <span>
           {snapshot.view.window.total
@@ -292,14 +293,14 @@ function TimelineToolbar({
           disabled={snapshot.view.window.afterCount === 0}
           onClick={() => controller.showLater()}
         >
-          Later
+          下一段
         </button>
         <button
           type="button"
           className={`button ${snapshot.view.followLatest ? "button-primary" : "button-secondary"}`}
           onClick={() => controller.followLatest()}
         >
-          Follow latest
+          跟随最新记录
         </button>
       </div>
     </div>
@@ -337,40 +338,40 @@ function TimelineRowDetails({ row }: { row: TimelineRow }) {
     <div className="timeline-row-details">
       <dl>
         <div>
-          <dt>Event range</dt>
+          <dt>事件范围</dt>
           <dd>{row.sequence === row.endSequence ? row.sequence : `${row.sequence}–${row.endSequence}`}</dd>
         </div>
         <div>
-          <dt>Correlation</dt>
+          <dt>关联</dt>
           <dd><code>{row.correlationId}</code></dd>
         </div>
         {row.causationId ? (
           <div>
-            <dt>Cause</dt>
+            <dt>原因</dt>
             <dd><code>{row.causationId}</code></dd>
           </div>
         ) : null}
         {row.spanId ? (
           <div>
-            <dt>Span</dt>
+            <dt>追踪片段</dt>
             <dd><code>{row.spanId}</code></dd>
           </div>
         ) : null}
         {row.leaseId ? (
           <div>
-            <dt>Lease</dt>
+            <dt>执行租约</dt>
             <dd><code>{row.leaseId}</code></dd>
           </div>
         ) : null}
         {row.routeId ? (
           <div>
-            <dt>Route</dt>
+            <dt>执行路径</dt>
             <dd><code>{row.routeId}</code></dd>
           </div>
         ) : null}
       </dl>
       <div className="timeline-evidence-list">
-        <strong>Canonical evidence</strong>
+        <strong>原始证据</strong>
         <ul>
           {row.evidence.map((item) => (
             <li key={`${item.kind}:${item.id}`} className={item.missing ? "is-missing" : ""}>
@@ -434,15 +435,17 @@ function TimelineRowItem({
         measured
           ? {
               position: "absolute",
+              top: 0,
+              left: 0,
               transform: `translateY(${measured.offset}px)`,
               width: "100%",
-              minHeight: `${measured.size}px`,
             }
           : undefined
       }
       tabIndex={selected ? 0 : -1}
       onClick={() => controller.selectRow(row.key)}
       onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault()
           controller.selectRow(row.key)
@@ -459,20 +462,20 @@ function TimelineRowItem({
         <header>
           <time dateTime={row.committedAt}>{formatTime(row.committedAt)}</time>
           <span className="tag tag-muted">#{row.sequence}</span>
-          <span className={`timeline-phase tone-${phaseTone(row.phase)}`}>{row.phase}</span>
-          <span className="timeline-kind">{row.rowKind}</span>
-          {row.critical ? <span className="tag">critical</span> : null}
-          {row.partial ? <span className="tag tag-danger">partial</span> : null}
-          {row.late ? <span className="tag tag-muted">late</span> : null}
+          <span className={`timeline-phase tone-${phaseTone(row.phase)}`}>{recordLabel(row.phase)}</span>
+          <span className="timeline-kind">{recordLabel(row.rowKind)}</span>
+          {row.critical ? <span className="tag">关键路径</span> : null}
+          {row.partial ? <span className="tag tag-danger">不完整</span> : null}
+          {row.late ? <span className="tag tag-muted">延迟</span> : null}
           {row.duplicateCount ? <span className="tag tag-muted">deduped {row.duplicateCount}</span> : null}
           {overlay?.labels.slice(0, 4).map((label) => (
-            <span className="tag tag-muted" key={label}>{label}</span>
+            <span className="tag tag-muted" key={label}>{recordLabel(label)}</span>
           ))}
         </header>
         <div className="timeline-row-heading">
           <div>
-            <strong>{row.title}</strong>
-            <p>{row.summary}</p>
+            <strong title={row.title}>{recordTitle(row.title)}</strong>
+            <p title={row.summary}>{recordSummary(row.summary)}</p>
           </div>
           <button
             type="button"
@@ -483,7 +486,7 @@ function TimelineRowItem({
               controller.toggleExpanded(row.key)
             }}
           >
-            {expanded ? "Hide evidence" : "Evidence"}
+            {expanded ? "收起详情" : "查看详情"}
           </button>
         </div>
         <div className="timeline-row-entities">
@@ -596,7 +599,7 @@ function TimelineRows({
   if (!scaled.rows.length) {
     return (
       <div className="timeline-empty">
-        <strong>No timeline rows match the current filters.</strong>
+        <strong>没有匹配的时间线记录。</strong>
         <p>
           {snapshot.projection.rows.length
             ? `${snapshot.projection.rows.length} canonical row(s) remain available.`
@@ -608,10 +611,10 @@ function TimelineRows({
   return (
     <>
       <div className="timeline-scale-summary" aria-label="Timeline scale summary">
-        <span>{scaled.totalRows.toLocaleString()} canonical rows</span>
-        <span>{scaled.effectiveSteps.toLocaleString()} effective steps</span>
-        <span>{scaled.hiddenByFolds.toLocaleString()} safely folded</span>
-        <span>{scaled.renderedRows} mounted</span>
+        <span>{scaled.totalRows.toLocaleString()} 条记录</span>
+        <span>{scaled.effectiveSteps.toLocaleString()} 个有效步骤</span>
+        <span>{scaled.hiddenByFolds.toLocaleString()} 条已折叠</span>
+        <span>{scaled.renderedRows} 条已呈现</span>
         {scaled.search ? <span>{scaled.search.totalMatches} search matches</span> : null}
         {scaled.goalDrift.currentEpoch ? (
           <span>
@@ -720,18 +723,17 @@ function TimelineInspector({
     const path = snapshot.projection.criticalPath
     return (
       <aside className="timeline-inspector" aria-label="Timeline critical path summary">
-        <p className="eyebrow">Causal analysis</p>
+        <p className="eyebrow">因果分析</p>
         <h4>关键执行路径</h4>
         <dl>
           <div><dt>记录</dt><dd>{path.rowKeys.length}</dd></div>
-          <div><dt>Events</dt><dd>{path.eventIds.length}</dd></div>
+          <div><dt>事件</dt><dd>{path.eventIds.length}</dd></div>
           <div><dt>执行者</dt><dd>{path.workerIds.length}</dd></div>
-          <div><dt>Duration</dt><dd>{formatDuration(path.durationMs)}</dd></div>
-          <div><dt>Complete</dt><dd>{path.complete ? "yes" : "partial"}</dd></div>
+          <div title="路径首条到末条记录的时间跨度；任务执行用时见概览。"><dt>记录跨度</dt><dd>{formatDuration(path.durationMs)}</dd></div>
+          <div><dt>完整</dt><dd>{path.complete ? "是" : "不完整"}</dd></div>
         </dl>
         <p>
-          Select a timeline row to inspect its spans, tool calls, artifacts,
-          failures, recoveries, mutations and topology targets.
+          选择一条记录，查看工具调用、产物和故障恢复详情。
         </p>
         {path.rowKeys.length ? (
           <button
@@ -742,7 +744,7 @@ function TimelineInspector({
               if (key) controller.selectRow(key)
             }}
           >
-            Inspect first critical row
+            查看首条关键记录
           </button>
         ) : null}
       </aside>
@@ -762,7 +764,7 @@ function TimelineInspector({
     >
       <div className="timeline-inspector-heading">
         <div>
-          <p className="eyebrow">Selected evidence</p>
+          <p className="eyebrow">所选证据</p>
           <h4>{row.title}</h4>
         </div>
         <button type="button" onClick={() => controller.clearSelection()}>
@@ -771,15 +773,15 @@ function TimelineInspector({
       </div>
       <p>{row.summary}</p>
       <dl>
-        <div><dt>Phase</dt><dd>{row.phase}</dd></div>
-        <div><dt>Sequence</dt><dd>{row.sequence}–{row.endSequence}</dd></div>
-        <div><dt>Causal depth</dt><dd>{row.depth}</dd></div>
-        <div><dt>Incoming</dt><dd>{incoming.length}</dd></div>
-        <div><dt>Outgoing</dt><dd>{outgoing.length}</dd></div>
-        <div><dt>Effective</dt><dd>{row.effective ? "yes" : "no"}</dd></div>
+        <div><dt>状态</dt><dd>{row.phase}</dd></div>
+        <div><dt>记录序号</dt><dd>{row.sequence}–{row.endSequence}</dd></div>
+        <div><dt>因果深度</dt><dd>{row.depth}</dd></div>
+        <div><dt>前置记录</dt><dd>{incoming.length}</dd></div>
+        <div><dt>后续记录</dt><dd>{outgoing.length}</dd></div>
+        <div><dt>已生效</dt><dd>{row.effective ? "是" : "否"}</dd></div>
       </dl>
       <section>
-        <h5>Causal neighbors</h5>
+        <h5>关联记录</h5>
         <div className="timeline-neighbor-list">
           {[...incoming, ...outgoing].map((edge) => {
             if (!edge) return null
@@ -808,7 +810,7 @@ function TimelineInspector({
         </div>
       </section>
       <section>
-        <h5>Open canonical target</h5>
+        <h5>查看关联记录</h5>
         <div className="timeline-target-list">
           {row.drilldowns.map((target) => (
             <button
@@ -904,11 +906,11 @@ export function WorkerCausalTimelineWorkbench({
         label="tool"
       />
       <TimelineToolbar controller={controller} snapshot={snapshot} />
-      <RecoveryControlPanel
+      <details className="record-advanced-options"><summary>运行控制与操作回执</summary><RecoveryControlPanel
         runtime={runtime}
         task={task}
         projection={projection}
-      />
+      /></details>
       <div className="timeline-workspace">
         <div className="timeline-list-region">
           <TimelineRows controller={controller} snapshot={snapshot} />
