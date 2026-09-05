@@ -7267,19 +7267,6 @@ kbd {
   transform: rotate(-9deg);
 }
 
-.product-orbit i {
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  border: 2px solid #fcfcfc;
-  border-radius: 999px;
-  background: #b8b8b8;
-}
-
-.product-orbit i:nth-of-type(1) { inset: 8px auto auto 8px; }
-.product-orbit i:nth-of-type(2) { inset: auto 7px 14px auto; background: #b7b7b7; }
-.product-orbit i:nth-of-type(3) { inset: 13px 9px auto auto; background: #b8b8b8; }
-
 .product-kicker,
 .advanced-center-heading .eyebrow {
   margin: 0;

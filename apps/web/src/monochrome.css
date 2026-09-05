@@ -1,5 +1,5 @@
-/* Shared product tokens: the conversation, settings, evidence and overlays all
-   use the same neutral palette. Terminal/media content keeps its own colours. */
+/* Neutral surfaces with shared colours for actions and status feedback.
+   Terminal/media content keeps its own colours. */
 :root, .product-shell, .advanced-drawer-panel, .evidence-route {
   color-scheme: light;
   --bg: #fafafa;
@@ -12,12 +12,19 @@
   --text: #202020;
   --muted: #606060;
   --subtle: #767676;
-  --accent: #292929;
-  --accent-strong: #171717;
-  --accent-bg: #ededed;
-  --danger: #383838;
-  --danger-bg: #f0f0f0;
-  --warning: #505050;
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-bg: #eff6ff;
+  --accent-border: #bfdbfe;
+  --success: #15803d;
+  --success-bg: #f0fdf4;
+  --success-border: #bbdfc7;
+  --danger: #b91c1c;
+  --danger-bg: #fef2f2;
+  --danger-border: #fecaca;
+  --warning: #a16207;
+  --warning-bg: #fffbeb;
+  --warning-border: #fde68a;
   --shadow: 0 12px 36px rgb(0 0 0 / 8%);
   color: var(--text);
   background: var(--bg);
@@ -32,25 +39,22 @@ body { background: #fafafa; color: #202020; }
 }
 .product-shell .product-new-task { color: var(--text); background: #fff; border-color: #d4d4d4; }
 .product-primary-nav button[aria-current="page"], .product-recent-task[aria-current="page"] { color: #171717; background: #e9e9e9; }
-.product-shell :is(.button, .product-button) { font: inherit; font-size: 13px; min-height: 34px; border-radius: 8px; }
+.product-shell :is(.button, .product-button) { font: inherit; font-size: 14px; min-height: 36px; border-radius: 8px; }
 .product-shell :is(.button-primary, .product-button-primary), .product-shell .command-submit {
-  color: #fff; background: #202020; border: 1px solid #202020; box-shadow: none;
+  color: #fff; background: var(--accent); border: 1px solid var(--accent); box-shadow: none;
 }
-.product-shell :is(.button-primary, .product-button-primary):hover:not(:disabled), .product-shell .command-submit:hover:not(:disabled) { background: #414141; color: #fff; }
+.product-shell :is(.button-primary, .product-button-primary):hover:not(:disabled), .product-shell .command-submit:hover:not(:disabled) { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
 .product-shell :is(.button-secondary, .product-button-quiet) { color: #404040; background: transparent; }
-.product-shell :is(button, input, textarea, select):focus-visible { outline: 2px solid #555; outline-offset: 3px; }
+.product-shell :is(.button-secondary, .product-button:not(.product-button-primary):not(.product-button-danger)):hover:not(:disabled) { color: var(--accent-strong); background: var(--accent-bg); border-color: var(--accent-border); }
+.product-shell :is(.button-danger, .product-button-danger) { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
+.product-shell :is(.button-danger, .product-button-danger):hover:not(:disabled) { color: #991b1b; background: #fee2e2; border-color: #fca5a5; }
+.product-shell :is(button, input, textarea, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.product-shell .command-input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgb(37 99 235 / 10%); }
+.product-shell .command-editor textarea:focus-visible { outline: none; }
 .product-shell button:disabled { opacity: .48; cursor: not-allowed; }
+.product-shell :is(.button-primary, .product-button-primary, .command-submit):disabled { color: #737373; background: #e5e5e5; border-color: #dedede; opacity: 1; }
 .product-shell :is(.product-status-dot, .product-recent-status, .connection-dot, .product-working-spinner) { color: #404040; background-color: #777; box-shadow: none; }
-/* Semantic status dots are the deliberate colour exception to the neutral theme. */
-.product-shell .product-status-dot[data-tone="success"],
-.product-shell .runtime-pill[data-phase="ready"] .connection-dot { background-color: #16803c; }
-.product-shell .product-status-dot[data-tone="danger"],
-.product-shell .runtime-pill[data-phase="error"] .connection-dot,
-.product-shell .runtime-pill[data-phase="offline"] .connection-dot { background-color: #dc2626; }
-.product-shell .product-status-dot[data-tone="active"] { background-color: #2563eb; }
-.product-shell .runtime-pill[data-phase="loading"] .connection-dot,
-.product-shell .runtime-pill[data-phase="reconnecting"] .connection-dot { background-color: #c27609; }
-.product-shell :is(.product-progress, .product-sync-bar) > span { background: #3b3b3b; }
+.product-shell :is(.product-progress, .product-sync-bar) > span { background: var(--accent); }
 .product-shell .product-answer, .product-shell .product-message-user p { color: #252525; font-size: var(--answer-font-size, 16px); line-height: 1.8; }
 .product-shell .product-message-user p { background: #eee; }
 .product-shell :is(.product-agent-meta time, .product-disclosure small, .product-plan-list small, .product-topbar small, .product-session-status small, .product-recent-task small, .product-command-footer, .product-composer-context, .product-sidebar-empty) { color: #666; font-size: 12px; }
@@ -66,11 +70,12 @@ body { background: #fafafa; color: #202020; }
 .product-code-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 12px; border-bottom: 1px solid #dedede; font: 12px/1.5 "Segoe UI", sans-serif; color: #555; }
 .product-answer-markdown .product-code-block pre { margin: 0; border: 0; border-radius: 0; background: #f5f5f5; color: #252525; }
 .product-answer-markdown code { color: #333; background-color: #f0f0f0; }
-.product-answer-markdown a { color: #292929; text-decoration: underline; text-underline-offset: 3px; }
+.product-answer-markdown a { color: var(--accent-strong); text-decoration: underline; text-underline-offset: 3px; }
 .product-answer-loading { padding: 15px 18px; background: #f4f4f4; border-radius: 10px; color: #555; }
 .product-answer-loading p { margin: 6px 0; line-height: 1.6; }
 .product-answer-loading strong { color: #3e3e3e; font-size: 14px; }
-.product-shell :is(.product-error-copy, .plan-warning, .error-banner) { color: #292929; background: #eee; border: 1px solid #999; border-left-width: 3px; padding: 10px 14px; border-radius: 8px; }
+.product-shell :is(.product-error-copy, .error-banner, .command-error, .state-error) { color: var(--danger); background: var(--danger-bg); border: 1px solid var(--danger-border); border-left-width: 3px; padding: 10px 14px; border-radius: 8px; font-size: 14px; }
+.product-shell .plan-warning { color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border); border-left-width: 3px; padding: 10px 14px; border-radius: 8px; }
 .product-recent-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 28px; align-items: center; }
 .product-recent-row .product-recent-task { min-width: 0; width: 100%; }
 .product-conversation-more, .product-history-filter { background: transparent; border: 0; color: #656565; cursor: pointer; font-size: 13px; }
@@ -89,7 +94,7 @@ body { background: #fafafa; color: #202020; }
 .eyebrow { color: #666; }
 .settings-tabs { display: flex; gap: 22px; margin-bottom: 28px; border-bottom: 1px solid #ddd; }
 .settings-tabs button { padding: 12px 0; color: #666; border: 0; border-bottom: 2px solid transparent; background: transparent; font-size: 14px; cursor: pointer; }
-.settings-tabs button[aria-selected="true"] { color: #202020; border-bottom-color: #202020; font-weight: 650; }
+.settings-tabs button[aria-selected="true"] { color: var(--accent-strong); border-bottom-color: var(--accent); font-weight: 650; }
 .settings-card { margin: 0 0 20px; padding: 24px; background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; box-shadow: none; }
 .settings-card h2 { margin: 0 0 10px; font-size: 18px; color: #202020; }
 .settings-card > p { margin: 8px 0 18px; color: #626262; line-height: 1.7; font-size: 14px; }
@@ -100,7 +105,7 @@ body { background: #fafafa; color: #202020; }
 .settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 18px; }
 .settings-actions > select { width: min(100%, 540px); }
 .settings-current { padding: 10px 12px; background: #f7f7f7; border-radius: 6px; }
-.settings-notice { padding: 12px 15px; color: #414141; background: #eee; border-radius: 8px; line-height: 1.6; }
+.settings-notice { padding: 12px 15px; color: var(--success); background: var(--success-bg); border: 1px solid var(--success-border); border-radius: 8px; line-height: 1.6; }
 .settings-text-preview { margin-top: 18px !important; font-size: var(--answer-font-size, 16px) !important; }
 .settings-experiments > .detail-section { padding: 24px; margin: 22px 0; background: #fff; border: 1px solid #ddd; border-radius: 12px; }
 .settings-experiments .settings-grid { align-items: start; gap: 20px; }
@@ -111,7 +116,7 @@ body { background: #fafafa; color: #202020; }
 .product-shell :is(.fact-grid dd, .inline-facts dd) { color: #303030; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
 .product-shell :is(.fact-grid, .settings-grid) { border-color: #ddd; }
 .product-shell .fact-grid > div { padding: 14px; background: #fff; }
-.product-shell .tag { color: #555; background: #eee; border-color: #ccc; font-size: 12px; text-transform: none; }
+.product-shell .tag { color: #555; background: #f5f5f5; border-color: #ddd; padding: 3px 9px; font-size: 13px; text-transform: none; }
 .product-shell .section-heading h3 { font-size: 16px; color: #333; }
 .product-shell .muted-copy { color: #666; }
 .advanced-drawer-panel { background: #fafafa; border-left: 1px solid #d5d5d5; box-shadow: -12px 0 40px rgb(0 0 0 / 12%); }
@@ -129,10 +134,68 @@ body { background: #fafafa; color: #202020; }
 .command-queue-panel > ol { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .command-queue-panel > ol > li { padding: 12px; border: 1px solid #ddd; border-radius: 8px; color: #666; font-size: 13px; }
 .command-queue-panel > ol > li > span:first-child { flex: 1 1 180px; color: #252525; overflow-wrap: anywhere; }
-.product-shell .overlay-panel, .product-shell .notification { color: #252525; background: #fff; border-color: #bbb; }
+.product-shell :is(.overlay-panel, .overlay-dialog, .notification) { color: #252525; background: #fff; border-color: #ddd; }
 .product-shell .notification strong { font-size: 14px; }
 .product-shell .notification p { color: #606060; font-size: 13px; }
+/* Status colours are shared by badges, dots, plan steps and connection panels. */
+.product-shell :is([data-phase="ready"], [data-phase="online"], [data-phase="live"], [data-phase="succeeded"], [data-phase="completed"], [data-phase="verified"], [data-status="completed"], [data-status="succeeded"], [data-status="verified"], [data-tone="success"], [data-command-phase="completed"], .tag-success, .runtime-ready, .status-completed, .status-succeeded, .status-verified) {
+  --state-ink: var(--success); --state-bg: var(--success-bg); --state-border: var(--success-border);
+}
+.product-shell :is([data-phase="running"], [data-phase="active"], [data-phase="responding"], [data-status="running"], [data-status="active"], [data-status="dispatched"], [data-tone="active"], [data-tone="info"], [data-command-phase="running"], .tag-info, .status-running, .status-active, .status-dispatched) {
+  --state-ink: var(--accent-strong); --state-bg: var(--accent-bg); --state-border: var(--accent-border);
+}
+.product-shell :is([data-phase="loading"], [data-phase="connecting"], [data-phase="binding"], [data-phase="reconnecting"], [data-phase="restoring"], [data-phase="degraded"], [data-phase="stale"], [data-phase="blocked"], [data-phase="paused"], [data-phase="awaiting_approval"], [data-phase="needs_revision"], [data-status="blocked"], [data-status="paused"], [data-tone="warning"], [data-tone="reconnecting"], .tag-warning, .runtime-loading, .runtime-reconnecting, .status-pending, .status-paused, .status-blocked) {
+  --state-ink: var(--warning); --state-bg: var(--warning-bg); --state-border: var(--warning-border);
+}
+.product-shell :is([data-phase="error"], [data-phase="failed"], [data-phase="offline"], [data-phase="disconnected"], [data-status="failed"], [data-status="error"], [data-tone="danger"], [data-tone="error"], [data-tone="offline"], [data-command-phase="failed"], .tag-danger, .runtime-error, .status-failed, .status-error) {
+  --state-ink: var(--danger); --state-bg: var(--danger-bg); --state-border: var(--danger-border);
+}
+.product-shell :is([data-phase="idle"], [data-phase="cancelled"], [data-phase="archived"], [data-status="pending"], [data-status="cancelled"], [data-status="canceled"], [data-tone="neutral"], .tag-muted, .status-cancelled) {
+  --state-ink: #666; --state-bg: #f5f5f5; --state-border: #ddd;
+}
+.product-shell :is(.tag[data-phase], .tag-success, .tag-info, .tag-warning, .tag-danger, .runtime-pill, .runtime-summary, .product-step-state, .product-step-icon, .product-disclosure-icon, .notification),
+.product-shell .connection-banner[data-tone],
+.product-shell .product-plan-list li[data-status] :is(.product-step-state, .product-step-icon) {
+  color: var(--state-ink, #555); background: var(--state-bg, #fff); border-color: var(--state-border, #ddd);
+}
+.product-shell :is(.product-status-dot, .product-recent-status, .connection-dot, .status-marker) { background: var(--state-ink, #777); box-shadow: none; }
+.product-shell .product-working-spinner { color: var(--accent); background: transparent; }
+.product-shell .product-verified { color: var(--success); background: var(--success-bg); }
+.product-shell .runtime-pill[data-phase] .connection-dot,
+.product-shell .connection-banner[data-tone] .connection-dot { background: var(--state-ink, #777); box-shadow: none; }
+.product-shell .connection-banner button { color: inherit; }
+.product-shell .owner-list li[data-ready="true"] strong { color: var(--success); }
+.product-shell .owner-list li[data-ready="false"] strong { color: var(--danger); }
+.product-shell .runtime-summary p, .product-shell .owner-list li { font-size: 14px; }
+.product-shell .runtime-summary { font-size: 15px; }
+.product-shell .confirmation-content blockquote { color: var(--text); }
+.product-shell .settings-experiments .muted-copy { font-size: 14px; }
+/* Command help keeps the command and its purpose readable without syntax noise. */
+.product-shell .overlay-dialog { display: flex; flex-direction: column; }
+.product-shell .overlay-dialog > header { flex-shrink: 0; padding: 18px 24px; }
+.product-shell .overlay-dialog > header h2 { margin: 0; font-size: 20px; }
+.command-reference { display: flex; flex-direction: column; min-height: 0; padding: 0; overflow: hidden; }
+.command-reference-toolbar { flex-shrink: 0; padding: 18px 24px; border-bottom: 1px solid var(--border); }
+.command-reference-toolbar p { margin: 0 0 12px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.command-reference-toolbar input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px; color: var(--text); background: #fafafa; font: inherit; font-size: 15px; }
+.command-reference-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 24px 24px; }
+.command-reference section + section { margin-top: 24px; }
+.command-reference h3 { margin: 12px 0 6px; font-size: 14px; font-weight: 650; color: #666; }
+.command-reference dl { gap: 0; }
+.command-reference dl > div { grid-template-columns: 145px minmax(0, 1fr); align-items: baseline; gap: 20px; padding: 15px 0; border: 0; border-bottom: 1px solid #eee; border-radius: 0; background: transparent; }
+.command-reference code { font-size: 16px; font-weight: 600; color: #252525; }
+.command-reference dd { font-size: 15px; line-height: 1.65; overflow-wrap: anywhere; }
+.product-shell .command-suggestion { padding: 12px; gap: 16px; }
+.product-shell .suggestion-command { font-size: 15px; overflow-wrap: anywhere; }
+.product-shell .suggestion-copy strong { font-size: 14px; }
+.product-shell .suggestion-copy > span { font-size: 13px; white-space: normal; line-height: 1.5; }
+.product-shell .command-suggestion:hover, .product-shell .command-suggestion[aria-selected="true"] { background: var(--accent-bg); }
+.product-shell .command-suggestion[aria-selected="true"] { box-shadow: inset 3px 0 var(--accent); }
+.product-shell .command-suggestion[aria-selected="true"] .suggestion-command { color: var(--accent-strong); }
 @media (max-width: 700px) {
+  .command-reference dl > div { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  .command-reference-list, .command-reference-toolbar { padding-inline: 18px; }
+  .product-shell .command-suggestion { grid-template-columns: 105px minmax(0, 1fr); gap: 10px; }
   .settings-form-grid, .product-settings .settings-grid { grid-template-columns: minmax(0, 1fr); }
   .settings-card, .settings-experiments > .detail-section { padding: 18px; }
   .settings-tabs { gap: 18px; }

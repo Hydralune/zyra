@@ -80,7 +80,7 @@ function SuggestionList({
       className="command-suggestions"
       id="command-suggestions"
       role="listbox"
-      aria-label="Slash command suggestions"
+      aria-label="斜杠命令建议"
     >
       {suggestions.map((suggestion, index) => {
         const definition = suggestion.definition
@@ -103,7 +103,6 @@ function SuggestionList({
               <span>{definition.description}</span>
             </span>
             <span className="suggestion-badges">
-              {definition.remoteSafe ? <span className="tag">运行服务</span> : <span className="tag tag-muted">界面操作</span>}
               {!suggestion.availability.enabled ? (
                 <span className="tag tag-danger">{suggestion.availability.reason}</span>
               ) : null}

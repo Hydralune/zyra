@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react"
 import { OPERATION_NAMES, type TaskProjection } from "../../../../../packages/core/typed-api-client/src/index.ts"
 import type { WorkbenchRuntime } from "../../app/runtime.ts"
-import { useWorkbenchSnapshot } from "../../app/hooks.ts"
+import { useOnlineStatus, useWorkbenchSnapshot } from "../../app/hooks.ts"
 import { ScenarioWorkbench } from "../../features/scenarios/index.ts"
 import { ExperimentWorkbench } from "../../features/experiments/index.ts"
 import { PermissionWorkbench } from "../../features/permissions/index.ts"
@@ -33,6 +33,14 @@ const effortLabels: Record<string, string> = { low: "低", medium: "中", high: 
 export function ProductSettings({ runtime }: { runtime: WorkbenchRuntime }) {
   const preferences = useSyncExternalStore(runtime.preferences.subscribe, runtime.preferences.getSnapshot, runtime.preferences.getSnapshot)
   const workbench = useWorkbenchSnapshot(runtime)
+  const online = useOnlineStatus()
+  const runtimeReady = workbench.runtime.phase === "ready" && workbench.runtime.readiness?.ready
+  const runtimeStatus = !online ? { phase: "offline", label: "离线" }
+    : runtimeReady ? { phase: "ready", label: "就绪" }
+    : workbench.runtime.phase === "loading" ? { phase: "loading", label: "正在检查" }
+    : workbench.runtime.phase === "reconnecting" ? { phase: "reconnecting", label: "正在重连" }
+    : workbench.runtime.phase === "error" ? { phase: "error", label: "连接失败" }
+    : { phase: "degraded", label: "需要检查" }
   const [tab, setTab] = useState<"general" | "system" | "experiments">("general")
   const [models, setModels] = useState<ModelChoice[]>([])
   const [modelPhase, setModelPhase] = useState("loading")
@@ -111,7 +119,7 @@ export function ProductSettings({ runtime }: { runtime: WorkbenchRuntime }) {
         {modelPhase === "ready" && !models.length ? <p>当前没有可用模型，请先配置后端模型服务。</p> : null}
         <div className="settings-actions"><button className="product-button product-button-primary" type="button" disabled={modelPhase !== "ready"} onClick={saveModel}>保存模型设置</button><button className="product-button" type="button" onClick={() => void loadModels()}>刷新模型列表</button></div>
       </section>
-      <section className="settings-card"><h2>外观与阅读</h2><p>黑白灰主题，主页面与运行详情使用同一套配色。</p>
+      <section className="settings-card"><h2>外观与阅读</h2><p>以黑白灰为主，操作和状态使用辅助色，主页面与运行详情保持一致。</p>
         <label>回答文字大小<select aria-label="回答文字大小" value={preferences.fontSize} onChange={(event) => changeFont(Number(event.target.value) as 14 | 16 | 18)}><option value={14}>紧凑 · 14 px</option><option value={16}>标准 · 16 px</option><option value={18}>大字 · 18 px</option></select></label>
         <p className="product-answer settings-text-preview">这是回复正文的阅读效果。执行步骤和辅助说明使用较小的灰色文字。</p>
       </section>
@@ -120,8 +128,8 @@ export function ProductSettings({ runtime }: { runtime: WorkbenchRuntime }) {
         {permissionTask ? <PermissionWorkbench runtime={runtime} task={permissionTask} /> : null}
       </section>
     </> : tab === "system" ? <div className="settings-grid">
-      <article className="settings-card"><h2>API 与运行时</h2><p>当前浏览器连接的服务。</p><dl className="fact-grid"><div><dt>服务地址</dt><dd>{runtime.api.client.baseUrl}</dd></div><div><dt>运行状态</dt><dd>{workbench.runtime.readiness?.ready ? "就绪" : workbench.runtime.phase === "loading" ? "正在检查" : "需要检查"}</dd></div></dl><button type="button" className="product-button" onClick={() => void runtime.commands.submit("/status", { origin: "button" })}>查看运行状态</button></article>
-      <article className="settings-card"><h2>浏览器历史</h2><p>输入历史、草稿、归档标记和外观偏好保存在当前浏览器。</p><dl className="fact-grid"><div><dt>输入历史</dt><dd>{historyCount}</dd></div><div><dt>已归档会话</dt><dd>{preferences.archived.length}</dd></div></dl><button className="product-button" type="button" disabled={!historyCount} onClick={() => { runtime.history.clear(); setHistoryCount(0); setNotice("输入历史已清除，任务和会话记录仍保留。") }}>清除输入历史</button></article>
+      <article className="settings-card"><h2>API 与运行时</h2><p>当前浏览器连接的服务。</p><dl className="fact-grid"><div><dt>服务地址</dt><dd>{runtime.api.client.baseUrl}</dd></div><div><dt>运行状态</dt><dd><span className="tag" data-phase={runtimeStatus.phase}>{runtimeStatus.label}</span></dd></div></dl><button type="button" className="product-button" onClick={() => void runtime.commands.submit("/status", { origin: "button" })}>查看运行状态</button></article>
+      <article className="settings-card"><h2>浏览器历史</h2><p>输入历史、草稿、归档标记和外观偏好保存在当前浏览器。</p><dl className="fact-grid"><div><dt>输入历史</dt><dd>{historyCount}</dd></div><div><dt>已归档会话</dt><dd>{preferences.archived.length}</dd></div></dl><button className="product-button product-button-danger" type="button" disabled={!historyCount} onClick={() => { runtime.history.clear(); setHistoryCount(0); setNotice("输入历史已清除，任务和会话记录仍保留。") }}>清除输入历史</button></article>
     </div> : <div className="settings-experiments"><p>以下用于场景试运行与正式实验，后台任务在浏览器关闭后继续执行。</p><ScenarioWorkbench runtime={runtime.scenarioConsole} /><ExperimentWorkbench runtime={runtime.experimentConsole} /></div>}
     </div>
   </section>

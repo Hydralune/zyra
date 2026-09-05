@@ -20,11 +20,12 @@ function QueueRow(input: {
       data-command-source={input.item.source}
     >
       <span>{input.item.name ?? input.item.text ?? "排队命令"}</span>
-      <span>{{ queued: "排队中", reserved: "准备中", running: "执行中", completed: "已完成", failed: "失败", cancelled: "已取消", expired: "已过期" }[input.item.phase]}</span>
+      <span className="tag" data-phase={input.item.phase}>{{ queued: "排队中", reserved: "准备中", running: "执行中", completed: "已完成", failed: "失败", cancelled: "已取消", expired: "已过期" }[input.item.phase]}</span>
       <span>{{ now: "优先", next: "下一条", later: "稍后" }[input.item.priority] ?? input.item.priority}</span>
       {input.item.error ? <span role="alert">{input.item.error}</span> : null}
       {input.item.cancellable ? (
         <button
+          className="button button-danger"
           type="button"
           onClick={() => {
             void input.runtime.cancelQueueItem(
@@ -38,6 +39,7 @@ function QueueRow(input: {
       ) : null}
       {input.item.retryable ? (
         <button
+          className="button button-secondary"
           type="button"
           onClick={() => {
             void (async () => {

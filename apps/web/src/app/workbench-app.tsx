@@ -470,7 +470,7 @@ function ProductHome({
     <section className="product-home">
       <div className="product-home-inner">
         <div className="product-orbit" aria-hidden="true">
-          <span>Z</span><i /><i /><i />
+          <span>Z</span>
         </div>
         <p className="product-kicker">与你一起完成复杂任务</p>
         <h1>今天想让 Zyra 完成什么？</h1>

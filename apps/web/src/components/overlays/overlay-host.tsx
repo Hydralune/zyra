@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import type { WorkbenchRuntime } from "../../app/runtime.ts"
 import { useOverlaySnapshot } from "../../app/hooks.ts"
-import { commandUsage, type CommandDefinition } from "../../command/catalog.ts"
+import type { CommandDefinition } from "../../command/catalog.ts"
 import type { OverlayDescriptor } from "../../shell/overlay-runtime.ts"
 import { FocusTrap } from "../../shell/focus-trap.ts"
 import type {
@@ -14,14 +14,22 @@ function payloadString(overlay: OverlayDescriptor, key: string): string | undefi
 }
 
 function CommandHelp({ commands }: { commands: readonly CommandDefinition[] }) {
+  const [query, setQuery] = useState("")
+  const search = query.trim().toLowerCase()
   const groups = new Map<string, CommandDefinition[]>()
   for (const command of commands) {
+    if (search && !`/${command.trigger} ${command.title} ${command.description}`.toLowerCase().includes(search)) continue
     const current = groups.get(command.category) ?? []
     current.push(command)
     groups.set(command.category, current)
   }
   return (
-    <div className="overlay-scroll command-reference">
+    <div className="command-reference">
+      <div className="command-reference-toolbar">
+        <p>在输入框中输入 /，即可搜索和选择命令。</p>
+        <input type="search" aria-label="搜索命令" placeholder="搜索命令或用途…" value={query} onChange={(event) => setQuery(event.target.value)} />
+      </div>
+      <div className="command-reference-list">
       {[...groups.entries()].map(([category, values]) => (
         <section key={category}>
           <h3>{{ help: "帮助", navigation: "导航", runtime: "运行与工具", task: "任务" }[category] ?? category}</h3>
@@ -29,10 +37,7 @@ function CommandHelp({ commands }: { commands: readonly CommandDefinition[] }) {
             {values.map((command) => (
               <div key={command.id}>
                 <dt>
-                  <code>{commandUsage(command)}</code>
-                  <span className={command.remoteSafe ? "tag" : "tag tag-muted"}>
-                    {command.remoteSafe ? "运行服务" : "界面操作"}
-                  </span>
+                  <code>/{command.trigger}</code>
                 </dt>
                 <dd>{command.description}</dd>
               </div>
@@ -40,6 +45,8 @@ function CommandHelp({ commands }: { commands: readonly CommandDefinition[] }) {
           </dl>
         </section>
       ))}
+      {!groups.size ? <p className="muted-copy" role="status">没有找到匹配的命令。</p> : null}
+      </div>
     </div>
   )
 }
