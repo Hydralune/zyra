@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { renderToStaticMarkup } from "react-dom/server"
+import { HttpResponseError } from "../../../packages/core/typed-api-client/src/index.ts"
 import type {
   ApiHealth,
   MutationReceipt,
@@ -525,6 +526,30 @@ describe("workbench controller and route loader", () => {
     expect(offline.getSnapshot().runtime.phase).toBe("reconnecting")
     expect(clock.callbacks).toHaveLength(1)
     offline.close()
+  })
+
+  test("automatically reconnects after a proxy 502 instead of treating HTML as validation", async () => {
+    const clock = new ManualClock()
+    const api = fakeTaskApi({ healthError: new HttpResponseError(502, '<!DOCTYPE HTML><html>Invalid responses from another server/proxy.</html>') })
+    const controller = new WorkbenchController(api, { clock })
+    await controller.refreshRuntime()
+    expect(controller.getSnapshot().runtime).toMatchObject({ phase: "reconnecting", failure: {
+      message: "暂时无法连接 Zyra 服务（HTTP 502）。", retryable: true,
+    } })
+    expect(clock.callbacks).toHaveLength(1)
+    api.health = async () => health()
+    clock.flush()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(controller.getSnapshot().runtime.phase).toBe("ready")
+    expect(controller.getSnapshot().runtime.failure).toBeUndefined()
+    controller.close()
+
+    const nonRetryable = new WorkbenchController(fakeTaskApi({ healthError: new HttpResponseError(503, "Service requires setup", { retryable: false }) }), { clock })
+    await nonRetryable.refreshRuntime()
+    expect(nonRetryable.getSnapshot().runtime.phase).toBe("error")
+    expect(nonRetryable.getSnapshot().runtime.failure?.message).toBe("Service requires setup")
+    expect(clock.callbacks).toHaveLength(0)
+    nonRetryable.close()
   })
 
   test("disable path fails visibly and stops requests", async () => {

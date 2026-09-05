@@ -4,6 +4,7 @@ import type {
   TaskProjection,
 } from "../../../../packages/core/typed-api-client/src/index.ts"
 import type { TaskApi } from "../api/task-api.ts"
+import { ZyraApiError } from "../../../../packages/core/typed-api-client/src/index.ts"
 import { RetrySupervisor } from "./retry-supervisor.ts"
 
 export type RequestPhase = "idle" | "loading" | "ready" | "empty" | "error" | "reconnecting"
@@ -137,9 +138,16 @@ function cloneSnapshot(snapshot: WorkbenchSnapshot): WorkbenchSnapshot {
 
 function errorFailure(error: unknown, attempt: number): RequestFailure {
   const name = error instanceof Error ? error.name : typeof error
-  const message = error instanceof Error ? error.message : String(error)
+  const rawMessage = error instanceof Error ? error.message : String(error)
+  const status = error instanceof ZyraApiError && error.retryable ? error.status : undefined
+  const message = status === 502 || status === 503
+    ? `暂时无法连接 Zyra 服务（HTTP ${status}）。`
+    : status === 504 ? "Zyra 服务响应超时（HTTP 504）。"
+    : rawMessage
   const normalized = `${name} ${message}`.toLowerCase()
-  const retryable =
+  // Typed transport errors own retryability. HTML such as "Invalid responses"
+  // must not turn a recoverable 502 into a permanent failure.
+  const retryable = error instanceof ZyraApiError ? error.retryable :
     !normalized.includes("auth") &&
     !normalized.includes("version") &&
     !normalized.includes("validation") &&

@@ -21,6 +21,7 @@ import {
   createIdempotencyKey,
   createReceiptId,
   clampTimeout,
+  errorFromResponse,
   normalizeHealth,
   normalizeIdentity,
   normalizeReceipt,
@@ -63,6 +64,22 @@ test("keeps long-running requests inside a fifteen-minute hard ceiling", () => {
   expect(MAX_TIMEOUT_MS).toBe(900_000)
   expect(clampTimeout(840_000)).toBe(840_000)
   expect(clampTimeout(1_200_000)).toBe(900_000)
+})
+
+test("proxy HTML stays diagnostic while HTTP status controls error recovery", async () => {
+  const html = '<!DOCTYPE HTML><html><head><title>Error response</title></head><body>Invalid responses from another server/proxy.</body></html>'
+  for (const contentType of ["text/html", "text/plain"]) {
+    const error = await errorFromResponse(new Response(html, { status: 502, headers: { "content-type": contentType } }))
+    expect(error).toBeInstanceOf(HttpResponseError)
+    expect(error.message).toBe("Zyra API returned HTTP 502.")
+    expect(error.retryable).toBe(true)
+    expect((error as HttpResponseError).body).toMatchObject({ message: html })
+  }
+  const error = await errorFromResponse(new Response(JSON.stringify({ message: "Model is not configured", retryable: false }), {
+    status: 503, headers: { "content-type": "application/json" },
+  }))
+  expect(error.message).toBe("Model is not configured")
+  expect(error.retryable).toBe(false)
 })
 
 test("accepts only the bounded historical product-session alias for durable task recovery", () => {

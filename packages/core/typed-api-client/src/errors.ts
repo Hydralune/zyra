@@ -555,7 +555,13 @@ export function mapHttpError(
   context: ErrorContext = {},
 ): ZyraApiError {
   const envelope = body && typeof body === "object" && !Array.isArray(body) ? (body as ServerErrorEnvelope) : {}
-  const message = errorMessage(body, `Zyra API returned HTTP ${status}.`)
+  const fallback = `Zyra API returned HTTP ${status}.`
+  const candidate = errorMessage(body, fallback)
+  // Proxies often return an HTML error page instead of the API envelope.
+  // Keep the original body for diagnostics, but never use the page as a message.
+  const message = /text\/html|application\/xhtml\+xml/i.test(headers.get("content-type") ?? "")
+    || /<!doctype\s+html|<\/?(?:html|head|body|title|h1)(?:\s|>)/i.test(candidate)
+    ? fallback : candidate
   const code = errorCode(body, status >= 500 ? ERROR_CODES.serverError : ERROR_CODES.httpError)
   const details = cleanDetails(
     envelope.details && typeof envelope.details === "object"
