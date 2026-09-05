@@ -195,14 +195,13 @@ function AppNavigation({
     const receipt = await runtime.controlCommands.renameConversation(conversation.latest, title)
     if (receipt.phase !== "applied") throw new Error(receipt.error?.message || "名称尚未保存，请稍后刷新会话列表。")
     runtime.preferences.rememberTitle(conversation.key, title)
-    setFeedback("会话已重命名。")
   }
   const deleteConversation = async (conversation: ProductConversation) => {
     const result = await runtime.api.tasks.deleteConversation(conversation.latest.sessionId ?? `session_${conversation.latest.taskId}`)
     if (selectedConversationKey === conversation.key) navigate(() => runtime.router.openNewTask())
     runtime.workbench.forgetTasks(result.taskIds)
     await runtime.workbench.refreshTasks({ preserveOnError: true })
-    try { runtime.preferences.forgetConversation(conversation.key); setFeedback("会话已删除。") }
+    try { runtime.preferences.forgetConversation(conversation.key) }
     catch { setFeedback("会话已删除；本地置顶信息未能清除。") }
   }
   return (
@@ -309,7 +308,7 @@ function AppNavigation({
               pinned={preferences.pinned.includes(conversation.key)}
               canDelete={tasks.filter((task) => (task.sessionId ?? `task:${task.taskId}`) === conversation.key).every((task) => task.terminal)}
               onClose={() => setMenu(undefined)} onRename={(title) => rename(conversation, title)}
-              onPin={() => { runtime.preferences.pin(conversation.key, !preferences.pinned.includes(conversation.key)); setFeedback(preferences.pinned.includes(conversation.key) ? "已取消置顶。" : "会话已置顶。") }}
+              onPin={() => runtime.preferences.pin(conversation.key, !preferences.pinned.includes(conversation.key))}
               onDelete={() => deleteConversation(conversation)} /> : null}
             </div>
           ))}
