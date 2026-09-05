@@ -170,6 +170,7 @@ export class WorkbenchController {
   readonly #retry = new RetrySupervisor()
   readonly #details = new Map<string, TaskProjection>()
   readonly #conversationRequests = new Map<string, AbortController>()
+  readonly #conversationFailures = new Map<string, RequestFailure>()
   #snapshot: WorkbenchSnapshot
   #reconnectTimer?: unknown
   #closed = false
@@ -217,6 +218,21 @@ export class WorkbenchController {
       (task) => task.taskId === this.#snapshot.selectedTaskId,
     )
     return selected ? cloneTask(selected) : undefined
+  }
+
+  conversationDetail(taskId: string): { phase: "loading" | "ready" | "error"; failure?: RequestFailure } {
+    const failure = this.#conversationFailures.get(taskId)
+    if (failure) return { phase: "error", failure }
+    const row = this.#snapshot.list.tasks.find((task) => task.taskId === taskId)
+    const detail = this.#details.get(taskId)
+    return { phase: detail && (!row || Date.parse(detail.updatedAt) >= Date.parse(row.updatedAt)) ? "ready" : "loading" }
+  }
+
+  async retryConversationDetail(taskId: string): Promise<void> {
+    if (taskId === this.#snapshot.selectedTaskId) { await this.loadTask(taskId); return }
+    this.#conversationFailures.delete(taskId)
+    this.#replace({})
+    await this.#hydrateConversation()
   }
 
   async bootstrap(options: { taskId?: string; status?: string; cursor?: string } = {}): Promise<void> {
@@ -589,6 +605,7 @@ export class WorkbenchController {
     if (this.#closed) return
     this.#closed = true
     for (const controller of this.#controllers.values()) controller.abort(reason)
+    for (const controller of this.#conversationRequests.values()) controller.abort(reason)
     this.#controllers.clear()
     this.#clearReconnectTimer()
     this.#listeners.clear()
@@ -635,6 +652,7 @@ export class WorkbenchController {
   }
 
   #rememberDetail(task: TaskProjection): void {
+    this.#conversationFailures.delete(task.taskId)
     this.#details.delete(task.taskId)
     this.#details.set(task.taskId, cloneTask(task))
     if (this.#details.size > 250) this.#details.delete(this.#details.keys().next().value!)
@@ -650,7 +668,7 @@ export class WorkbenchController {
       if (row.sessionId !== selected.sessionId || row.taskId === selected.taskId) continue
       const cached = this.#details.get(row.taskId)
       if ((cached && Date.parse(cached.updatedAt) >= Date.parse(row.updatedAt))
-        || this.#conversationRequests.has(row.taskId)) continue
+        || this.#conversationRequests.has(row.taskId) || this.#conversationFailures.has(row.taskId)) continue
       const controller = new AbortController()
       this.#conversationRequests.set(row.taskId, controller)
       try {
@@ -661,8 +679,11 @@ export class WorkbenchController {
           ...this.#snapshot.list,
           tasks: Object.freeze(this.#mergeTasks(this.#snapshot.list.tasks, [task])),
         } })
-      } catch {
-        // Keep the known history row; a later list refresh can retry.
+      } catch (error) {
+        if (!this.#closed && !controller.signal.aborted) {
+          this.#conversationFailures.set(row.taskId, errorFailure(error, 1))
+          this.#replace({})
+        }
       } finally {
         this.#conversationRequests.delete(row.taskId)
       }

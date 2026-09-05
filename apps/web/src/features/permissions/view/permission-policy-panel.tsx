@@ -31,9 +31,9 @@ export function PermissionPolicyPanel(input: {
     >
       <div className="section-heading">
         <div>
-          <h4 id="permission-policy-heading">Policy status & diff</h4>
+          <h4 id="permission-policy-heading">权限策略与变化</h4>
           <p>
-            {view.mode} · policy {view.currentPolicyRevision} · mode{" "}
+            {view.mode} · 策略版本 {view.currentPolicyRevision} · 模式版本{" "}
             {view.currentModeRevision}
           </p>
         </div>
@@ -43,10 +43,10 @@ export function PermissionPolicyPanel(input: {
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
         >
-          {expanded ? "Hide rules" : `Show ${view.rules.length} rules`}
+          {expanded ? "收起规则" : `查看 ${view.rules.length} 条规则`}
         </button>
       </div>
-      <dl className="permission-policy-diff">
+      {expanded ? <dl className="permission-policy-diff">
         {view.diff.map((row) => (
           <div
             key={row.diffId}
@@ -55,7 +55,7 @@ export function PermissionPolicyPanel(input: {
           >
             <dt>
               {row.label}
-              {row.changed ? <span className="tag tag-danger">changed</span> : null}
+              {row.changed ? <span className="tag tag-danger">已变化</span> : null}
             </dt>
             <dd>
               <span>{row.requested}</span>
@@ -65,7 +65,7 @@ export function PermissionPolicyPanel(input: {
             <p>{row.detail}</p>
           </div>
         ))}
-      </dl>
+      </dl> : null}
       {expanded ? (
         view.rules.length ? (
           <ol className="permission-rule-list">
@@ -89,8 +89,8 @@ export function PermissionPolicyPanel(input: {
                   >
                     {rule.effect}
                   </span>
-                  {!rule.enabled ? <span className="tag tag-muted">disabled</span> : null}
-                  {rule.expired ? <span className="tag tag-muted">expired</span> : null}
+                  {!rule.enabled ? <span className="tag tag-muted">已禁用</span> : null}
+                  {rule.expired ? <span className="tag tag-muted">已过期</span> : null}
                 </div>
                 <p>{rule.scopeSummary}</p>
                 {rule.reason ? <p>{rule.reason}</p> : null}
@@ -103,8 +103,7 @@ export function PermissionPolicyPanel(input: {
           </ol>
         ) : (
           <p className="muted-copy">
-            No explicit rules are projected; the canonical mode defaults still
-            apply.
+            暂无单独配置的规则，将沿用后端默认策略。
           </p>
         )
       ) : null}

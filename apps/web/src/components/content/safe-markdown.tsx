@@ -1,4 +1,5 @@
 import { Fragment, useMemo, type ReactNode } from "react"
+import { CopyButton } from "./copy-button.tsx"
 import {
   parseSafeMarkdown,
   type MarkdownBlock,
@@ -31,7 +32,7 @@ export function SafeMarkdown({
     >
       {truncated ? (
         <p className="product-markdown-notice">
-          较早的实时内容已折叠；任务结束后将以 canonical 最终回答替换。
+          较早的实时内容已折叠；任务结束后将显示完整回答。
         </p>
       ) : null}
       {blocks.map((block, index) => (
@@ -58,10 +59,13 @@ function MarkdownBlockView({ block }: { block: MarkdownBlock }) {
   if (block.kind === "paragraph") return <p>{renderInline(block.children)}</p>
   if (block.kind === "code") {
     return (
+      <div className="product-code-block">
+      <div className="product-code-toolbar"><span>{block.language || "代码"}</span><CopyButton text={block.text} label="复制代码" /></div>
       <pre data-language={block.language}>
         <code>{block.text}</code>
         {!block.closed ? <span className="product-markdown-holdback">代码块仍在生成</span> : null}
       </pre>
+      </div>
     )
   }
   if (block.kind === "quote") return <blockquote>{renderInline(block.children)}</blockquote>

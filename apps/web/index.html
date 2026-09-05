@@ -3,20 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!--
-      The product shell is light and the advanced surfaces opt into dark, so the
-      document must not force one scheme: forcing dark gave the light workspace
-      dark UA scrollbars and a dark flash before React mounted.
-    -->
-    <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#fbfcfb" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#fafafa" />
     <meta name="zyra-product-entry" content="web-v1" />
     <title>Zyra Workbench</title>
     <link rel="stylesheet" href="./src/styles.css" />
+    <link rel="stylesheet" href="./src/monochrome.css" />
   </head>
   <body>
     <div id="root"></div>
-    <noscript>Zyra Workbench requires JavaScript.</noscript>
+    <noscript>Zyra 需要启用 JavaScript。</noscript>
     <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

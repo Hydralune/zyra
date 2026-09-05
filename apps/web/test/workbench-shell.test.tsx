@@ -52,7 +52,7 @@ import {
   WorkbenchController,
   type Clock,
 } from "../src/shell/workbench-controller.ts"
-import type { TaskApi } from "../src/api/task-api.ts"
+import type { ProductExecutionConfig, TaskApi } from "../src/api/task-api.ts"
 import type { TaskLifecycleCoordinator } from "../src/api/lifecycle.ts"
 
 function task(
@@ -453,6 +453,36 @@ describe("workbench controller and route loader", () => {
     expect(controller.selectedTask()?.planNodes.length).toBe(1)
     controller.close()
   })
+  test("distinguishes missing history from an empty answer and retries failed hydration", async () => {
+    const first = task("task_history_001", "completed", { sessionId: "session_history_001" })
+    const latest = task("task_latest_001", "completed", { sessionId: first.sessionId })
+    const api = fakeTaskApi({ tasks: [first, latest] })
+    const originalGet = api.get.bind(api)
+    let fail = true
+    let requests = 0
+    api.get = async (id, options) => {
+      if (id === first.taskId) {
+        requests++
+        if (fail) throw new Error("history temporarily unavailable")
+        return { ...first, metadata: { final_answer: "restored reply" } }
+      }
+      return originalGet(id, options)
+    }
+    const controller = new WorkbenchController(api)
+    await controller.refreshTasks()
+    expect(controller.conversationDetail(first.taskId).phase).toBe("loading")
+    await controller.loadTask(latest.taskId)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(controller.conversationDetail(first.taskId).phase).toBe("error")
+    await controller.refreshTasks()
+    expect(requests).toBe(1)
+    fail = false
+    await controller.retryConversationDetail(first.taskId)
+    expect(controller.conversationDetail(first.taskId).phase).toBe("ready")
+    expect(controller.getSnapshot().list.tasks.find((row) => row.taskId === first.taskId)?.metadata.final_answer).toBe("restored reply")
+    controller.close()
+  })
+
   test("loads real projections, selects detail, and applies receipt-backed mutation", async () => {
     const api = fakeTaskApi({ tasks: [task("task_demo_001"), task("task_demo_002", "completed")] })
     const controller = new WorkbenchController(api)
@@ -508,7 +538,7 @@ describe("command coordinator integration", () => {
     for (const cleanup of cleanups.splice(0)) cleanup()
   })
 
-  function harness(options: { deferred?: boolean; runDeferred?: boolean; fail?: boolean } = {}) {
+  function harness(options: { deferred?: boolean; runDeferred?: boolean; fail?: boolean; executionConfig?: () => ProductExecutionConfig | undefined } = {}) {
     const browser = new FakeWindow()
     const router = new WorkbenchRouter(browser)
     router.start()
@@ -518,13 +548,13 @@ describe("command coordinator integration", () => {
     const overlays = new OverlayRuntime()
     const catalog = new CommandCatalog()
     let calls = 0
-    const createInputs: Array<{ goal: string; sessionId?: string }> = []
+    const createInputs: Array<{ goal: string; sessionId?: string; executionConfig?: ProductExecutionConfig }> = []
     const createKeys: string[] = []
     let release: (() => void) | undefined
     const lifecycle = {
-      create: async (input: { goal: string; sessionId?: string; signal?: AbortSignal; idempotencyKey?: string }) => {
+      create: async (input: { goal: string; sessionId?: string; executionConfig?: ProductExecutionConfig; signal?: AbortSignal; idempotencyKey?: string }) => {
         calls += 1
-        createInputs.push({ goal: input.goal, sessionId: input.sessionId })
+        createInputs.push({ goal: input.goal, sessionId: input.sessionId, ...(input.executionConfig ? { executionConfig: input.executionConfig } : {}) })
         createKeys.push(input.idempotencyKey ?? "")
         if (options.deferred) {
           await new Promise<void>((resolve, reject) => {
@@ -556,6 +586,7 @@ describe("command coordinator integration", () => {
       },
     } as unknown as TaskLifecycleCoordinator
     const commands = new CommandCoordinator({
+      executionConfig: options.executionConfig,
       catalog,
       queue,
       history,
@@ -609,6 +640,29 @@ describe("command coordinator integration", () => {
     })
     value.release()
     await first
+  })
+
+  test("captures model settings for queued tasks, including automatic selection", async () => {
+    let config: ProductExecutionConfig | undefined = { providerId: "deepseek", modelId: "flash", reasoningEffort: "low" }
+    const value = harness({ deferred: true, executionConfig: () => config })
+    const first = value.commands.submit("First task")
+    await value.commands.submit("Queued custom model")
+    config = undefined
+    await value.commands.submit("Queued automatic model")
+    config = { providerId: "other", modelId: "new-default" }
+    expect(value.queue.getSnapshot().visible.map((row) => row.executionConfig)).toEqual([
+      { providerId: "deepseek", modelId: "flash", reasoningEffort: "low" }, undefined,
+    ])
+    value.release()
+    await first
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(value.createInputs[1]?.executionConfig).toEqual({ providerId: "deepseek", modelId: "flash", reasoningEffort: "low" })
+    value.release()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(value.createInputs[2]?.executionConfig).toBeUndefined()
+    value.release()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(value.createInputs).toHaveLength(3)
   })
 
   test("shows a created task while execution is pending and accepts stop immediately", async () => {

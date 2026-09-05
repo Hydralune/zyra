@@ -1,3 +1,4 @@
+import { phaseLabel } from "../../../shell/product-copy.ts"
 import {
   useEffect,
   useMemo,
@@ -119,19 +120,15 @@ export function ScenarioWorkbench({
     >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Dual-domain live evidence</p>
-          <h2 id="scenario-workbench-heading">Long-run scenario runner</h2>
+          <p className="eyebrow">场景检查</p>
+          <h2 id="scenario-workbench-heading">长程场景</h2>
         </div>
         <span className="tag" data-phase={snapshot.connection}>
-          {snapshot.connection}
+          {phaseLabel(snapshot.connection)}
         </span>
       </div>
       <p className="muted-copy">
-        Runs are owned by the backend and continue after this browser closes.
-        Formal software-delivery and cross-source research runs require 2,000+
-        effective transitions, representative recovery and canonical
-          route/placement migration. Available execution modes are reported by
-          the current scenario runtime.
+        场景由后端持续执行，关闭浏览器后仍会运行。日常试运行请选择交互检查；正式验收会检查初始状态、有效步骤、故障恢复和执行位置迁移。
       </p>
 
       <form className="settings-grid" onSubmit={create}>
@@ -144,7 +141,7 @@ export function ScenarioWorkbench({
         </label>
         <p className="muted-copy">交互检查用于日常试运行，结果不作为正式验收证据。</p>
         <label>
-          Scenario domain
+          场景领域
           <select
             value={definition?.scenario_id ?? ""}
             onChange={(event) => setScenarioId(event.currentTarget.value)}
@@ -152,20 +149,20 @@ export function ScenarioWorkbench({
           >
             {snapshot.definitions.map((item) => (
               <option key={`${item.scenario_id}:${item.version}`} value={item.scenario_id}>
-                {item.title}
+                {({ "foundation.short-owner-chain": "简短流程检查", "live.software-delivery": "软件交付", "live.cross-source-research": "跨源研究" } as Record<string, string>)[item.scenario_id] ?? item.title}
               </option>
             ))}
           </select>
         </label>
         <label>
-          New scenario input
+          任务要求
           <textarea
             value={input}
             onChange={(event) => setInput(event.currentTarget.value)}
             placeholder={
               definition?.scenario_id === "live.cross-source-research"
-                ? "State a new research question with claims, contradiction and citation requirements."
-                : "State a new software change with verifiable behavior and delivery requirements."
+                ? "描述研究问题，以及论据、矛盾检查和引用要求。"
+                : "描述软件改动、预期行为和交付要求。"
             }
             required
             rows={4}
@@ -173,7 +170,7 @@ export function ScenarioWorkbench({
           />
         </label>
         <label>
-          Deterministic seed
+          随机种子
           <input
             type="number"
             min="0"
@@ -189,7 +186,7 @@ export function ScenarioWorkbench({
             type="submit"
             disabled={Boolean(busy) || !input.trim() || !definition}
           >
-            {busy === "create" ? "正在创建…" : mode === "sealed" ? "Create sealed run" : "创建交互检查"}
+            {busy === "create" ? "正在创建…" : mode === "sealed" ? "创建正式场景" : "创建交互检查"}
           </button>
           <button
             className="button button-secondary"
@@ -197,7 +194,7 @@ export function ScenarioWorkbench({
             disabled={Boolean(busy)}
             onClick={() => void runtime.refresh("manual")}
           >
-            Refresh
+            刷新
           </button>
         </div>
       </form>
@@ -208,7 +205,7 @@ export function ScenarioWorkbench({
 
       <div className="settings-grid">
         <article>
-          <h3>Durable runs</h3>
+          <h3>场景记录</h3>
           {snapshot.rows.length ? (
             <ol className="plan-list">
               {snapshot.rows.map((row) => (
@@ -233,7 +230,7 @@ export function ScenarioWorkbench({
                     onClick={() => void runtime.select(row.run.scenario_run_id)}
                   >
                     <strong>{row.run.configuration.scenario_id}</strong>
-                    <span>{row.run.phase}</span>
+                    <span>{phaseLabel(row.run.phase)}</span>
                     <small>{row.run.scenario_run_id}</small>
                   </button>
                 </li>
@@ -241,13 +238,13 @@ export function ScenarioWorkbench({
             </ol>
           ) : (
             <p className="muted-copy">
-              No scenario run has been admitted in this clean state.
+              还没有场景记录。
             </p>
           )}
         </article>
 
         <article>
-          <h3>Admission and evidence</h3>
+          <h3>运行条件与证据</h3>
           {selected ? (
             <>
               <dl className="fact-grid">
@@ -256,46 +253,46 @@ export function ScenarioWorkbench({
                   <dd>{selected.admission.formal ? "正式验收" : "交互检查"}</dd>
                 </div>
                 <div>
-                  <dt>Phase</dt>
-                  <dd>{selected.run.phase}</dd>
+                  <dt>状态</dt>
+                  <dd>{phaseLabel(selected.run.phase)}</dd>
                 </div>
                 <div>
-                  <dt>Elapsed</dt>
+                  <dt>耗时</dt>
                   <dd>{duration(selected.elapsedMs)}</dd>
                 </div>
                 <div>
-                  <dt>Clean state</dt>
-                  <dd>{selected.admission.clean ? "verified" : selected.admission.formal ? "failed" : "已有状态"}</dd>
+                  <dt>初始状态检查</dt>
+                  <dd>{selected.admission.clean ? "已验证" : selected.admission.formal ? "failed" : "已有状态"}</dd>
                 </div>
                 <div>
-                  <dt>New input</dt>
-                  <dd>{selected.admission.newInput ? "verified" : "replay"}</dd>
+                  <dt>新输入检查</dt>
+                  <dd>{selected.admission.newInput ? "已验证" : "复用输入"}</dd>
                 </div>
                 <div>
-                  <dt>Policy</dt>
+                  <dt>策略</dt>
                   <dd>{shortDigest(
                     selected.run.configuration.policy?.policy_digest,
                   )}</dd>
                 </div>
                 <div>
-                  <dt>Human interventions</dt>
+                  <dt>人工干预次数</dt>
                   <dd>{selected.admission.humanInterventionCount}</dd>
                 </div>
                 <div>
-                  <dt>Effective steps</dt>
+                  <dt>有效步骤</dt>
                   <dd>{selected.evidence.effectiveStepCount}</dd>
                 </div>
                 <div>
-                  <dt>Invalid steps</dt>
+                  <dt>无效步骤</dt>
                   <dd>{selected.evidence.invalidStepCount}</dd>
                 </div>
                 <div>
-                  <dt>Artifacts</dt>
+                  <dt>产物</dt>
                   <dd>{selected.evidence.artifactCount}</dd>
                 </div>
                 <div>
-                  <dt>Evidence</dt>
-                  <dd>{selected.evidence.valid ? "verified" : "pending"}</dd>
+                  <dt>证据</dt>
+                  <dd>{selected.evidence.valid ? "已验证" : "待验证"}</dd>
                 </div>
               </dl>
               <div className="task-actions">
@@ -305,7 +302,7 @@ export function ScenarioWorkbench({
                   disabled={Boolean(busy) || !actions?.mayStart}
                   onClick={() => void mutate("start")}
                 >
-                  {busy === "start" ? "Starting…" : "Start"}
+                  {busy === "start" ? "正在启动…" : "启动场景"}
                 </button>
                 <button
                   className="button button-secondary"
@@ -313,7 +310,7 @@ export function ScenarioWorkbench({
                   disabled={Boolean(busy) || !actions?.mayVerify}
                   onClick={() => void mutate("verify")}
                 >
-                  {busy === "verify" ? "Verifying…" : "Verify evidence"}
+                  {busy === "verify" ? "正在验证…" : "验证证据"}
                 </button>
                 <button
                   className="button button-secondary"
@@ -321,7 +318,7 @@ export function ScenarioWorkbench({
                   disabled={Boolean(busy) || !actions?.mayArchive}
                   onClick={() => void mutate("archive")}
                 >
-                  Archive
+                  归档
                 </button>
               </div>
               {actions?.warning ? (
@@ -340,7 +337,7 @@ export function ScenarioWorkbench({
               ))}
             </>
           ) : (
-            <p className="muted-copy">Select a scenario run to inspect it.</p>
+            <p className="muted-copy">选择场景后查看执行情况。</p>
           )}
         </article>
       </div>
@@ -348,7 +345,7 @@ export function ScenarioWorkbench({
       {selected?.evidence.valid ? (
         <section aria-label="Effective step dimensions">
           <div className="section-heading">
-            <h3>Semantic effects</h3>
+            <h3>步骤效果</h3>
             <span>{selected.evidence.effectiveStepCount}</span>
           </div>
           <dl className="fact-grid">
@@ -366,46 +363,46 @@ export function ScenarioWorkbench({
         <section aria-label="Formal live scenario evidence">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Deterministic acceptance</p>
-              <h3>Fault, placement and domain proof</h3>
+              <p className="eyebrow">验收检查</p>
+              <h3>故障恢复、执行位置与结果验证</h3>
             </div>
             <span className="tag" data-phase={liveEvidence.complete ? "succeeded" : "running"}>
-              {liveEvidence.complete ? "formal" : "incomplete"}
+              {liveEvidence.complete ? "已完成验收" : "验收未完成"}
             </span>
           </div>
           <dl className="fact-grid">
             <div>
-              <dt>Domain</dt>
+              <dt>领域</dt>
               <dd>{liveEvidence.domain ?? "—"}</dd>
             </div>
             <div>
-              <dt>Canonical transitions</dt>
+              <dt>有效状态转换</dt>
               <dd>{liveEvidence.effectiveTransitionCount}</dd>
             </div>
             <div>
-              <dt>Recovered faults</dt>
+              <dt>已恢复故障</dt>
               <dd>
                 {liveEvidence.recoveredFaultCount}/{liveEvidence.faultCount}
               </dd>
             </div>
             <div>
-              <dt>Execution tiers</dt>
+              <dt>执行层级</dt>
               <dd>{liveEvidence.tierCount}/3</dd>
             </div>
             <div>
-              <dt>Provider/model capabilities</dt>
+              <dt>模型与服务能力</dt>
               <dd>{liveEvidence.providerModelCapabilityCount}/2</dd>
             </div>
             <div>
-              <dt>Domain verifier</dt>
-              <dd>{liveEvidence.verificationValid ? "verified" : "failed"}</dd>
+              <dt>结果验证</dt>
+              <dd>{liveEvidence.verificationValid ? "已验证" : "未通过"}</dd>
             </div>
             <div>
-              <dt>Placement verifier</dt>
-              <dd>{liveEvidence.placementValid ? "verified" : "failed"}</dd>
+              <dt>执行位置验证</dt>
+              <dd>{liveEvidence.placementValid ? "已验证" : "未通过"}</dd>
             </div>
             <div>
-              <dt>Causal archive</dt>
+              <dt>事件归档</dt>
               <dd>{shortDigest(liveEvidence.archiveDigest)}</dd>
             </div>
           </dl>
@@ -415,8 +412,8 @@ export function ScenarioWorkbench({
       {selected?.sourceAudit ? (
         <section aria-label="M2 source role audit">
           <div className="section-heading">
-            <h3>Role-aware source audit</h3>
-            <span>{selected.sourceAudit.valid ? "valid" : "invalid"}</span>
+            <h3>角色与来源审计</h3>
+            <span>{selected.sourceAudit.valid ? "有效" : "无效"}</span>
           </div>
           <p className="muted-copy">
             {selected.sourceAudit.active.length} active owner rows ·{" "}

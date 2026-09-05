@@ -1,3 +1,4 @@
+import { nodeLabel, nodeDescription, nodeStateLabel, phaseLabel } from "../../shell/product-copy.ts"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import type {
   PlanNodeProjection,
@@ -46,28 +47,28 @@ function PlanNode({ entry, root }: { entry: TaskTreeNode; root: boolean }) {
       <span className={`status-marker status-${node.status}`} aria-hidden="true" />
       <div>
         <div className="plan-node-heading">
-          <strong>{node.title || node.nodeId}</strong>
-          {root ? <span className="tag">root</span> : null}
-          <span className="tag tag-muted">{node.status}</span>
-          {entry.dependencyBlocked ? <span className="tag tag-danger">waiting</span> : null}
+          <strong>{nodeLabel(node)}</strong>
+          {root ? <span className="tag">目标</span> : null}
+          <span className="tag tag-muted">{nodeStateLabel(node.status)}</span>
+          {entry.dependencyBlocked ? <span className="tag tag-danger">等待依赖</span> : null}
         </div>
-        {node.description ? <p>{node.description}</p> : null}
+        {node.description ? <p>{nodeDescription(node)}</p> : null}
         <dl className="inline-facts">
           {node.assignedWorkerId ? (
             <>
-              <dt>Worker</dt>
+              <dt>执行者</dt>
               <dd>{node.assignedWorkerId}</dd>
             </>
           ) : null}
           {node.dependsOn.length ? (
             <>
-              <dt>Depends on</dt>
+              <dt>依赖</dt>
               <dd>{node.dependsOn.join(", ")}</dd>
             </>
           ) : null}
           {node.artifactIds.length ? (
             <>
-              <dt>Artifacts</dt>
+              <dt>产物</dt>
               <dd>{node.artifactIds.length}</dd>
             </>
           ) : null}
@@ -114,7 +115,7 @@ function TaskActions({
         title={actions.refresh.reason}
         onClick={() => void runtime.workbench.loadTask(task.taskId)}
       >
-        Refresh
+        刷新
       </button>
       {actions.cancel.allowed ? (
         <button
@@ -124,7 +125,7 @@ function TaskActions({
           title={actions.cancel.reason}
           onClick={cancel}
         >
-          Cancel
+          停止任务
         </button>
       ) : null}
       {actions.resume.allowed ? (
@@ -135,7 +136,7 @@ function TaskActions({
           title={actions.resume.reason}
           onClick={resume}
         >
-          Resume
+          继续任务
         </button>
       ) : null}
     </div>
@@ -165,7 +166,7 @@ function BoundSubagentWorkbench({
   if (bindingError) {
     return (
       <div className="plan-warning" role="alert">
-        Subagent projection degraded: {bindingError}
+        子代理信息暂不可用： {bindingError}
       </div>
     )
   }
@@ -212,70 +213,73 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
         <div>
           <div className="task-identity">
             <span className={`status-marker status-${task.status}`} aria-hidden="true" />
-            <span>{task.status}</span>
-            {task.active ? <span className="tag">active</span> : null}
-            {task.terminal ? <span className="tag tag-muted">terminal</span> : null}
+            <span>{phaseLabel(task.status)}</span>
+            {task.active ? <span className="tag">正在执行</span> : null}
+            {task.terminal ? <span className="tag tag-muted">执行已结束</span> : null}
           </div>
-          <h2 id="task-detail-heading" tabIndex={-1}>{task.userGoal || "Untitled task"}</h2>
+          <h2 id="task-detail-heading" tabIndex={-1}>{task.userGoal || "未命名任务"}</h2>
           <p className="task-id">{task.taskId}</p>
         </div>
         <TaskActions runtime={runtime} task={task} />
       </header>
 
+      <EvidencePanel runtime={runtime} id="evidence-diagnostics" title="运行信息与诊断">
       <dl className="fact-grid">
         <div>
-          <dt>Run</dt>
+          <dt>运行编号</dt>
           <dd>{task.runId}</dd>
         </div>
         <div>
-          <dt>Root node</dt>
+          <dt>目标节点</dt>
           <dd>{task.rootNodeId}</dd>
         </div>
         <div>
-          <dt>Created</dt>
+          <dt>创建时间</dt>
           <dd>{dateTime(task.createdAt)}</dd>
         </div>
         <div>
-          <dt>Updated</dt>
+          <dt>更新时间</dt>
           <dd>{dateTime(task.updatedAt)}</dd>
         </div>
         <div>
-          <dt>Elapsed</dt>
+          <dt>耗时</dt>
           <dd>{formatDuration(metrics.elapsedMs)}</dd>
         </div>
         <div>
-          <dt>Health</dt>
+          <dt>运行状态</dt>
           <dd>{taskHealthLabel(metrics)}</dd>
         </div>
         <div>
-          <dt>Workers</dt>
+          <dt>执行者</dt>
           <dd>{metrics.workerCount}</dd>
         </div>
         <div>
-          <dt>Dependencies</dt>
+          <dt>依赖数量</dt>
           <dd>{metrics.dependencyEdges}</dd>
         </div>
         <div>
-          <dt>Projection revision</dt>
+          <dt>数据版本</dt>
           <dd>{projectionRevision}</dd>
         </div>
         <div>
-          <dt>Committed sequence</dt>
+          <dt>事件序号</dt>
           <dd>{live.lastSequence}</dd>
         </div>
         <div>
-          <dt>Live workers</dt>
+          <dt>活跃执行者</dt>
           <dd>{live.activeWorkers}/{live.workers}</dd>
         </div>
         <div>
-          <dt>Pending approvals</dt>
+          <dt>待处理许可</dt>
           <dd>{live.pendingPermissions}</dd>
         </div>
       </dl>
+      </EvidencePanel>
 
-      <section id="evidence-canonical-events" className="detail-section" aria-labelledby="recent-events-heading">
+      <EvidencePanel runtime={runtime} id="evidence-canonical-events" title="最近事件">
+      <section className="detail-section" aria-labelledby="recent-events-heading">
         <div className="section-heading">
-          <h3 id="recent-events-heading">Canonical events</h3>
+          <h3 id="recent-events-heading">最近事件</h3>
           <span>{recentEvents.length}</span>
         </div>
         {recentEvents.length ? (
@@ -301,10 +305,11 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
           </ol>
         ) : (
           <p className="muted-copy">
-            The canonical event projection is restoring or waiting for its first committed event.
+            正在恢复事件记录，或等待第一个事件。
           </p>
         )}
       </section>
+      </EvidencePanel>
 
       <EvidencePanel runtime={runtime} id="evidence-topology" title="任务拓扑与协作">
         <TopologyWorkbench runtime={runtime} task={task} />
@@ -350,17 +355,18 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
         <CausalTraceWorkbench runtime={runtime} task={task} />
       </EvidencePanel>
 
+      <EvidencePanel runtime={runtime} id="evidence-plan" title="执行计划">
       <section className="detail-section" aria-labelledby="plan-heading">
         <div className="section-heading">
-          <h3 id="plan-heading">Plan</h3>
-          <span>{tree.completed}/{tree.total} complete · {tree.progress}%</span>
+          <h3 id="plan-heading">执行计划</h3>
+          <span>{tree.completed}/{tree.total} 已完成 · {tree.progress}%</span>
         </div>
         {tree.cycles.length || tree.orphans.length || Object.keys(tree.missingDependencies).length ? (
           <div className="plan-warning" role="status">
-            {tree.cycles.length ? `${tree.cycles.length} cycle(s). ` : ""}
-            {tree.orphans.length ? `${tree.orphans.length} orphan(s). ` : ""}
+            {tree.cycles.length ? `${tree.cycles.length} 个循环依赖。` : ""}
+            {tree.orphans.length ? `${tree.orphans.length} 个孤立节点。` : ""}
             {Object.keys(tree.missingDependencies).length
-              ? `${Object.keys(tree.missingDependencies).length} node(s) with missing dependencies.`
+              ? `${Object.keys(tree.missingDependencies).length} 个节点缺少依赖。`
               : ""}
           </div>
         ) : null}
@@ -375,11 +381,12 @@ function DetailContent({ runtime, task }: { runtime: WorkbenchRuntime; task: Tas
             ))}
           </ol>
         ) : (
-          <p className="muted-copy">The runtime has not projected plan nodes yet.</p>
+          <p className="muted-copy">尚未生成执行计划。</p>
         )}
       </section>
+      </EvidencePanel>
 
-      <EvidencePanel runtime={runtime} title="交付物与内容校验"
+      <EvidencePanel runtime={runtime} title="全部产物、运行记录与内容校验"
         id="evidence-artifacts"
       >
         <ArtifactWorkbench runtime={runtime} taskId={task.taskId} />
@@ -411,8 +418,8 @@ export function TaskDetail({
     return (
       <section className="task-detail-panel">
         <EmptyState
-          title="Select a task"
-          detail="Choose a task to inspect its canonical run, plan, and artifact projection."
+          title="选择一个任务"
+          detail="选择任务后，可以查看执行过程、计划与产物。"
         />
       </section>
     )
@@ -421,21 +428,21 @@ export function TaskDetail({
     <section className="task-detail-panel" aria-labelledby="task-detail-heading">
       <PhaseRegion
         phase={state.phase}
-        loading={<LoadingState title="Loading task" detail={state.taskId} />}
+        loading={<LoadingState title="正在加载任务" detail={state.taskId} />}
         error={
           state.phase === "not-found" ? (
             <EmptyState
-              title="Task not found"
-              detail="The route does not resolve to a task visible to this runtime."
+              title="未找到任务"
+              detail="当前服务中没有可访问的对应任务。"
               action={
                 <button className="button button-secondary" type="button" onClick={() => runtime.router.openTasks()}>
-                  Back to tasks
+                  返回任务列表
                 </button>
               }
             />
           ) : (
             <ErrorState
-              title="Task unavailable"
+              title="暂时无法加载任务"
               failure={state.failure}
               onRetry={state.taskId ? () => void runtime.workbench.loadTask(state.taskId!) : undefined}
             />

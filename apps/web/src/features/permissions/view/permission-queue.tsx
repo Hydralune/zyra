@@ -15,8 +15,8 @@ export function PermissionQueue(input: {
       data-permission-queue
     >
       <div className="section-heading">
-        <h4 id="permission-queue-heading">Approval queue</h4>
-        <span>{input.rows.length} pending</span>
+        <h4 id="permission-queue-heading">待审批操作</h4>
+        <span>{input.rows.length} 项待处理</span>
       </div>
       {input.rows.length ? (
         <ol className="permission-queue-list">
@@ -31,7 +31,7 @@ export function PermissionQueue(input: {
         </ol>
       ) : (
         <p className="muted-copy">
-          No canonical approval envelopes are waiting for a response.
+          当前没有待审批操作。
         </p>
       )}
     </section>
@@ -89,7 +89,7 @@ function PermissionQueueMetadata(input: {
       <span>rev {input.request.sessionRevision}</span>
       <span>{shortDigest(input.request.argumentsDigest)}</span>
       {input.row.responsePending ? (
-        <span className="tag">responding</span>
+        <span className="tag">提交中</span>
       ) : null}
     </span>
   )

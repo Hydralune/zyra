@@ -1,4 +1,4 @@
-import type { MutationResult } from "../api/task-api.ts"
+import type { MutationResult, ProductExecutionConfig } from "../api/task-api.ts"
 import type { TaskLifecycleCoordinator } from "../api/lifecycle.ts"
 import type { WorkbenchRouter } from "../shell/router.ts"
 import type { OverlayRuntime } from "../shell/overlay-runtime.ts"
@@ -22,6 +22,7 @@ import type { CommandSurfaceRuntime } from "../features/commands/runtime.ts"
 export type SubmissionPhase = "idle" | "validating" | "queued" | "dispatching" | "running" | "committed" | "failed" | "cancelled"
 
 export interface SubmissionRecord {
+  executionConfig?: ProductExecutionConfig
   id: string
   fingerprint: string
   value: string
@@ -136,6 +137,7 @@ export class CommandCoordinator {
   readonly #router: WorkbenchRouter
   readonly #overlays: OverlayRuntime
   readonly #policy = new CommandExecutionPolicy()
+  readonly #executionConfig: () => ProductExecutionConfig | undefined
   #controls?: CommandSurfaceRuntime
   readonly #listeners = new Set<() => void>()
   readonly #records = new Map<string, SubmissionRecord>()
@@ -162,6 +164,7 @@ export class CommandCoordinator {
     router: WorkbenchRouter
     overlays: OverlayRuntime
     controls?: CommandSurfaceRuntime
+    executionConfig?: () => ProductExecutionConfig | undefined
   }) {
     this.#catalog = options.catalog
     this.#queue = options.queue
@@ -171,6 +174,7 @@ export class CommandCoordinator {
     this.#router = options.router
     this.#overlays = options.overlays
     this.#controls = options.controls
+    this.#executionConfig = options.executionConfig ?? (() => undefined)
   }
 
   attachControls(controls: CommandSurfaceRuntime): void {
@@ -276,6 +280,7 @@ export class CommandCoordinator {
           taskId: context.taskId,
           sessionId: context.sessionId,
           priority: "next",
+          executionConfig: this.#executionConfig(),
           editable: true,
           visible: true,
           remoteSafe: parsed.kind === "command" ? parsed.definition?.remoteSafe : true,
@@ -407,6 +412,7 @@ export class CommandCoordinator {
       taskId: context.taskId,
       runId: context.runId,
       queueId: queued?.id,
+      executionConfig: queued ? queued.executionConfig : this.#executionConfig(),
     }
     this.#remember(record)
     this.#publish(record)
@@ -496,6 +502,7 @@ export class CommandCoordinator {
       goal: input.goal,
       autoRun: false,
       sessionId,
+      executionConfig: record.executionConfig,
       signal,
       idempotencyKey: `${record.id}:create`,
     })

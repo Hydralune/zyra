@@ -25,8 +25,8 @@ export function PermissionTimeline(input: {
       data-permission-timeline
     >
       <div className="section-heading">
-        <h4 id="permission-timeline-heading">Permission causal timeline</h4>
-        <span>{visible.length} event(s)</span>
+        <h4 id="permission-timeline-heading">权限记录</h4>
+        <span>{visible.length} 条记录</span>
       </div>
       {visible.length ? (
         <ol className="permission-timeline-list">
@@ -52,7 +52,7 @@ export function PermissionTimeline(input: {
                   <strong>{entry.title}</strong>
                   <span className="tag tag-muted">{entry.phase}</span>
                   {entry.canonical ? (
-                    <span className="tag">canonical</span>
+                    <span className="tag">后端记录</span>
                   ) : null}
                 </div>
                 <p>{entry.detail}</p>
@@ -66,7 +66,7 @@ export function PermissionTimeline(input: {
         </ol>
       ) : (
         <p className="muted-copy">
-          No matching permission lifecycle events are projected.
+          暂无对应权限记录。
         </p>
       )}
     </section>

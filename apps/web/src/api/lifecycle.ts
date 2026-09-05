@@ -67,6 +67,7 @@ export class TaskLifecycleCoordinator {
       auto_run: input.autoRun ?? false,
       session_id: input.sessionId,
       worker_pool: input.workerPool,
+      execution_config: input.executionConfig,
     }
     const idempotencyKey =
       input.idempotencyKey ??

@@ -31,11 +31,18 @@ export interface ListTaskOptions {
   timeoutMs?: number
 }
 
+export interface ProductExecutionConfig {
+  providerId: string
+  modelId: string
+  reasoningEffort?: string
+}
+
 export interface CreateTaskInput {
   goal: string
   autoRun?: boolean
   sessionId?: string
   workerPool?: Record<string, unknown>
+  executionConfig?: ProductExecutionConfig
   idempotencyKey?: string
   signal?: AbortSignal
   timeoutMs?: number
@@ -1570,6 +1577,11 @@ export class TaskApi {
       auto_run: input.autoRun ?? false,
       session_id: sessionId,
       worker_pool: input.workerPool,
+      ...(input.executionConfig ? { execution_config: {
+        provider_id: input.executionConfig.providerId,
+        model_id: input.executionConfig.modelId,
+        ...(input.executionConfig.reasoningEffort ? { reasoning_effort: input.executionConfig.reasoningEffort } : {}),
+      } } : {}),
     }
     const binding: IdentityBinding = { sessionId }
     const idempotencyKey = normalizeIdempotencyKey(
@@ -1693,7 +1705,8 @@ export class TaskApi {
       request_id: requestId,
       command_id: commandId,
       actor_id: String(input.actorId || "zyra-web-topology").trim(),
-      session_id: binding.sessionId,
+      // Preserve the session owner key; binding normalizes aliases for response checks.
+      session_id: input.sessionId?.trim(),
       expected_session_revision: expectedRevision,
       sealed: input.sealed === true,
       competition_mode: input.sealed ? "sealed_autonomous" : "interactive",

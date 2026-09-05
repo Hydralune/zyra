@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { TaskProjection } from "../../../../packages/core/typed-api-client/src/index.ts"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { OPERATION_NAMES, type SessionListProjection, type TaskProjection } from "../../../../packages/core/typed-api-client/src/index.ts"
 import type { WorkbenchRuntime } from "./runtime.ts"
 import {
   useAnnouncementSnapshot,
@@ -16,8 +16,7 @@ import { OverlayHost } from "../components/overlays/overlay-host.tsx"
 import { ProductTaskDetail } from "../components/tasks/product-task-detail.tsx"
 import { EmptyState, ReconnectingState } from "../components/status/request-state.tsx"
 import { NotificationTray } from "../components/status/notification-tray.tsx"
-import { ScenarioWorkbench } from "../features/scenarios/index.ts"
-import { ExperimentWorkbench } from "../features/experiments/index.ts"
+import { ProductSettings } from "../components/settings/product-settings.tsx"
 import { EvidenceWorkbench } from "../features/evidence/index.ts"
 
 const STARTER_PROMPTS = [
@@ -65,12 +64,15 @@ function taskTime(value: string): string {
 function statusTone(task: TaskProjection): string {
   if (task.active) return "active"
   if (["completed", "succeeded", "verified"].includes(task.status.toLowerCase())) return "success"
-  if (["failed", "error", "cancelled", "canceled"].includes(task.status.toLowerCase())) return "danger"
+  if (["failed", "error", "blocked", "needs_revision"].includes(task.status.toLowerCase())) return "danger"
   return "idle"
 }
 
 /** Text equivalent for the colour-only status dot in the conversation list. */
 function statusText(task: TaskProjection): string {
+  if (["cancelled", "canceled"].includes(task.status.toLowerCase())) return "已停止"
+  if (task.status === "needs_revision") return "需要修改"
+  if (task.status === "blocked") return "等待处理"
   const tone = statusTone(task)
   if (tone === "active") return "进行中"
   if (tone === "success") return "已完成"
@@ -153,8 +155,31 @@ function AppNavigation({
 }) {
   const [query, setQuery] = useState("")
   const [visibleCount, setVisibleCount] = useState(12)
-  const conversations = productConversationList(tasks).filter((conversation) =>
-    conversation.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
+  const preferences = useSyncExternalStore(runtime.preferences.subscribe, runtime.preferences.getSnapshot, runtime.preferences.getSnapshot)
+  const [showArchived, setShowArchived] = useState(false)
+  const [menuKey, setMenuKey] = useState<string>()
+  const [renameTitle, setRenameTitle] = useState("")
+  const [menuBusy, setMenuBusy] = useState(false)
+  const [feedback, setFeedback] = useState("")
+  useEffect(() => {
+    if (listPhase !== "ready") return
+    const controller = new AbortController()
+    void runtime.api.client.endpoint<SessionListProjection>(OPERATION_NAMES.sessionList, {
+      query: { limit: 200 }, signal: controller.signal,
+      coordinationKey: "web.conversation.titles", latestWins: true,
+    }).then((response) => {
+      if (controller.signal.aborted) return
+      const titles = { ...runtime.preferences.getSnapshot().titles }
+      for (const session of response.data.sessions) if (session.title) titles[session.sessionId] = session.title
+      if (JSON.stringify(titles) !== JSON.stringify(runtime.preferences.getSnapshot().titles)) runtime.preferences.update({ titles })
+    }).catch(() => { /* Existing titles stay available while offline. */ })
+    return () => controller.abort()
+  }, [runtime, listPhase])
+  const conversations = productConversationList(tasks).map((conversation) => ({ ...conversation,
+    title: preferences.titles[conversation.key] || conversation.title,
+  })).filter((conversation) =>
+    preferences.archived.includes(conversation.key) === showArchived
+    && conversation.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
   )
   const recent = conversations.slice(0, visibleCount)
   const selectedTask = tasks.find((task) => task.taskId === selectedTaskId)
@@ -166,6 +191,19 @@ function AppNavigation({
   // Off-canvas on a narrow viewport means visually gone but still in the tab
   // order unless it is explicitly removed from the accessibility tree.
   const hidden = drawer && !open
+  const rename = async (conversation: ProductConversation) => {
+    const title = renameTitle.trim()
+    if (!title) { setFeedback("请输入会话名称。"); return }
+    if (new TextEncoder().encode(title).length > 256) { setFeedback("名称太长，请缩短后再保存。"); return }
+    setMenuBusy(true); setFeedback("")
+    try {
+      const receipt = await runtime.controlCommands.renameConversation(conversation.latest, title)
+      if (receipt.phase !== "applied") throw new Error(receipt.error?.message || "名称尚未保存，请稍后刷新会话列表。")
+      runtime.preferences.rememberTitle(conversation.key, title)
+      setMenuKey(undefined); setFeedback("会话已重命名。")
+    } catch (error) { setFeedback(error instanceof Error ? error.message : "重命名失败，请重试。") }
+    finally { setMenuBusy(false) }
+  }
   return (
     <nav
       ref={navigationRef}
@@ -180,7 +218,7 @@ function AppNavigation({
           <span className="brand-mark" aria-hidden="true">Z</span>
           <span>
             <strong>Zyra</strong>
-            <small>Long-horizon agent</small>
+            <small>你的智能工作空间</small>
           </span>
         </button>
         <button className="product-sidebar-close" type="button" aria-label="关闭侧边栏" onClick={onNavigate}>×</button>
@@ -222,13 +260,13 @@ function AppNavigation({
           aria-current={routeKind === "settings" ? "page" : undefined}
           onClick={() => navigate(() => runtime.router.openSettings())}
         >
-          <span aria-hidden="true">⚙</span><span>系统与场景</span>
+          <span aria-hidden="true">⚙</span><span>设置</span>
         </button>
       </div>
 
       <section className="product-recents" aria-labelledby="product-recents-heading">
         <div className="product-nav-section-heading">
-          <span id="product-recents-heading">最近会话</span>
+          <span id="product-recents-heading">{showArchived ? "已归档会话" : "最近会话"}</span>
           <button
             type="button"
             aria-label="刷新最近会话"
@@ -238,6 +276,7 @@ function AppNavigation({
             ↻
           </button>
         </div>
+        <button className="product-history-filter" type="button" onClick={() => { setShowArchived(!showArchived); setMenuKey(undefined); setVisibleCount(12) }}>{showArchived ? "返回最近会话" : "查看归档"}</button>
         <input
           className="product-conversation-search"
           type="search"
@@ -248,9 +287,9 @@ function AppNavigation({
         />
         <div className="product-recent-list">
           {recent.map((conversation) => (
+            <div className="product-recent-row" key={conversation.key}>
             <button
               type="button"
-              key={conversation.key}
               className="product-recent-task"
               aria-current={selectedConversationKey === conversation.key ? "page" : undefined}
               onClick={() => navigate(() => runtime.router.openTask(conversation.latest.taskId))}
@@ -265,6 +304,17 @@ function AppNavigation({
                 </small>
               </span>
             </button>
+            <button className="product-conversation-more" type="button" aria-label={`会话操作：${conversation.title}`} aria-expanded={menuKey === conversation.key} onClick={() => { setMenuKey(menuKey === conversation.key ? undefined : conversation.key); setRenameTitle(conversation.title); setFeedback("") }}>⋯</button>
+            {menuKey === conversation.key ? <form className="product-conversation-menu" onSubmit={(event) => { event.preventDefault(); void rename(conversation) }} onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); setMenuKey(undefined) } }}>
+              <label>会话名称<input aria-label="会话名称" value={renameTitle} disabled={menuBusy} onChange={(event) => setRenameTitle(event.target.value)} /></label>
+              <button className="product-button" disabled={menuBusy} type="submit">{menuBusy ? "保存中…" : "保存名称"}</button>
+              <button className="product-button" type="button" disabled={menuBusy} onClick={() => {
+                try { runtime.preferences.archive(conversation.key, !showArchived); setMenuKey(undefined); setFeedback(showArchived ? "会话已恢复。" : "已在此浏览器归档，任务记录仍保留。") }
+                catch { setFeedback("归档未保存，请检查浏览器存储权限。") }
+              }}>{showArchived ? "恢复会话" : "归档会话"}</button>
+              <p>归档只影响此浏览器的列表，不会停止任务或删除记录。</p>
+            </form> : null}
+            </div>
           ))}
           {!recent.length && listPhase === "loading" ? (
             <p className="product-sidebar-empty" role="status">正在载入会话…</p>
@@ -276,7 +326,7 @@ function AppNavigation({
             </p>
           ) : null}
           {!recent.length && !["loading", "error"].includes(listPhase) ? (
-            <p className="product-sidebar-empty">{query ? "没有匹配的会话。" : "开始会话后会显示在这里。"}</p>
+            <p className="product-sidebar-empty">{query ? "没有匹配的会话。" : showArchived ? "没有已归档的会话。" : "开始会话后会显示在这里。"}</p>
           ) : null}
           {conversations.length > visibleCount ? (
             <button className="product-history-more" type="button" onClick={() => setVisibleCount((count) => count + 12)}>显示更多会话</button>
@@ -286,6 +336,7 @@ function AppNavigation({
             </button>
           ) : null}
         </div>
+        {feedback ? <p className="product-sidebar-feedback" role="status">{feedback}</p> : null}
       </section>
 
       <div className="product-sidebar-footer">
@@ -321,8 +372,9 @@ function TopBar({
   const state = useWorkbenchSnapshot(runtime)
   const live = useLiveSyncSnapshot(runtime)
   const phase = online ? state.runtime.phase : "reconnecting"
-  const title = task?.userGoal
-    || (routeKind === "settings" ? "高级 Workbench" : "Zyra")
+  const preferences = useSyncExternalStore(runtime.preferences.subscribe, runtime.preferences.getSnapshot, runtime.preferences.getSnapshot)
+  const title = (task ? preferences.titles[task.sessionId ?? `task:${task.taskId}`] || task.userGoal : undefined)
+    || (routeKind === "settings" ? "设置" : "Zyra")
   const subtitle = task
     ? task.active && live.live && !live.paused
       ? "进行中 · 实时更新"
@@ -379,58 +431,6 @@ function TopBar({
   )
 }
 
-function SettingsView({ runtime }: { runtime: WorkbenchRuntime }) {
-  const snapshot = runtime.api.client.snapshot()
-  const [historyCount, setHistoryCount] = useState(() => runtime.history.list().length)
-  const [historyCleared, setHistoryCleared] = useState(false)
-  return (
-    <section className="settings-view advanced-center" aria-labelledby="settings-heading">
-      <header className="advanced-center-heading">
-        <div>
-          <p className="eyebrow">Zyra 工作区</p>
-          <h1 id="settings-heading">系统与场景</h1>
-          <p>检查连接、管理本地输入历史，或运行场景与实验。</p>
-        </div>
-        <button className="product-button product-button-primary" type="button" onClick={() => runtime.router.openTasks()}>
-          返回产品首页
-        </button>
-      </header>
-      <div className="settings-grid">
-        <article>
-          <h2>API 与运行时</h2>
-          <p>查看当前工作区连接的服务及其运行状态。</p>
-          <dl className="fact-grid">
-            <div><dt>服务地址</dt><dd>{runtime.api.client.baseUrl}</dd></div>
-            <div><dt>连接服务</dt><dd>{snapshot.registry.enabled ? "已启用" : "已停用"}</dd></div>
-            <div><dt>待响应请求</dt><dd>{snapshot.inFlight.length}</dd></div>
-          </dl>
-          <button className="button button-secondary" type="button" onClick={() => void runtime.commands.submit("/status", { origin: "button" })}>
-            查看运行状态
-          </button>
-        </article>
-        <article>
-          <h2>本地交互状态</h2>
-          <p>命令历史、草稿和排队预览只保存在当前浏览器。</p>
-          <dl className="fact-grid">
-            <div><dt>输入历史</dt><dd>{historyCount}</dd></div>
-            <div><dt>待发送</dt><dd>{runtime.queue.getSnapshot().pendingCount}</dd></div>
-            <div><dt>可用命令</dt><dd>{runtime.catalog.list().length}</dd></div>
-          </dl>
-          <button className="button button-secondary" type="button" disabled={!historyCount} onClick={() => {
-            runtime.history.clear()
-            setHistoryCount(0)
-            setHistoryCleared(true)
-          }}>
-            清除输入历史
-          </button>
-          {historyCleared ? <p role="status">输入历史已清除。任务和会话记录仍保留。</p> : null}
-        </article>
-      </div>
-      <ScenarioWorkbench runtime={runtime.scenarioConsole} />
-      <ExperimentWorkbench runtime={runtime.experimentConsole} />
-    </section>
-  )
-}
 
 function ProductHome({
   runtime,
@@ -476,7 +476,7 @@ function ProductHome({
         <div className="product-orbit" aria-hidden="true">
           <span>Z</span><i /><i /><i />
         </div>
-        <p className="product-kicker">Long-horizon collaboration</p>
+        <p className="product-kicker">与你一起完成复杂任务</p>
         <h1>今天想让 Zyra 完成什么？</h1>
         <p className="product-home-copy">
           描述目标，Zyra 会规划步骤、选择合适的执行资源，并把结果与证据整理成可检查的交付物。
@@ -517,7 +517,7 @@ function MainRoute({
   route: ReturnType<typeof useRoute>
 }) {
   const state = useWorkbenchSnapshot(runtime)
-  if (route.kind === "settings") return <SettingsView runtime={runtime} />
+  if (route.kind === "settings") return <ProductSettings runtime={runtime} />
   if (route.kind === "not-found") {
     return (
       <section className="product-route-state">
@@ -549,6 +549,8 @@ export const SIDEBAR_DRAWER_QUERY = "(max-width: 860px)"
 
 export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
   const route = useRoute(runtime)
+  const preferences = useSyncExternalStore(runtime.preferences.subscribe, runtime.preferences.getSnapshot, runtime.preferences.getSnapshot)
+  useEffect(() => { document.documentElement.style.setProperty("--answer-font-size", `${preferences.fontSize}px`) }, [preferences.fontSize])
   const state = useWorkbenchSnapshot(runtime)
   const layout = useLayoutSnapshot(runtime)
   const announcements = useAnnouncementSnapshot(runtime)

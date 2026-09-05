@@ -67,7 +67,7 @@ describe("product frontstage", () => {
     expect(productTaskProgress({ terminal: true, planNodes: [] })).toEqual({
       completed: 0,
       total: 0,
-      percentage: 100,
+      percentage: 0,
     })
   })
 
@@ -147,7 +147,7 @@ describe("product frontstage", () => {
 
     expect(app).toContain('className="app-shell product-shell"')
     expect(app).toContain("今天想让 Zyra 完成什么？")
-    expect(app).toContain("高级 Workbench")
+    expect(app).toContain("<ProductSettings")
     expect(app).toContain("<ProductTaskDetail")
     expect(detail).toContain("<TaskDetail runtime={runtime} state={state} />")
     expect(detail).toContain('className="advanced-drawer"')
@@ -204,7 +204,7 @@ describe("product frontstage", () => {
 
     // Status is never colour-only.
     expect(app).toContain("function statusText")
-    expect(detail).toContain("function nodeStateLabel")
+    expect(detail).toContain("nodeStateLabel")
 
     // The composer describes itself without narrating every keystroke.
     expect(command).not.toContain('className="command-footer" aria-live="polite"')

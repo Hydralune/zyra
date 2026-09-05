@@ -1,3 +1,5 @@
+import { nodeLabel, nodeDescription, nodeStateLabel } from "../../shell/product-copy.ts"
+export { nodeLabel, nodeDescription, nodeStateLabel } from "../../shell/product-copy.ts"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
   ArtifactProjection,
@@ -18,6 +20,8 @@ import {
 import { EmptyState, ErrorState, LoadingState } from "../status/request-state.tsx"
 import { TaskDetail } from "./task-detail.tsx"
 import { SafeMarkdown } from "../content/safe-markdown.tsx"
+import { CopyButton } from "../content/copy-button.tsx"
+import { productArtifacts } from "../../features/artifacts/product-artifacts.ts"
 
 const COMPLETED_NODE_STATES = new Set(["completed", "succeeded", "verified"])
 const RUNNING_NODE_STATES = new Set(["running", "active", "dispatched"])
@@ -42,7 +46,7 @@ export function productTaskProgress(
     total,
     percentage: total
       ? Math.round((completed / total) * 100)
-      : task.terminal ? 100 : 0,
+      : 0,
   }
 }
 
@@ -178,18 +182,22 @@ export function statusCopy(task: TaskProjection): ProductStatusCopy {
         tone: "danger",
       }
     }
-    if (!summary && task.artifacts.length) {
+    if (!summary && productArtifacts(task.artifacts).length) {
       return {
         eyebrow: "执行已结束",
         title: "交付物已生成",
-        detail: `已生成 ${task.artifacts.length} 个交付物，但运行时没有提供面向用户的最终总结。`,
+        detail: `已生成 ${productArtifacts(task.artifacts).length} 个交付物，但没有提供最终总结。`,
         tone: "idle",
       }
+    }
+    if (!summary) return {
+      eyebrow: "执行已结束", title: "没有可展示的回答",
+      detail: "执行已经结束，但没有返回回答内容。你可以查看执行记录，或继续说明需要的结果。", tone: "idle",
     }
     return {
       eyebrow: "已完成",
       title: "任务已完成",
-      detail: "最终回答已通过任务目标验证。",
+      detail: "回答已生成。",
       tone: "success",
     }
   }
@@ -201,6 +209,14 @@ export function statusCopy(task: TaskProjection): ProductStatusCopy {
       eyebrow: "需要处理",
       title: normalized.includes("cancel") ? "任务已取消" : "任务未能完成",
       detail: "打开运行详情可以查看失败原因、恢复建议和审计证据。",
+      tone: "danger",
+    }
+  }
+  if (["blocked", "needs_revision", "waiting_approval", "awaiting_approval", "paused"].includes(normalized)) {
+    return {
+      eyebrow: normalized === "needs_revision" ? "需要修改" : normalized.includes("approval") ? "等待许可" : "等待处理",
+      title: normalized === "needs_revision" ? "结果需要进一步修改" : normalized.includes("approval") ? "需要你的许可" : "任务暂时无法继续",
+      detail: String(task.metadata.failure_reason || task.metadata.blocked_reason || "请查看执行过程中的原因及待处理事项，再决定是否继续。"),
       tone: "danger",
     }
   }
@@ -233,11 +249,6 @@ function relativeTime(value: string): string {
   return formatter.format(Math.round(hours / 24), "day")
 }
 
-function nodeLabel(node: PlanNodeProjection): string {
-  const labels: Record<string, string> = { "Root task": "任务目标", Plan: "规划", Route: "选择执行资源", Execute: "执行", Verify: "验证", Finalize: "整理结果" }
-  return labels[node.title] ?? (node.title || node.nodeId)
-}
-
 export function orderedProductPlan(nodes: readonly PlanNodeProjection[]): PlanNodeProjection[] {
   const byId = new Map(nodes.map((node) => [node.nodeId, node]))
   const visited = new Set<string>()
@@ -255,28 +266,8 @@ export function orderedProductPlan(nodes: readonly PlanNodeProjection[]): PlanNo
   return result
 }
 
-function nodeDescription(node: PlanNodeProjection): string {
-  const descriptions: Record<string, string> = {
-    "Decompose the user goal into an executable task graph.": "将目标拆分为可执行的步骤。",
-    "Select the worker and control route for the executable node.": "选择适合当前步骤的执行资源。",
-    "Run the current node through the selected worker runtime.": "执行当前步骤并记录结果。",
-    "Check node outputs, event coverage, and checkpoint readiness.": "检查步骤结果与恢复状态。",
-    "Finalize the trace and mark the task ready for inspection.": "整理执行记录和交付结果。",
-  }
-  return descriptions[node.description] ?? node.description
-}
-
 function artifactLabel(artifact: ArtifactProjection): string {
   return artifact.title || artifact.path || artifact.artifactId
-}
-
-function nodeStateLabel(status: string): string {
-  const normalized = status.toLowerCase()
-  if (COMPLETED_NODE_STATES.has(normalized)) return "已完成"
-    if (RUNNING_NODE_STATES.has(normalized)) return "进行中"
-    if (["cancelled", "canceled"].includes(normalized)) return "已停止"
-  if (FAILED_NODE_STATES.has(normalized)) return "未完成"
-  return "待执行"
 }
 
 function nodeToolLabel(node: PlanNodeProjection): string | undefined {
@@ -394,7 +385,7 @@ function ArtifactPreview({
   turnId: string
   expanded?: boolean
 }) {
-  const artifacts = task.artifacts
+  const artifacts = productArtifacts(task.artifacts)
   const [selectedId, setSelectedId] = useState<string>()
   const selected =
     artifacts.find((artifact) => artifact.artifactId === selectedId)
@@ -545,6 +536,9 @@ function ConversationTurn({
   const metrics = taskMetrics(task)
   const copy = statusCopy(task)
   const summary = resultSummary(task)
+  const detail = runtime.workbench.conversationDetail?.(task.taskId) ?? { phase: "ready" }
+  const deliveries = productArtifacts(task.artifacts)
+  const evidenceCount = task.artifacts.length - deliveries.length
   // Steps are secondary detail: they open on their own only while the latest
   // turn is still moving or needs attention, and stay put once touched.
   const runDetails = useDisclosure(latest && (task.active || copy.tone === "danger"))
@@ -584,6 +578,12 @@ function ConversationTurn({
                     : "实时生成中"}
               </small>
             </div>
+          ) : detail.phase !== "ready" ? (
+            <div className="product-answer-loading" role={detail.phase === "error" ? "alert" : "status"}>
+              <strong>{detail.phase === "error" ? "回答加载失败" : "正在加载回答…"}</strong>
+              <p>{detail.phase === "error" ? "暂时无法读取这轮对话，任务记录仍保留。" : "正在读取这轮对话的完整内容。"}</p>
+              {detail.phase === "error" ? <button className="product-button" type="button" onClick={() => void runtime.workbench.retryConversationDetail(task.taskId)}>重新加载回答</button> : null}
+            </div>
           ) : task.active ? (
             <p className="product-working-copy">
               <span className="product-working-spinner" aria-hidden="true" />
@@ -595,6 +595,7 @@ function ConversationTurn({
               <span>{copy.detail}</span>
             </div>
           )}
+          {summary ? <div className="product-message-actions"><CopyButton text={summary} /></div> : null}
 
           <details
             className="product-disclosure product-run-summary"
@@ -628,7 +629,8 @@ function ConversationTurn({
               </div>
               <div className="product-result-facts">
                 <span><strong>{progress.completed}/{progress.total}</strong> 步骤</span>
-                <span><strong>{task.artifacts.length}</strong> 交付物</span>
+                <span><strong>{deliveries.length}</strong> 交付物</span>
+                {evidenceCount ? <span><strong>{evidenceCount}</strong> 运行记录</span> : null}
                 <span><strong>{formatDuration(metrics.elapsedMs)}</strong> 用时</span>
               </div>
               {task.planNodes.length ? (
@@ -762,7 +764,7 @@ function AdvancedRunDrawer({
       >
         <header className="advanced-drawer-header">
           <div>
-            <p>Advanced workbench</p>
+            <p>高级详情</p>
             <h2 id="advanced-drawer-title">运行详情与证据</h2>
           </div>
           <button type="button" onClick={onClose} aria-label="关闭运行详情">×</button>
@@ -961,13 +963,14 @@ function ProductDetailContent({
                 <h1>会话交付物</h1>
                 <button className="product-button product-button-quiet" type="button" onClick={() => runtime.router.openTask(task.taskId)}>返回对话</button>
               </header>
-              {!timeline.some((turn) => turn.artifacts.length) ? <p className="product-muted">这个会话还没有生成文件或交付物。执行产生文件的任务后，可在这里查看。</p> : null}
-              {timeline.filter((turn) => turn.artifacts.length).map((turn) => (
+              {!timeline.some((turn) => productArtifacts(turn.artifacts).length) ? <p className="product-muted">这个会话没有单独交付的文件。回答保留在对话中，内部运行记录可在证据中心查看。</p> : null}
+              {timeline.filter((turn) => productArtifacts(turn.artifacts).length).map((turn) => (
                 <section key={turn.taskId}>
                   <h2>{turn.userGoal}</h2>
                   <ArtifactPreview runtime={runtime} task={turn} turnId={turn.taskId} expanded />
                 </section>
               ))}
+              <button className="product-button" type="button" onClick={() => runtime.router.openEvidence(task.taskId)}>查看运行记录与完整证据</button>
             </section>
           ) : timeline.map((turn, index) => (
             <ConversationTurn

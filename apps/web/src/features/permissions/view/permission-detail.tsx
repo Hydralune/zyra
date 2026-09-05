@@ -18,11 +18,10 @@ export function PermissionDetail(input: {
     return (
       <section
         className="permission-detail"
-        aria-label="Permission request detail"
+        aria-label="审批详情"
       >
         <p className="muted-copy">
-          Select a canonical request to inspect its exact binding and safe
-          argument preview.
+          选择待审批操作，查看执行范围和参数。
         </p>
       </section>
     )
@@ -49,32 +48,32 @@ export function PermissionDetail(input: {
       </div>
 
       <dl className="permission-binding-grid">
-        <Fact label="Request" value={request.requestId} />
-        <Fact label="Tool call" value={request.toolCallId} />
-        <Fact label="Worker request" value={request.workerRequestId} />
-        <Fact label="Session" value={`${request.sessionId} · rev ${request.sessionRevision}`} />
-        <Fact label="Namespace" value={request.namespace} />
-        <Fact label="Operation" value={request.operation} />
-        {request.serverId ? <Fact label="MCP server" value={request.serverId} /> : null}
-        {request.commandName ? <Fact label="Command" value={request.commandName} /> : null}
-        {request.resourceUri ? <Fact label="Resource" value={request.resourceUri} /> : null}
-        {request.workspaceRoot ? <Fact label="Workspace" value={request.workspaceRoot} /> : null}
-        <Fact label="Arguments digest" value={request.argumentsDigest} mono />
-        <Fact label="Request fingerprint" value={request.requestFingerprint} mono />
+        <Fact label="请求编号" value={request.requestId} />
+        <Fact label="工具调用" value={request.toolCallId} />
+        <Fact label="执行请求" value={request.workerRequestId} />
+        <Fact label="会话" value={`${request.sessionId} · rev ${request.sessionRevision}`} />
+        <Fact label="命名空间" value={request.namespace} />
+        <Fact label="操作" value={request.operation} />
+        {request.serverId ? <Fact label="MCP 服务" value={request.serverId} /> : null}
+        {request.commandName ? <Fact label="命令" value={request.commandName} /> : null}
+        {request.resourceUri ? <Fact label="资源" value={request.resourceUri} /> : null}
+        {request.workspaceRoot ? <Fact label="工作区" value={request.workspaceRoot} /> : null}
+        <Fact label="参数摘要" value={request.argumentsDigest} mono />
+        <Fact label="请求指纹" value={request.requestFingerprint} mono />
         <Fact
-          label="Response challenge"
+          label="响应校验"
           value={request.responseChallenge.challengeDigest}
           mono
         />
         <Fact
-          label="Policy / mode"
+          label="策略 / 模式"
           value={`${request.policyRevision} / ${request.modeRevision}`}
         />
       </dl>
 
       <section aria-labelledby="permission-preview-heading">
         <div className="section-heading">
-          <h5 id="permission-preview-heading">Safe argument preview</h5>
+          <h5 id="permission-preview-heading">操作参数预览</h5>
           <span>
             {request.redactedPreview.secretCount} secret field(s) redacted
           </span>
@@ -99,8 +98,7 @@ export function PermissionDetail(input: {
           </dl>
         ) : (
           <p className="muted-copy">
-            Raw arguments are intentionally unavailable. The digest remains
-            bound to the exact physical call.
+            敏感参数已隐藏，摘要与本次操作绑定。
           </p>
         )}
       </section>
@@ -108,7 +106,7 @@ export function PermissionDetail(input: {
       {request.warnings.length ? (
         <section
           className="permission-warning-stack"
-          aria-label="Permission risk warnings"
+          aria-label="权限风险提示"
         >
           {request.warnings.map((warning) => (
             <article
@@ -132,7 +130,7 @@ export function PermissionDetail(input: {
 
       <nav
         className="permission-cross-view"
-        aria-label="Related operator views"
+        aria-label="相关操作记录"
       >
         {crossViewTargets(request).map((target) => (
           <button
@@ -149,12 +147,11 @@ export function PermissionDetail(input: {
       <div className="permission-response-controls">
         {input.mode === "sealed" ? (
           <p className="permission-sealed-notice" role="status">
-            Sealed autonomous mode disables human approval. ASK becomes a
-            deterministic deny/replan with no approval wait.
+            全自主模式由后端处理权限，不接受人工审批。
           </p>
         ) : null}
         <label>
-          Optional audit note
+          审批备注（可选）
           <textarea
             value={input.feedback}
             maxLength={4_096}
@@ -170,7 +167,7 @@ export function PermissionDetail(input: {
             title={disabledReason(input.mode, input.responding, request)}
             onClick={() => input.onRespond("deny")}
           >
-            Deny exact call
+            拒绝本次操作
           </button>
           <button
             type="button"
@@ -179,12 +176,11 @@ export function PermissionDetail(input: {
             title={disabledReason(input.mode, input.responding, request)}
             onClick={() => input.onRespond("allow")}
           >
-            Allow once
+            仅允许一次
           </button>
         </div>
         <p className="muted-copy">
-          “Allow once” issues at most one exact-call permit. This console does
-          not create persistent grants.
+          仅允许一次只对当前操作生效，不会授予永久权限。
         </p>
       </div>
     </section>
@@ -209,7 +205,7 @@ function crossViewTargets(
 ): readonly { label: string; selector: string }[] {
   const targets = [
     {
-      label: "Timeline",
+      label: "时间线",
       selector:
         `[data-event-request-id="${escapeAttribute(request.requestId)}"],`
         + `[data-permission-id="${escapeAttribute(request.requestId)}"]`,
@@ -217,14 +213,14 @@ function crossViewTargets(
   ]
   if (request.sourceSurface === "browser") {
     targets.push({
-      label: "Browser",
+      label: "浏览器",
       selector:
         `[data-browser-permission-request-id="${escapeAttribute(request.requestId)}"]`,
     })
   }
   if (request.sourceSurface === "terminal") {
     targets.push({
-      label: "Terminal",
+      label: "终端",
       selector:
         `[data-terminal-permission-request-id="${escapeAttribute(request.requestId)}"]`,
     })

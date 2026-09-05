@@ -1,3 +1,4 @@
+import { phaseLabel } from "../../shell/product-copy.ts"
 import { useEffect, useMemo } from "react"
 import type { TaskProjection } from "../../../../../packages/core/typed-api-client/src/index.ts"
 import type { WorkbenchRuntime } from "../../app/runtime.ts"
@@ -102,84 +103,83 @@ function EvidenceLayerIndex({
       id: "evidence-topology",
       title: "动态拓扑",
       requirement: "SCORE-ORG",
-      source: "canonical graph projection",
+      source: "任务关系图",
       status: status(topology.nodes.length + topology.edges.length),
       count: topology.nodes.length + topology.edges.length,
-      detail: `graph revision ${topology.revision} · ${topology.nodes.length} nodes · ${topology.edges.length} edges`,
+      detail: `版本 ${topology.revision} · ${topology.nodes.length} 个节点 · ${topology.edges.length} 条关系`,
     },
     {
       id: "evidence-topology",
       title: "协作降噪",
       requirement: "SCORE-NOISE",
-      source: "policy receipts + causal events",
+      source: "策略回执与事件",
       status: status(communicationCount),
       count: communicationCount,
-      detail: "AgentPrune 原因、密度和重复率只在真实 policy/metric receipt 出现后记为可用。",
+      detail: "协作消息与策略记录，可展开查看原因和指标。",
     },
     {
       id: "evidence-topology",
       title: "神经符号裁决",
       requirement: "REQ-TRACE-01",
-      source: "policy evidence API",
+      source: "策略验证记录",
       status: status(symbolicCount),
       count: symbolicCount,
-      detail: "proposal → constraint verdict → delta → canonical commit；缺一项就保持 missing/degraded。",
+      detail: "查看方案、约束检查、变更和最终提交的对应关系。",
     },
     {
       id: "evidence-continuity-placement",
       title: "记忆连续性",
       requirement: "Memory continuity",
-      source: "session/checkpoint/memory projection",
+      source: "会话、检查点与记忆",
       status: status(continuityCount),
       count: continuityCount,
-      detail: `${sessions.rows.length} sessions · ${sessions.compactionCount} compact operations`,
+      detail: `${sessions.rows.length} 个会话 · ${sessions.compactionCount} 次压缩`,
     },
     {
       id: "evidence-continuity-placement",
       title: "端边云物理执行",
       requirement: "REQ-EDGE-01",
-      source: "physical dispatch receipt",
+      source: "执行调度回执",
       status: status(placementCount),
       count: placementCount,
-      detail: "候选选择不等于执行；LOCAL/EDGE/CLOUD 只由已验证 physical_identity.location 决定。",
+      detail: "实际执行位置由已验证的执行回执提供。",
     },
     {
       id: "evidence-recovery",
       title: "故障与恢复",
       requirement: "SCORE-ROBUST",
-      source: "causal recovery timeline",
+      source: "故障恢复时间线",
       status: status(recoveryCount),
       count: recoveryCount,
-      detail: "失败、取消、terminal failover 和恢复事件保留原始因果引用。",
+      detail: "查看失败、取消和恢复事件及其关联记录。",
     },
     {
       id: "evidence-artifacts",
       title: "交付与验证",
       requirement: "Artifact + verifier",
-      source: "artifact custody projection",
+      source: "产物记录",
       status: status(artifacts.rows.length),
       count: artifacts.rows.length,
-      detail: `${artifacts.rows.length} artifacts · ${artifacts.missingProducerIds.length} missing producer refs`,
+      detail: `${artifacts.rows.length} 项产物 · ${artifacts.missingProducerIds.length} 项来源待确认`,
     },
     {
       id: "evidence-controls",
-      title: "权限与控制 ACK",
+      title: "权限与控制回执",
       requirement: "Control custody",
-      source: "runtime command/permission queue",
+      source: "命令与审批队列",
       status: status(queue.rows.length),
       count: queue.rows.length,
-      detail: `${queue.pendingPermissions} pending permissions · ${queue.queuedCommands} queued commands`,
+      detail: `${queue.pendingPermissions} 项待审批 · ${queue.queuedCommands} 条排队命令`,
     },
   ]
   return (
     <>
       <header className="evidence-route-header">
         <div>
-          <p className="eyebrow">Canonical evidence surface</p>
+          <p className="eyebrow">任务运行记录</p>
           <h1>运行证据中心</h1>
           <p>
-            这里是同一 task/run 的只读投影。CLI 与 Web 不互相同步；两者都从
-            Zyra runtime 的 task、event、receipt 与 artifact owner 读取事实。
+            查看当前任务的执行过程、运行产物和验证记录。这里与 CLI 读取同一份后端数据。
           </p>
         </div>
         <div className="evidence-route-actions">
@@ -188,32 +188,32 @@ function EvidenceLayerIndex({
             type="button"
             onClick={() => runtime.router.openTask(task.taskId)}
           >
-            返回产品视图
+            返回对话
           </button>
           <button
             className="product-button product-button-quiet"
             type="button"
             onClick={() => void runtime.liveSync.refreshNow()}
           >
-            刷新真实状态
+            刷新状态
           </button>
         </div>
       </header>
       <dl className="evidence-route-identity">
-        <div><dt>Task</dt><dd>{task.taskId}</dd></div>
-        <div><dt>Run</dt><dd>{task.runId}</dd></div>
-        <div><dt>Session</dt><dd>{task.sessionId ?? "—"}</dd></div>
-        <div><dt>Projection revision</dt><dd>{readiness.revision}</dd></div>
-        <div><dt>Committed cursor</dt><dd>{readiness.committedSequence}</dd></div>
+        <div><dt>任务编号</dt><dd>{task.taskId}</dd></div>
+        <div><dt>运行编号</dt><dd>{task.runId}</dd></div>
+        <div><dt>会话编号</dt><dd>{task.sessionId ?? "—"}</dd></div>
+        <div><dt>数据版本</dt><dd>{readiness.revision}</dd></div>
+        <div><dt>事件序号</dt><dd>{readiness.committedSequence}</dd></div>
         <div>
-          <dt>Source health</dt>
+          <dt>数据状态</dt>
           <dd data-evidence-source-status={evidenceSourceStatus({
             connected: readiness.connected,
             ready: readiness.ready,
             stale,
             count: 1,
           })}>
-            {readiness.connected ? (readiness.ready ? "live" : "stale") : "degraded"}
+            {phaseLabel(readiness.connected ? (readiness.ready ? "live" : "stale") : "degraded")}
           </dd>
         </div>
       </dl>
@@ -234,15 +234,13 @@ function EvidenceLayerIndex({
               <small>{layer.requirement} · {layer.source}</small>
             </span>
             <span className="evidence-layer-count">{layer.count}</span>
-            <span className="evidence-layer-status">{layer.status}</span>
+            <span className="evidence-layer-status">{phaseLabel(layer.status)}</span>
             <p>{layer.detail}</p>
           </a>
         ))}
       </nav>
       <p className="evidence-truth-legend">
-        真实性标签来自 API：real 表示 receipt 已通过真实执行门；simulated、degraded、
-        missing、stale 均不会显示为成功。terminal 只有 receipt 明确给出 terminal_id
-        且 location=local 时才显示为 TERMINAL · LOCAL。
+        记录状态由后端提供。暂无记录、连接不稳定或待更新表示证据尚不充分；展开对应面板可查看原始记录与验证结果。
       </p>
     </>
   )
@@ -273,11 +271,10 @@ function LoadedEvidenceWorkbench({
       <TaskDetail runtime={runtime} state={state} />
       <section id="evidence-sealed-scenarios" className="evidence-scenario-layer">
         <header>
-          <p className="eyebrow">Dual-domain sealed evidence</p>
-          <h2>双域场景与 evidence manifest</h2>
+          <p className="eyebrow">场景验收</p>
+          <h2>场景与证据清单</h2>
           <p>
-            Software delivery 与 cross-source research 使用同一 scenario owner；
-            未形成或未验证的 evidence manifest 保持 degraded/error。
+            查看软件交付和跨源研究的场景记录及验收结果。
           </p>
         </header>
         <ScenarioWorkbench runtime={runtime.scenarioConsole} />

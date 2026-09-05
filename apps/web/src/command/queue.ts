@@ -1,8 +1,11 @@
+import type { ProductExecutionConfig } from "../api/task-api.ts"
+
 export type QueuePriority = "now" | "next" | "later"
 export type QueuePhase = "queued" | "dispatching" | "committed" | "failed" | "cancelled"
 export type QueueOrigin = "keyboard" | "button" | "overlay" | "recovery"
 
 export interface QueuedSubmission {
+  executionConfig?: ProductExecutionConfig
   id: string
   value: string
   priority: QueuePriority
@@ -29,6 +32,7 @@ export interface QueueSnapshot {
 }
 
 export interface EnqueueInput {
+  executionConfig?: ProductExecutionConfig
   id?: string
   value: string
   priority?: QueuePriority
@@ -106,6 +110,7 @@ export class CommandQueue {
       updatedAt: now,
       taskId: input.taskId,
       sessionId: input.sessionId,
+      executionConfig: input.executionConfig ? Object.freeze({ ...input.executionConfig }) : undefined,
       editable: input.editable ?? true,
       visible: input.visible ?? true,
       remoteSafe: input.remoteSafe ?? false,

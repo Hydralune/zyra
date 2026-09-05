@@ -32,6 +32,7 @@ import {
   sealedMutationReason,
 } from "../../../../../packages/commands/src/index.ts"
 import type { TaskApi } from "../../api/task-api.ts"
+import type { TaskProjection } from "../../../../../packages/core/typed-api-client/src/index.ts"
 import type { OverlayRuntime } from "../../shell/overlay-runtime.ts"
 import type { CanonicalProjectionStore } from "../../state/index.ts"
 import type { WorkbenchController } from "../../shell/workbench-controller.ts"
@@ -180,6 +181,7 @@ function overlayTitle(receipt: CommandReceipt): string {
 }
 
 export class CommandSurfaceRuntime {
+  readonly #taskApi: TaskApi
   readonly registry = createCommandRegistry()
   readonly coordinator: CommandCoordinator
   readonly palette: CommandPalette
@@ -223,6 +225,7 @@ export class CommandSurfaceRuntime {
     }) => Promise<void> | void
   }) {
     this.#workbench = options.workbench
+    this.#taskApi = options.api
     this.#overlays = options.overlays
     this.#projections = options.projections
     this.#sealed = options.sealed ?? (() => false)
@@ -353,6 +356,25 @@ export class CommandSurfaceRuntime {
   resolve(value: string): boolean {
     const trigger = value.trim().split(/\s+/, 1)[0]
     return Boolean(this.registry.resolve(trigger))
+  }
+
+  async renameConversation(task: TaskProjection, title: string): Promise<CommandReceipt> {
+    const current = await this.#taskApi.get(task.taskId)
+    const context: CommandTaskContext = {
+      taskId: current.taskId, runId: current.runId,
+      sessionId: String(current.metadata.query_session_id || current.sessionId || `task:${current.taskId}`),
+      taskStatus: current.status, active: current.active, terminal: current.terminal,
+      transportEnabled: this.#workbench.getSnapshot().transportEnabled,
+      sealed: current.metadata.sealed === true || current.metadata.sealed_autonomous === true
+        || ["sealed", "sealed_autonomous"].includes(String(current.metadata.competition_mode ?? current.metadata.permission_mode ?? current.metadata.mode ?? "")),
+      remote: false,
+    }
+    // A row action has its own exact task binding and must not navigate away
+    // from another conversation or open the command receipt inspector.
+    const coordinator = new CommandCoordinator({ registry: this.registry,
+      transport: new TaskApiCommandTransport(this.#taskApi), context: () => context })
+    try { return await coordinator.submit(`/rename ${JSON.stringify(title)}`, { context }) }
+    finally { coordinator.close("Conversation title action completed.") }
   }
 
   async submit(

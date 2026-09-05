@@ -261,10 +261,9 @@ export function ArtifactWorkbench({
     >
       <header className="artifact-workbench-header">
         <div>
-          <h3 id="artifact-workbench-heading">Artifacts</h3>
+          <h3 id="artifact-workbench-heading">全部产物与运行记录</h3>
           <p className="muted-copy">
-            Canonical, integrity-checked task artifacts. Content is range-loaded
-            and rendered as inert data.
+            查看任务交付物及内部运行记录，选择条目后加载内容。
           </p>
         </div>
         <ArtifactStatus state={state} />
@@ -277,12 +276,12 @@ export function ArtifactWorkbench({
         >
           <div className="artifact-toolbar">
             <label className="artifact-search-label">
-              <span>Filter catalog</span>
+              <span>筛选产物</span>
               <input
                 value={catalogQuery}
                 type="search"
                 onChange={(event) => updateCatalogQuery(event.target.value)}
-                placeholder="title, digest, node, worker…"
+                placeholder="名称、摘要、节点、执行者…"
                 aria-controls="artifact-catalog-list"
               />
             </label>
@@ -291,7 +290,7 @@ export function ArtifactWorkbench({
               onClick={() => void workbench.loadCatalog({ reset: true })}
               disabled={state.phase === "catalog-loading"}
             >
-              Refresh
+              刷新
             </button>
           </div>
           <CatalogFacets state={state} />
@@ -327,8 +326,8 @@ export function ArtifactWorkbench({
             {!state.catalog.filtered.length ? (
               <p className="muted-copy artifact-empty">
                 {state.catalog.phase === "loading"
-                  ? "Loading canonical artifact references…"
-                  : "No artifacts match this catalog filter."}
+                  ? "正在加载产物记录…"
+                  : "没有匹配的产物。"}
               </p>
             ) : null}
           </div>
@@ -338,7 +337,7 @@ export function ArtifactWorkbench({
               className="artifact-load-more"
               onClick={() => void workbench.loadNextCatalogPage()}
             >
-              Load next catalog page
+              加载更多产物
             </button>
           ) : null}
         </aside>
@@ -357,18 +356,18 @@ export function ArtifactWorkbench({
                     }}
                   >
                     <label>
-                      <span className="sr-only">Search artifact content</span>
+                      <span className="sr-only">搜索产物内容</span>
                       <input
                         type="search"
                         value={contentQuery}
                         onChange={(event) =>
                           setContentQuery(event.target.value)
                         }
-                        placeholder="Search loaded content"
+                        placeholder="搜索已加载的内容"
                       />
                     </label>
                     <button type="submit" disabled={searchBusy}>
-                      {searchBusy ? "Searching…" : "Search"}
+                      {searchBusy ? "搜索中…" : "搜索"}
                     </button>
                   </form>
                 ) : null}
@@ -376,13 +375,13 @@ export function ArtifactWorkbench({
                   type="button"
                   onClick={() => workbench.bookmark()}
                 >
-                  Bookmark revision
+                  收藏此版本
                 </button>
                 <button
                   type="button"
                   onClick={() => workbench.bookmark({ pinned: true })}
                 >
-                  Pin
+                  固定
                 </button>
                 {download?.confirmationRequired && !downloadConfirmed ? (
                   <button
@@ -391,7 +390,7 @@ export function ArtifactWorkbench({
                     disabled={!download.allowed}
                     title={download.reasons.join("; ")}
                   >
-                    Confirm download
+                    确认下载
                   </button>
                 ) : null}
                 {download ? (
@@ -405,11 +404,11 @@ export function ArtifactWorkbench({
                     }}
                     title={
                       canDownload
-                        ? "Download the verified artifact range"
+                        ? "下载经过校验的产物"
                         : download.reasons.join("; ")
                     }
                   >
-                    Download
+                    下载
                   </a>
                 ) : null}
               </div>
@@ -440,23 +439,22 @@ export function ArtifactWorkbench({
                     onClick={() => void workbench.loadMoreContent()}
                     disabled={state.phase === "artifact-loading"}
                   >
-                    Load next verified range
+                    加载更多内容
                   </button>
                   <button
                     type="button"
                     onClick={() => workbench.cancel("User cancelled artifact reads.")}
                   >
-                    Cancel reads
+                    停止读取
                   </button>
                 </div>
               ) : null}
             </>
           ) : (
             <div className="artifact-empty-viewer">
-              <h4>Select an artifact revision</h4>
+              <h4>选择一项产物或运行记录</h4>
               <p className="muted-copy">
-                The viewer will request metadata and bounded content only after
-                a canonical artifact reference is selected.
+                选择左侧条目后查看内容、版本与校验信息。
               </p>
             </div>
           )}
@@ -523,23 +521,23 @@ function CatalogFacets({ state }: { state: ArtifactWorkbenchState }) {
   return (
     <dl className="artifact-catalog-facets">
       <div>
-        <dt>Revisions</dt>
+        <dt>版本</dt>
         <dd>{state.catalog.filtered.length.toLocaleString()}</dd>
       </div>
       <div>
-        <dt>Total bytes</dt>
+        <dt>总大小</dt>
         <dd>{facets.totalBytes.toLocaleString()}</dd>
       </div>
       <div>
-        <dt>Verified</dt>
+        <dt>已校验</dt>
         <dd>{facets.verifiedBytes.toLocaleString()}</dd>
       </div>
       <div>
-        <dt>Legacy</dt>
+        <dt>旧版记录</dt>
         <dd>{facets.legacyCount.toLocaleString()}</dd>
       </div>
       <div>
-        <dt>Missing</dt>
+        <dt>缺失</dt>
         <dd>{facets.missingCount.toLocaleString()}</dd>
       </div>
     </dl>

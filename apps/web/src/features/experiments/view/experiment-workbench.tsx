@@ -1,3 +1,4 @@
+import { phaseLabel } from "../../../shell/product-copy.ts"
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import type { ExperimentWorkbenchRuntime } from "../runtime.ts"
 import { ExperimentPolicyEvidence } from "../policy/index.ts"
@@ -96,19 +97,15 @@ export function ExperimentWorkbench({
     >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">M2 exit evidence</p>
-          <h2 id="experiment-workbench-heading">Ablation and metrics workbench</h2>
+          <p className="eyebrow">实验分析</p>
+          <h2 id="experiment-workbench-heading">实验与指标</h2>
         </div>
         <span className="tag" data-phase={snapshot.connection}>
-          {snapshot.connection}
+          {phaseLabel(snapshot.connection)}
         </span>
       </div>
       <p className="muted-copy">
-        The backend owns every matrix cell and continues after this browser
-        disconnects. Reviewers can move from a 100-point requirement row to
-        controlled variants, P50/P95 and dispersion, raw samples, canonical
-        source events, verifier receipts and the tamper-evident bundle without
-        reading backend logs.
+        集中查看实验对比、统计指标、原始样本和验收证据。实验由后端持续执行，关闭浏览器不会中断。
       </p>
 
       {error ? <div className="plan-warning" role="alert">{error}</div> : null}
@@ -121,14 +118,14 @@ export function ExperimentWorkbench({
       <div className="settings-grid">
         <article>
           <div className="section-heading">
-            <h3>Durable experiment runs</h3>
+            <h3>实验记录</h3>
             <button
               className="button button-secondary"
               type="button"
               disabled={Boolean(busy)}
               onClick={() => void runtime.refresh("manual")}
             >
-              Refresh
+              刷新
             </button>
           </div>
           {snapshot.rows.length ? (
@@ -156,7 +153,7 @@ export function ExperimentWorkbench({
                   >
                     <strong>{row.run.title}</strong>
                     <span>
-                      {row.run.phase} · {percent(row.progressRatio)}
+                      {phaseLabel(row.run.phase)} · {percent(row.progressRatio)}
                     </span>
                     <small>{row.run.experiment_id}</small>
                   </button>
@@ -165,26 +162,26 @@ export function ExperimentWorkbench({
             </ol>
           ) : (
             <p className="muted-copy">
-              No formal experiment is present in this clean state.
+              还没有实验记录。
             </p>
           )}
         </article>
 
         <article>
-          <h3>Selected envelope and custody</h3>
+          <h3>实验配置与存档</h3>
           {selected ? (
             <>
               <dl className="fact-grid">
-                <div><dt>Phase</dt><dd>{selected.run.phase}</dd></div>
-                <div><dt>Matrix cells</dt><dd>
+                <div><dt>状态</dt><dd>{phaseLabel(selected.run.phase)}</dd></div>
+                <div><dt>已完成实验单元</dt><dd>
                   {selected.run.progress.terminal}/{selected.run.progress.planned}
                 </dd></div>
-                <div><dt>Repetitions</dt><dd>{selected.run.repetitions}</dd></div>
-                <div><dt>Domain</dt><dd>{selected.run.envelope.task_domain}</dd></div>
-                <div><dt>Commit</dt><dd>{shortDigest(selected.run.envelope.commit_sha)}</dd></div>
-                <div><dt>Envelope</dt><dd>{shortDigest(selected.run.envelope.envelope_digest)}</dd></div>
-                <div><dt>Source</dt><dd>{shortDigest(selected.run.envelope.source_evidence_digest)}</dd></div>
-                <div><dt>Browser required</dt><dd>no</dd></div>
+                <div><dt>重复次数</dt><dd>{selected.run.repetitions}</dd></div>
+                <div><dt>领域</dt><dd>{selected.run.envelope.task_domain}</dd></div>
+                <div><dt>代码版本</dt><dd>{shortDigest(selected.run.envelope.commit_sha)}</dd></div>
+                <div><dt>配置摘要</dt><dd>{shortDigest(selected.run.envelope.envelope_digest)}</dd></div>
+                <div><dt>来源</dt><dd>{shortDigest(selected.run.envelope.source_evidence_digest)}</dd></div>
+                <div><dt>需要保持浏览器打开</dt><dd>否</dd></div>
               </dl>
               <div className="task-actions">
                 <button
@@ -196,7 +193,7 @@ export function ExperimentWorkbench({
                   }
                   onClick={() => void mutate("start")}
                 >
-                  {busy === "start" ? "Starting…" : "Start matrix"}
+                  {busy === "start" ? "正在启动…" : "启动实验"}
                 </button>
                 <button
                   className="button button-secondary"
@@ -204,7 +201,7 @@ export function ExperimentWorkbench({
                   disabled={Boolean(busy) || selected.run.phase !== "succeeded"}
                   onClick={() => void mutate("verify")}
                 >
-                  {busy === "verify" ? "Verifying…" : "Verify and load bundle"}
+                  {busy === "verify" ? "正在验证…" : "验证并加载归档"}
                 </button>
                 <button
                   className="button button-secondary"
@@ -212,7 +209,7 @@ export function ExperimentWorkbench({
                   disabled={Boolean(busy) || !selected.run.terminal}
                   onClick={() => void mutate("archive")}
                 >
-                  Archive
+                  归档
                 </button>
               </div>
               {selected.admission.findings.map((item) => (
@@ -222,7 +219,7 @@ export function ExperimentWorkbench({
               ))}
             </>
           ) : (
-            <p className="muted-copy">Select an experiment to inspect it.</p>
+            <p className="muted-copy">选择实验后查看配置与结果。</p>
           )}
         </article>
       </div>
@@ -232,8 +229,8 @@ export function ExperimentWorkbench({
           <section aria-labelledby="experiment-score-heading">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">Authoritative requirement matrix</p>
-                <h3 id="experiment-score-heading">Exit score and integrity</h3>
+                <p className="eyebrow">验收指标</p>
+                <h3 id="experiment-score-heading">评分与完整性</h3>
               </div>
               <span
                 className="tag"
@@ -248,18 +245,18 @@ export function ExperimentWorkbench({
               </span>
             </div>
             <dl className="fact-grid">
-              <div><dt>Raw samples</dt><dd>{snapshot.headline.rawSamples.toLocaleString()}</dd></div>
-              <div><dt>Metric summaries</dt><dd>{snapshot.headline.summaries.toLocaleString()}</dd></div>
-              <div><dt>Comparisons</dt><dd>{snapshot.headline.comparisons.toLocaleString()}</dd></div>
-              <div><dt>Requirements</dt><dd>
+              <div><dt>原始样本</dt><dd>{snapshot.headline.rawSamples.toLocaleString()}</dd></div>
+              <div><dt>指标汇总</dt><dd>{snapshot.headline.summaries.toLocaleString()}</dd></div>
+              <div><dt>对比数量</dt><dd>{snapshot.headline.comparisons.toLocaleString()}</dd></div>
+              <div><dt>验收要求</dt><dd>
                 {snapshot.headline.requirementsVerified}/{snapshot.headline.requirementsTotal}
               </dd></div>
-              <div><dt>Bundle members</dt><dd>{snapshot.bundleAssessment?.memberCount ?? 0}</dd></div>
-              <div><dt>Merkle root</dt><dd>{shortDigest(snapshot.bundleAssessment?.merkleRoot)}</dd></div>
-              <div><dt>Backend logs required</dt><dd>
+              <div><dt>归档条目</dt><dd>{snapshot.bundleAssessment?.memberCount ?? 0}</dd></div>
+              <div><dt>Merkle 根摘要</dt><dd>{shortDigest(snapshot.bundleAssessment?.merkleRoot)}</dd></div>
+              <div><dt>需要后端日志</dt><dd>
                 {snapshot.reviewerGraph.backendLogRequired ? "yes" : "no"}
               </dd></div>
-              <div><dt>Bundle path</dt><dd>{snapshot.bundleAssessment?.path || "—"}</dd></div>
+              <div><dt>归档路径</dt><dd>{snapshot.bundleAssessment?.path || "—"}</dd></div>
             </dl>
             {snapshot.reportAdmission?.findings.map((item) => (
               <p className="plan-warning" key={`${item.code}:${item.message}`}>
@@ -282,7 +279,7 @@ export function ExperimentWorkbench({
                   </div>
                   <p>{row.title}</p>
                   <p className="muted-copy">
-                    {row.verified ? "verified" : "not verified"} ·
+                    {row.verified ? "已验证" : "not verified"} ·
                     {" "}{row.metrics.length} metrics · {row.variants.length} variants ·
                     {" "}{row.evidenceIds.length} evidence links
                   </p>
@@ -294,29 +291,29 @@ export function ExperimentWorkbench({
           <section aria-labelledby="experiment-metrics-heading">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">Controlled matrix statistics</p>
-                <h3 id="experiment-metrics-heading">P50, P95, dispersion and confidence</h3>
+                <p className="eyebrow">实验统计</p>
+                <h3 id="experiment-metrics-heading">分位数、离散度与置信区间</h3>
               </div>
               <span>{metrics.length} rows</span>
             </div>
             <div className="settings-grid">
               <label>
-                Metric
+                指标
                 <select
                   value={metricFilter}
                   onChange={(event) => setMetricFilter(event.currentTarget.value)}
                 >
-                  <option value="">All metrics</option>
+                  <option value="">全部指标</option>
                   {metricNames.map((item) => <option key={item}>{item}</option>)}
                 </select>
               </label>
               <label>
-                Variant
+                变体
                 <select
                   value={variantFilter}
                   onChange={(event) => setVariantFilter(event.currentTarget.value)}
                 >
-                  <option value="">All variants</option>
+                  <option value="">全部变体</option>
                   {variantNames.map((item) => <option key={item}>{item}</option>)}
                 </select>
               </label>
@@ -325,14 +322,14 @@ export function ExperimentWorkbench({
               <table>
                 <thead>
                   <tr>
-                    <th>Metric</th>
-                    <th>Variant</th>
+                    <th>指标</th>
+                    <th>变体</th>
                     <th>n</th>
                     <th>P50</th>
                     <th>P95</th>
-                    <th>Std dev</th>
+                    <th>标准差</th>
                     <th>MAD / IQR</th>
-                    <th>Mean confidence</th>
+                    <th>均值置信区间</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -359,19 +356,19 @@ export function ExperimentWorkbench({
 
           <section aria-labelledby="experiment-comparison-heading">
             <div className="section-heading">
-              <h3 id="experiment-comparison-heading">Baseline and ablation effects</h3>
+              <h3 id="experiment-comparison-heading">基线与消融对比</h3>
               <span>{snapshot.comparisons.length}</span>
             </div>
             <div className="table-scroll">
               <table>
                 <thead>
                   <tr>
-                    <th>Metric</th>
-                    <th>Anchor</th>
-                    <th>Compared</th>
-                    <th>Absolute Δ</th>
-                    <th>Relative Δ</th>
-                    <th>Direction</th>
+                    <th>指标</th>
+                    <th>基线</th>
+                    <th>对比变体</th>
+                    <th>绝对变化</th>
+                    <th>相对变化</th>
+                    <th>变化方向</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -395,8 +392,8 @@ export function ExperimentWorkbench({
           <section aria-labelledby="experiment-navigation-heading">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">Reviewer navigation</p>
-                <h3 id="experiment-navigation-heading">Requirement → metric → sample → source</h3>
+                <p className="eyebrow">证据导航</p>
+                <h3 id="experiment-navigation-heading">要求 → 指标 → 样本 → 来源</h3>
               </div>
               <span>
                 {snapshot.reviewerGraph.nodes.length} nodes /

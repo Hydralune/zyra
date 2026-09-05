@@ -26,8 +26,10 @@ import { SkillWorkbenchController } from "../features/skills/index.ts"
 import { SubagentPanelController } from "../features/subagents/index.ts"
 import { ScenarioWorkbenchRuntime } from "../features/scenarios/index.ts"
 import { ExperimentWorkbenchRuntime } from "../features/experiments/index.ts"
+import { browserProductPreferences, type ProductPreferenceStore } from "../shell/product-preferences.ts"
 
 export interface WorkbenchRuntime {
+  preferences: ProductPreferenceStore
   api: ReturnType<typeof createZyraApi>
   projections: CanonicalProjectionStore
   router: WorkbenchRouter
@@ -100,6 +102,7 @@ export function createWorkbenchRuntime(
   } = {},
 ): WorkbenchRuntime {
   const api = createZyraApi(options.client ?? configuredClientOptions())
+  const preferences = browserProductPreferences(api.client.baseUrl)
   const projections = createCanonicalProjectionStore({
     id: "workbench",
     autoPersist: true,
@@ -127,6 +130,7 @@ export function createWorkbenchRuntime(
     router,
     overlays,
     controls: undefined,
+    executionConfig: () => preferences.getSnapshot().execution,
   })
   const permissionConsole = new PermissionConsoleRuntime({
     api: api.permissions,
@@ -331,6 +335,7 @@ export function createWorkbenchRuntime(
   )
   return {
     api,
+    preferences,
     projections,
     router,
     focus,

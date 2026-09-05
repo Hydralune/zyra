@@ -1,3 +1,4 @@
+import { phaseLabel } from "../../../shell/product-copy.ts"
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import type { TaskProjection } from "../../../../../../packages/core/typed-api-client/src/index.ts"
 import type { WorkbenchRuntime } from "../../../app/runtime.ts"
@@ -145,15 +146,14 @@ export function PermissionWorkbench(input: {
     >
       <header className="permission-workbench-header">
         <div>
-          <h3 id="permission-workbench-heading">Permissions</h3>
+          <h3 id="permission-workbench-heading">权限与审批</h3>
           <p>
-            Canonical approval envelopes, exact-call decisions, and
-            fail-closed restore state.
+            查看待审批操作，核对执行范围后决定是否允许本次调用。
           </p>
         </div>
         <div className="permission-status-badges">
-          <span className="tag">{snapshot.pendingCount} pending</span>
-          <span className="tag tag-muted">{snapshot.phase}</span>
+          <span className="tag">{snapshot.pendingCount} 项待处理</span>
+          <span className="tag tag-muted">{phaseLabel(snapshot.phase)}</span>
           <span
             className={
               snapshot.productMode === "sealed"
@@ -161,7 +161,7 @@ export function PermissionWorkbench(input: {
                 : "tag"
             }
           >
-            {snapshot.productMode}
+            {snapshot.productMode === "sealed" ? "全自主模式" : "交互模式"}
           </span>
           <button
             type="button"
@@ -173,11 +173,12 @@ export function PermissionWorkbench(input: {
             }
             onClick={() => void consoleRuntime.refresh("manual")}
           >
-            Refresh
+            刷新
           </button>
         </div>
       </header>
 
+      <details className="product-disclosure"><summary>权限来源与诊断</summary>
       <PermissionOwnershipStatus
         mode={snapshot.productMode}
         owner={snapshot.diagnostics.sourceOwner}
@@ -187,6 +188,7 @@ export function PermissionWorkbench(input: {
         interventionCount={snapshot.interventions.length}
       />
 
+      </details>
       <div className="permission-workbench-grid">
         <PermissionQueue
           rows={snapshot.rows}
@@ -236,20 +238,19 @@ function PermissionOwnershipStatus(input: {
   return (
     <div className="permission-ownership-status" role="status">
       <div>
-        <strong>State owner</strong>
+        <strong>状态来源</strong>
         <span>{input.owner}</span>
         <span className="mono">{input.schema}</span>
       </div>
       <div>
-        <strong>Browser custody</strong>
-        <span>memory only · no local pending store</span>
+        <strong>浏览器存储</strong>
+        <span>审批状态由后端保存</span>
       </div>
       {input.mode === "sealed" ? (
         <div className="permission-sealed-banner">
-          <strong>Sealed autonomous</strong>
+          <strong>全自主模式</strong>
           <span>
-            Human approve, steer, retry, and mode changes are rejected,
-            counted, and routed to deterministic recovery without waiting.
+            该模式不接受人工审批、引导、重试或模式修改，相关请求由后端记录并处理。
           </span>
           <span>
             {input.interventionCount} local receipt(s) ·{" "}
