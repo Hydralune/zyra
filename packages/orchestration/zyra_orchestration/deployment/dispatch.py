@@ -109,7 +109,7 @@ class DeploymentDispatchRuntime:
             "runtime_event_stream": {
                 "schema": "zyra.deployment-runtime-event-stream-request/v1",
                 "enabled": runtime_event_sink is not None,
-                "content_policy": "assistant-presentation-only",
+                "content_policy": "product-runtime-events",
                 "durable": False,
             },
             "predecessor_attempt_id": predecessor_attempt_id,
@@ -352,7 +352,7 @@ class DeploymentDispatchRuntime:
                 or str(event.get("task_id") or "") != workload.task_id
                 or not isinstance(event_payload, Mapping)
                 or event_payload.get("schema")
-                != "zyra.provider-assistant-presentation/v1"
+                not in {"zyra.provider-assistant-presentation/v1", "zyra.product-tool-event/v1"}
                 or str(event.get("phase") or "")
                 != str(event_payload.get("phase") or "")
                 or str(event.get("payload_digest") or "") != digest(event_payload)

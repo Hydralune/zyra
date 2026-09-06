@@ -349,6 +349,7 @@ export class WorkbenchController {
       cursor?: string
       append?: boolean
       preserveOnError?: boolean
+      background?: boolean
     } = {},
   ): Promise<TaskListState> {
     this.#assertUsable()
@@ -359,7 +360,7 @@ export class WorkbenchController {
     this.#replace({
       list: {
         ...this.#snapshot.list,
-        phase: "loading",
+        phase: options.background && this.#snapshot.list.loadedAt ? this.#snapshot.list.phase : "loading",
         generation,
         status,
         cursor: options.cursor,
@@ -375,13 +376,16 @@ export class WorkbenchController {
         timeoutMs: 15_000,
       })
       if (!this.#isCurrent("list", controller, generation)) return this.#snapshot.list
-      const tasks = this.#mergeTasks(options.append ? previous : [], result.tasks)
+      const oldest = Math.min(...result.tasks.map((task) => Date.parse(task.createdAt)))
+      const retained = options.background && result.cursor
+        ? previous.filter((task) => Date.parse(task.createdAt) < oldest) : []
+      const tasks = this.#mergeTasks(options.append ? previous : retained, result.tasks)
       this.#replace({
         list: {
           phase: tasks.length ? "ready" : "empty",
           tasks: Object.freeze(tasks),
           total: result.total,
-          cursor: result.cursor,
+          cursor: retained.length ? this.#snapshot.list.cursor : result.cursor,
           status,
           generation,
           loadedAt: this.#clock.now(),

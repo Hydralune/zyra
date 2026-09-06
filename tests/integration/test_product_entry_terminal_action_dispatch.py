@@ -405,8 +405,15 @@ def test_gateway_permission_then_http_dispatch_and_delegation_mutation() -> None
                 permission_execution_context={},
             )
             assert action.ok, (action.error, action.metadata, action.output)
-            assert action.output["execution_location"] == "terminal"
-            assert action.output["backend_action_dispatch_receipt"]["backend_lease_id"]
+            if tool_name == "artifact_write":
+                assert action.artifacts
+                artifact = action.artifacts[0]
+                artifact_store = LocalArtifactStore(fixture.artifacts)
+                artifact_store.verify(artifact)
+                assert artifact_store.resolve_path(artifact).read_text() == "remote artifact"
+            else:
+                assert action.output["execution_location"] == "terminal"
+                assert action.output["backend_action_dispatch_receipt"]["backend_lease_id"]
             assert action.output["gateway_receipt"]["permission_consumption_id"]
             assert action.output["gateway_receipt"]["outcome"] == "committed"
 

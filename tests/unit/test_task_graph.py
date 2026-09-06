@@ -352,7 +352,7 @@ class TaskGraphTests(unittest.TestCase):
             events = run_task_graph(state, execution_context=context)
 
         self.assertEqual(state.status, PlanNodeStatus.FAILED)
-        self.assertEqual(projections, [("physical_retry_exhausted", PlanNodeStatus.FAILED)])
+        self.assertEqual([item for item in projections if item[0] != "stage_progress"], [("physical_retry_exhausted", PlanNodeStatus.FAILED)])
         self.assertEqual(
             state.metadata["canonical_task_outcome"]["task_status"],
             "failed",
@@ -418,7 +418,7 @@ class TaskGraphTests(unittest.TestCase):
             run_task_graph(state, execution_context=context)
 
         self.assertGreaterEqual(calls, 2)
-        self.assertEqual(projections[0], ("physical_retry_admitted", PlanNodeStatus.RUNNING))
+        self.assertEqual(next(item for item in projections if item[0] != "stage_progress"), ("physical_retry_admitted", PlanNodeStatus.RUNNING))
         self.assertNotIn(
             "physical_execution_terminal_projection",
             state.metadata,

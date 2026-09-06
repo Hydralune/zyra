@@ -9,6 +9,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence, TYPE_CHECKING
 
+from zyra_core import ArtifactKind
+
 from ..executor import ToolCall, ToolResult
 from .artifact_port import FileArtifactRequest
 from .canonical import content_digest as gateway_content_digest
@@ -1244,9 +1246,8 @@ class GatewayToolExecutionRouter:
         artifact_port = self._require_artifact_port()
         raw_logical_path = str(call.arguments.get("path") or call.arguments.get("name") or "")
         if artifact and not raw_logical_path:
-            requested_extension = PurePosixPath(
-                str(call.arguments.get("extension") or "")
-            ).suffix
+            extension = str(call.arguments.get("extension") or "")
+            requested_extension = extension if extension.startswith(".") and extension[1:].isalnum() else PurePosixPath(extension).suffix
             if not requested_extension:
                 requested_extension = {
                     "markdown": ".md",
@@ -1326,14 +1327,19 @@ class GatewayToolExecutionRouter:
                     "sandbox_gateway_failure_signal_id": signal.signal_id,
                 },
             )
-        remote = self._dispatch_authorized_backend_action(
-            backend_call or call,
-            identity,
-            permission.safe_dict(),
+        # Published deliverables belong to shared artifact custody. Delegating
+        # this to the CLI leaves only a terminal-local file that Web cannot read.
+        remote = None if artifact else self._dispatch_authorized_backend_action(
+            backend_call or call, identity, permission.safe_dict(),
         )
         if remote is not None:
             return remote
         file_receipt = artifact_port.commit(request)
+        if artifact:
+            for reference in file_receipt.artifact_records:
+                reference.title = str(call.arguments.get("title") or raw_logical_path)
+                if logical_path.endswith(".md"):
+                    reference.kind = ArtifactKind.MARKDOWN
         outcome = (
             GatewayOutcome.QUARANTINED
             if file_receipt.quarantined

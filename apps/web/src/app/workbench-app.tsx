@@ -136,6 +136,7 @@ function AppNavigation({
   routeKind,
   tasks,
   listPhase,
+  listUpdatedAt,
   selectedTaskId,
   drawer,
   open,
@@ -147,6 +148,7 @@ function AppNavigation({
   routeKind: string
   tasks: readonly TaskProjection[]
   listPhase: string
+  listUpdatedAt?: number
   selectedTaskId?: string
   drawer: boolean
   open: boolean
@@ -172,7 +174,7 @@ function AppNavigation({
       if (JSON.stringify(titles) !== JSON.stringify(runtime.preferences.getSnapshot().titles)) runtime.preferences.update({ titles })
     }).catch(() => { /* Existing titles stay available while offline. */ })
     return () => controller.abort()
-  }, [runtime, listPhase])
+  }, [runtime, listPhase, listUpdatedAt])
   const conversations = productConversationList(tasks, preferences.pinned).map((conversation) => ({ ...conversation,
     title: preferences.titles[conversation.key] || conversation.title,
   })).filter((conversation) =>
@@ -661,6 +663,7 @@ export function WorkbenchApp({ runtime }: { runtime: WorkbenchRuntime }) {
         routeKind={route.kind}
         tasks={state.list.tasks}
         listPhase={state.list.phase}
+        listUpdatedAt={state.list.loadedAt}
         listCursor={state.list.cursor}
         selectedTaskId={state.selectedTaskId}
         drawer={drawer}

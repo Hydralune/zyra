@@ -57,11 +57,13 @@ test("only known runtime records leave deliverables, including internally labell
     { artifactId: "manifest", kind: "json", metadata: { domain_result_kind: "code_worker_execution" } },
     { artifactId: "memory", kind: "json", metadata: { domain_result_kind: "memory_continuity" } },
     { artifactId: "legacy", kind: "json", title: "Physical CodeWorker delivery manifest", metadata: {} },
+    { artifactId: "snapshot", kind: "json", title: "CodeWorker QuerySession Snapshot", metadata: {} },
+    { artifactId: "trace", kind: "json", title: "CodeWorker E01 trace workerreq_test", metadata: {} },
     { artifactId: "report", kind: "text", path: "report.md", metadata: { security_label: "internal" } },
     { artifactId: "unknown", kind: "json", metadata: { domain_result_kind: "new_user_result" } },
   ]
   expect(productArtifacts(rows).map((row) => row.artifactId)).toEqual(["report", "unknown"])
-  expect(rows).toHaveLength(5)
+  expect(rows).toHaveLength(7)
 })
 
 test("model choices use the authoritative provider catalog and supported reasoning efforts", () => {

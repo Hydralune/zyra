@@ -147,6 +147,18 @@ class SQLiteStore:
         payload = to_jsonable(state)
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            previous = connection.execute(
+                "SELECT checkpoint_json FROM checkpoints WHERE task_id = ?", (state.task_id,),
+            ).fetchone()
+            if previous is not None:
+                saved_metadata = json.loads(str(previous["checkpoint_json"])).get("metadata", {})
+                # A long-running executor owns graph state, while a rename can
+                # commit concurrently. Preserve the newer title atomically.
+                title_revision = int(saved_metadata.get("session_title_revision") or 0)
+                if title_revision > int(state.metadata.get("session_title_revision") or 0):
+                    for key in ("session_title", "session_title_revision"):
+                        state.metadata[key] = saved_metadata[key]
+                        payload["metadata"][key] = saved_metadata[key]
             if connection.execute(
                 "SELECT 1 FROM deleted_conversations WHERE session_id = ?",
                 (_conversation_key(payload),),

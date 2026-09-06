@@ -12,6 +12,7 @@ import { createBrowserRouter, WorkbenchRouter } from "../shell/router.ts"
 import { WorkbenchController } from "../shell/workbench-controller.ts"
 import { WorkbenchRouteLoader } from "../shell/route-loader.ts"
 import { TaskLiveSync } from "../shell/task-live-sync.ts"
+import { TaskListSync } from "../shell/task-list-sync.ts"
 import { AccessibilityAnnouncer } from "../shell/accessibility-announcer.ts"
 import {
   createCanonicalProjectionStore,
@@ -104,7 +105,9 @@ export function createWorkbenchRuntime(
   const api = createZyraApi(options.client ?? configuredClientOptions())
   const preferences = browserProductPreferences(api.client.baseUrl)
   const projections = createCanonicalProjectionStore({
-    id: "workbench",
+    // Rebuild old browser projections from canonical events so historical
+    // tool records acquire their readable names as well.
+    id: "workbench-tool-progress-v2",
     autoPersist: true,
     restore: true,
   })
@@ -117,6 +120,11 @@ export function createWorkbenchRuntime(
   const workbench = new WorkbenchController(api.tasks)
   const routeLoader = new WorkbenchRouteLoader(workbench)
   const liveSync = new TaskLiveSync(workbench)
+  const listSync = new TaskListSync(workbench, { onNewTurn: (task) => {
+    const route = router.current
+    if (route.kind === "task") router.openTask(task.taskId, { view: route.query.view, replace: true })
+    else if (route.kind === "evidence") router.openEvidence(task.taskId, { section: route.query.section, replace: true })
+  } })
   const catalog = defaultCommandCatalog()
   const history = options.history ?? browserCommandHistory()
   const drafts = browserCommandDraftStore()
@@ -390,6 +398,7 @@ export function createWorkbenchRuntime(
       queue.close(String(reason ?? "Workbench closed."))
       drafts.close()
       liveSync.close()
+      listSync.close()
       routeLoader.close(String(reason ?? "Workbench closed."))
       workbench.close(String(reason ?? "Workbench closed."))
       notifications.close()

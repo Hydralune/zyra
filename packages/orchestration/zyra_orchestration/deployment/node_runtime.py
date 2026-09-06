@@ -82,6 +82,8 @@ _NODE_RUNTIME_EVENT_PHASES = frozenset(
         "assistant_text_started",
         "assistant_text_delta",
         "assistant_text_ended",
+        "tool_call_started",
+        "tool_call_completed",
     }
 )
 _ALLOWED_OPERATIONS = {
@@ -726,14 +728,18 @@ class DeploymentNodeRuntime:
                 # the ordinary runtime-event path.
                 return
             raise ValueError("node runtime assistant event binding is invalid")
-        if (
+        if phase.startswith("assistant_text_") and (
             payload.get("schema") != "zyra.provider-assistant-presentation/v1"
             or payload.get("delta_kind") != "assistant_text"
         ):
             raise ValueError("node runtime assistant event binding is invalid")
-        normalized = dict(payload)
+        # Redact and detach nested structures before hashing. HTTP must never
+        # mutate a signed event's payload after this digest is constructed.
+        normalized = redact(dict(payload))
+        if phase.startswith("tool_call_"):
+            normalized["schema"] = "zyra.product-tool-event/v1"
         encoded = canonical_json(normalized)
-        if len(encoded) > 8 * 1024:
+        if len(encoded) > (8 * 1024 if phase.startswith("assistant_text_") else 1024 * 1024):
             raise ValueError("node runtime assistant event exceeds 8 KiB")
         with self._lock:
             queue = self._runtime_event_queues.setdefault(
@@ -773,7 +779,7 @@ class DeploymentNodeRuntime:
             and runtime_event_stream.get("schema")
             == "zyra.deployment-runtime-event-stream-request/v1"
             and runtime_event_stream.get("content_policy")
-            == "assistant-presentation-only"
+            in {"assistant-presentation-only", "product-runtime-events"}
             and runtime_event_stream.get("durable") is False
             and isinstance(runtime_event_stream.get("enabled"), bool)
         ):

@@ -147,7 +147,9 @@ export function recordCausality(
     aggregateSequence: event.aggregateSequence,
     createdAt: event.createdAt,
     committedAt: event.committedAt,
-    summary: event.summary,
+    summary: /^tool_call_(started|completed) for /.test(event.summary)
+      ? `${firstString(event.inline, "tool_name") ?? "工具"} · ${event.eventType.endsWith("called") ? "开始执行" : event.eventType.endsWith("failed") ? "执行失败" : "执行完成"}`
+      : event.summary,
     terminal: event.terminal,
     effective: event.effective,
     entityRefs: entities,

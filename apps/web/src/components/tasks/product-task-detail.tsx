@@ -572,7 +572,7 @@ function ConversationTurn({
               />
               <small>
                 {liveAssistant.settling
-                  ? "正在确认最终回答…"
+                  ? "任务继续执行中…"
                   : liveAssistant.partial
                     ? "已从当前可用的实时片段继续显示"
                     : "实时生成中"}

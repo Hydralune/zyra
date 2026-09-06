@@ -2711,7 +2711,10 @@ class Phase2StrongestProductionBridge:
                 if not code_worker_execution or settlement_outcome == "completed"
                 else "code_worker_delivery_incomplete"
             ),
-            artifacts=[artifact],
+            artifacts=[artifact, *self.artifact_store.admit_refs(
+                execution_output.get("runtime_artifacts"),
+                run_id=state.run_id, task_id=state.task_id,
+            )],
             events=[to_jsonable(event)],
             completed_at=call_result.call_finished_at,
             metadata={

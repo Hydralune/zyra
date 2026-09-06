@@ -43,7 +43,7 @@ export function eventCategory(event: Pick<CausalEventProjection, "eventType">): 
   const type = event.eventType.toLowerCase().replace(/^runtime\./, "")
   if (/fail|error|reject|cancel|recovery|failover|interrupt/.test(type)) return "issues"
   if (/verif|artifact|validation|constraint/.test(type)) return "verification"
-  if (/^(task|plan|node|worker)\./.test(type)) return "progress"
+  if (/^(task|plan|node|worker|tool)\./.test(type)) return "progress"
   return "other"
 }
 
@@ -57,6 +57,7 @@ export function eventLabel(event: Pick<CausalEventProjection, "eventType">): str
     "node.created": "执行步骤已创建", "node.updated": "步骤状态更新", "agent.message": "协作消息",
     "backend.dispatch.requested": "已请求执行资源", "artifact.committed": "产物已保存", "audit.finding": "审计记录",
     "query.admitted": "请求已受理", "text.started": "开始生成回答", "text.ended": "回答生成结束", "topology.route": "执行路由更新",
+    "tool.called": "工具开始执行", "tool.succeeded": "工具执行完成", "tool.failed": "工具执行失败", "tool.cancelled": "工具已停止",
   }
   return labels[event.eventType.replace(/^runtime\./, "")] ?? eventCategories[eventCategory(event)]
 }

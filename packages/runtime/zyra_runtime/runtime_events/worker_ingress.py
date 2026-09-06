@@ -563,6 +563,11 @@ class CodeWorkerRuntimeEventIngress:
             raise RuntimeEventContractError(f"{rule.kind} requires a canonical cause")
         tool_call_id = _text(payload.get("tool_call_id")) or None
         source_id = self._source_id(rule, phase, sequence, payload)
+        summary = f"{phase} for {self.identity.task_id}"
+        if rule.kind.startswith("tool_"):
+            tool_name = _text(payload.get("tool_name"), "tool")
+            result_summary = _text(_mapping(payload.get("result")).get("summary"))
+            summary = f"{tool_name}: {result_summary or rule.kind.removeprefix('tool_')}"
         source: dict[str, Any] = {
             "schema": SOURCE_SCHEMA,
             "sourceId": source_id,
@@ -595,7 +600,7 @@ class CodeWorkerRuntimeEventIngress:
                 "topK": 4,
             },
             "subjectId": self.identity.worker_id,
-            "summary": f"{phase} for {self.identity.task_id}"[:1024],
+            "summary": summary[:1024],
             "effective": rule.effective,
             "payload": {key: coerce_json(value) for key, value in payload.items()},
             "evidenceRefs": [],

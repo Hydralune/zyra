@@ -446,6 +446,9 @@ def run_task_graph(
         else:
             events.extend(_run_node(state, node, stage_results.get(stage, "")))
 
+        if execution_context and execution_context.execution_state_projector:
+            execution_context.execution_state_projector(state, events, "stage_progress")
+
     if execution_context and execution_context.cancellation_requested and execution_context.cancellation_requested(state):
         events.extend(cancel_task_graph(state, "Cancellation committed by task control."))
         return events
@@ -1158,6 +1161,8 @@ def _run_execute_node(
     node.status = PlanNodeStatus.RUNNING
     node.updated_at = now_iso()
     events.append(_node_event(state, node, "running", "Worker runtime execution started."))
+    if execution_context.execution_state_projector:
+        execution_context.execution_state_projector(state, events, "stage_progress")
 
     continuation = _loopx_continuation(state)
     if continuation.get("enabled") and not continuation.get(

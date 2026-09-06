@@ -277,9 +277,10 @@ async function pickTaskArtifact(shell: ProductTuiShell, task: TaskProjection): P
   // These envelopes are execution evidence, not user-facing deliverables.
   // Explicit artifact IDs and tool output links still open them for inspection.
   const evidenceKinds = new Set(["code_worker_execution", "memory_continuity", "runtime_receipt", "execution_manifest"])
-  const evidenceTitles = new Set(["Physical CodeWorker delivery manifest", "Physical MaAS memory continuity result"])
+  const evidenceTitles = new Set(["Physical CodeWorker delivery manifest", "Physical MaAS memory continuity result", "CodeWorker QuerySession Snapshot", "CodeWorker TypeScript Runtime Transcript"])
   const artifacts = task.artifacts.filter((artifact) =>
-    !evidenceKinds.has(String(artifact.metadata?.domain_result_kind ?? "")) && !evidenceTitles.has(artifact.title ?? ""))
+    !evidenceKinds.has(String(artifact.metadata?.domain_result_kind ?? "")) && !evidenceTitles.has(artifact.title ?? "")
+    && !/^CodeWorker (?:E01 trace workerreq_|tool result call_)/.test(artifact.title ?? ""))
   if (!artifacts.length) {
     shell.notice("当前任务没有单独登记的交付物。文件改动可用 /diff 查看，回复正文保留在对话中。")
     return undefined

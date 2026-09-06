@@ -22,6 +22,20 @@ from zyra_orchestration import ensure_default_graph, run_task_graph
 
 
 class SQLiteStoreTests(unittest.TestCase):
+    def test_running_checkpoint_preserves_concurrent_rename(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = SQLiteStore(Path(tmpdir) / "zyra.sqlite3")
+            executor = create_task_state("Long-running task")
+            store.save_checkpoint(executor)
+            control = store.load_task(executor.task_id)
+            control.metadata.update(session_title="Renamed from CLI", session_title_revision=2)
+            store.save_checkpoint(control)
+            executor.status = PlanNodeStatus.COMPLETED
+            store.save_checkpoint(executor)
+            final = store.load_task(executor.task_id)
+            self.assertEqual(final.metadata["session_title"], "Renamed from CLI")
+            self.assertEqual(final.status, PlanNodeStatus.COMPLETED)
+
     def test_checkpoint_can_be_reloaded_from_sqlite(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             store = SQLiteStore(Path(tmpdir) / "zyra.sqlite3")

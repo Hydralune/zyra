@@ -664,7 +664,7 @@ export function parseMarkdownInline(value: string): readonly MarkdownInline[] {
   const result: MarkdownInline[] = []
   let cursor = 0
   const expression =
-    /(`+)([\s\S]*?)\1|\[([^\]]*)]\(([^)\s]+)(?:\s+"[^"]*")?\)|(\*\*|__)([\s\S]+?)\5|(~~)([\s\S]+?)\7|(\*|_)([^*_][\s\S]*?)\9|(\n)/g
+    /(`+)([\s\S]*?)\1|\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)|(\*\*|(?<![\p{L}\p{N}_])__)([\s\S]+?)\5|(~~)([\s\S]+?)\7|(\*|(?<![\p{L}\p{N}_])_)([^*_][\s\S]*?)\9|(\n)/gu
   for (const match of value.matchAll(expression)) {
     if (match.index === undefined) continue
     if (match.index > cursor) {

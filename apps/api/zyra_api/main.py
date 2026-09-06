@@ -7704,6 +7704,19 @@ def _production_physical_dispatch_port(
                 payload,
                 transport_sequence=int(record.get("transport_sequence") or 0),
             )
+            tool_result = payload.get("tool_result")
+            if payload.get("phase") == "tool_call_completed" and isinstance(tool_result, Mapping):
+                artifacts = LocalArtifactStore(artifact_root_path()).admit_refs(
+                    tool_result.get("artifacts"), run_id=run_id, task_id=task_id,
+                )
+                if artifacts:
+                    with _task_lock(task_id):
+                        canonical = get_store().load_task(task_id)
+                        if canonical is not None and canonical.run_id == run_id:
+                            known = {item.artifact_id for item in canonical.artifacts}
+                            canonical.artifacts.extend(item for item in artifacts if item.artifact_id not in known)
+                            canonical.updated_at = now_iso()
+                            get_store().save_checkpoint(canonical)
     return PhysicalDispatchCallPort(
         task=task,
         catalog=orchestrator.catalog,
@@ -9340,7 +9353,7 @@ def _project_task_graph_execution_state(
     events: Sequence[EventRecord],
     phase: str,
 ) -> None:
-    """Persist retry boundaries before the synchronous graph call unwinds.
+    """Publish stage progress and retry boundaries during graph execution.
 
     Physical attempts and leases are durable independently of the HTTP request
     stack.  Project their bounded retry decision into TaskState at the same
@@ -9348,7 +9361,7 @@ def _project_task_graph_execution_state(
     checkpoint after every admissible attempt has settled.
     """
 
-    if phase not in {"physical_retry_admitted", "physical_retry_exhausted"}:
+    if phase not in {"stage_progress", "physical_retry_admitted", "physical_retry_exhausted"}:
         raise ValueError(f"unsupported task execution projection phase: {phase}")
     store = get_store()
     task_id = str(state.task_id)
@@ -9372,6 +9385,13 @@ def _project_task_graph_execution_state(
             )
         else:
             selected = state
+            if canonical is not None:
+                known_artifacts = {item.artifact_id for item in state.artifacts}
+                state.artifacts.extend(item for item in canonical.artifacts if item.artifact_id not in known_artifacts)
+            if phase == "stage_progress":
+                if state.status == PlanNodeStatus.PENDING:
+                    state.status = PlanNodeStatus.RUNNING
+                state.updated_at = now_iso()
             if phase == "physical_retry_exhausted":
                 marker = state.metadata.get("execution_in_flight")
                 marker = dict(marker) if isinstance(marker, Mapping) else {}
@@ -18145,6 +18165,7 @@ def _control_context_for_task(
             next_revision = before.revision + (1 if changed else 0)
             if changed:
                 state.metadata["session_title"] = title
+                state.metadata["session_title_revision"] = next_revision
                 state.metadata["session_control_revision"] = next_revision
                 state.updated_at = now_iso()
                 state.metadata["session_checkpoint_ref"] = (

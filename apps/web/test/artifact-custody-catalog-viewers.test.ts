@@ -41,6 +41,7 @@ import {
   buildMarkdownViewerModel,
   chooseArtifactViewer,
   parseSafeMarkdown,
+  parseMarkdownInline,
 } from "../src/features/artifacts/viewers.ts"
 import {
   ArtifactAssemblyError,
@@ -54,6 +55,15 @@ import { ArtifactOperationLedger } from "../src/features/artifacts/audit.ts"
 import { ArtifactWorkbenchRuntime } from "../src/features/artifacts/runtime.ts"
 
 const TASK_ID = "task-artifact-web"
+test("assistant identifiers keep underscores and inline code verbatim", () => {
+  expect(parseMarkdownInline("SYNC_FOLLOWUP_OK check_sync.py")).toEqual([
+    { kind: "text", text: "SYNC_FOLLOWUP_OK check_sync.py" },
+  ])
+  expect(parseMarkdownInline("`SYNC_FOLLOWUP_OK` _emphasis_")).toEqual([
+    { kind: "code", text: "SYNC_FOLLOWUP_OK" }, { kind: "text", text: " " },
+    { kind: "emphasis", children: [{ kind: "text", text: "emphasis" }] },
+  ])
+})
 const SHA = "a".repeat(64)
 const REVISION = `sha256:${SHA}`
 

@@ -15,6 +15,7 @@ from zyra_orchestration.deployment.models import (
     digest,
 )
 from zyra_orchestration.deployment.node_runtime import DeploymentNodeRuntime
+from zyra_orchestration.deployment.node_server import _outbound_payload
 from zyra_orchestration.deployment.profiles import default_profile_policies
 from zyra_orchestration.deployment.state_store import DeploymentStateStore
 
@@ -116,7 +117,7 @@ def test_node_runtime_event_queue_is_transient_filtered_and_releasable(
                 sequence=0,
                 content="must-not-forward",
             ),
-            "phase": "tool_call_started",
+            "phase": "diagnostic_only",
         },
         transport_sequence=0,
     )
@@ -173,6 +174,34 @@ def test_node_runtime_event_queue_is_transient_filtered_and_releasable(
         attempt_id=attempt_id,
         after_ordinal=0,
     )["events"] == []
+
+
+def test_tool_lifecycle_reaches_dashboard_transport_before_execution_finishes(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    workload = _workload()
+    for sequence, phase in enumerate(("tool_call_started", "tool_call_completed"), 1):
+        runtime._append_runtime_event(
+            attempt_id="attempt-runtime-stream", workload=workload, transport_sequence=sequence,
+            payload={
+                "run_id": workload.run_id, "task_id": workload.task_id,
+                "session_id": "session-runtime-stream", "worker_request_id": "worker-runtime-stream",
+                "phase": phase, "tool_call_id": "tool-1", "tool_name": "shell",
+                **({"tool_result": {"ok": True, "summary": "3 tests passed", "artifacts": [{"metadata": {"line_endings": ["LF"]}}], "metadata": {"secret": "test-secret"}}} if sequence == 2 else {}),
+            },
+        )
+    class Client:
+        def runtime_events(self, **kwargs):
+            return _outbound_payload(runtime.runtime_event_page(**kwargs))
+    received = []
+    cursor, count, _ = DeploymentDispatchRuntime._forward_runtime_event_page(
+        client=Client(), workload=workload, attempt_id="attempt-runtime-stream",
+        after_ordinal=0, sink=received.append,
+    )
+    assert cursor == count == 2
+    assert [item["phase"] for item in received] == ["tool_call_started", "tool_call_completed"]
+    assert received[1]["payload"]["tool_result"]["summary"] == "3 tests passed"
+    assert received[1]["payload"]["tool_result"]["artifacts"][0]["metadata"]["line_endings"] == ["LF"]
+    assert received[1]["payload"]["tool_result"]["metadata"]["secret"] == "<redacted>"
 
 
 def test_node_runtime_event_queue_rejects_cross_task_binding(tmp_path: Path) -> None:

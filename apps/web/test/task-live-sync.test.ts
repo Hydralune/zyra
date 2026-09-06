@@ -10,6 +10,7 @@ import type {
   JsonObject,
 } from "../src/events/ingress/index.ts"
 import { WorkbenchController } from "../src/shell/workbench-controller.ts"
+import { TaskListSync } from "../src/shell/task-list-sync.ts"
 import {
   TaskLiveSync,
   type TaskLiveSyncEnvironment,
@@ -188,6 +189,40 @@ function harness(options: { values?: TaskProjection[] } = {}) {
 }
 
 describe("task live sync", () => {
+  test("keeps useful progress during subsequent tool-only rounds and reconnect replay", async () => {
+    const value = harness()
+    await value.workbench.loadTask("task_live_001")
+    value.sync.bind("task_live_001")
+    for (const generation of [1, 2]) {
+      value.sync.observeBatch(ingressBatch(generation, "completed", "测试正在执行"))
+      for (const phase of ["started", "completed"] as const) {
+        const batch = ingressBatch(generation, phase)
+        value.sync.observeBatch({ ...batch, presentations: batch.presentations!.map((item) => ({
+          ...item, presentation: { ...item.presentation, identity: "tool-only", streamId: "tool-only" },
+        })) })
+      }
+      expect(value.sync.getSnapshot().assistant?.text).toBe("测试正在执行")
+    }
+    value.sync.close()
+    value.workbench.close()
+  })
+
+  test("discovers CLI tasks and follows a new turn of the selected completed conversation", async () => {
+    const value = harness({ values: [task("task_live_001", "completed")] })
+    await value.workbench.refreshTasks()
+    await value.workbench.loadTask("task_live_001")
+    const followed: string[] = []
+    const catalog = new TaskListSync(value.workbench, {
+      environment: value.environment, onNewTurn: (next) => followed.push(next.taskId),
+    })
+    value.state.current = { ...task("task_live_002"), createdAt: "2026-08-04T02:00:00.000Z" }
+    await value.environment.advance(3_000)
+    expect(value.workbench.getSnapshot().list.tasks[0]?.taskId).toBe("task_live_002")
+    expect(followed).toEqual(["task_live_002"])
+    catalog.close()
+    value.sync.close()
+    value.workbench.close()
+  })
   test("renders exact live product text then converges to canonical final task", async () => {
     const value = harness()
     await value.workbench.loadTask("task_live_001")

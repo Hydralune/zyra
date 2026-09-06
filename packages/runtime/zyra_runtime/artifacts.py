@@ -324,6 +324,41 @@ class LocalArtifactStore:
             "integrity": integrity,
         }
 
+    def admit_refs(self, values: Any, *, run_id: str, task_id: str) -> list[ArtifactRef]:
+        """Admit worker references only to verified bytes in this task's custody."""
+        if not isinstance(values, (list, tuple)):
+            return []
+        admitted: dict[str, ArtifactRef] = {}
+        task_root = (self.root / run_id / task_id).resolve()
+        if not task_root.is_relative_to(self.root):
+            raise ValueError("artifact task root is outside custody")
+        for value in values:
+            if not isinstance(value, Mapping):
+                continue
+            artifact = ArtifactRef(
+                artifact_id=str(value.get("artifact_id") or ""),
+                kind=ArtifactKind(str(value.get("kind") or "file")),
+                uri=str(value.get("uri") or ""),
+                title=str(value.get("title") or ""),
+                producer_node_id=value.get("producer_node_id"),
+                created_at=str(value.get("created_at") or ""),
+                metadata=dict(value.get("metadata") or {}),
+            )
+            path = self.resolve_path(artifact)
+            if not artifact.artifact_id or not path.is_relative_to(task_root):
+                raise ValueError("worker artifact is outside the active task")
+            expected = expected_artifact_integrity(artifact)
+            if (
+                artifact.metadata.get("contract") != ARTIFACT_CONTRACT
+                or not expected["sha256"]
+                or not expected["revision"]
+                or expected["size_bytes"] is None
+            ):
+                raise ValueError("worker artifact lacks committed integrity metadata")
+            self.verify(artifact)
+            admitted[artifact.artifact_id] = artifact
+        return list(admitted.values())
+
     def verify(
         self,
         artifact: ArtifactRef,

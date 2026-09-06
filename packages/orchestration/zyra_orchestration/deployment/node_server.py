@@ -214,7 +214,7 @@ class DeploymentNodeHandler(BaseHTTPRequestHandler):
 
 
 def _outbound_payload(payload: Any) -> Any:
-    """Preserve canonical node receipts; redact non-receipt diagnostics.
+    """Preserve pre-redacted, digested receipts/events; redact diagnostics.
 
     A deployment receipt already contains a digest over ``result`` and is sent
     only on the authenticated loopback node channel.  Applying a generic deep
@@ -227,7 +227,7 @@ def _outbound_payload(payload: Any) -> Any:
     if (
         isinstance(payload, Mapping)
         and str(payload.get("schema") or "")
-        == "zyra.deployment-node-receipt/v1"
+        in {"zyra.deployment-node-receipt/v1", "zyra.deployment-node-runtime-events/v1"}
     ):
         return payload
     return redact(payload)

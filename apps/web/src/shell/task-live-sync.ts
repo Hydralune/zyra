@@ -346,6 +346,9 @@ export class TaskLiveSync {
         const now = this.#environment.now()
         if (phase === "started") {
           if (sameStream && current?.settling) continue
+          // Tool-only provider rounds have an empty assistant lifecycle. Keep
+          // the last useful progress text until the next round emits text.
+          if (!sameStream && current?.text) continue
           this.#publish({
             assistant: Object.freeze({
               messageId,
@@ -363,6 +366,7 @@ export class TaskLiveSync {
           })
         } else if (phase === "completed") {
           const completed = presentationText(presentation, "text")
+          if (!completed && !sameStream && current?.text) continue
           const bounded = boundedUtf8Tail(
             completed ?? (sameStream ? current?.text ?? "" : ""),
             this.#assistantTextBytes,
