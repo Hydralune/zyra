@@ -2043,9 +2043,11 @@ export class E02CapabilityCoordinator {
         },
       );
     }
+    const finalText = asString(asObject(result.sessionSnapshot.modelIteration).finalText);
     return {
       output: {
         ok: result.ok,
+        final_text: finalText,
         stopped_reason: result.stoppedReason,
         step_summaries: result.stepSummaries,
         session_snapshot_artifact_id:
@@ -2054,7 +2056,7 @@ export class E02CapabilityCoordinator {
       },
       artifacts: result.artifacts.map((artifact) => canonicalize(artifact) as JsonObject),
       inputTokens: plan.inputTokenEstimate,
-      outputTokens: estimateTokens(result.stepSummaries.join("\n")),
+      outputTokens: estimateTokens(finalText || result.stepSummaries.join("\n")),
       costMicros: numberMetadata(result.metadata, "cost_micros"),
       metadata: {
         child_task_id: childTaskId,
@@ -4455,6 +4457,9 @@ function structuredCommandArgumentOverrides(argumentsValue: JsonObject): JsonObj
       if ([
         "options",
         "raw",
+        // Parsed CLI positional tokens accompany `input`; they are not named
+        // options. The canonical command parser binds them from input itself.
+        "argv",
         "text",
         "input",
         "display",

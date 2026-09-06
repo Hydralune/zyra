@@ -1239,6 +1239,7 @@ class GatewayToolExecutionRouter:
         permission_execution_context: Any,
         artifact: bool,
         authorization_call: ToolCall | None = None,
+        backend_call: ToolCall | None = None,
     ) -> ToolResult:
         artifact_port = self._require_artifact_port()
         raw_logical_path = str(call.arguments.get("path") or call.arguments.get("name") or "")
@@ -1326,7 +1327,7 @@ class GatewayToolExecutionRouter:
                 },
             )
         remote = self._dispatch_authorized_backend_action(
-            call,
+            backend_call or call,
             identity,
             permission.safe_dict(),
         )
@@ -1436,6 +1437,27 @@ class GatewayToolExecutionRouter:
         permission_authority: Any,
         permission_execution_context: Any,
     ) -> ToolResult:
+        if self._backend_action_available("file_edit"):
+            # The terminal owns the live file. Validate the proposed replacement
+            # as a source write, then consume the original edit grant and let
+            # that same terminal perform the exact-match edit.
+            synthetic = ToolCall(
+                run_id=call.run_id,
+                task_id=call.task_id,
+                tool_name="file_write",
+                arguments={**call.arguments, "content": str(call.arguments.get("new") or "")},
+                tool_call_id=call.tool_call_id,
+                node_id=call.node_id,
+                created_at=call.created_at,
+                metadata={**call.metadata, "gateway_original_tool": "file_edit"},
+            )
+            return self._file_write(
+                synthetic, identity,
+                permission_grant=permission_grant,
+                permission_authority=permission_authority,
+                permission_execution_context=permission_execution_context,
+                artifact=False, authorization_call=call, backend_call=call,
+            )
         artifact_port = self._require_artifact_port()
         logical_path = self.bundle.policy_runtime.assert_path(str(call.arguments.get("path") or ""))
         before = artifact_port.read(logical_path)

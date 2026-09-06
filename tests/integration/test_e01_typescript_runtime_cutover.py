@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from unittest import mock
@@ -97,6 +98,38 @@ def test_default_code_worker_reaches_typescript_owner(tmp_path: Path) -> None:
     assert run.worker_result.metadata["python_query_engine_fallback"] == "false"
     assert Path(run.worker_result.metadata["runtime_state_checkpoint_path"]).is_file()
     assert len(run.event_records) >= 2
+
+
+def test_cancellation_terminates_a_silent_physical_runtime(tmp_path: Path, monkeypatch) -> None:
+    runtime = _runtime(tmp_path)
+    cancelled = threading.Event()
+    runtime.execution_context.runtime_services["cancellation_requested"] = cancelled.is_set
+    engine = TypeScriptClaudeQueryEngine(runtime.execution_context)
+    processes = []
+    original_start = engine._host_process_runtime.start_interactive
+
+    def start(**kwargs):
+        process = original_start(**kwargs)
+        processes.append(process)
+        cancelled.set()
+        return process
+
+    # A real child blocked indefinitely on its next protocol frame must stop
+    # even when no tool, provider chunk, or UI event arrives to observe cancel.
+    monkeypatch.setattr(engine, "_runtime_command", lambda: (
+        [sys.executable, "-c", "import time; time.sleep(60)"], "stdio",
+    ))
+    monkeypatch.setattr(engine._host_process_runtime, "start_interactive", start)
+    began = time.monotonic()
+    result = engine.run(
+        run_id="cancel-physical-run", task_id="cancel-physical-task", node_id=None,
+        worker_request_id="cancel-physical-request", turns=[],
+    )
+    assert result.ok is False
+    assert result.stopped_reason == "user_cancelled"
+    assert time.monotonic() - began < 10
+    assert len(processes) == 1
+    assert processes[0].poll() is not None
 
 
 def test_runtime_state_capsule_does_not_duplicate_complete_snapshot(

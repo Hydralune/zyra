@@ -31,6 +31,7 @@ export class ProductComposer {
   readonly #input: RawInput
   readonly #output: Writable
   readonly #terminalSession: TerminalSessionGuard
+  readonly #retainRawMode: boolean
   readonly #pasteBurst: PasteBurstDetector | undefined
   readonly #candidates: () => readonly string[]
   readonly #decoder = new StringDecoder("utf8")
@@ -66,6 +67,7 @@ export class ProductComposer {
     onScroll: (direction: "up" | "down") => void
     onCompletion?: (completion?: CompletionState) => void
     bracketedPaste?: boolean
+    retainRawMode?: boolean
     editDraft?: (initial: string) => Promise<string>
   }) {
     this.#input = input.stdin as RawInput
@@ -73,6 +75,7 @@ export class ProductComposer {
     const bracketedPaste = input.bracketedPaste
       ?? (input.stdin !== process.stdin || process.platform !== "win32")
     this.#terminalSession = new TerminalSessionGuard(input.stdin, input.output, { bracketedPaste })
+    this.#retainRawMode = input.retainRawMode ?? false
     this.#pasteBurst = bracketedPaste ? undefined : new PasteBurstDetector(MAX_PROMPT_BYTES)
     const candidates = [...new Set(input.candidates ?? [])].sort()
     this.#candidates = input.candidateProvider ?? (() => candidates)
@@ -122,7 +125,8 @@ export class ProductComposer {
       this.#dispose = () => {
         this.#input.off("data", data)
         this.#input.off("end", end)
-        this.#terminalSession.restore()
+        if (this.#retainRawMode) this.#terminalSession.suspend()
+        else this.#terminalSession.restore()
         this.#clearPasteBurstTimer()
       }
       // The first rendered draft is the user-visible readiness boundary.
@@ -132,6 +136,8 @@ export class ProductComposer {
   }
 
   close(): void { this.#finish({ kind: "closed" }) }
+
+  releaseTerminal(): void { this.#terminalSession.restore() }
 
   yieldForPermission(): void { this.#finish({ kind: "permission" }) }
 

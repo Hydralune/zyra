@@ -175,7 +175,7 @@ test("read-only slash commands are parsed, authorized, and dispatched only by Ty
   try {
     const response = object(await port.runtime.dispatch(request("execute", {
       tool_name: "command",
-      arguments: { input: "/mcp tools" },
+      arguments: { input: "/mcp tools", argument_overrides: { argv: ["tools"], raw: "tools" } },
       command_name: "mcp",
       operation: "read",
       tool_call_id: "api-command-call",

@@ -91,6 +91,9 @@ export class ProductTuiShell {
       running: () => this.#running,
       initialDraft: input.draftStore?.restored,
       bracketedPaste: this.#bracketedPaste,
+      // Windows can leave a pending cooked ReadConsole when raw mode is
+      // toggled between prompts. Own raw input until the TUI actually closes.
+      retainRawMode: input.stdin === process.stdin && process.platform === "win32",
       onChange: (snapshot) => {
         this.#draft = snapshot
         this.#scrollOffset = 0
@@ -356,6 +359,7 @@ export class ProductTuiShell {
     this.#showCurrentActivity = false
     this.#composer.close()
     this.#renderer.finish()
+    this.#composer.releaseTerminal()
     this.#closed = true
   }
 
@@ -367,6 +371,7 @@ export class ProductTuiShell {
     this.#acceptingInput = false
     this.#composer.close()
     this.#renderer.close()
+    this.#composer.releaseTerminal()
     this.#closed = true
   }
 
@@ -394,14 +399,14 @@ export class ProductTuiShell {
       const command = value.startsWith("/")
         ? PRODUCT_COMMAND_REGISTRY.find((item) => `/${item.name}` === value)
         : undefined
-      return { id: value, label: value, detail: command ? `${command.description}${command.usage ? ` · ${command.usage}` : ""}` : undefined }
+      return { id: value, label: value, detail: command?.description }
     })
     return {
       kind: "completion",
       title: completion.token.startsWith("/") ? "命令" : "工作区引用",
       rows,
       selected: completion.selected - start,
-      footer: "↑↓ 选择 · Tab/Enter 接受 · Esc 收起",
+      footer: `↑↓ 浏览 ${completion.selected + 1}/${completion.matches.length} · Tab/Enter 接受 · Esc 收起`,
     }
   }
 

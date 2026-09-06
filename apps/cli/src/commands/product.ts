@@ -1,5 +1,5 @@
 import type { Readable, Writable } from "node:stream"
-import { buildCommandResultModel, type CommandQueueSnapshot, type CommandReceipt } from "@zyra/commands"
+import { type CommandQueueSnapshot, type CommandReceipt } from "@zyra/commands"
 import { createSessionId, ZyraApiError, type SessionProjection, type TaskProjection } from "@zyra/typed-api-client"
 import { CliApi, type IngressCapabilities, type IngressPage, type ProductExecutionConfig, type UserInputRequestProjection } from "../api.ts"
 import { CliExitCode, CliTaskError, type InteractiveCommand, type ResumeCommand } from "../contracts.ts"
@@ -20,15 +20,18 @@ import type { UiPermissionSnapshot, UiUserInputRequest } from "../presentation/e
 import { ProductProjection } from "../presentation/projection.ts"
 import { buildBoundedWorkspaceDiff } from "../presentation/workspace-diff.ts"
 import { parseProductCommand, productCommandCandidates, productCommandHelp } from "../product/commands/registry.ts"
+import { commandResultLines } from "../product/commands/results.ts"
 import { openProductArtifact } from "../product/artifact/controller.ts"
 import { workspaceReferenceCandidates } from "../product/files/index.ts"
 import { openProductDiff } from "../product/diff/controller.ts"
 import { formatExecutionMode, formatModelStatus, formatRuntimeReadiness, providerConfigurationFromReadiness, type ProductExecutionMode } from "../product/diagnostics/status.ts"
 import { ProductOnboardingStore } from "../product/onboarding/state.ts"
 import { ProductDraftStore } from "../product/session/local-state.ts"
+import { ProductPermissionCustodyStore } from "../product/session/permission-custody.ts"
 import { copyLatestAssistantMessage, exportProductTranscript, rawTranscriptLines } from "../product/transcript/export.ts"
 import { ProductTuiShell } from "../tui/shell.ts"
 import { formatTerminalCapabilities } from "../tui/terminal-capabilities.ts"
+import { clipDisplay } from "../tui/text.ts"
 import { sanitizeForOutput } from "../output.ts"
 import { mutationTransportDetached, type CommandOutcome } from "../runner.ts"
 import { launchUi } from "../ui.ts"
@@ -36,6 +39,12 @@ import type { LocalExecutorEnvironment } from "../terminal/lifecycle.ts"
 
 function terminalTask(task: TaskProjection): boolean {
   return task.terminal || ["completed", "failed", "blocked", "cancelled", "killed"].includes(task.status)
+}
+
+function executionModeFromTask(task?: TaskProjection): ProductExecutionMode {
+  return task?.metadata.sealed === true || task?.metadata.competition_mode === "sealed_autonomous"
+    ? "sealed_autonomous"
+    : "standard"
 }
 
 function terminalExitCode(task: TaskProjection): CliExitCode {
@@ -182,35 +191,6 @@ function formatProductCommandReceipt(receipt: Parameters<typeof formatCommandRec
   return `${action} · ${receipt.name}`
 }
 
-function commandResultLines(receipt: CommandReceipt): string[] {
-  const result = buildCommandResultModel(receipt, { maximumRows: 120, maximumValueLength: 2_048 })
-  const lines = [result.summary || result.displayText]
-  if (result.displayText && result.displayText !== result.summary) lines.push(result.displayText)
-  if (result.usage) {
-    const usage = [
-      `${result.usage.inputTokens} input`,
-      `${result.usage.outputTokens} output`,
-      result.usage.cachedTokens ? `${result.usage.cachedTokens} cached` : undefined,
-      result.usage.costUsd === undefined ? undefined : `$${result.usage.costUsd.toFixed(4)}`,
-    ].filter(Boolean).join(" · ")
-    lines.push("", `Usage: ${usage}`)
-  }
-  const internalLabels = new Set(["Command", "Request", "Queue", "Task", "Run", "Session", "Idempotency", "Events"])
-  for (const section of result.sections) {
-    lines.push("", `## ${section.title}`)
-    if (section.description) lines.push(section.description)
-    for (const row of section.rows) {
-      const marker = row.tone === "error" ? "!" : row.tone === "success" ? "✓" : "•"
-      lines.push(`${marker} ${row.title}${row.status ? ` · ${row.status}` : ""}`)
-      if (row.summary && row.summary !== row.title) lines.push(`  ${row.summary}`)
-      for (const field of row.fields) {
-        if (!internalLabels.has(field.label)) lines.push(`  ${field.label}: ${field.value}`)
-      }
-    }
-  }
-  return lines
-}
-
 function productQueueSummary(snapshot: CommandQueueSnapshot): string {
   if (!snapshot.items.length) return "当前没有排队消息。"
   const now = snapshot.items.filter((item) => item.priority === "now").length
@@ -294,11 +274,17 @@ function byteLabel(value: number | undefined): string {
 }
 
 async function pickTaskArtifact(shell: ProductTuiShell, task: TaskProjection): Promise<string | undefined> {
-  if (!task.artifacts.length) {
-    shell.notice("当前任务还没有生成文件或交付物。")
+  // These envelopes are execution evidence, not user-facing deliverables.
+  // Explicit artifact IDs and tool output links still open them for inspection.
+  const evidenceKinds = new Set(["code_worker_execution", "memory_continuity", "runtime_receipt", "execution_manifest"])
+  const evidenceTitles = new Set(["Physical CodeWorker delivery manifest", "Physical MaAS memory continuity result"])
+  const artifacts = task.artifacts.filter((artifact) =>
+    !evidenceKinds.has(String(artifact.metadata?.domain_result_kind ?? "")) && !evidenceTitles.has(artifact.title ?? ""))
+  if (!artifacts.length) {
+    shell.notice("当前任务没有单独登记的交付物。文件改动可用 /diff 查看，回复正文保留在对话中。")
     return undefined
   }
-  return (await shell.pick("任务交付物", task.artifacts.map((artifact) => ({
+  return (await shell.pick("任务交付物", artifacts.map((artifact) => ({
     id: artifact.artifactId,
     label: artifact.title || artifact.path || artifact.kind || "任务产物",
     detail: artifact.mediaType || artifact.kind,
@@ -356,19 +342,32 @@ async function openToolBrowser(input: {
   }
 }
 
-function verificationLines(view: ProductTuiShell["view"]): string[] {
+export function verificationLines(view: ProductTuiShell["view"], details = false): string[] {
   const verification = view.verification
   if (!verification) return ["当前任务还没有验证结果。"]
   const lines = [
     `${verification.status === "passed" ? "✓" : verification.status === "failed" ? "!" : "○"} ${verification.label}`,
     `执行记录 · ${verification.commandEvidence === "recorded" ? "已记录实际命令" : "没有命令级记录；不能据此声称命令已经运行"}`,
   ]
-  for (const check of verification.checks) {
+  const commands = verification.checks.filter((check) => Boolean(check.command))
+  const internal = verification.checks.filter((check) => !check.command)
+  if (commands.length) lines.push("", "实际运行的命令")
+  const append = (check: typeof verification.checks[number]): void => {
     const marker = check.status === "passed" ? "✓" : check.status === "failed" ? "!" : check.status === "skipped" ? "↷" : "○"
-    const command = check.command ? ` · ${check.command}` : ""
-    const exit = check.exitCode === undefined ? "" : ` · exit ${check.exitCode}`
+    const exit = check.exitCode === undefined ? "" : ` · 退出码 ${check.exitCode}`
     const summary = check.summary ? ` · ${check.summary}` : ""
-    lines.push(`${marker} ${check.name} · ${productTaskStatus(check.status)}${command}${exit}${summary}`)
+    lines.push(`${marker} ${check.command ?? check.name} · ${productTaskStatus(check.status)}${exit}${summary}`)
+  }
+  commands.forEach(append)
+  if (internal.length) {
+    const passed = internal.filter((check) => check.status === "passed").length
+    const failed = internal.filter((check) => check.status === "failed").length
+    lines.push("", `系统校验 · ${passed}/${internal.length} 项通过${failed ? ` · ${failed} 项失败` : ""}`)
+    if (details) internal.forEach(append)
+    else {
+      internal.filter((check) => check.status === "failed").forEach(append)
+      lines.push("输入 /verification details 查看全部技术校验项。")
+    }
   }
   if (!verification.checks.length) lines.push("没有逐项执行记录；这里只显示任务报告的最终验证状态。")
   return lines
@@ -739,7 +738,7 @@ async function runProductControlLoop(input: {
     }
     if (
       result.kind === "exit"
-      || (result.kind === "submit" && ["/exit", "/detach"].includes(result.text.trim()))
+      || (result.kind === "submit" && ["exit", "detach"].includes(parseProductCommand(result.text)?.definition.name ?? ""))
     ) {
       input.detach()
       return
@@ -754,7 +753,14 @@ async function runProductControlLoop(input: {
         input.shell.notice(formatProductCommandReceipt(receipt))
         continue
       }
-      const line = result.text.trim()
+      const command = parseProductCommand(result.text)
+      if (command?.definition.availability === "idle") {
+        input.shell.notice(`/${command.definition.name} 请在当前任务结束后使用；可用 /detach 离开，或 /cancel 停止任务。`)
+        continue
+      }
+      const line = command
+        ? `/${command.definition.name}${command.args ? ` ${command.args}` : ""}`
+        : result.text.trim()
       if (input.shell.view.permissions.length > 0 && (line.toLocaleLowerCase() === "a" || line.toLocaleLowerCase() === "d")) {
         input.shell.notice(await resolveSinglePermissionShortcut(input, line.toLocaleLowerCase() === "a" ? "allow" : "deny"))
         continue
@@ -779,12 +785,29 @@ async function runProductControlLoop(input: {
         input.shell.notice(formatRuntimeReadiness(await input.readiness()))
         continue
       }
-      if (line === "/model") {
-        input.shell.notice(formatModelStatus(await input.taskStatus()))
+      if (command?.definition.name === "model") {
+        input.shell.notice(command.args && command.args !== "status"
+          ? "用法：/model [status]"
+          : `${formatModelStatus(await input.taskStatus())}\n任务结束后可用 /model 选择后续任务的模型。`)
         continue
       }
-      if (line === "/mode") {
-        input.shell.notice(formatExecutionMode(await input.taskStatus()))
+      if (command?.definition.name === "mode") {
+        input.shell.notice(command.args && command.args !== "status"
+          ? "用法：/mode [status]"
+          : `${formatExecutionMode(await input.taskStatus())}\n任务结束后可用 /mode 选择后续任务的执行模式。`)
+        continue
+      }
+      if (command?.definition.name === "rename") {
+        if (!command.args) {
+          input.shell.notice("用法：/rename <标题>")
+          continue
+        }
+        const receipt = await input.controls.submit(`/rename ${JSON.stringify(command.args)}`, {
+          mode: "enqueue", priority: "next", signal: input.signal,
+        })
+        input.shell.notice(receipt.phase === "applied"
+          ? `会话已命名为“${command.args}”。`
+          : formatProductCommandReceipt(receipt))
         continue
       }
       if (line === "/agents" || line.startsWith("/agents ") || line === "/subagents" || line.startsWith("/subagents ")) {
@@ -891,8 +914,12 @@ async function runProductControlLoop(input: {
         await input.shell.page("计划与步骤", planLines(input.shell.view))
         continue
       }
-      if (line === "/verification" || line === "/verify") {
-        await input.shell.page("验证与收据", verificationLines(input.shell.view))
+      if (command?.definition.name === "verification") {
+        if (command.args && command.args !== "details") {
+          input.shell.notice("用法：/verification [details]")
+          continue
+        }
+        await input.shell.page("验证与收据", verificationLines(input.shell.view, command.args === "details"))
         continue
       }
       if (line === "/tools") {
@@ -1460,6 +1487,7 @@ export async function executeProductInteractive(input: {
       startupTimeoutMs: input.command.startupTimeoutMs,
       ensureTerminal: input.ensureTerminal,
       initialExecutionConfig,
+      custodyStore: input.stdin === process.stdin ? new ProductPermissionCustodyStore(input.command.baseUrl) : undefined,
       initial: input.command.goal ? { kind: "goal", goal: input.command.goal } : undefined,
     })
   } finally {
@@ -1507,6 +1535,7 @@ export async function executeProductResume(input: {
       startupTimeoutMs: input.command.startupTimeoutMs,
       ensureTerminal: input.ensureTerminal,
       initial: { kind: "resume", task: resolved.task, bootstrap },
+      custodyStore: input.stdin === process.stdin ? new ProductPermissionCustodyStore(input.command.baseUrl) : undefined,
     })
   } finally {
     input.signal.removeEventListener("abort", abortInput)
@@ -1523,10 +1552,18 @@ function newProductSessionId(): string {
   return createSessionId()
 }
 
+function sessionTime(value: string | undefined): string {
+  if (!value) return "时间未知"
+  const date = new Date(value)
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+    : "时间未知"
+}
+
 function formatRecentSessions(sessions: Awaited<ReturnType<CliApi["sessions"]>>): string {
-  const lines = sessions.sessions.slice(0, 12).map((session) => {
+  const lines = sessions.sessions.slice(0, 12).map((session, index) => {
     const status = session.statuses.map(productTaskStatus).join("、") || (session.terminal ? "已结束" : "进行中")
-    return `${session.title ?? session.sessionId} · ${status} · ${session.updatedAt ?? "时间未知"}`
+    return `${index + 1}. ${clipDisplay((session.title ?? "未命名会话").replace(/\s+/gu, " "), 60)}\n   ${status} · ${sessionTime(session.updatedAt)}\n`
   })
   if (!lines.length) lines.push("没有可恢复的历史会话。")
   if (sessions.degraded?.length) lines.push(`⚠ ${sessions.degraded.length} 条旧版或损坏会话记录已安全隔离；未用于恢复选择。`)
@@ -1544,8 +1581,8 @@ async function pickRecentSession(api: CliApi, shell: ProductTuiShell): Promise<S
   }))
   const selected = await shell.pick("恢复会话", eligible.map((session) => ({
     id: session.sessionId,
-    label: session.title ?? taskTitles.get(session.sessionId) ?? session.sessionId,
-    detail: `${session.statuses.map(productTaskStatus).join("、") || "状态未知"} · ${session.updatedAt ?? "时间未知"}`,
+    label: clipDisplay((session.title ?? taskTitles.get(session.sessionId) ?? "未命名会话").replace(/\s+/gu, " "), 60),
+    detail: `${session.statuses.map(productTaskStatus).join("、") || "状态未知"} · ${sessionTime(session.updatedAt)}`,
     keywords: [session.sessionId, session.resumeTaskId ?? "", ...session.statuses],
   })), `输入筛选 · ↑↓ 选择 · Enter 恢复 · Esc 返回${response.degraded?.length ? ` · ${response.degraded.length} 条损坏记录已隔离` : ""}`)
   return selected ? eligible.find((session) => session.sessionId === selected.id) : undefined
@@ -1715,6 +1752,7 @@ async function runProductSession(input: {
   startupTimeoutMs: number
   initial?: ProductSessionInput
   initialExecutionConfig?: ProductModelSelection
+  custodyStore?: ProductPermissionCustodyStore
   ensureTerminal?: () => Promise<LocalExecutorEnvironment>
 }): Promise<CommandOutcome> {
   const trace = (stage: string): void => {
@@ -1727,7 +1765,7 @@ async function runProductSession(input: {
   let currentTaskId = next?.kind === "resume" ? next.task.taskId : undefined
   let currentTask = next?.kind === "resume" ? next.task : undefined
   let executionConfig: ProductModelSelection | undefined = executionConfigFromTask(currentTask) ?? input.initialExecutionConfig
-  let executionMode: ProductExecutionMode = "standard"
+  let executionMode: ProductExecutionMode = executionModeFromTask(currentTask)
   let lastOutcome: CommandOutcome | undefined
   let terminalReady = false
   let executorEnvironment: LocalExecutorEnvironment | undefined
@@ -1750,6 +1788,7 @@ async function runProductSession(input: {
       const line = entry.text.trim()
       const command = parseProductCommand(line)
       if (command) {
+        try {
         switch (command.definition.name) {
           case "exit":
           case "detach":
@@ -1770,9 +1809,13 @@ async function runProductSession(input: {
             input.shell.clearTranscript()
             input.shell.notice("本地对话显示已清除；远端任务和历史没有删除。")
             continue
-          case "sessions":
-            input.shell.notice(formatRecentSessions(await input.api.sessions({ limit: 12 })))
-            continue
+            case "sessions": {
+              const sessions = await input.api.sessions({ limit: 12 })
+              const lines = formatRecentSessions(sessions)
+              if (sessions.sessions.length) await input.shell.page("最近会话 · /resume 可选择并恢复", lines.split("\n"))
+              else input.shell.notice(lines)
+              continue
+            }
           case "rename": {
             if (!currentTask) {
               input.shell.notice("当前还没有可命名的会话。")
@@ -1825,8 +1868,12 @@ async function runProductSession(input: {
             input.shell.notice(formatRuntimeReadiness(await input.api.readiness(input.signal)))
             continue
           case "model":
+            if (command.args && command.args !== "status") {
+              input.shell.notice("用法：/model [status]")
+              continue
+            }
             if (command.args === "status") {
-              input.shell.notice(formatModelStatus(currentTask, executionConfig))
+              input.shell.notice(formatModelStatus(undefined, executionConfig))
               continue
             }
             executionConfig = await pickProductModel({ api: input.api, shell: input.shell, signal: input.signal }) ?? executionConfig
@@ -1834,6 +1881,10 @@ async function runProductSession(input: {
             input.shell.notice(formatModelStatus(undefined, executionConfig))
             continue
           case "mode":
+            if (command.args && command.args !== "status") {
+              input.shell.notice("用法：/mode [status]")
+              continue
+            }
             if (command.args === "status") {
               input.shell.notice(formatExecutionMode(undefined, executionMode))
               continue
@@ -1847,9 +1898,14 @@ async function runProductSession(input: {
             continue
           }
           case "permissions": {
+            // A completed task returns from observation without opening a live
+            // control loop. Recover its stored custody when the user asks for it.
+            if (currentPermissionSession && !currentPermissionSession.available) {
+              await currentPermissionSession.open(input.signal)
+            }
             if (!currentPermissionSession?.available) {
               input.shell.notice(currentTask
-                ? "当前任务的权限控制不可用；请先恢复该任务，或运行 /doctor 查看诊断。"
+                ? `当前任务的权限控制不可用 · ${controlError(currentPermissionSession?.custodyError ?? new Error("权限会话未建立"))}`
                 : "当前还没有任务；创建任务后才能查看或修改它的权限模式。")
               continue
             }
@@ -1943,7 +1999,11 @@ async function runProductSession(input: {
             await input.shell.page("计划与步骤", planLines(input.shell.view))
             continue
           case "verification":
-            await input.shell.page("验证与收据", verificationLines(input.shell.view))
+            if (command.args && command.args !== "details") {
+              input.shell.notice("用法：/verification [details]")
+              continue
+            }
+            await input.shell.page("验证与收据", verificationLines(input.shell.view, command.args === "details"))
             continue
           case "tools":
             await openToolBrowser({
@@ -1980,6 +2040,11 @@ async function runProductSession(input: {
             input.shell.notice(`${command.raw} 只能在任务运行期间使用。`)
             continue
         }
+        } catch (error) {
+          if (input.signal.aborted) break
+          input.shell.notice(`命令未完成 · ${controlError(error)}\n可修改命令后重试，或输入 /help 查看用法。`)
+          continue
+        }
         if (!next) break
       } else if (line.startsWith("/")) {
         input.shell.notice(`未知命令：${line.split(/\s/u)[0]}。输入 /help 查看可用命令。`)
@@ -1992,6 +2057,11 @@ async function runProductSession(input: {
     }
 
     if (!next) break
+    if (next.kind === "resume") {
+      executionMode = executionModeFromTask(next.task)
+      executionConfig = executionConfigFromTask(next.task)
+      refreshChrome()
+    }
     // A non-terminal resume reacquires execution ownership through task.run,
     // so it needs a fresh local terminal node after the previous CLI detached.
     // Terminal history remains observation-only and does not pay this cost.
@@ -2066,13 +2136,17 @@ async function runProductSession(input: {
     executionConfig = executionConfigFromTask(task) ?? executionConfig
     refreshChrome()
     if (task.sessionId) sessionId = task.sessionId
-    const continuingPermissionCustody = currentPermissionSession?.custodyToken
-      ?? process.env.ZYRA_PERMISSION_CUSTODY_TOKEN
+    const permissionSessionId = typeof task.metadata.query_session_id === "string"
+      ? task.metadata.query_session_id : task.sessionId ?? `task:${task.taskId}`
+    const continuingPermissionCustody = (currentPermissionSession?.binding.sessionId === permissionSessionId
+      ? currentPermissionSession.custodyToken : undefined)
+        ?? process.env.ZYRA_PERMISSION_CUSTODY_TOKEN
     currentPermissionSession = input.shell.interactive
       ? new CliPermissionSession({
           api: input.api,
           task,
           custodyToken: continuingPermissionCustody,
+          custodyStore: input.custodyStore,
         })
       : undefined
     try {

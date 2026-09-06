@@ -694,6 +694,16 @@ describe("projection index and semantic result overlay", () => {
       .flatMap((row) => row.fields)
       .some((field) => field.value === "[redacted]")).toBe(true)
   })
+
+  test("preserves a top-level backend rejection instead of showing an empty result", () => {
+    const submitted = request("/mcp")
+    const receipt = admitCommandReceipt({
+      ok: false, error: "e02_api_runtime_error", message: "command rejected by canonical owner", detail: { retryable: false },
+    }, submitted)
+    expect(receipt.phase).toBe("rejected")
+    expect(receipt.error?.message).toBe("command rejected by canonical owner")
+    expect(buildCommandResultModel(receipt).error?.code).toBe("e02_api_runtime_error")
+  })
 })
 
 describe("queue recovery, actions, history, and disable behavior", () => {

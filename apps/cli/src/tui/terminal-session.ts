@@ -30,14 +30,19 @@ export class TerminalSessionGuard {
 
   get active(): boolean { return this.#active }
   get bracketedPasteEnabled(): boolean { return this.#bracketedPaste }
+  ownsInput(input: Readable): boolean { return this.#active && this.#input === input }
 
   enter(): void {
-    if (this.#active) return
+    if (this.#active) { this.#input.resume(); return }
     this.#active = true
     activeSessions.add(this)
     this.#input.setRawMode?.(true)
     this.#input.resume()
     this.#write(`${TERMINAL_SAFE_BASELINE}${this.#bracketedPaste ? "\u001b[?2004h" : ""}`)
+  }
+
+  suspend(): void {
+    this.#input.pause()
   }
 
   restore(): void {
@@ -52,6 +57,10 @@ export class TerminalSessionGuard {
   #write(value: string): void {
     try { this.#output.write(value) } catch { /* output may already be unavailable */ }
   }
+}
+
+export function terminalSessionOwnsInput(input: Readable): boolean {
+  return [...activeSessions].some((session) => session.ownsInput(input))
 }
 
 export function emergencyTerminalCleanup(): void {

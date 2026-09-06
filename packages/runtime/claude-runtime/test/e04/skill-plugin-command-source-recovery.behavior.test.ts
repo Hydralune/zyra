@@ -193,7 +193,7 @@ function childResult(): RuntimeRunResult {
     contextCompactionCount: 0,
     stepSummaries: ["forked E04 skill completed"],
     artifacts: [],
-    sessionSnapshot: { child: true },
+    sessionSnapshot: { child: true, modelIteration: { finalText: "The child evidence report is complete." } },
     metadata: { cost_micros: "17", e04_child: "true" },
   } as RuntimeRunResult;
 }
@@ -337,12 +337,17 @@ test("e04-skill-plugin-command", async () => {
     assert.match(String(childCalls[0]!.messages.at(-2)?.content), /Return immediately once the bounded skill result/i);
     assert.equal(childCalls[0]!.messages.at(-1)?.role, "user");
     assert.match(String(childCalls[0]!.messages.at(-1)?.content), /docs\/e04-evidence\.md/);
+    // The transport drops internal message metadata; arguments must survive in content.
+    const providerMessages = childCalls[0]!.messages.map(({ role, content }) => ({ role, content }));
+    assert.match(String(providerMessages.at(-1)?.content), /Invocation arguments/);
+    assert.match(String(providerMessages.at(-1)?.content), /"target":"docs\/e04-evidence\.md"/);
     assert.equal(
       ((childCalls[0]!.messages.at(-1)?.metadata as JsonObject).skill_arguments as JsonObject).target,
       "docs/e04-evidence.md",
     );
     const invocation = invoked.output.invocation as JsonObject;
     assert.equal(invocation.status, "completed");
+    assert.match(JSON.stringify(invoked.output), /The child evidence report is complete\./);
     assert.equal((invocation.metadata as JsonObject).source_custody, "claude-code-best:executeForkedSkill");
 
     const noMatchParent = runtimeInput(fixture.workspace);

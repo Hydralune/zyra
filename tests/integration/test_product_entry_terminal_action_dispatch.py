@@ -382,6 +382,7 @@ def test_gateway_permission_then_http_dispatch_and_delegation_mutation() -> None
         for index, (tool_name, tool_arguments) in enumerate(
             (
                 ("file_write", {"path": "remote-proof.txt", "content": "remote"}),
+                ("file_edit", {"path": "remote-only.txt", "old": "before", "new": "after"}),
                 (
                     "artifact_write",
                     {"name": "remote-proof.md", "content": "remote artifact"},

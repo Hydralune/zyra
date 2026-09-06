@@ -625,7 +625,18 @@ describe("product task observer", () => {
     const statusDeadline = Date.now() + 500
     while (!output.text.includes("连接 · 已连接") && Date.now() < statusDeadline) await Bun.sleep(5)
     expect(output.text).toContain("任务 · 运行中")
-    stdin.write("/exit\r")
+    for (const [command, marker] of [
+      ["/CWD", process.cwd()],
+      ["/MODEL status", "任务结束后可用 /model"],
+      ["/mode status", "任务结束后可用 /mode"],
+      ["/new", "/new 请在当前任务结束后使用"],
+    ]) {
+      stdin.write(`${command}\r`)
+      const deadline = Date.now() + 500
+      while (!output.text.includes(marker!) && Date.now() < deadline) await Bun.sleep(5)
+      expect(output.text).toContain(marker!)
+    }
+    stdin.write("/QUIT\r")
     const result = await observation
     productShell.finish()
 

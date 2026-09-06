@@ -442,7 +442,7 @@ async function shell(context: ActionContext, workspace: string): Promise<Termina
   try {
     const exit = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolveExit, reject) => {
       child.once("error", reject)
-      child.once("exit", (code, signal) => resolveExit({ code, signal }))
+      child.once("close", (code, signal) => resolveExit({ code, signal }))
     })
     if (context.signal.aborted) throw context.signal.reason
     if (budgetError) throw budgetError

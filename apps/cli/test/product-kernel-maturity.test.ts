@@ -541,6 +541,49 @@ describe("product commands and continuous session", () => {
     expect(productCommandHelp(false)).toContain("/init [关注点]")
     expect(productWorkflowGoal("review", "authentication")).toContain("Do not modify files")
     expect(productWorkflowGoal("init")).toContain("preserve existing user rules")
+    expect(parseProductCommand('/RENAME 第一行  保留空格\n第二行')).toMatchObject({
+      definition: { name: "rename" }, args: '第一行  保留空格\n第二行',
+    })
+    expect(productCommandHelp(true)).toContain("/cancel [原因] — 停止当前任务")
+    expect(productCommandHelp(true)).toContain("/redirect <说明>")
+  })
+
+  test("keeps the session usable after idle command failures without replaying mutations", async () => {
+    const stdin = new TtyInput()
+    const stdout = new Capture()
+    const calls: string[] = []
+    const api = {
+      async resolveTask() { calls.push("resume"); throw new Error("session not found") },
+      async sessions() { calls.push("sessions"); throw new Error("service unavailable") },
+      async providerModels() { calls.push("model"); throw new Error("model catalog unavailable") },
+    } as unknown as CliApi
+    const controller = new AbortController()
+    const executing = executeProductInteractive({
+      command: { kind: "interactive", baseUrl: "http://127.0.0.1:8000", autoStart: false, startupTimeoutMs: 1_000, timeoutMs: 10_000 },
+      api, stdin, stdout, signal: controller.signal, cwd: "G:\\agent-zoo\\zyra",
+      draftStore: null, onboardingStore: null,
+    })
+    try {
+      await waitUntil(() => stdin.raw)
+      for (const [command, error] of [
+        ["/resume missing", "session not found"],
+        ["/ls", "service unavailable"],
+        ["/model", "model catalog unavailable"],
+      ]) {
+        stdin.write(`${command}\r`)
+        await waitUntil(() => stdout.text.includes(error!) && stdin.raw)
+      }
+      stdin.write("/CWD\r")
+      await waitUntil(() => stdout.text.includes("• G:\\agent-zoo\\zyra"))
+      stdin.write("/quit\r")
+      expect(await executing).toMatchObject({ status: "exited", exitCode: CliExitCode.SUCCESS })
+      expect(calls).toEqual(["resume", "sessions", "model"])
+      expect(stdout.text).toContain("命令未完成")
+    } finally {
+      controller.abort()
+      await executing
+    }
+    expect(stdin.raw).toBeFalse()
   })
 
   test("starts a review command as a canonical task with a bounded product workflow", async () => {
@@ -742,13 +785,13 @@ describe("product commands and continuous session", () => {
     expect(stdin.isPaused()).toBe(true)
   })
 
-  test("registers a fresh terminal before a non-terminal resume reacquires execution", async () => {
+  test.each([false, true])("restores the canonical execution environment on resume (sealed=%s)", async (sealed) => {
     const pending: TaskProjection = {
       ...completedTask(1, "继续真实工作区任务", "session_resume"),
       status: "pending",
       terminal: false,
       active: true,
-      metadata: {},
+      metadata: { sealed, competition_mode: sealed ? "sealed_autonomous" : "standard" },
     }
     const completed: TaskProjection = {
       ...pending,
@@ -797,10 +840,11 @@ describe("product commands and continuous session", () => {
       draftStore: null,
     })
 
-    expect(terminalStarts).toBe(1)
+    expect(terminalStarts).toBe(sealed ? 0 : 1)
     expect(runCalls).toBe(1)
     expect(outcome.status).toBe("completed")
     expect(stdout.text).toContain("恢复执行完成。")
+    if (sealed) expect(stdout.text).toContain("自治")
   })
 
   test("selects a canonical model and binds it to the next task creation", async () => {

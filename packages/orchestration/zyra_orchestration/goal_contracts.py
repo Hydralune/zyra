@@ -342,6 +342,30 @@ def direct_response_contract(user_goal: str) -> DirectResponseContract | None:
     return None
 
 
+def _workspace_change_requested(text: str) -> bool:
+    for match in _WORKSPACE_CHANGE.finditer(text):
+        # A prohibition or a reference to supplied evidence is not a request
+        # for a physical mutation. Keep positive clauses independent.
+        prefix = re.split(r"[。.!！?？;；，,\r\n]", text[:match.start()])[-1]
+        if re.search(
+            r"(?:不要|请勿|不得|禁止|无需|不需要|不必|不能|未|不)(?:[^。;；，,\r\n]{0,24})$"
+            r"|\b(?:do\s+not|don't|without|never|no\s+need\s+to)\b[^.;,\r\n]{0,60}$",
+            prefix,
+            re.IGNORECASE,
+        ):
+            continue
+        if match.group().casefold() == "提供" and re.search(r"(?:用户|我|已|已经|此前|之前)\s*$", prefix):
+            continue
+        # English verbs must not match substrings such as 'updated' or 'address'.
+        if match.group().isascii():
+            before = text[match.start() - 1:match.start()] if match.start() else ""
+            after = text[match.end():match.end() + 1]
+            if (before and before.isalpha()) or (after and after.isalpha()):
+                continue
+        return True
+    return False
+
+
 def goal_delivery_contract(user_goal: str) -> GoalDeliveryContract:
     """Compile explicit delivery obligations without pretending to understand prose.
 
@@ -352,7 +376,7 @@ def goal_delivery_contract(user_goal: str) -> GoalDeliveryContract:
 
     goal = _normalized(user_goal)
     response = direct_response_contract(goal)
-    workspace_mutation_required = bool(_WORKSPACE_CHANGE.search(goal))
+    workspace_mutation_required = _workspace_change_requested(goal)
     paths: list[str] = []
     if workspace_mutation_required:
         directory_scopes: list[tuple[int, str]] = []
@@ -806,7 +830,7 @@ def _path_has_delivery_context(goal: str, position: int, path: str) -> bool:
     if following is not None:
         end = following.start()
     clause = goal[start:end]
-    if not _WORKSPACE_CHANGE.search(clause):
+    if not _workspace_change_requested(clause):
         return False
     if normalized.startswith(("schemas/", "inputs/")):
         before_path = goal[start:position]

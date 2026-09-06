@@ -6,12 +6,15 @@ when-to-use: When producing a final technical, competition, or decision report.
 version: 1.0.0
 user-invocable: true
 model-invocable: true
+arguments: {"instructions":{"type":"string","description":"Scope, format, and stopping conditions for this report."},"evidence":{"type":"string","description":"Verified facts supplied by the caller, with their evidence references when available."}}
 invocation: {"mode":"inline","max-skill-depth":0}
 allowed-tools: ["builtin/file_read","builtin/checkpoint","builtin/trace","builtin/artifact_write"]
 context-budget: {"listing-tokens":80,"body-tokens":4500,"resource-read-tokens":3000,"invocation-total-tokens":8500,"restore-tokens":2200}
 resources: ["references/traceability.md","templates/report-outline.md"]
 ---
 Write the report from verified evidence rather than from implementation intent.
+
+Use the invocation's instructions and evidence to bound this report. Distinguish caller-supplied facts from evidence you inspected yourself. If the supplied facts are insufficient, return the specific gaps instead of expanding the task or repeatedly trying unavailable tools.
 
 Lead with the outcome, keep claims proportional to evidence, and link dynamic behavior to tests, events, artifacts, and metrics. Distinguish current completion from planned downstream work. Do not use code volume, static screenshots, or source ledgers as substitutes for runtime evidence.
 

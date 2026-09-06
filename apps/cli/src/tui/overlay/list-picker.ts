@@ -2,6 +2,7 @@ import type { Readable, Writable } from "node:stream"
 import { StringDecoder } from "node:string_decoder"
 import { PromptDraft } from "../../input/draft.ts"
 import type { ProductOverlay, ProductPickerItem } from "./model.ts"
+import { terminalSessionOwnsInput } from "../terminal-session.ts"
 
 type RawInput = Readable & { setRawMode?: (enabled: boolean) => void }
 
@@ -123,7 +124,7 @@ export async function pickProductItem(input: {
       update()
     })
   } finally {
-    stdin.setRawMode?.(false)
+    stdin.setRawMode?.(terminalSessionOwnsInput(stdin))
     stdin.pause()
     input.output.write("\u001b[?2004l")
     input.onChange(undefined)
@@ -205,7 +206,7 @@ export async function promptProductText(input: {
       update()
     })
   } finally {
-    stdin.setRawMode?.(false)
+    stdin.setRawMode?.(terminalSessionOwnsInput(stdin))
     stdin.pause()
     input.output.write("\u001b[?2004l")
     input.onChange(undefined)

@@ -713,7 +713,7 @@ def execute_code_worker_operator(
     # TypeScript E02 session starts. Physical provider dispatch must bind the
     # identical task-scoped snapshot instead of silently exposing an empty
     # skill catalog.
-    materialize_bundled_skills(project_root, workspace_root)
+    materialize_bundled_skills(project_root, execution_workspace_root)
     benchmark_binding = _benchmark_docker_binding(
         node_data_root=Path(node_data_root).resolve(),
         workspace_root=workspace_root,
@@ -1074,6 +1074,17 @@ def execute_code_worker_operator(
         )
 
     runtime_services["completion_gate"] = completion_gate
+
+    def cancellation_requested() -> bool:
+        # Bind forks and physical dispatches to the canonical parent run.
+        state = checkpoint_reader(task_id)
+        return bool(
+            state
+            and state.get("run_id") == run_id
+            and state.get("status") == "cancelled"
+        )
+
+    runtime_services["cancellation_requested"] = cancellation_requested
     if benchmark_binding is not None:
         assert benchmark_mirror is not None
         (

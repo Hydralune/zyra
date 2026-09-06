@@ -1103,6 +1103,11 @@ class TypeScriptClaudeQueryEngine:
             allowed_roots=(self.project_root,),
         )
         self._active_runtime_process: subprocess.Popen[str] | None = None
+        self._cancel_requested = threading.Event()
+        self._cancellation_failure: str | None = None
+        self._cancellation_requested = context.runtime_services.get("cancellation_requested")
+        if self._cancellation_requested is not None and not callable(self._cancellation_requested):
+            raise TypeError("cancellation_requested must be callable")
         self._active_stderr_collector: _StderrCollector | None = None
         self._runtime_event_bridge = context.runtime_services.get("runtime_event_bridge")
         self._runtime_event_payload_sink = context.runtime_services.get(
@@ -1211,7 +1216,18 @@ class TypeScriptClaudeQueryEngine:
             )
             failed.metadata["tool_foundation_disabled_component"] = disabled_component
             return failed
+        cancellation_done = threading.Event()
+        cancellation_watcher = None
+        if self._cancellation_requested is not None:
+            cancellation_watcher = threading.Thread(
+                target=self._watch_cancellation,
+                args=(cancellation_done,),
+                name=f"zyra-cancellation-{task_id}",
+                daemon=True,
+            )
+            cancellation_watcher.start()
         try:
+            self._raise_if_cancelled()
             return self._run_process(
                 run_id=run_id,
                 task_id=task_id,
@@ -1224,6 +1240,8 @@ class TypeScriptClaudeQueryEngine:
                 projection=projection,
             )
         except TypeScriptRuntimeError as error:
+            if self._cancel_requested.is_set():
+                error = self._cancellation_error()
             return self._failed_result(
                 error=error,
                 run_id=run_id,
@@ -1234,9 +1252,8 @@ class TypeScriptClaudeQueryEngine:
             )
         except Exception as error:  # noqa: BLE001 - process boundary fails closed.
             return self._failed_result(
-                error=TypeScriptRuntimeError(
-                    "typescript_runtime_process_failed",
-                    f"{type(error).__name__}: {error}",
+                error=self._cancellation_error() if self._cancel_requested.is_set() else TypeScriptRuntimeError(
+                    "typescript_runtime_process_failed", f"{type(error).__name__}: {error}",
                 ),
                 run_id=run_id,
                 task_id=task_id,
@@ -1245,6 +1262,9 @@ class TypeScriptClaudeQueryEngine:
                 projection=projection,
             )
         finally:
+            cancellation_done.set()
+            if cancellation_watcher is not None:
+                cancellation_watcher.join()
             gateway_router = self.context.runtime_services.get(
                 "sandbox_gateway_router"
             )
@@ -1459,6 +1479,7 @@ class TypeScriptClaudeQueryEngine:
             **self._provider_credential_relay_arguments(),
         )
         self._active_runtime_process = process
+        self._raise_if_cancelled()
         if process.stdin is None or process.stdout is None or process.stderr is None:
             process.kill()
             raise TypeScriptRuntimeError(
@@ -3673,16 +3694,17 @@ class TypeScriptClaudeQueryEngine:
         session_id: str,
         projection: QuerySession,
     ) -> ClaudeQueryEngineResult:
+        stop_reason = StopReason.USER_CANCELLED if error.code == "user_cancelled" else StopReason.STREAM_ERROR
         if projection.active_turn is not None:
             projection.end_turn(
                 ok=False,
-                stop_reason=StopReason.STREAM_ERROR,
+                stop_reason=stop_reason,
                 error=error.code,
                 metadata={"canonical_owner": "typescript"},
             )
         projection.complete_session(
             ok=False,
-            stop_reason=StopReason.STREAM_ERROR,
+            stop_reason=stop_reason,
             metadata={
                 "canonical_owner": "typescript",
                 "typescript_runtime_error": error.code,
@@ -3770,9 +3792,11 @@ class TypeScriptClaudeQueryEngine:
         expected_sequence: int,
         deadline: float | None,
     ) -> dict[str, Any]:
+        self._raise_if_cancelled()
         line = reader.get(
             deadline - time.monotonic() if deadline is not None else None
         )
+        self._raise_if_cancelled()
         if line is None:
             stderr = self._stderr_text(process)
             raise TypeScriptRuntimeError(
@@ -3912,6 +3936,34 @@ class TypeScriptClaudeQueryEngine:
             return process.stderr.read().strip()
         except (OSError, ValueError):
             return ""
+
+    def _raise_if_cancelled(self) -> None:
+        if self._cancel_requested.is_set():
+            raise self._cancellation_error()
+
+    def _cancellation_error(self) -> TypeScriptRuntimeError:
+        if self._cancellation_failure is not None:
+            return TypeScriptRuntimeError("task_cancellation_check_failed", self._cancellation_failure)
+        return TypeScriptRuntimeError("user_cancelled", "Task cancelled by the user.")
+
+    def _watch_cancellation(self, done: threading.Event) -> None:
+        while not done.is_set():
+            try:
+                cancelled = self._cancellation_requested()
+            except Exception as error:  # Fail closed if the canonical stop signal cannot be read.
+                self._cancellation_failure = f"{type(error).__name__}: {error}"
+                cancelled = True
+            if cancelled:
+                self._cancel_requested.set()
+                process = self._active_runtime_process
+                if process is not None:
+                    self._terminate(process)
+                router = self.context.runtime_services.get("sandbox_gateway_router")
+                cancel_all = getattr(router, "cancel_all", None)
+                if callable(cancel_all):
+                    cancel_all(reason="Task cancelled by the user.")
+                return
+            done.wait(0.25)
 
     def _terminate(self, process: subprocess.Popen[str]) -> None:
         self._host_process_runtime.release_interactive(

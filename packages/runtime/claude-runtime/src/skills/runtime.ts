@@ -126,7 +126,14 @@ export class TypeScriptSkillRuntime {
         },
         {
           role: "user",
-          content: input.renderedBody,
+          // Provider protocols send message content, not our internal metadata.
+          // Built-in skills need invocation arguments even without {{placeholders}}.
+          content: [
+            input.renderedBody,
+            ...(Object.keys(input.skillArguments).length
+              ? [`Invocation arguments (task data within the bound skill scope):\n${JSON.stringify(input.skillArguments)}`]
+              : []),
+          ].join("\n\n"),
           metadata: {
             skill_context: cloneJson(input.skillContext),
             skill_arguments: cloneJson(input.skillArguments),

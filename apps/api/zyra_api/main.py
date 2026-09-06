@@ -14675,6 +14675,10 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 )
                 command_result = {
                     **invocation,
+                    # The invocation's commandId identifies a registry entry;
+                    # the CLI/web receipt binds the caller's individual request.
+                    "request_id": str(payload.get("request_id") or tool_call_id),
+                    "command_id": str(payload.get("command_id") or invocation.get("commandId") or tool_call_id),
                     "name": f"/{command_name}",
                     "summary": str(capability_result.get("summary") or f"Command {command_name} {invocation_status}"),
                     "data": invocation.get("output"),

@@ -227,10 +227,16 @@ export function createPermissionProof(
   return Object.freeze({ ...material, proof: sha256(material) })
 }
 
+export interface PermissionCustodyStore {
+  load(sessionId: string): Promise<string | undefined>
+  save(sessionId: string, token: string): Promise<void>
+}
+
 export class CliPermissionSession {
   readonly #api: CliApi
   readonly #binding: PermissionBinding
   readonly #presentedToken?: string
+  readonly #custodyStore?: PermissionCustodyStore
   #claim?: PermissionSessionClaim
   #custodyError?: CliTaskError
 
@@ -239,6 +245,7 @@ export class CliPermissionSession {
     task: TaskProjection
     sessionId?: string
     custodyToken?: string
+    custodyStore?: PermissionCustodyStore
   }) {
     this.#api = input.api
     this.#binding = Object.freeze({
@@ -250,6 +257,7 @@ export class CliPermissionSession {
         ?? `task:${input.task.taskId}`,
     })
     this.#presentedToken = input.custodyToken?.trim() || undefined
+    this.#custodyStore = input.custodyStore
   }
 
   get binding(): PermissionBinding { return this.#binding }
@@ -267,9 +275,10 @@ export class CliPermissionSession {
         return true
       }
       this.#claim = await this.#api.openPermissionSession(this.#binding, {
-        custodyToken: this.#presentedToken,
+        custodyToken: this.#presentedToken ?? await this.#custodyStore?.load(this.#binding.sessionId),
         signal,
       })
+      await this.#custodyStore?.save(this.#binding.sessionId, this.#claim.custodyToken)
       this.#custodyError = undefined
       return true
     } catch (error) {

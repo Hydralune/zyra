@@ -126,7 +126,11 @@ export function admitCommandReceipt(
   )
   const metadata = record(result.metadata)
   const event = record(raw.event)
-  const error = errorReceipt(result.error)
+  const error = errorReceipt(result.error ?? (raw.ok === false ? {
+    code: raw.error,
+    message: raw.message,
+    details: raw.detail,
+  } : undefined))
   const requestId = stringValue(
     result.request_id ??
     result.requestId ??

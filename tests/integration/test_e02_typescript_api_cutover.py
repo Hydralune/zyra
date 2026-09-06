@@ -110,12 +110,18 @@ class E02TypeScriptApiCutoverTests(unittest.TestCase):
                 status, command, headers = _post(
                     base_url,
                     f"/tasks/{state.task_id}/commands",
-                    {"text": "/mcp tools", "actor_id": "cutover-test"},
+                    {
+                        "text": "/mcp tools", "actor_id": "cutover-test",
+                        "arguments": {"argv": ["tools"], "raw": "tools"},
+                        "request_id": "request_cli_audit", "command_id": "cmd_cli_audit",
+                    },
                 )
                 self.assertEqual(status, 201, command)
                 self.assertEqual(headers.get("Cache-Control"), "no-store, max-age=0")
                 self.assertEqual(command["command"]["canonical_owner"], "typescript.CommandCoordinator")
                 result = command["command_result"]
+                self.assertEqual(result["request_id"], "request_cli_audit")
+                self.assertEqual(result["command_id"], "cmd_cli_audit")
                 self.assertEqual(result["status"], "completed")
                 self.assertEqual(result["permission"]["effect"], "allow")
                 self.assertEqual(result["canonical_entrypoint"], "E02CapabilityCoordinator.execute")

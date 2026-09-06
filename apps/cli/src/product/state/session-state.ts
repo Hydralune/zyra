@@ -195,6 +195,27 @@ export class ProductSessionState {
   apply(event: ZyraUiEvent): void {
     switch (event.type) {
       case "session.started":
+        if (this.#taskId && this.#taskId !== event.taskId) {
+          // Conversation messages survive follow-ups; task controls and live
+          // progress must never inherit a previous task's workers or verdict.
+          this.#activities.clear()
+          this.#tools.clear()
+          this.#agents.clear()
+          this.#issues.clear()
+          this.#permissions.clear()
+          this.#userInputs.clear()
+          this.#userInputHistory.clear()
+          this.#changes.clear()
+          this.#diff = undefined
+          this.#verification = undefined
+          this.#context = undefined
+          this.#plan = undefined
+          this.#taskMessage = undefined
+          this.#reconnectAttempt = undefined
+          for (const key of this.#timelineOrder.keys()) {
+            if (!key.startsWith("message:")) this.#timelineOrder.delete(key)
+          }
+        }
         this.#sessionId = event.sessionId
         this.#taskId = event.taskId
         this.#taskStatus = event.taskId ? "running" : "idle"

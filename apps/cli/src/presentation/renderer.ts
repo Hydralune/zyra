@@ -106,7 +106,7 @@ function renderSessionHeader(options: ProductRenderOptions): RenderLine[] {
     ` 目录: ${sanitizeTerminalText(options.workspace)}`,
     chrome.permissions ? ` 权限: ${chrome.permissions}` : undefined,
   ].filter((value): value is string => value !== undefined)
-  const contentWidth = Math.max(...rows.map(displayWidth), 34)
+  const contentWidth = Math.max(...rows.map((row) => displayWidth(row) + 1), 34)
   const boxWidth = Math.min(Math.max(4, options.width), contentWidth + 2)
   const inner = boxWidth - 2
   return [

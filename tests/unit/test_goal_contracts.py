@@ -19,6 +19,28 @@ from zyra_orchestration.goal_contracts import (
 )
 
 
+@pytest.mark.parametrize("goal", [
+    "调用 report-writing 技能，总结用户提供的验收事实，不创建文件，不需要交付文件。",
+    "只分析 stats.py，无需修改文件。",
+    "Summarize the supplied evidence. Do not create or modify files.",
+    "Explain the updated address mapping without writing files.",
+])
+def test_read_only_goals_do_not_require_workspace_mutation(goal: str) -> None:
+    contract = goal_delivery_contract(goal)
+    assert contract.workspace_mutation_required is False
+    assert not contract.required_paths
+    assert contract.verification_required is False
+
+
+@pytest.mark.parametrize("goal", [
+    "不要修改 stats.py；创建 summary.md。",
+    "不要创建或修改文件。请修复现有实现。",
+    "Do not delete input.txt; create summary.md.",
+])
+def test_negated_clause_preserves_other_explicit_mutations(goal: str) -> None:
+    assert goal_delivery_contract(goal).workspace_mutation_required is True
+
+
 def _workload() -> Workload:
     return Workload(
         workload_id="workload_direct_response",

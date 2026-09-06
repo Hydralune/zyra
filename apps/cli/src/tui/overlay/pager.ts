@@ -2,6 +2,8 @@ import type { Readable, Writable } from "node:stream"
 import { graphemes, graphemeWidth, sanitizeTerminalText } from "../text.ts"
 import type { ProductOverlay } from "./model.ts"
 
+import { terminalSessionOwnsInput } from "../terminal-session.ts"
+
 type RawInput = Readable & { setRawMode?: (enabled: boolean) => void }
 
 export async function pageProductText(input: {
@@ -124,7 +126,7 @@ export async function pageProductText(input: {
     })
   } finally {
     input.output.off("resize", resize)
-    stdin.setRawMode?.(false)
+    stdin.setRawMode?.(terminalSessionOwnsInput(stdin))
     stdin.pause()
     input.onChange(undefined)
   }

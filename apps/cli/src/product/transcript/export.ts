@@ -77,7 +77,7 @@ function transcriptHeader(view: ProductViewState): string {
     `- Task: ${view.taskId ?? "unbound"}`,
     `- Status: ${view.taskStatus}`,
     `- Exported: ${new Date().toISOString()}`,
-    `- Retained messages: ${view.messages.length}`,
+    `- Retained messages: ${view.messages.filter((message) => message.text.trim()).length}`,
     `- Evicted messages: ${evicted}`,
     "",
     evicted ? "> Earlier messages were evicted from the bounded local product view and are not included." : "",
@@ -100,6 +100,7 @@ export function rawTranscriptLines(view: ProductViewState): readonly string[] {
     remaining -= byteLength(`${marker}\n\n`)
   }
   for (const message of view.messages) {
+    if (!message.text.trim()) continue
     const prefix = message.role === "assistant" ? "assistant> " : "user> "
     const block = `${prefix}${message.text.replaceAll("\r\n", "\n")}\n`
     const bounded = boundedUtf8(block, Math.max(0, remaining))
@@ -110,7 +111,7 @@ export function rawTranscriptLines(view: ProductViewState): readonly string[] {
       break
     }
   }
-  if (!view.messages.length) lines.push("当前 transcript 为空。")
+  if (!lines.length) lines.push("当前对话为空。")
   return Object.freeze(lines)
 }
 
@@ -125,7 +126,7 @@ export async function exportProductTranscript(input: {
   let messageCount = 0
   let truncated = false
   try {
-    for (const block of [transcriptHeader(input.view), ...input.view.messages.map(messageBlock)]) {
+    for (const block of [transcriptHeader(input.view), ...input.view.messages.filter((message) => message.text.trim()).map(messageBlock)]) {
       const remaining = MAX_EXPORT_BYTES - byteCount
       if (remaining <= 0) {
         truncated = true
