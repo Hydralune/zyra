@@ -42,6 +42,7 @@ export interface ProgressiveExecutionSnapshot {
   artifactCount: number;
   workspaceMutationCount: number;
   repairMutationCount: number;
+  diagnosticScriptCount: number;
   taskAuthoredPathRevisions: TaskAuthoredPathRevision[];
   verificationCount: number;
   unresolvedVerificationScopes: string[];
@@ -175,6 +176,7 @@ export class ProgressiveExecutionRuntime {
         artifactCount: 0,
         workspaceMutationCount: 0,
         repairMutationCount: 0,
+        diagnosticScriptCount: 0,
         taskAuthoredPathRevisions: [],
         verificationCount: 0,
         unresolvedVerificationScopes: [],
@@ -268,6 +270,7 @@ export class ProgressiveExecutionRuntime {
         repairMutationCount: restored.repairMutationCount === undefined
           ? nonnegativeInteger(restored.workspaceMutationCount)
           : nonnegativeInteger(restored.repairMutationCount),
+        diagnosticScriptCount: nonnegativeInteger(restored.diagnosticScriptCount),
         taskAuthoredPathRevisions: restoreTaskAuthoredPathRevisions(
           restored.taskAuthoredPathRevisions,
         ),
@@ -319,6 +322,7 @@ export class ProgressiveExecutionRuntime {
         "actionNudgeCount",
         "lastActionNudgeObservationCount",
         "lastActionNudgeProviderRound",
+        "diagnosticScriptCount",
       ] as const) {
         this.state[field] = Math.max(
           this.state[field],
@@ -529,6 +533,14 @@ export class ProgressiveExecutionRuntime {
         ?? response.output.workspace_path_disposition
         ?? "",
       ).toLowerCase() === "created";
+    // A newly created reproduction/debug script is diagnostic tooling, not a
+    // production repair. It must not clear the required-delivery obligation
+    // (otherwise the agent can loop on its scratch file instead of fixing the
+    // real implementation), but it is still recorded so the decision loop can
+    // nudge the agent back toward a real production mutation.
+    const diagnosticScriptMutation = mutated
+      && workspacePathCreated
+      && isReproDiagnosticScriptPath(mutationPath);
     if (mutated && mutationPath) {
       const existingPath = this.state.taskAuthoredPathRevisions.find(
         (entry) => entry.path === mutationPath,
@@ -565,9 +577,14 @@ export class ProgressiveExecutionRuntime {
     // open, creating an unrelated path also cannot impersonate a repair. A
     // replacement of an existing implementation path remains valid repair.
     const repairMutated = mutated
+      && !diagnosticScriptMutation
       && repairDriving
       && !exactHarnessMutation
       && !(workspacePathCreated && taskAuthoredHarnessFailure !== undefined);
+    // A real production mutation is any committed mutation that is not a
+    // newly created reproduction/debug script. Only a real mutation advances
+    // workspaceMutationCount and clears the required-delivery obligation.
+    const productionMutated = mutated && !diagnosticScriptMutation;
     const artifacts = response.artifacts.length;
     const background = String(
       response.metadata.background_status
@@ -607,8 +624,12 @@ export class ProgressiveExecutionRuntime {
       && !repairMutated
       && (!verificationDriving || verificationPassed);
     if (response.ok) this.state.realActionCount += 1;
-    if (mutated) this.state.workspaceMutationCount += 1;
+    if (productionMutated) this.state.workspaceMutationCount += 1;
     if (repairMutated) this.state.repairMutationCount += 1;
+    if (diagnosticScriptMutation) {
+      this.state.diagnosticScriptCount += 1;
+      this.record("diagnostic_script_created_not_delivery");
+    }
     if (
       environmentRecoverySucceeded
     ) {
@@ -626,7 +647,7 @@ export class ProgressiveExecutionRuntime {
       this.state.environmentRecoveryAwaitingVerification = false;
     }
     if (artifacts > 0) this.state.artifactCount += artifacts;
-    if (mutated) {
+    if (productionMutated) {
       // Every new delivery invalidates verification of the previous bytes.
       // A build/test command that also produces outputs can discharge the new
       // debt below, but an earlier read or test cannot.
@@ -660,6 +681,18 @@ export class ProgressiveExecutionRuntime {
             : 0;
       }
       this.progress("workspace_mutation_committed");
+    } else if (diagnosticScriptMutation) {
+      // A reproduction/debug script is real work but does not advance the
+      // required production delivery. Treat it like a non-delivery action so
+      // the pre-delivery observation circuit keeps counting toward a nudge,
+      // and so `requiredDeliveryMissing` stays true until a real mutation.
+      this.state.noDeliveryObservationCount += 1;
+      this.state.consecutiveNoDeliveryObservations += 1;
+      if (this.state.requiredDeliveryMissing) {
+        this.state.preDeliveryObservationCount += 1;
+        this.state.consecutivePreDeliveryObservations += 1;
+        this.record("pre_delivery_diagnostic_script_observation");
+      }
     } else if (response.ok && !backgroundRunning) {
       this.state.noDeliveryObservationCount += 1;
       this.state.consecutiveNoDeliveryObservations += 1;
@@ -989,6 +1022,24 @@ export class ProgressiveExecutionRuntime {
           : this.state.requiredDeliveryMissing
             ? "resource boundary reached while a required delivery is still missing"
             : "resource boundary reached after durable progress",
+        remainingMilliseconds,
+        contextRemainingCharacters,
+        pressure,
+      );
+    }
+    // A reproduction/debug script is diagnostic tooling, not a production fix.
+    // If the agent keeps creating scratch scripts without touching the real
+    // implementation, keep nudging it toward a production mutation. This is
+    // independent of `requiredDeliveryMissing` so a misclassified pseudo
+    // mutation can never permanently silence the delivery nudge.
+    if (
+      this.state.diagnosticScriptCount > 0
+      && this.state.workspaceMutationCount === 0
+      && this.state.providerRounds - this.state.lastActionNudgeProviderRound >= 2
+    ) {
+      return this.decision(
+        "nudge_action",
+        "a reproduction/diagnostic script was created but the production implementation is still unmodified; locate and fix the real implementation instead of rerunning the scratch script",
         remainingMilliseconds,
         contextRemainingCharacters,
         pressure,
@@ -1681,6 +1732,20 @@ function normalizedWorkspacePath(value: unknown): string {
     return "";
   }
   return normalized;
+}
+
+function isReproDiagnosticScriptPath(value: string): boolean {
+  if (!value) return false;
+  const basename = value.slice(value.lastIndexOf("/") + 1).toLowerCase();
+  // A newly created reproduction/debug script is diagnostic tooling, not a
+  // production repair. Treating it as a delivery mutation prematurely clears
+  // the required-delivery obligation and lets the agent loop on its own
+  // scratch file (e.g. `python repro_case_q.py`) instead of fixing the real
+  // implementation. Keep this conservative: only match explicit scratch/repro
+  // names, never a normal source or test file.
+  return /^(?:repro|reproduce|debug|scratch|smoke|probe)(?:[_]?)/iu.test(basename)
+    || /[_](?:repro|debug)$/iu.test(basename)
+    || /^(?:tmp|scratch|debug)[_.-]/iu.test(basename);
 }
 
 function verificationDiagnosticSummary(response: ToolExecutionResponse): string {

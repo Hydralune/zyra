@@ -8263,3 +8263,93 @@ test("progressive closeout accounts for artifacts, verification, background work
   assert.match(contextBoundary.reason, /resource boundary/);
   assert.equal(contextBoundary.snapshot.phase, "closeout");
 });
+
+test("a newly created reproduction script does not clear the required delivery obligation", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+  });
+  const request: ToolExecutionRequest = {
+    toolCallId: "write-repro",
+    toolName: "write",
+    arguments: { path: "repro_case_q.py" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "batch-repro",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {},
+  };
+  progressive.observeToolResult(request, {
+    tool_call_id: "write-repro",
+    ok: true,
+    summary: "created a reproduction script",
+    output: {},
+    artifacts: [{ artifact_id: "artifact-repro", kind: "file", uri: "workspace:repro_case_q.py", title: "repro" }],
+    metadata: {
+      physical_effect_executed: "true",
+      workspace_mutation_committed: "true",
+      workspace_path_created: "true",
+      workspace_logical_path: "repro_case_q.py",
+    },
+  }, false);
+
+  const observed = progressive.snapshot();
+  assert.equal(observed.requiredDeliveryMissing, true);
+  assert.equal(observed.workspaceMutationCount, 0);
+  assert.equal(observed.diagnosticScriptCount, 1);
+  assert.ok(observed.progressReasons.includes("diagnostic_script_created_not_delivery"));
+});
+
+test("a diagnostic script without a production repair keeps nudging toward a real fix", () => {
+  let clock = 1_000;
+  const progressive = new ProgressiveExecutionRuntime({
+    now: () => clock,
+    constraints: {
+      external_deadline_epoch_ms: 100_000,
+      closeout_reserve_seconds: 5,
+    },
+    deliveryContract: { workspace_mutation_required: true },
+  });
+
+  const reproRequest = (index: number): ToolExecutionRequest => ({
+    toolCallId: `write-repro-${index}`,
+    toolName: "write",
+    arguments: { path: `repro_case_${index}.py` },
+    turnIndex: index,
+    stepIndex: 0,
+    batchId: `batch-${index}`,
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {},
+  });
+  const reproResponse = (toolCallId: string): ToolExecutionResponse => ({
+    tool_call_id: toolCallId,
+    ok: true,
+    summary: "created a reproduction script",
+    output: {},
+    artifacts: [],
+    metadata: {
+      physical_effect_executed: "true",
+      workspace_mutation_committed: "true",
+      workspace_path_created: "true",
+      workspace_logical_path: "repro_case_q.py",
+    },
+  });
+
+  // First reproduction script: does not clear the delivery obligation.
+  progressive.observeToolResult(reproRequest(0), reproResponse("write-repro-0"), false);
+  progressive.observeProviderRound("The reproduction script confirms the defect.", 1);
+  clock += 1_000;
+
+  // A second round of provider work should trigger the nudge fallback.
+  progressive.observeProviderRound("Let me rerun the reproduction script again.", 1);
+  clock += 1_000;
+  const decision = progressive.decide(2_000, 96_000);
+
+  assert.equal(decision.action, "nudge_action");
+  assert.match(decision.reason, /production implementation is still unmodified/);
+  assert.equal(decision.snapshot.requiredDeliveryMissing, true);
+  assert.equal(decision.snapshot.workspaceMutationCount, 0);
+});
