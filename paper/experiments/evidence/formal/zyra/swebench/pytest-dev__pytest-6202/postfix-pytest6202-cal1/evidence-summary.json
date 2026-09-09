@@ -1,0 +1,70 @@
+{
+  "schema": "zyra.experiment-run-summary/v1",
+  "instance_id": "pytest-dev__pytest-6202",
+  "system": "ZYRA",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "invalidation_reason": "",
+  "task_id": "task_da4210e3bb62",
+  "run_id": "run_6d28f5e32a45",
+  "task_status": "failed",
+  "started_at": "2026-09-09T14:54:44.6735247Z",
+  "ended_at": "2026-09-09T15:39:23.4140226Z",
+  "elapsed_seconds": 2678.74,
+  "budget": {
+    "max_total_tokens": 600000,
+    "max_turns": 80,
+    "deadline_minutes": 45
+  },
+  "usage": {
+    "input_tokens": 494613,
+    "output_tokens": 82810,
+    "total_tokens": 577423,
+    "cache_read_input_tokens": 324224,
+    "cache_creation_input_tokens": 0,
+    "cost_usd": 0.04794909,
+    "provider_calls": 44,
+    "tool_calls": 44,
+    "context_compactions": 0
+  },
+  "workspace_deltas": [
+    {
+      "schema": "zyra.physical-workspace-delta/v1",
+      "before_manifest_digest": "sha256:8c9bb916a9b96e119992e47216659b92d51ea4b63078eb287f8a244cb838d387",
+      "after_manifest_digest": "sha256:3f142d80644abe67da5bdff228f127817cd13695fcb6b32652ad4ff6120e2ea8",
+      "created": [
+        "_probe_dotbracket/test_x.py"
+      ],
+      "modified": [
+        "src/_pytest/python.py"
+      ],
+      "deleted": [],
+      "changed": [
+        "_probe_dotbracket/test_x.py",
+        "src/_pytest/python.py"
+      ]
+    },
+    {
+      "schema": "zyra.physical-workspace-delta/v1",
+      "before_manifest_digest": "sha256:3f142d80644abe67da5bdff228f127817cd13695fcb6b32652ad4ff6120e2ea8",
+      "after_manifest_digest": "sha256:99c77e2f9ee182572a651ef59ea30bb196641e957ae217a05189e75a806b4465",
+      "created": [],
+      "modified": [
+        "testing/test_collection.py"
+      ],
+      "deleted": [],
+      "changed": [
+        "testing/test_collection.py"
+      ]
+    }
+  ],
+  "evidence_integrity": {
+    "task_run_present": true,
+    "canonical_task_record_observed": true,
+    "terminal_state_observed": true,
+    "run_transport_ok": false,
+    "run_transport_error": "{\n  \"schema\": \"zyra.task-execution-http-error/v1\",\n  \"error\": \"task_execution_failed\",\n  \"message\": \"worker.code-worker.typescript-provider-tool-loop preserved an incomplete physical layer 1 for recovery.\",\n  \"task_id\": \"task_da4210e3bb62\",\n  \"run_id\": \"run_6d28f5e32a45\",\n  \"task_status\": \"failed\",\n  \"execution_error\": {\n    \"schema\": \"zyra.task-execution-error/v1\",\n    \"error\": \"RuntimeError\",\n    \"message\": \"worker.code-worker.typescript-provider-tool-loop preserved an incomplete physical layer 1 for recovery.\",\n    \"retryable\": false,\n    \"fallback\": false\n  },\n  \"event_count\": 925,\n  \"event_refs\": [\n    {\n      \"event_id\": \"event_0f3c5690c7f6\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_3ec5c7711d36\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_5c4c2108b86e\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_4c0d5c99d060\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_142e5b869453\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_4aa39c3e5f8a\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_ada2909b3685\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_ffeb6df666c6\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_9b50c38654ed\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_c68a559cafaa\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_5338dbe75026\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_b701ad2be673\",\n      \"event_type\": \"artifact_written\"\n    },\n    {\n      \"event_id\": \"event_0f373f82e5a4\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_d8591b20f176\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_9ca6be80224b\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_0e2f7f8b7733\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_f5e246a2c165\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_11eecafea8fc\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_836aaa14a904\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_d214924aeaa2\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_853f3108da40\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_0f9145224b9e\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_c0ffc63d0164\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_aa142b48f969\",\n      \"event_type\": \"artifact_written\"\n    },\n    {\n      \"event_id\": \"event_cd28f10b3a7a\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_00cae9ebde9f\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_9b0759e2f862\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_2b307f7f6021\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_765b7e191a9c\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_257a9d2ea5b6\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_db2f232fbe24\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_7bbeb6ab5686\",\n      \"event_type\": \"artifact_written\"\n    }\n  ],\n  \"task_ref\": \"/tasks/task_da4210e3bb62\",\n  \"event_stream_ref\": \"/tasks/task_da4210e3bb62/events\",\n  \"retryable\": false,\n  \"fallback\": false,\n  \"terminal_reconciliation\": {},\n  \"memory_curator\": {\n    \"operation\": \"schedule_task_end\",\n    \"status\": \"scheduled\",\n    \"scheduled\": {\n      \"request\": {\n        \"protocol\": \"zyra.memory-curator.v1\",\n        \"request_id\": \"curator_request_53d73e19bb55e2e264b38d46\",\n        \"run_id\": \"run_6d28f5e32a45\",\n        \"task_id\": \"task_da4210e3bb62\",\n        \"trigger\": \"task_end\",\n        \"requested_by\": \"task-lifecycle\",\n        \"input_watermark\": 1007,\n        \"evidence_start\": 0,\n        \"evidence_end\": null,\n        \"allow_model_assist\": true,\n        \"max_candidates\": 64,\n        \"lease_seconds\": 30.0,\n        \"idempotency_key\": \"curator-task-end:task_da4210e3bb62:1007:2026-09-09T15:38:36.010Z\",\n        \"created_at\": \"2026-09-09T15:39:18.396Z\",\n        \"metadata\": {\n          \"task_status\": \"failed\",\n          \"task_updated_at\": \"2026-09-09T15:38:36.010Z\",\n          \"event_count_at_schedule\": 1007,\n          \"automatic\": true\n        }\n      },\n      \"job\": {\n        \"job_id\": \"curator_job_e3fc8887293a6036403aa8d4\",\n        \"request\": {\n          \"protocol\": \"zyra.memory-curator.v1\",\n          \"request_id\": \"curator_request_53d73e19bb55e2e264b38d46\",\n          \"run_id\": \"run_6d28f5e32a45\",\n          \"task_id\": \"task_da4210e3bb62\",\n          \"trigger\": \"task_end\",\n          \"requested_by\": \"task-lifecycle\",\n          \"input_watermark\": 1007,\n          \"evidence_start\": 0,\n          \"evidence_end\": null,\n          \"allow_model_assist\": true,\n          \"max_candidates\": 64,\n          \"lease_seconds\": 30.0,\n          \"idempotency_key\": \"curator-task-end:task_da4210e3bb62:1007:2026-09-09T15:38:36.010Z\",\n          \"created_at\": \"2026-09-09T15:39:18.396Z\",\n          \"metadata\": {\n            \"automatic\": true,\n            \"event_count_at_schedule\": 1007,\n            \"task_status\": \"failed\",\n            \"task_updated_at\": \"2026-09-09T15:38:36.010Z\"\n          }\n        },\n        \"state\": \"queued\",\n        \"input_watermark\": 1007,\n        \"last_success_watermark\": 0,\n        \"lease_owner\": \"\",\n        \"ownership_token\": \"\",\n        \"lease_epoch\": 0,\n        \"lease_expires_at\": null,\n        \"attempt\": 0,\n        \"retry_remaining\": 3,\n        \"retry_at\": null,\n        \"error_code\": \"\",\n        \"error_message\": \"\",\n        \"created_at\": 1788968358.3969312,\n        \"updated_at\": 1788968358.3969312,\n        \"started_at\": null,\n        \"finished_at\": null,\n        \"candidate_count\": 0,\n        \"committed_count\": 0,\n        \"dirty\": true,\n        \"terminal\": false\n      },\n      \"created\": true,\n      \"event_id\": \"event_e214a464cf76929ab5309fa2\"\n    },\n    \"result\": null,\n    \"data\": {},\n    \"integration\": null\n  }\n}"
+  },
+  "official_evaluator": null,
+  "strict_success": false
+}

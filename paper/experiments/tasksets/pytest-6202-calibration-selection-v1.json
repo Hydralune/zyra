@@ -1,0 +1,41 @@
+{
+  "schema": "zyra.calibration-selection/v1",
+  "frozen_at": "2026-09-09",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "dataset": {
+    "source_path": "/home/ylon/zyra-experiments/swe-bench-verified-test.jsonl",
+    "sha256": "889bccf7ada1a43d211050ac666f3b31032997209afb10dccdc6ea52128a8435",
+    "total_records": 500
+  },
+  "selection_rule": {
+    "seed": "zyra-postfix-calibration-v5-20260909",
+    "filter": "difficulty == '<15 min fix'; exclude all frozen formal SWE tasks, all used/exposed tasks, and repositories already used by SWE calibration runs",
+    "excluded_calibration_repositories": [
+      "pallets/flask",
+      "pylint-dev/pylint",
+      "scikit-learn/scikit-learn",
+      "sympy/sympy",
+      "matplotlib/matplotlib",
+      "django/django"
+    ],
+    "eligible_records": 45,
+    "ranking": "ascending lowercase hex SHA-256(seed + '|' + instance_id)",
+    "selected_rank": 1
+  },
+  "selected": {
+    "instance_id": "pytest-dev__pytest-6202",
+    "repo": "pytest-dev/pytest",
+    "base_commit": "3a668ea6ff24b0c8f00498c3144c63bac561d925",
+    "difficulty": "<15 min fix",
+    "rank_digest": "01db6b68f99485fa579e2dda0580e4edca79f67e8f8a67b315a59a7cf49b1c95",
+    "public_goal": "paper/experiments/tasksets/pytest-6202-public-goal.txt"
+  },
+  "leakage_controls": {
+    "gold_patch_supplied_to_agent": false,
+    "test_patch_supplied_to_agent": false,
+    "hidden_test_names_supplied_to_agent": false,
+    "result_observed_before_selection": false
+  },
+  "purpose": "End-to-end closed-loop validation of the repro-script classification fix (seed v5). Excluded from efficacy claims."
+}

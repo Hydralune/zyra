@@ -1,0 +1,13 @@
+Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.
+
+The `.[` substring is incorrectly replaced with `[` in test report headlines.
+
+Description
+
+A parametrized test named `test_boo` with parameter value `"..["` shows the wrong headline in the test report. The expected headline is `test_boo[..[]`, but it is displayed as `test_boo[.[]` (the `.[` sequence is shortened to `[`).
+
+The root cause is in the module path computation used to build the test location: a `s.replace(".[", "[")` call on the module path string mangles any parameter value containing `.[`. The same defect also breaks vscode-python test discovery.
+
+Expected behavior: the module path / location string must be returned unchanged, so parametrized ids such as `..[` are preserved exactly in report headlines. Fix the offending replacement and add a regression test covering a parametrized id containing `.[`.
+
+Preserve unrelated reporting and collection behavior.
