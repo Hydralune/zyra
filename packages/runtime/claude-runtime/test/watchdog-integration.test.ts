@@ -9,7 +9,12 @@ import {
   WorkerRestartSupervisor,
   type SupplementaryObservationEmitter,
 } from "../src/watchdog/index.ts";
-import type { RuntimeRunInput, ToolExecutionRequest } from "../src/contracts.ts";
+import { ProgressiveExecutionRuntime } from "../src/loop/progressive-execution-runtime.ts";
+import type {
+  RuntimeRunInput,
+  ToolExecutionRequest,
+  ToolExecutionResponse,
+} from "../src/contracts.ts";
 import type { WatchdogObservation, WatchdogRefs } from "../src/watchdog/runtime.ts";
 
 function refs(overrides: Partial<WatchdogRefs> = {}): WatchdogRefs {
@@ -276,6 +281,135 @@ test("provider partial stream resumes without replaying committed side effects",
   assert.equal(resumed?.phase, "completed");
   assert.equal(resumed?.chunk_count, 2);
   assert.deepEqual(resumed?.committed_effect_keys, ["provider-effect-idem-1"]);
+});
+
+test("partial stream recovery continues a red patch through repair verification and closeout readiness", async () => {
+  let now = 10_000;
+  const capture = observations();
+  const stream = new ProviderStreamSupervisor(capture.emit, () => now);
+  const providerRefs = refs({
+    observationId: "provider-repair-binding-1",
+    providerId: "provider-repair",
+    backendId: "cloud-route-repair",
+    sourceStateRevision: 1,
+  });
+  stream.begin({
+    refs: providerRefs,
+    streamId: "provider-red-patch-1",
+    generation: 1,
+    attemptNumber: 1,
+    maxAttempts: 3,
+  });
+  stream.acceptChunk("provider-red-patch-1", 1, {
+    chunkId: "provider-red-patch-chunk-1",
+    sequence: 1,
+    contentDigest: "sha256:red-patch-chunk",
+    textBytes: 32,
+    toolCallIds: ["tool-existing-red-patch"],
+  });
+  stream.commitEffect("provider-red-patch-1", 1, {
+    effectId: "provider-red-patch-effect",
+    idempotencyKey: "existing-red-patch-once",
+    toolCallId: "tool-existing-red-patch",
+    resultDigest: "sha256:existing-red-patch-result",
+    chunkSequence: 1,
+  });
+  now += 300_000;
+  const cursor = await stream.interrupt("provider-red-patch-1", 1, {
+    errorCode: "partial_response_observed",
+    errorType: "ProviderTransportError",
+    statusCode: 503,
+    retryable: true,
+    terminal: false,
+    retryAfterMs: 0,
+  });
+  assert.ok(cursor);
+  stream.resume("provider-red-patch-1", cursor!, {
+    refs: { ...providerRefs, observationId: "provider-repair-binding-2", sourceStateRevision: 2 },
+    streamId: "provider-red-patch-2",
+    generation: 2,
+    attemptNumber: 2,
+    maxAttempts: 3,
+  });
+  assert.equal(stream.shouldExecuteEffect("existing-red-patch-once"), false);
+
+  const scope = "shell:pytest:sympy/geometry/tests/test_point.py";
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+      repairMutationCount: 1,
+      unresolvedVerificationScopes: [scope],
+      unresolvedVerificationFailures: [{
+        scope,
+        failedChecks: [],
+        failedCount: 1,
+        failureKind: "nonzero_exit",
+        attemptCount: 1,
+        lastObservedWorkspaceMutationCount: 1,
+        diagnosticSummary: "AttributeError: Point2D has no attribute as_coeff_Mul",
+      }],
+    },
+  });
+  assert.equal(progressive.decide(1_000, 100_000).action, "nudge_action");
+
+  const repair: ToolExecutionRequest = {
+    toolCallId: "tool-point-priority-repair",
+    toolName: "file_edit",
+    arguments: { path: "sympy/geometry/point.py" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "repair-batch",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { progressive_repair_driving: true },
+  };
+  progressive.observeToolResult(repair, {
+    tool_call_id: repair.toolCallId,
+    ok: true,
+    summary: "added Point operator priority",
+    output: { path: "sympy/geometry/point.py" },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "true" },
+  }, false);
+  assert.equal(progressive.decide(1_000, 100_000).action, "nudge_verification");
+
+  const verification: ToolExecutionRequest = {
+    toolCallId: "tool-point-focused-pytest",
+    toolName: "shell",
+    arguments: { command: "pytest sympy/geometry/tests/test_point.py" },
+    turnIndex: 1,
+    stepIndex: 0,
+    batchId: "verification-batch",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: scope,
+    },
+  };
+  const green: ToolExecutionResponse = {
+    tool_call_id: verification.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: { stdout: "1 passed in 0.25s", return_code: 0 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  };
+  progressive.observeToolResult(verification, green, false);
+  stream.complete("provider-red-patch-2", 2, "sha256:green-terminal");
+
+  const settled = progressive.snapshot();
+  assert.equal(settled.verificationCount, 1);
+  assert.deepEqual(settled.unresolvedVerificationScopes, []);
+  const recoveredStreams = stream.snapshot().streams as Record<
+    string,
+    Record<string, unknown>
+  >;
+  assert.equal(recoveredStreams["provider-red-patch-2"]?.phase, "completed");
 });
 
 test("default model stream events drive provider supervision and typed interruption", async () => {

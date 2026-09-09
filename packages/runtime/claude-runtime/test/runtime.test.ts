@@ -55,6 +55,7 @@ import {
   isPrivateVerificationInfrastructureInspection,
   isValidationOnlyMutation,
   isTargetedRepairInspection,
+  isTaskAuthoredInlineVerificationProbeTool,
   isClearlyVerificationDrivingTool,
   isVerificationDrivingToolResult,
   isEnvironmentRecoveryToolResult,
@@ -1391,6 +1392,10 @@ test("model compaction instructions require concrete source findings", async () 
   });
   assert.match(prompt, /retain concrete symbols, responsibilities, defects, and cross-file relationships/);
   assert.match(prompt, /successful source read must not be summarized as unavailable or unknown/);
+  assert.match(prompt, /exact scope, exit code/);
+  assert.match(prompt, /specific edit already selected but not yet applied/);
+  assert.match(prompt, /active background job IDs/);
+  assert.match(prompt, /make that edit the immediate next action/);
 });
 
 test("durable compaction carries verified failures across consecutive summary generations", async () => {
@@ -1808,7 +1813,7 @@ test("direct-response runtime calls the provider without exposing workspace tool
   }
 });
 
-test("auto compaction replaces the next provider request transcript", async () => {
+test("auto compaction preserves post-compact delivery verification and completion", async () => {
   const originalFetch = globalThis.fetch;
   const requestBodies: JsonObject[] = [];
   let requestCount = 0;
@@ -1869,6 +1874,60 @@ test("auto compaction replaces the next provider request transcript", async () =
         headers: { "content-type": "text/event-stream" },
       });
     }
+    if (agentRequestCount === 3) {
+      const event = {
+        id: "post-compact-write-response",
+        object: "chat.completion.chunk",
+        model: "zyra-local-code-model",
+        choices: [{
+          index: 0,
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: "post-compact-write",
+              type: "function",
+              function: {
+                name: "write",
+                arguments: JSON.stringify({ path: "src/fix.py", content: "fixed = True\n" }),
+              },
+            }],
+          },
+          finish_reason: "tool_calls",
+        }],
+        usage: { prompt_tokens: 240, completion_tokens: 20, total_tokens: 260 },
+      };
+      return new Response(`data: ${JSON.stringify(event)}\n\ndata: [DONE]\n\n`, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }
+    if (agentRequestCount === 4) {
+      const event = {
+        id: "post-compact-test-response",
+        object: "chat.completion.chunk",
+        model: "zyra-local-code-model",
+        choices: [{
+          index: 0,
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: "post-compact-test",
+              type: "function",
+              function: {
+                name: "shell",
+                arguments: JSON.stringify({ command: "python -m pytest tests/test_fix.py -q" }),
+              },
+            }],
+          },
+          finish_reason: "tool_calls",
+        }],
+        usage: { prompt_tokens: 260, completion_tokens: 20, total_tokens: 280 },
+      };
+      return new Response(`data: ${JSON.stringify(event)}\n\ndata: [DONE]\n\n`, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }
     const event = {
       id: "compact-final-response",
       object: "chat.completion.chunk",
@@ -1882,6 +1941,7 @@ test("auto compaction replaces the next provider request transcript", async () =
     });
   }) as unknown as typeof fetch;
   const marker = "original-provider-context-marker-".repeat(1_000);
+  const host = new MemoryHost();
   let result: Awaited<ReturnType<ClaudeRuntimeCore["run"]>>;
   try {
     result = await new ClaudeRuntimeCore().run(input({
@@ -1890,8 +1950,26 @@ test("auto compaction replaces the next provider request transcript", async () =
       workerRequestId: "provider-compact-request",
       messages: [{ role: "user", content: marker }],
       turns: [],
+      metadata: {
+        delivery_contract: { workspace_mutation_required: true },
+      },
+      tools: [
+        ...(input().tools ?? []),
+        {
+          name: "shell",
+          purpose: "execute a shell command",
+          source: "test",
+          input_schema: {
+            type: "object",
+            required: ["command"],
+            properties: { command: { type: "string" } },
+          },
+          output_schema: {},
+          metadata: { read_only: "false", concurrency_safe: "false" },
+        },
+      ],
       config: {
-        maxTurns: 2,
+        maxTurns: 6,
         maxQueryContextChars: 500,
         runtimeConstraints: {
           model_transport: "http_sse",
@@ -1899,14 +1977,13 @@ test("auto compaction replaces the next provider request transcript", async () =
           model_api_key: "test-only-provider-key",
         },
       },
-    }), new MemoryHost());
+    }), host);
   } finally {
     globalThis.fetch = originalFetch;
   }
 
   assert.equal(result.ok, true);
-  assert.equal(agentRequestCount, 3);
-  assert.equal(requestCount, 5);
+  assert.equal(agentRequestCount, 5);
   assert.ok(result.contextCompactionCount >= 2);
   const agentRequestBodies = requestBodies.filter((body) =>
     !(body.messages as JsonObject[]).some((message) =>
@@ -1917,6 +1994,12 @@ test("auto compaction replaces the next provider request transcript", async () =
   assert.equal(JSON.stringify(agentRequestBodies[1]).includes(marker), true);
   assert.equal(JSON.stringify(agentRequestBodies[2]).includes(marker), false);
   assert.match(JSON.stringify(agentRequestBodies[2]), /Compaction boundary/);
+  assert.deepEqual(
+    host.batches.flatMap((batch) => batch.steps.map((step) => step.tool_name)),
+    ["read", "read", "write", "shell"],
+  );
+  const evidence = result.sessionSnapshot.obligationEvidence as JsonObject;
+  assert.equal((evidence.verification_command_receipts as JsonObject[])[0]?.status, "passed");
   const modelIteration = result.sessionSnapshot.modelIteration as JsonObject;
   assert.equal(JSON.stringify(modelIteration.transcript ?? []).includes(marker), false);
 });
@@ -3436,6 +3519,8 @@ test("unverified restored delivery requests verification after a tool observatio
       ["read", "shell"],
     );
     assert.match(requestBodies[1] ?? "", /Before continuing broad inspection/);
+    assert.match(requestBodies[1] ?? "", /owning test runner/);
+    assert.match(requestBodies[1] ?? "", /Preserve the test command's real exit status/);
     assert.ok(host.events.some((event) => (
       event.phase === "progressive_verification_requested"
       && event.post_tool === true
@@ -4092,6 +4177,55 @@ test("runtime stops admitting shell commands until active background jobs are re
   ));
 });
 
+test("bounded named-source inspections do not consume background shell slots", async () => {
+  class CompletedShellHost extends MemoryHost {
+    readonly shellRequests: ToolExecutionRequest[] = [];
+
+    override async executeBatch(
+      batch: ToolBatch,
+      requests: ToolExecutionRequest[],
+    ): Promise<ToolExecutionResponse[]> {
+      this.batches.push(batch);
+      this.shellRequests.push(...requests);
+      return requests.map((request) => ({
+        tool_call_id: request.toolCallId,
+        ok: true,
+        summary: "command completed",
+        output: { status: "completed", return_code: 0 },
+        artifacts: [],
+        metadata: { workspace_mutation_committed: "false" },
+      }));
+    }
+  }
+
+  const host = new CompletedShellHost();
+  await new ClaudeRuntimeCore().run(input({
+    turns: [[
+      { tool_name: "shell", arguments: { command: "sed -n '1,20p' src/one.py" } },
+      { tool_name: "shell", arguments: { command: "sed -n '1,20p' src/two.py" } },
+      { tool_name: "shell", arguments: { command: "sed -n '1,20p' src/three.py" } },
+    ]],
+    tools: [{
+      name: "shell",
+      purpose: "shell",
+      source: "test",
+      input_schema: {
+        type: "object",
+        required: ["command"],
+        properties: { command: { type: "string" } },
+      },
+      output_schema: {},
+      metadata: { read_only: "false", concurrency_safe: "false" },
+    }],
+  }), host);
+
+  assert.equal(host.shellRequests.length, 3);
+  assert.doesNotMatch(
+    JSON.stringify(host.checkpoints),
+    /active_background_shell_limit_reached/,
+  );
+});
+
 test("progressive execution does not treat read-only diagnostic artifacts as delivery", () => {
   const progressive = new ProgressiveExecutionRuntime({
     deliveryContract: { workspace_mutation_required: true },
@@ -4477,7 +4611,7 @@ test("a passing verification cannot erase debt from a different failed scope", (
   const stillFailed = progressive.snapshot();
   assert.equal(stillFailed.verificationCount, 0);
   assert.deepEqual(stillFailed.unresolvedVerificationScopes, ["integration-suite"]);
-  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_verification");
+  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_action");
 
   observe(scopedRequest("integration-passed", "integration-suite"), "10 passed in 20.0s");
   const settled = progressive.snapshot();
@@ -4569,7 +4703,7 @@ test("a newly observed regression takes priority over older verification debt", 
     ["public-suite", "integration-suite"],
   );
   const decision = progressive.decide(1_000, 10_000);
-  assert.equal(decision.action, "nudge_verification");
+  assert.equal(decision.action, "nudge_action");
   assert.match(decision.reason, /Priority failure: public-suite/);
   assert.match(decision.reason, /before returning to older/);
 });
@@ -4683,6 +4817,135 @@ test("runtime diagnostics enrich and preserve the priority verification failure"
   );
   assert.equal(restored.snapshot().recoveryInspectionAllowance, 0);
   assert.equal(restored.snapshot().targetedRepairInspectionAllowance, 2);
+});
+
+test("task-authored inline smoke failures remain diagnostic until a repository suite passes", () => {
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 1,
+      repairMutationCount: 1,
+    },
+  });
+  const inlineCommand = "cd /testbed && /opt/testbed/bin/python - <<'PY'\nassert pipe[0][0] == 'anova'\nPY";
+  assert.equal(isTaskAuthoredInlineVerificationProbeTool({
+    tool_name: "shell",
+    arguments: { command: inlineCommand },
+  }), true);
+  assert.equal(isTaskAuthoredInlineVerificationProbeTool({
+    tool_name: "shell",
+    arguments: { command: `${inlineCommand}\npython -m pytest tests/test_pipeline.py` },
+  }), false);
+
+  const inlineRequest: ToolExecutionRequest = {
+    toolCallId: "bad-inline-smoke",
+    toolName: "shell",
+    arguments: { command: inlineCommand },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "bad-inline-smoke",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:inline-smoke",
+      progressive_task_authored_inline_probe: true,
+    },
+  };
+  progressive.observeToolResult(inlineRequest, {
+    tool_call_id: inlineRequest.toolCallId,
+    ok: false,
+    summary: "command failed",
+    output: {
+      stderr: "TypeError: object does not support indexing",
+      return_code: 1,
+    },
+    artifacts: [],
+    error: "shell_exit_1",
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const diagnostic = progressive.snapshot();
+  assert.equal(diagnostic.verificationCount, 0);
+  assert.deepEqual(diagnostic.unresolvedVerificationScopes, []);
+  assert.equal(diagnostic.recoveryInspectionAllowance, 8);
+  assert.ok(diagnostic.progressReasons.includes(
+    "task_authored_inline_verification_probe_failed",
+  ));
+  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_verification");
+
+  const suiteRequest: ToolExecutionRequest = {
+    ...inlineRequest,
+    toolCallId: "repository-suite",
+    arguments: { command: "python -m pytest tests/test_pipeline.py" },
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: "shell:pytest:tests/test_pipeline.py",
+      progressive_task_authored_inline_probe: false,
+    },
+  };
+  progressive.observeToolResult(suiteRequest, {
+    tool_call_id: suiteRequest.toolCallId,
+    ok: true,
+    summary: "command completed",
+    output: { stdout: "41 passed", return_code: 0 },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+  assert.equal(progressive.snapshot().verificationCount, 1);
+});
+
+test("failed semantic scope requests a repair before another verification rerun", () => {
+  const scope = "shell:pytest:sympy/geometry/tests/test_point.py";
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 2,
+      repairMutationCount: 2,
+      unresolvedVerificationScopes: [scope],
+      unresolvedVerificationFailures: [{
+        scope,
+        failedChecks: [],
+        failedCount: 1,
+        failureKind: "nonzero_exit",
+        attemptCount: 1,
+        lastObservedWorkspaceMutationCount: 2,
+        diagnosticSummary: "AttributeError: Point2D has no attribute as_coeff_Mul",
+      }],
+    },
+  });
+
+  assert.equal(progressive.verificationRepairRequired(), true);
+  const repairDecision = progressive.decide(1_000, 10_000);
+  assert.equal(repairDecision.action, "nudge_action");
+  assert.match(repairDecision.reason, /targeted repair is required before it can be rerun/);
+
+  const edit: ToolExecutionRequest = {
+    toolCallId: "point-priority-edit",
+    toolName: "file_edit",
+    arguments: { path: "sympy/geometry/point.py" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "point-priority-edit",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: { progressive_repair_driving: true },
+  };
+  progressive.observeToolResult(edit, {
+    tool_call_id: edit.toolCallId,
+    ok: true,
+    summary: "updated Point operator priority",
+    output: { path: "sympy/geometry/point.py" },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "true" },
+  }, false);
+
+  assert.equal(progressive.verificationRepairRequired(), false);
+  assert.equal(progressive.decide(1_000, 10_000).action, "nudge_verification");
 });
 
 test("explicit delivery-consistency verification debt targets generated evidence", () => {
@@ -5986,7 +6249,7 @@ test("structured verification debt survives a fenced execution continuation", ()
     "cross-language",
   ]);
   const decision = progressive.decide(1_000, 10_000);
-  assert.equal(decision.action, "nudge_verification");
+  assert.equal(decision.action, "nudge_action");
   assert.match(decision.reason, /security,cross-language/);
 });
 
@@ -6315,6 +6578,57 @@ test("nonzero verification results fail closed when the acceptance contract mism
   assert.equal(failed.verificationCount, 0);
   assert.deepEqual(failed.unresolvedVerificationScopes, [scope]);
   assert.ok(failed.progressReasons.includes("post_delivery_verification_failed"));
+});
+
+test("native test-harness baseline mismatches do not create semantic repair debt", () => {
+  const scope = "shell:pytest:lib/matplotlib/tests/test_axes.py";
+  const progressive = new ProgressiveExecutionRuntime({
+    deliveryContract: { workspace_mutation_required: true },
+    continuityProgress: {
+      requiredDeliveryMissing: false,
+      workspaceMutationCount: 2,
+      verificationCount: 1,
+    },
+  });
+  const request: ToolExecutionRequest = {
+    toolCallId: "matplotlib-freetype-baseline",
+    toolName: "shell",
+    arguments: { command: "python -m pytest lib/matplotlib/tests/test_axes.py -q" },
+    turnIndex: 0,
+    stepIndex: 0,
+    batchId: "matplotlib-freetype-baseline",
+    batchIndex: 0,
+    batchSize: 1,
+    executionMode: "serial_non_read_only",
+    metadata: {
+      progressive_verification_driving: true,
+      progressive_verification_scope: scope,
+    },
+  };
+
+  progressive.observeToolResult(request, {
+    tool_call_id: request.toolCallId,
+    ok: false,
+    summary: "repository test harness rejected the benchmark environment",
+    output: {
+      stderr: [
+        "Matplotlib is not built with the correct FreeType version to run tests.",
+        "Set local_freetype=True in setup.cfg and rebuild.",
+        "Expected freetype version 2.6.1. Found freetype version 2.11.1.",
+      ].join(" "),
+      return_code: 1,
+    },
+    artifacts: [],
+    metadata: { workspace_mutation_committed: "false" },
+  }, false);
+
+  const observed = progressive.snapshot();
+  assert.equal(observed.verificationCount, 0);
+  assert.deepEqual(observed.unresolvedVerificationScopes, []);
+  assert.deepEqual(observed.unresolvedVerificationFailures, []);
+  assert.ok(observed.progressReasons.includes(
+    "verification_invocation_failed_before_behavioral_result",
+  ));
 });
 
 test("shell wrapper failures do not replace semantic verification debt", () => {

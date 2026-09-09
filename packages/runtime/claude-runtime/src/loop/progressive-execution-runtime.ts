@@ -598,6 +598,9 @@ export class ProgressiveExecutionRuntime {
         (entry) => entry.path === verificationHarnessPath,
       )
       : undefined;
+    const taskAuthoredInlineProbe = asBoolean(
+      request.metadata.progressive_task_authored_inline_probe,
+    );
     const environmentRecoverySucceeded = response.ok
       && environmentRecoveryDriving
       && !backgroundRunning
@@ -705,12 +708,14 @@ export class ProgressiveExecutionRuntime {
         this.state.unresolvedVerificationFailures = this.state.unresolvedVerificationFailures
           .filter((failure) => failure.scope !== verificationScope);
       }
-      if (taskAuthoredVerificationHarness) {
+      if (taskAuthoredVerificationHarness || taskAuthoredInlineProbe) {
         // A task may use a scratch harness to diagnose and repair its own
         // assertions. Passing that harness clears its exact debt but never
         // substitutes for a fresh independent/official verification scope.
         this.state.verificationCount = 0;
-        this.record("task_authored_verification_harness_passed");
+        this.record(taskAuthoredInlineProbe
+          ? "task_authored_inline_verification_probe_passed"
+          : "task_authored_verification_harness_passed");
       } else if (this.state.unresolvedVerificationScopes.length > 0) {
         this.state.verificationCount = 0;
         this.record("post_delivery_verification_other_scope_still_failed");
@@ -751,6 +756,31 @@ export class ProgressiveExecutionRuntime {
       // verification credit and prior semantic debt: the explicit return-code
       // contract is evidence about the probe, not the delivered behavior.
       this.record("expected_nonzero_verification_probe_observed");
+    } else if (
+      verificationDriving
+      && taskAuthoredInlineProbe
+      && !backgroundRunning
+      && !this.state.requiredDeliveryMissing
+    ) {
+      // Inline smoke programs are authored by the model and can contain bad
+      // assertions or incorrect API assumptions. A failure is useful
+      // diagnostic evidence and invalidates prior green credit, but it must
+      // not become immutable business-code debt. The task still needs a fresh
+      // independent repository suite before completion, so this branch never
+      // grants verification credit.
+      this.state.verificationCount = 0;
+      this.state.verificationNudgeCount = 0;
+      this.state.lastVerificationNudgeProviderRound = 0;
+      this.state.recoveryInspectionAllowance = Math.max(
+        this.state.recoveryInspectionAllowance,
+        boundedInteger(
+          this.constraints.post_verification_diagnostic_inspection_limit,
+          8,
+          2,
+          32,
+        ),
+      );
+      this.record("task_authored_inline_verification_probe_failed");
     } else if (
       verificationDriving
       && !backgroundRunning
@@ -971,6 +1001,16 @@ export class ProgressiveExecutionRuntime {
         this.state.verificationCount === 0
         || this.state.unresolvedVerificationScopes.length > 0
       );
+    if (verificationDebt && this.verificationRepairRequired()) {
+      this.state.phase = "incremental_delivery";
+      return this.decision(
+        "nudge_action",
+        `${verificationDebtReason(this.state)} The failed scope is still observing the same implementation bytes; a targeted repair is required before it can be rerun.`,
+        remainingMilliseconds,
+        contextRemainingCharacters,
+        pressure,
+      );
+    }
     const maximumVerificationNudges = boundedInteger(
       this.constraints.post_delivery_verification_nudge_limit,
       3,
@@ -1112,6 +1152,12 @@ export class ProgressiveExecutionRuntime {
     const harnessCorrectionPending = currentHarnessRevision
       <= (failure.lastObservedValidationHarnessRevision ?? 0);
     return businessRepairPending && harnessCorrectionPending;
+  }
+
+  verificationRepairRequired(): boolean {
+    const priorityScope = this.state.unresolvedVerificationScopes[0] ?? "";
+    return Boolean(priorityScope)
+      && this.failedVerificationScopeAwaitingRepair(priorityScope);
   }
 
   canCorrectTaskAuthoredVerificationHarness(path: string): boolean {
@@ -1372,10 +1418,25 @@ function isRetryableVerificationInvocationFailure(
   if (structuredArgvRepeatsExecutable(request)) return true;
   const executable = invokedExecutable(request);
   if (executable && executableUnavailableDiagnostic(text, executable)) return true;
+  // Some repository test harnesses refuse to execute behavioral tests when
+  // the benchmark image was built against the wrong native dependency.  The
+  // process did start, but this output contains no verdict about the delivered
+  // bytes.  Treating it as semantic debt deadlocks repair-first: changing the
+  // application cannot change the image's FreeType build.  Keep this narrow to
+  // an explicit harness self-check that states both the required and observed
+  // native versions; ordinary dependency-related test failures remain
+  // behavioral failures.
+  if (isVerificationEnvironmentBaselineDiagnostic(text)) return true;
   return isRetryableVerificationInvocationDiagnostic(
     text,
     String(request.metadata.progressive_verification_scope ?? ""),
   );
+}
+
+function isVerificationEnvironmentBaselineDiagnostic(value: string): boolean {
+  return /Matplotlib is not built with the correct FreeType version to run tests/iu.test(value)
+    && /Expected freetype version\s+\S+\.\s+Found freetype version\s+\S+/iu.test(value)
+    && /Set local_freetype=True in setup\.cfg and rebuild/iu.test(value);
 }
 
 function structuredArgvRepeatsExecutable(request: ToolExecutionRequest): boolean {

@@ -112,6 +112,16 @@ export function shouldCheckpointRuntimePhase(phase: string): boolean {
 const DEFAULT_MAX_CONSECUTIVE_LENGTH_CONTINUATIONS = 8;
 const MAX_CONFIGURED_LENGTH_CONTINUATIONS = 32;
 
+// A provider-budget refusal is an intentional, policy-enforced terminal
+// condition.  Preserve it through the query loop so experiment accounting can
+// distinguish an exhausted budget from a transport or model failure.
+function modelFailureStoppedReason(error: string | null | undefined): string {
+  if (error === "provider_total_token_budget_exhausted") {
+    return error;
+  }
+  return error === "model_error" ? "model_error" : "model_stream_failed";
+}
+
 function redactCompactionText(value: string): string {
   return value
     .replace(/\bbearer\s+[a-z0-9._~+/=-]{8,}/gi, "[REDACTED]")
@@ -279,10 +289,12 @@ export function modelCompactionPrompt(request: SummaryRequest): string {
     "- decisions already made and why;",
     "- files created, changed, or inspected and the relevant findings;",
     "- for inspected source files that still affect the work, retain concrete symbols, responsibilities, defects, and cross-file relationships—not merely that the file was read;",
-    "- commands/tests run and their exact outcomes;",
+    "- commands/tests run, their exact scope, exit code, and the shortest concrete failure diagnostic;",
+    "- the exact current changed-file list, newest verified patch state, and any specific edit already selected but not yet applied;",
+    "- active background job IDs and whether each still requires reconciliation;",
     "- failures, diagnoses, and fixes already attempted;",
     "- the work in progress, pending requirements, and the immediate next action.",
-    "Distinguish verified facts from tentative conclusions. A successful source read must not be summarized as unavailable or unknown. Omit obsolete exploration and repeated listings. Never invent completion.",
+    "Distinguish verified facts from tentative conclusions. A successful source read must not be summarized as unavailable or unknown. Omit obsolete exploration and repeated listings. Never invent completion. If the root cause and concrete edit are already known, make that edit the immediate next action rather than requesting another source inspection.",
     "Use these headings: Active objective; Completed work and decisions; Files and tool effects; Verification and failures; Current work; Pending work and next action.",
     request.customInstructions.trim() ? `Additional instruction: ${request.customInstructions.trim()}` : "",
   ].filter(Boolean).join("\n");
@@ -484,6 +496,10 @@ export class ClaudeRuntimeCore {
             (Number(config.runtimeConstraints.model_api_timeout_seconds) || 30) * 1000,
           ),
         ),
+        maximumTotalTokens: positiveInteger(
+          config.runtimeConstraints.maximum_total_tokens,
+          0,
+        ) || null,
       });
     }
     const registry = new RuntimeToolRegistry(input.tools);
@@ -836,6 +852,7 @@ export class ClaudeRuntimeCore {
           && (providerRoundLimit === null || providerRoundIndex < providerRoundLimit)
         ) {
           const nudgedProgress = progressive.recordActionNudge();
+          const verificationRepairRequired = progressive.verificationRepairRequired();
           iteration.rejectProviderRoundForRetry(round.roundId, "progressive_action_required");
           providerMessages = [
             ...iteration.currentMessages(),
@@ -845,8 +862,12 @@ export class ClaudeRuntimeCore {
             {
               role: "user",
               content: [
-                "The required delivery is still missing and further explanation is not effective progress.",
-                "Perform a concrete, proportionate tool action that advances the requested result.",
+                verificationRepairRequired
+                  ? "The priority behavioral verification failed on the current implementation bytes; rerunning it before a repair cannot settle the debt."
+                  : "The required delivery is still missing and further explanation is not effective progress.",
+                verificationRepairRequired
+                  ? "Use the concrete failure and source evidence already gathered to make the targeted implementation repair now. A named source read remains allowed only when one specific missing anchor prevents that edit."
+                  : "Perform a concrete, proportionate tool action that advances the requested result.",
                 "If an opaque validation has failed repeatedly and no permitted diagnostic gives more detail, stop probing private or inaccessible feedback; instead map every public requirement and acceptance condition to its boundary cases, persistent schema, and cross-language consumers, audit that checklist, and edit the uncovered gaps.",
                 "Then validate it and continue from the evidence.",
               ].join(" "),
@@ -901,6 +922,7 @@ export class ClaudeRuntimeCore {
                 "The workspace changed, but there is no successful behavioral verification for the latest delivered state.",
                 `Outstanding verification debt: ${progressDecision.reason}.`,
                 "Before finalizing, run a proportionate real verification command such as the relevant tests, build or typecheck, smoke or end-to-end scenario, or the task-provided simulation or acceptance command.",
+                "Use the repository's owning test runner for generated fixtures (do not execute a fixture file as though it were a test suite). Preserve the test command's real exit status: do not hide it behind `| head`, `tail`, `tee`, or `|| true`; capture output separately if it must be shortened.",
                 "When the debt names an earlier failed semantic scope, rerun that same scope; passing unrelated suites cannot settle it.",
                 "File existence, JSON parsing, hashes, git status, and report text are not behavioral verification.",
                 "While behavioral verification remains failed, do not regenerate submission/evidence/reports or edit their generators as a substitute for repairing the public-contract or business implementation.",
@@ -1158,7 +1180,7 @@ export class ClaudeRuntimeCore {
             finalModel.error ?? "model_stream_failed",
           );
           ok = false;
-          stoppedReason = "model_stream_failed";
+          stoppedReason = modelFailureStoppedReason(finalModel.error);
           await emit("error", {
             error: stoppedReason,
             detail: finalModel.error ?? "resource-aware finalization failed",
@@ -1241,7 +1263,7 @@ export class ClaudeRuntimeCore {
           ok = false;
           stoppedReason = settled.truncationExhausted
             ? "closeout_response_truncated"
-            : "model_stream_failed";
+            : modelFailureStoppedReason(settled.model.error);
           await emit("error", {
             error: stoppedReason,
             detail: settled.model.error ?? "resource-aware final response was truncated",
@@ -1411,7 +1433,7 @@ export class ClaudeRuntimeCore {
       if (!model.ok) {
         if (iterationRound) iteration.failProviderRound(iterationRound.roundId, model.error ?? "model_stream_failed");
         ok = false;
-        stoppedReason = model.error === "model_error" ? "model_error" : "model_stream_failed";
+        stoppedReason = modelFailureStoppedReason(model.error);
         await emit("error", {
           error: stoppedReason,
           detail: model.error || "model stream failed",
@@ -1446,7 +1468,7 @@ export class ClaudeRuntimeCore {
             settled.model.error ?? "model_stream_failed",
           );
           ok = false;
-          stoppedReason = "model_stream_failed";
+          stoppedReason = modelFailureStoppedReason(settled.model.error);
           await emit("error", {
             error: stoppedReason,
             detail: settled.model.error ?? "provider length continuation failed",
@@ -1652,6 +1674,7 @@ export class ClaudeRuntimeCore {
           } else if (
             step.tool_name === "shell"
             && admittedShellStarts >= availableBackgroundShellSlots
+            && !isBoundedTargetedShellInspection(shellInvocationText(step.arguments))
           ) {
             immediateResults.set(toolCallId, {
               tool_call_id: toolCallId,
@@ -1968,7 +1991,12 @@ export class ClaudeRuntimeCore {
               },
             });
           } else {
-            if (step.tool_name === "shell") admittedShellStarts += 1;
+            if (
+              step.tool_name === "shell"
+              && !isBoundedTargetedShellInspection(shellInvocationText(step.arguments))
+            ) {
+              admittedShellStarts += 1;
+            }
             hostRequests.push({
               toolCallId,
               toolName: step.tool_name,
@@ -1992,6 +2020,8 @@ export class ClaudeRuntimeCore {
                   verificationScopeForTool(step),
                 progressive_verification_harness_path:
                   verificationHarnessPathForTool(step),
+                progressive_task_authored_inline_probe:
+                  isTaskAuthoredInlineVerificationProbeTool(step),
                 progressive_mutation_path: mutationPathForTool(step),
                 progressive_repair_driving:
                   isClearlyRepairDrivingTool(step)
@@ -2192,6 +2222,13 @@ export class ClaudeRuntimeCore {
                 ? e01.snapshot().query.toolCalls
                 : [],
             );
+            const taskAuthoredInlineProbe = isTaskAuthoredInlineVerificationProbeToolResult(
+              step,
+              result,
+              step.tool_name === "shell_wait"
+                ? e01.snapshot().query.toolCalls
+                : [],
+            );
             const environmentRecoveryDriving = isEnvironmentRecoveryToolResult(
               step,
               result,
@@ -2208,6 +2245,7 @@ export class ClaudeRuntimeCore {
                       progressive_verification_driving: true,
                       progressive_verification_scope: verificationScope,
                       progressive_verification_harness_path: verificationHarnessPath,
+                      progressive_task_authored_inline_probe: taskAuthoredInlineProbe,
                     }
                   : {}),
                 ...(environmentRecoveryDriving
@@ -3107,13 +3145,18 @@ export class ClaudeRuntimeCore {
           postToolProgressDecision.action === "nudge_action"
         ) {
           const nudgedProgress = progressive.recordActionNudge();
+          const verificationRepairRequired = progressive.verificationRepairRequired();
           providerMessages = [
             ...providerMessages,
             {
               role: "user",
               content: [
-                "The task still requires a concrete delivery, and enough orientation evidence has been gathered.",
-                "Stop broad repository inspection and use the latest gathered evidence to choose and execute the next concrete edit now.",
+                verificationRepairRequired
+                  ? "The priority behavioral verification failed on the current implementation bytes, so another rerun without a repair is not useful."
+                  : "The task still requires a concrete delivery, and enough orientation evidence has been gathered.",
+                verificationRepairRequired
+                  ? "Apply the targeted implementation repair identified by the latest failure evidence now; read one named source location only if its exact contents are still required to anchor that edit."
+                  : "Stop broad repository inspection and use the latest gathered evidence to choose and execute the next concrete edit now.",
                 "If an opaque validation has failed repeatedly and no permitted diagnostic gives more detail, stop probing private or inaccessible feedback; instead map every public requirement and acceptance condition to its boundary cases, persistent schema, and cross-language consumers, audit that checklist, and edit the uncovered gaps.",
                 "Run the relevant build or tests when they directly drive that edit.",
                 "Make another read-only call only when a specific pending edit is blocked by a named missing fact or changed state.",
@@ -3144,6 +3187,7 @@ export class ClaudeRuntimeCore {
                 "The workspace changed, but there is no successful behavioral verification for the latest delivered state.",
                 `Outstanding verification debt: ${postToolProgressDecision.reason}.`,
                 "Before continuing broad inspection, run a proportionate real verification command such as the relevant tests, build or typecheck, smoke or end-to-end scenario, or the task-provided simulation or acceptance command.",
+                "Use the repository's owning test runner for generated fixtures (do not execute a fixture file as though it were a test suite). Preserve the test command's real exit status: do not hide it behind `| head`, `tail`, `tee`, or `|| true`; capture output separately if it must be shortened.",
                 "When the debt names an earlier failed semantic scope, rerun that same scope; passing unrelated suites cannot settle it.",
                 "File existence, JSON parsing, hashes, git status, report text, and merely reading test source are not behavioral verification.",
                 "While behavioral verification remains failed, do not regenerate submission/evidence/reports or edit their generators as a substitute for repairing the public-contract or business implementation.",
@@ -3215,7 +3259,7 @@ export class ClaudeRuntimeCore {
         if (!nextModel.ok) {
           iteration.failProviderRound(nextRound.roundId, nextModel.error ?? "model_stream_failed");
           ok = false;
-          stoppedReason = "model_stream_failed";
+          stoppedReason = modelFailureStoppedReason(nextModel.error);
           await emit("error", {
             error: stoppedReason,
             detail: nextModel.error ?? "provider revision failed",
@@ -3262,7 +3306,7 @@ export class ClaudeRuntimeCore {
               settled.model.error ?? "model_stream_failed",
             );
             ok = false;
-            stoppedReason = "model_stream_failed";
+            stoppedReason = modelFailureStoppedReason(settled.model.error);
             await emit("error", {
               error: stoppedReason,
               detail: settled.model.error ?? "provider length continuation failed",
@@ -3871,6 +3915,28 @@ export function verificationHarnessPathForTool(
   return verificationHarnessPath(step.arguments);
 }
 
+export function isTaskAuthoredInlineVerificationProbeTool(
+  step: { tool_name: string; arguments: JsonObject },
+): boolean {
+  if (step.tool_name !== "shell") return false;
+  const command = shellInvocationText(step.arguments).replaceAll("\\", "/");
+  const executable = String(step.arguments.executable ?? "")
+    .replaceAll("\\", "/")
+    .split("/")
+    .at(-1)
+    ?.toLowerCase() ?? "";
+  const argv = Array.isArray(step.arguments.argv)
+    ? step.arguments.argv.map(String)
+    : [];
+  const structuredInline = /^(?:python(?:\d+(?:\.\d+)*)?|node|ruby)$/u.test(executable)
+    && argv.some((argument) => argument === "-c" || argument === "-e");
+  const shellInline = /(?:^|[;&|]\s*|\n)\s*(?:\S*\/)?(?:python(?:\d+(?:\.\d+)*)?|node|ruby)\s+(?:-[A-Za-z]*[ce]\b|-?\s*<<-?\s*['"]?[A-Za-z0-9_]+)/iu.test(command);
+  if (!structuredInline && !shellInline) return false;
+  // A compound command that also invokes a repository test runner remains a
+  // real suite. Only the self-authored interpreter program is diagnostic.
+  return !/(?:^|\s)(?:\S*\/)?(?:pytest|py\.test)\b|\bpython(?:\d+(?:\.\d+)*)?\s+-m\s+(?:pytest|unittest)\b|\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?test\b/iu.test(command);
+}
+
 export function isClearlyEnvironmentRecoveryTool(
   step: { tool_name: string; arguments: JsonObject },
 ): boolean {
@@ -3969,6 +4035,24 @@ export function verificationHarnessPathForToolResult(
         arguments: origin.arguments,
       })
     : "";
+}
+
+export function isTaskAuthoredInlineVerificationProbeToolResult(
+  step: { tool_name: string; arguments: JsonObject },
+  response: ToolExecutionResponse,
+  historicalCalls: readonly {
+    toolCallId: string;
+    name: string;
+    arguments: JsonObject;
+  }[] = [],
+): boolean {
+  if (isTaskAuthoredInlineVerificationProbeTool(step)) return true;
+  if (step.tool_name !== "shell_wait") return false;
+  const origin = originatingToolCall(response, historicalCalls);
+  return origin !== undefined && isTaskAuthoredInlineVerificationProbeTool({
+    tool_name: origin.name,
+    arguments: origin.arguments,
+  });
 }
 
 function originatingToolCall(
