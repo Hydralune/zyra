@@ -8353,3 +8353,70 @@ test("a diagnostic script without a production repair keeps nudging toward a rea
   assert.equal(decision.snapshot.requiredDeliveryMissing, true);
   assert.equal(decision.snapshot.workspaceMutationCount, 0);
 });
+
+test("verification debt keeps nudging past the bounded nudge cap", () => {
+  let clock = 1_000;
+  const progressive = new ProgressiveExecutionRuntime({
+    now: () => clock,
+    constraints: {
+      external_deadline_epoch_ms: 10_000_000,
+      closeout_reserve_seconds: 5,
+    },
+    deliveryContract: {
+      workspace_mutation_required: true,
+      verification_required: true,
+    },
+    restored: {
+      version: "zyra.progressive-execution/v1",
+      workspaceMutationCount: 3,
+      verificationCount: 0,
+      verificationNudgeCount: 5,
+      lastVerificationNudgeProviderRound: 0,
+      providerRounds: 6,
+      startedAt: 1_000,
+      lastEffectiveProgressAt: 2_000,
+    },
+  });
+
+  // Verification debt exists (mutation committed, never verified), the nudge
+  // cap is exceeded, and the agent has stalled long past the progress window.
+  // The deadline is far away, so it must nudge again rather than close out.
+  clock = 200_000;
+  const decision = progressive.decide(2_000, 96_000);
+
+  assert.equal(decision.action, "nudge_verification");
+  assert.match(decision.reason, /behaviorally verified|verification debt/);
+});
+
+test("verification debt forces closeout near the deadline", () => {
+  let clock = 1_000;
+  const progressive = new ProgressiveExecutionRuntime({
+    now: () => clock,
+    constraints: {
+      external_deadline_epoch_ms: 6_000,
+      closeout_reserve_seconds: 5,
+    },
+    deliveryContract: {
+      workspace_mutation_required: true,
+      verification_required: true,
+    },
+    restored: {
+      version: "zyra.progressive-execution/v1",
+      workspaceMutationCount: 3,
+      verificationCount: 0,
+      verificationNudgeCount: 5,
+      lastVerificationNudgeProviderRound: 0,
+      providerRounds: 6,
+      startedAt: 1_000,
+      lastEffectiveProgressAt: 2_000,
+    },
+  });
+
+  // timePressure = reserve / remaining = 5000 / (6000 - 2000) = 1.25 >= 0.85,
+  // so the verification debt should hard-close instead of nudging.
+  clock = 2_000;
+  const decision = progressive.decide(2_000, 96_000);
+
+  assert.equal(decision.action, "closeout");
+  assert.equal(decision.snapshot.phase, "closeout");
+});

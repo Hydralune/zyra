@@ -1007,12 +1007,23 @@ export class ProgressiveExecutionRuntime {
     const deliveryPressure = this.state.requiredDeliveryMissing ? 0.35 : 0;
     const backgroundRelief = this.state.activeBackgroundCount > 0 ? 0.3 : 0;
     const pressure = Math.max(0, timePressure + contextPressure + noProgressPressure + deliveryPressure - backgroundRelief);
+    const verificationDebt = this.requiresVerification
+      && !this.state.requiredDeliveryMissing
+      && this.state.workspaceMutationCount > 0
+      && (
+        this.state.verificationCount === 0
+        || this.state.unresolvedVerificationScopes.length > 0
+      );
     const hardResourceBoundary = (
       remainingMilliseconds !== null
       && dynamicReserve !== null
       && remainingMilliseconds <= dynamicReserve
     )
-      || contextPressure >= 0.97;
+      || contextPressure >= 0.97
+      // The production patch exists but its behavioral verification never ran,
+      // and the budget is nearly gone. Close out now rather than keep nudging
+      // an agent that is burning the remaining tokens on re-inspection.
+      || (verificationDebt && timePressure >= 0.85);
     if (hardResourceBoundary) {
       this.state.phase = "closeout";
       return this.decision(
@@ -1045,13 +1056,6 @@ export class ProgressiveExecutionRuntime {
         pressure,
       );
     }
-    const verificationDebt = this.requiresVerification
-      && !this.state.requiredDeliveryMissing
-      && this.state.workspaceMutationCount > 0
-      && (
-        this.state.verificationCount === 0
-        || this.state.unresolvedVerificationScopes.length > 0
-      );
     if (verificationDebt && this.verificationRepairRequired()) {
       this.state.phase = "incremental_delivery";
       return this.decision(
@@ -1077,6 +1081,26 @@ export class ProgressiveExecutionRuntime {
         this.state.unresolvedVerificationScopes.length > 0
           ? verificationDebtReason(this.state)
           : "the latest delivered workspace state has no successful behavioral verification evidence",
+        remainingMilliseconds,
+        contextRemainingCharacters,
+        pressure,
+      );
+    }
+    // Once the bounded nudge allowance is spent, do not silently fall back to
+    // open-ended exploration: the production patch still lacks a behavioral
+    // verification. Keep nudging whenever the agent is stalling (no effective
+    // progress) or the budget is over half consumed, so verification debt can
+    // never be permanently silenced while the delivery remains unverified.
+    if (
+      verificationDebt
+      && this.state.verificationNudgeCount >= maximumVerificationNudges
+      && (progressAge >= adaptiveProgressWindow || timePressure >= 0.5)
+    ) {
+      return this.decision(
+        "nudge_verification",
+        this.state.unresolvedVerificationScopes.length > 0
+          ? `${verificationDebtReason(this.state)} The verification debt is still unsettled; run the focused failing scope and deliver its real exit code instead of re-inspecting.`
+          : "the production change is committed but never behaviorally verified; run the focused regression test now and close out on its real exit code",
         remainingMilliseconds,
         contextRemainingCharacters,
         pressure,
