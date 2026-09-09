@@ -1,0 +1,40 @@
+{
+  "schema": "zyra.calibration-selection/v1",
+  "frozen_at": "2026-09-09",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "dataset": {
+    "source_path": "/home/ylon/zyra-experiments/swe-bench-verified-test.jsonl",
+    "sha256": "889bccf7ada1a43d211050ac666f3b31032997209afb10dccdc6ea52128a8435",
+    "total_records": 500
+  },
+  "selection_rule": {
+    "seed": "zyra-postfix-calibration-v4-20260909",
+    "filter": "difficulty == '<15 min fix'; exclude all frozen formal SWE tasks, all used/exposed tasks, and repositories already used by SWE calibration runs",
+    "excluded_calibration_repositories": [
+      "pallets/flask",
+      "pylint-dev/pylint",
+      "scikit-learn/scikit-learn",
+      "sympy/sympy",
+      "matplotlib/matplotlib"
+    ],
+    "eligible_records": 137,
+    "ranking": "ascending lowercase hex SHA-256(seed + '|' + instance_id)",
+    "selected_rank": 1
+  },
+  "selected": {
+    "instance_id": "django__django-15930",
+    "repo": "django/django",
+    "base_commit": "63884829acd207404f2a5c3cc1d6b4cd0a822b70",
+    "difficulty": "<15 min fix",
+    "rank_digest": "00216b653918bbcf40b29d4687ed6703b2f5c7630bd32ff4c4e1b67cf08d0bd6",
+    "public_goal": "paper/experiments/tasksets/django-15930-public-goal.txt"
+  },
+  "leakage_controls": {
+    "gold_patch_supplied_to_agent": false,
+    "test_patch_supplied_to_agent": false,
+    "hidden_test_names_supplied_to_agent": false,
+    "result_observed_before_selection": false
+  },
+  "purpose": "Cross-repository validation of the repaired inline-probe classification, streamed file synchronization, canonical closeout and fixed SWE budget. Excluded from efficacy claims."
+}

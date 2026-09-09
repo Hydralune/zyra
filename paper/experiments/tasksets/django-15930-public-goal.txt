@@ -1,0 +1,27 @@
+Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.
+
+Case() crashes with ~Q(pk__in=[]).
+
+Description
+
+The following query generates invalid SQL:
+
+```python
+User.objects.annotate(
+    _a=Case(
+        When(~Q(pk__in=[]), then=Value(True)),
+        default=Value(False),
+        output_field=BooleanField(),
+    )
+).order_by("-a").values("pk")
+```
+
+It raises `ProgrammingError: syntax error at or near "THEN"`, because `~Q(pk__in=[])` produces an empty `CASE WHEN` condition. The generated SQL is:
+
+```text
+SELECT "users_user"."id" FROM "users_user" ORDER BY CASE WHEN THEN True ELSE False END ASC
+```
+
+Expected behavior: since `~Q(pk__in=[])` negates an empty membership set, every row matches, so all rows should be annotated `True`. Fix the ORM so that `~Q(pk__in=[])` (an empty negated membership) is handled correctly.
+
+Preserve unrelated ORM and query-building behavior.

@@ -1,0 +1,1625 @@
+﻿{
+    "task":  {
+                 "run_id":  "run_75d4122286fa",
+                 "task_id":  "task_dd71fffc3375",
+                 "user_goal":  "Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.\n\nCase() crashes with ~Q(pk__in=[]).\n\nDescription\n\nThe following query generates invalid SQL:\n\n```python\nUser.objects.annotate(\n    _a=Case(\n        When(~Q(pk__in=[]), then=Value(True)),\n        default=Value(False),\n        output_field=BooleanField(),\n    )\n).order_by(\"-a\").values(\"pk\")\n```\n\nIt raises `ProgrammingError: syntax error at or near \"THEN\"`, because `~Q(pk__in=[])` produces an empty `CASE WHEN` condition. The generated SQL is:\n\n```text\nSELECT \"users_user\".\"id\" FROM \"users_user\" ORDER BY CASE WHEN THEN True ELSE False END ASC\n```\n\nExpected behavior: since `~Q(pk__in=[])` negates an empty membership set, every row matches, so all rows should be annotated `True`. Fix the ORM so that `~Q(pk__in=[])` (an empty negated membership) is handled correctly.\n\nPreserve unrelated ORM and query-building behavior.",
+                 "root_node_id":  "node_2d6788e78dc5",
+                 "status":  "pending",
+                 "created_at":  "2026-09-09T13:20:32.010Z",
+                 "updated_at":  "2026-09-09T13:20:32.116Z",
+                 "constraints":  {
+                                     "objectives":  [
+                                                        "Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.\n\nCase() crashes with ~Q(pk__in=[]).\n\nDescription\n\nThe following query generates invalid SQL:\n\n```python\nUser.objects.annotate(\n    _a=Case(\n        When(~Q(pk__in=[]), then=Value(True)),\n        default=Value(False),\n        output_field=BooleanField(),\n    )\n).order_by(\"-a\").values(\"pk\")\n```\n\nIt raises `ProgrammingError: syntax error at or near \"THEN\"`, because `~Q(pk__in=[])` produces an empty `CASE WHEN` condition. The generated SQL is:\n\n```text\nSELECT \"users_user\".\"id\" FROM \"users_user\" ORDER BY CASE WHEN THEN True ELSE False END ASC\n```\n\nExpected behavior: since `~Q(pk__in=[])` negates an empty membership set, every row matches, so all rows should be annotated `True`. Fix the ORM so that `~Q(pk__in=[])` (an empty negated membership) is handled correctly.\n\nPreserve unrelated ORM and query-building behavior."
+                                                    ],
+                                     "requirements":  [
+
+                                                      ],
+                                     "forbidden":  [
+
+                                                   ],
+                                     "assumptions":  [
+
+                                                     ],
+                                     "success_criteria":  [
+                                                              "Produce a traceable result that satisfies the user goal."
+                                                          ],
+                                     "allowed_tools":  [
+
+                                                       ],
+                                     "required_tools":  [
+
+                                                        ],
+                                     "allowed_workers":  [
+
+                                                         ],
+                                     "required_artifacts":  [
+
+                                                            ],
+                                     "resource_preferences":  [
+
+                                                              ],
+                                     "output_schema":  {
+
+                                                       },
+                                     "state_transition_rules":  {
+
+                                                                },
+                                     "max_tool_calls":  null,
+                                     "max_input_tokens":  null,
+                                     "max_output_tokens":  null,
+                                     "time_limit_ms":  null,
+                                     "message_budget_chars":  2000
+                                 },
+                 "plan_nodes":  {
+                                    "node_2d6788e78dc5":  {
+                                                              "node_id":  "node_2d6788e78dc5",
+                                                              "title":  "Root task",
+                                                              "description":  "Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.\n\nCase() crashes with ~Q(pk__in=[]).\n\nDescription\n\nThe following query generates invalid SQL:\n\n```python\nUser.objects.annotate(\n    _a=Case(\n        When(~Q(pk__in=[]), then=Value(True)),\n        default=Value(False),\n        output_field=BooleanField(),\n    )\n).order_by(\"-a\").values(\"pk\")\n```\n\nIt raises `ProgrammingError: syntax error at or near \"THEN\"`, because `~Q(pk__in=[])` produces an empty `CASE WHEN` condition. The generated SQL is:\n\n```text\nSELECT \"users_user\".\"id\" FROM \"users_user\" ORDER BY CASE WHEN THEN True ELSE False END ASC\n```\n\nExpected behavior: since `~Q(pk__in=[])` negates an empty membership set, every row matches, so all rows should be annotated `True`. Fix the ORM so that `~Q(pk__in=[])` (an empty negated membership) is handled correctly.\n\nPreserve unrelated ORM and query-building behavior.",
+                                                              "status":  "pending",
+                                                              "intent":  "plan",
+                                                              "summary":  "",
+                                                              "parent_node_id":  null,
+                                                              "assigned_worker_id":  null,
+                                                              "depends_on":  [
+
+                                                                             ],
+                                                              "constraints":  {
+                                                                                  "objectives":  [
+
+                                                                                                 ],
+                                                                                  "requirements":  [
+
+                                                                                                   ],
+                                                                                  "forbidden":  [
+
+                                                                                                ],
+                                                                                  "assumptions":  [
+
+                                                                                                  ],
+                                                                                  "success_criteria":  [
+
+                                                                                                       ],
+                                                                                  "allowed_tools":  [
+
+                                                                                                    ],
+                                                                                  "required_tools":  [
+
+                                                                                                     ],
+                                                                                  "allowed_workers":  [
+
+                                                                                                      ],
+                                                                                  "required_artifacts":  [
+
+                                                                                                         ],
+                                                                                  "resource_preferences":  [
+
+                                                                                                           ],
+                                                                                  "output_schema":  {
+
+                                                                                                    },
+                                                                                  "state_transition_rules":  {
+
+                                                                                                             },
+                                                                                  "max_tool_calls":  null,
+                                                                                  "max_input_tokens":  null,
+                                                                                  "max_output_tokens":  null,
+                                                                                  "time_limit_ms":  null,
+                                                                                  "message_budget_chars":  2000
+                                                                              },
+                                                              "expected_output_schema":  {
+
+                                                                                         },
+                                                              "completion_criteria":  [
+
+                                                                                      ],
+                                                              "evidence_refs":  [
+
+                                                                                ],
+                                                              "artifact_refs":  [
+
+                                                                                ],
+                                                              "state_delta":  {
+
+                                                                              },
+                                                              "created_at":  "2026-09-09T13:20:32.010Z",
+                                                              "updated_at":  "2026-09-09T13:20:32.010Z",
+                                                              "metadata":  {
+                                                                               "source":  "initial_user_goal"
+                                                                           }
+                                                          },
+                                    "node_5c9692a8fc63":  {
+                                                              "node_id":  "node_5c9692a8fc63",
+                                                              "title":  "Plan",
+                                                              "description":  "Decompose the user goal into an executable task graph.",
+                                                              "status":  "pending",
+                                                              "intent":  "plan",
+                                                              "summary":  "",
+                                                              "parent_node_id":  "node_2d6788e78dc5",
+                                                              "assigned_worker_id":  null,
+                                                              "depends_on":  [
+                                                                                 "node_2d6788e78dc5"
+                                                                             ],
+                                                              "constraints":  {
+                                                                                  "objectives":  [
+
+                                                                                                 ],
+                                                                                  "requirements":  [
+
+                                                                                                   ],
+                                                                                  "forbidden":  [
+
+                                                                                                ],
+                                                                                  "assumptions":  [
+
+                                                                                                  ],
+                                                                                  "success_criteria":  [
+
+                                                                                                       ],
+                                                                                  "allowed_tools":  [
+
+                                                                                                    ],
+                                                                                  "required_tools":  [
+
+                                                                                                     ],
+                                                                                  "allowed_workers":  [
+
+                                                                                                      ],
+                                                                                  "required_artifacts":  [
+
+                                                                                                         ],
+                                                                                  "resource_preferences":  [
+
+                                                                                                           ],
+                                                                                  "output_schema":  {
+
+                                                                                                    },
+                                                                                  "state_transition_rules":  {
+
+                                                                                                             },
+                                                                                  "max_tool_calls":  null,
+                                                                                  "max_input_tokens":  null,
+                                                                                  "max_output_tokens":  null,
+                                                                                  "time_limit_ms":  null,
+                                                                                  "message_budget_chars":  2000
+                                                                              },
+                                                              "expected_output_schema":  {
+                                                                                             "type":  "object",
+                                                                                             "required":  [
+                                                                                                              "stage_order"
+                                                                                                          ]
+                                                                                         },
+                                                              "completion_criteria":  [
+                                                                                          "Task graph has ordered stage nodes.",
+                                                                                          "Each stage is traceable by node_id."
+                                                                                      ],
+                                                              "evidence_refs":  [
+
+                                                                                ],
+                                                              "artifact_refs":  [
+
+                                                                                ],
+                                                              "state_delta":  {
+
+                                                                              },
+                                                              "created_at":  "2026-09-09T13:20:32.115Z",
+                                                              "updated_at":  "2026-09-09T13:20:32.115Z",
+                                                              "metadata":  {
+                                                                               "stage":  "plan",
+                                                                               "graph_version":  "m3-symbolic-v1"
+                                                                           }
+                                                          },
+                                    "node_ffcaf2dcf6e1":  {
+                                                              "node_id":  "node_ffcaf2dcf6e1",
+                                                              "title":  "Route",
+                                                              "description":  "Select the worker and control route for the executable node.",
+                                                              "status":  "pending",
+                                                              "intent":  "decision",
+                                                              "summary":  "",
+                                                              "parent_node_id":  "node_2d6788e78dc5",
+                                                              "assigned_worker_id":  null,
+                                                              "depends_on":  [
+                                                                                 "node_5c9692a8fc63"
+                                                                             ],
+                                                              "constraints":  {
+                                                                                  "objectives":  [
+
+                                                                                                 ],
+                                                                                  "requirements":  [
+
+                                                                                                   ],
+                                                                                  "forbidden":  [
+
+                                                                                                ],
+                                                                                  "assumptions":  [
+
+                                                                                                  ],
+                                                                                  "success_criteria":  [
+
+                                                                                                       ],
+                                                                                  "allowed_tools":  [
+
+                                                                                                    ],
+                                                                                  "required_tools":  [
+
+                                                                                                     ],
+                                                                                  "allowed_workers":  [
+
+                                                                                                      ],
+                                                                                  "required_artifacts":  [
+
+                                                                                                         ],
+                                                                                  "resource_preferences":  [
+
+                                                                                                           ],
+                                                                                  "output_schema":  {
+
+                                                                                                    },
+                                                                                  "state_transition_rules":  {
+
+                                                                                                             },
+                                                                                  "max_tool_calls":  null,
+                                                                                  "max_input_tokens":  null,
+                                                                                  "max_output_tokens":  null,
+                                                                                  "time_limit_ms":  null,
+                                                                                  "message_budget_chars":  2000
+                                                                              },
+                                                              "expected_output_schema":  {
+                                                                                             "type":  "object",
+                                                                                             "required":  [
+                                                                                                              "selected_worker",
+                                                                                                              "route_candidates"
+                                                                                                          ]
+                                                                                         },
+                                                              "completion_criteria":  [
+                                                                                          "A topology_route event is emitted.",
+                                                                                          "A DecisionRecord is appended."
+                                                                                      ],
+                                                              "evidence_refs":  [
+
+                                                                                ],
+                                                              "artifact_refs":  [
+
+                                                                                ],
+                                                              "state_delta":  {
+
+                                                                              },
+                                                              "created_at":  "2026-09-09T13:20:32.116Z",
+                                                              "updated_at":  "2026-09-09T13:20:32.116Z",
+                                                              "metadata":  {
+                                                                               "stage":  "route",
+                                                                               "graph_version":  "m3-symbolic-v1"
+                                                                           }
+                                                          },
+                                    "node_91cf96bc915b":  {
+                                                              "node_id":  "node_91cf96bc915b",
+                                                              "title":  "Execute",
+                                                              "description":  "Run the current node through the selected worker runtime.",
+                                                              "status":  "pending",
+                                                              "intent":  "tool_call",
+                                                              "summary":  "",
+                                                              "parent_node_id":  "node_2d6788e78dc5",
+                                                              "assigned_worker_id":  null,
+                                                              "depends_on":  [
+                                                                                 "node_ffcaf2dcf6e1"
+                                                                             ],
+                                                              "constraints":  {
+                                                                                  "objectives":  [
+
+                                                                                                 ],
+                                                                                  "requirements":  [
+
+                                                                                                   ],
+                                                                                  "forbidden":  [
+
+                                                                                                ],
+                                                                                  "assumptions":  [
+
+                                                                                                  ],
+                                                                                  "success_criteria":  [
+
+                                                                                                       ],
+                                                                                  "allowed_tools":  [
+
+                                                                                                    ],
+                                                                                  "required_tools":  [
+
+                                                                                                     ],
+                                                                                  "allowed_workers":  [
+
+                                                                                                      ],
+                                                                                  "required_artifacts":  [
+
+                                                                                                         ],
+                                                                                  "resource_preferences":  [
+
+                                                                                                           ],
+                                                                                  "output_schema":  {
+
+                                                                                                    },
+                                                                                  "state_transition_rules":  {
+
+                                                                                                             },
+                                                                                  "max_tool_calls":  null,
+                                                                                  "max_input_tokens":  null,
+                                                                                  "max_output_tokens":  null,
+                                                                                  "time_limit_ms":  null,
+                                                                                  "message_budget_chars":  2000
+                                                                              },
+                                                              "expected_output_schema":  {
+                                                                                             "type":  "object",
+                                                                                             "required":  [
+                                                                                                              "worker_result"
+                                                                                                          ]
+                                                                                         },
+                                                              "completion_criteria":  [
+                                                                                          "Worker runtime returns trace events.",
+                                                                                          "Artifacts or tool results are preserved."
+                                                                                      ],
+                                                              "evidence_refs":  [
+
+                                                                                ],
+                                                              "artifact_refs":  [
+
+                                                                                ],
+                                                              "state_delta":  {
+
+                                                                              },
+                                                              "created_at":  "2026-09-09T13:20:32.116Z",
+                                                              "updated_at":  "2026-09-09T13:20:32.116Z",
+                                                              "metadata":  {
+                                                                               "stage":  "execute",
+                                                                               "graph_version":  "m3-symbolic-v1"
+                                                                           }
+                                                          },
+                                    "node_08d6cbf55620":  {
+                                                              "node_id":  "node_08d6cbf55620",
+                                                              "title":  "Verify",
+                                                              "description":  "Check node outputs, event coverage, and checkpoint readiness.",
+                                                              "status":  "pending",
+                                                              "intent":  "critique",
+                                                              "summary":  "",
+                                                              "parent_node_id":  "node_2d6788e78dc5",
+                                                              "assigned_worker_id":  null,
+                                                              "depends_on":  [
+                                                                                 "node_91cf96bc915b"
+                                                                             ],
+                                                              "constraints":  {
+                                                                                  "objectives":  [
+
+                                                                                                 ],
+                                                                                  "requirements":  [
+
+                                                                                                   ],
+                                                                                  "forbidden":  [
+
+                                                                                                ],
+                                                                                  "assumptions":  [
+
+                                                                                                  ],
+                                                                                  "success_criteria":  [
+
+                                                                                                       ],
+                                                                                  "allowed_tools":  [
+
+                                                                                                    ],
+                                                                                  "required_tools":  [
+
+                                                                                                     ],
+                                                                                  "allowed_workers":  [
+
+                                                                                                      ],
+                                                                                  "required_artifacts":  [
+
+                                                                                                         ],
+                                                                                  "resource_preferences":  [
+
+                                                                                                           ],
+                                                                                  "output_schema":  {
+
+                                                                                                    },
+                                                                                  "state_transition_rules":  {
+
+                                                                                                             },
+                                                                                  "max_tool_calls":  null,
+                                                                                  "max_input_tokens":  null,
+                                                                                  "max_output_tokens":  null,
+                                                                                  "time_limit_ms":  null,
+                                                                                  "message_budget_chars":  2000
+                                                                              },
+                                                              "expected_output_schema":  {
+                                                                                             "type":  "object",
+                                                                                             "required":  [
+                                                                                                              "constraint_results"
+                                                                                                          ]
+                                                                                         },
+                                                              "completion_criteria":  [
+                                                                                          "ConstraintKeeper emits a constraint_check event."
+                                                                                      ],
+                                                              "evidence_refs":  [
+
+                                                                                ],
+                                                              "artifact_refs":  [
+
+                                                                                ],
+                                                              "state_delta":  {
+
+                                                                              },
+                                                              "created_at":  "2026-09-09T13:20:32.116Z",
+                                                              "updated_at":  "2026-09-09T13:20:32.116Z",
+                                                              "metadata":  {
+                                                                               "stage":  "verify",
+                                                                               "graph_version":  "m3-symbolic-v1"
+                                                                           }
+                                                          },
+                                    "node_054c2d7ff0ca":  {
+                                                              "node_id":  "node_054c2d7ff0ca",
+                                                              "title":  "Finalize",
+                                                              "description":  "Finalize the trace and mark the task ready for inspection.",
+                                                              "status":  "pending",
+                                                              "intent":  "status",
+                                                              "summary":  "",
+                                                              "parent_node_id":  "node_2d6788e78dc5",
+                                                              "assigned_worker_id":  null,
+                                                              "depends_on":  [
+                                                                                 "node_08d6cbf55620"
+                                                                             ],
+                                                              "constraints":  {
+                                                                                  "objectives":  [
+
+                                                                                                 ],
+                                                                                  "requirements":  [
+
+                                                                                                   ],
+                                                                                  "forbidden":  [
+
+                                                                                                ],
+                                                                                  "assumptions":  [
+
+                                                                                                  ],
+                                                                                  "success_criteria":  [
+
+                                                                                                       ],
+                                                                                  "allowed_tools":  [
+
+                                                                                                    ],
+                                                                                  "required_tools":  [
+
+                                                                                                     ],
+                                                                                  "allowed_workers":  [
+
+                                                                                                      ],
+                                                                                  "required_artifacts":  [
+
+                                                                                                         ],
+                                                                                  "resource_preferences":  [
+
+                                                                                                           ],
+                                                                                  "output_schema":  {
+
+                                                                                                    },
+                                                                                  "state_transition_rules":  {
+
+                                                                                                             },
+                                                                                  "max_tool_calls":  null,
+                                                                                  "max_input_tokens":  null,
+                                                                                  "max_output_tokens":  null,
+                                                                                  "time_limit_ms":  null,
+                                                                                  "message_budget_chars":  2000
+                                                                              },
+                                                              "expected_output_schema":  {
+                                                                                             "type":  "object",
+                                                                                             "required":  [
+                                                                                                              "status"
+                                                                                                          ]
+                                                                                         },
+                                                              "completion_criteria":  [
+                                                                                          "Task trace is ready for inspection."
+                                                                                      ],
+                                                              "evidence_refs":  [
+
+                                                                                ],
+                                                              "artifact_refs":  [
+
+                                                                                ],
+                                                              "state_delta":  {
+
+                                                                              },
+                                                              "created_at":  "2026-09-09T13:20:32.116Z",
+                                                              "updated_at":  "2026-09-09T13:20:32.116Z",
+                                                              "metadata":  {
+                                                                               "stage":  "finalize",
+                                                                               "graph_version":  "m3-symbolic-v1"
+                                                                           }
+                                                          }
+                                },
+                 "artifacts":  [
+
+                               ],
+                 "decisions":  [
+
+                               ],
+                 "budget":  {
+                                "input_tokens":  0,
+                                "output_tokens":  0,
+                                "tool_calls":  0,
+                                "wall_time_ms":  0,
+                                "cost_usd_estimate":  0.0,
+                                "metadata":  {
+
+                                             }
+                            },
+                 "metadata":  {
+                                  "delivery_contract":  {
+                                                            "schema":  "zyra.goal-delivery-contract/v2",
+                                                            "interaction_kind":  "workspace_change",
+                                                            "workspace_mutation_required":  true,
+                                                            "verification_required":  true,
+                                                            "required_paths":  [
+
+                                                                               ],
+                                                            "expected_file_contents":  {
+
+                                                                                       },
+                                                            "required_skills":  [
+
+                                                                                ],
+                                                            "required_executed_paths":  [
+
+                                                                                        ],
+                                                            "provenance_index_paths":  [
+
+                                                                                       ],
+                                                            "loopx_required":  false,
+                                                            "role_separation_required":  false,
+                                                            "mutation_policy":  {
+                                                                                    "schema":  "zyra.task-mutation-policy/v1",
+                                                                                    "enabled":  false,
+                                                                                    "protected_source_roots":  [
+
+                                                                                                               ],
+                                                                                    "required_pre_mutation_evidence":  [
+
+                                                                                                                       ],
+                                                                                    "protect_existing_test_files":  false,
+                                                                                    "inherit_across_execution_lineage":  false
+                                                                                },
+                                                            "provider_reasoning_required":  true,
+                                                            "final_response_required":  true,
+                                                            "goal_digest":  "sha256:9353d491c974a92d75b6db6f67250e63f92435850392b1ac0e719a4288402080"
+                                                        },
+                                  "query_session_id":  "task:task_dd71fffc3375",
+                                  "runtime_hints":  {
+                                                        "external_deadline_epoch_ms":  1788962722602,
+                                                        "benchmark_closeout_reserve_seconds":  586.1174,
+                                                        "benchmark_agent_closeout_reserve_seconds":  526.1174
+                                                    },
+                                  "sealed":  true,
+                                  "sealed_autonomous":  true,
+                                  "competition_mode":  "sealed_autonomous",
+                                  "workspace_ref":  {
+                                                        "workspace_id":  "ws_b4368ce0114cf03fcdf686b8",
+                                                        "run_id":  "run_75d4122286fa",
+                                                        "task_id":  "task_dd71fffc3375",
+                                                        "session_id":  "task:task_dd71fffc3375",
+                                                        "backend_id":  "local-default",
+                                                        "backend_kind":  "local",
+                                                        "workspace_kind":  "task",
+                                                        "lifecycle_state":  "open",
+                                                        "owner_epoch":  1,
+                                                        "binding_revision":  4,
+                                                        "capability_revision":  1,
+                                                        "lease_id":  "lease_b925630f96bf3710641cccbf",
+                                                        "active_snapshot_id":  "",
+                                                        "quota":  {
+                                                                      "max_bytes":  1073741824,
+                                                                      "max_files":  100000,
+                                                                      "max_directories":  20000,
+                                                                      "max_single_file_bytes":  134217728,
+                                                                      "max_path_depth":  64,
+                                                                      "max_snapshots":  32,
+                                                                      "max_snapshot_bytes":  4294967296,
+                                                                      "include_generated":  true
+                                                                  },
+                                                        "usage":  {
+                                                                      "used_bytes":  0,
+                                                                      "file_count":  0,
+                                                                      "directory_count":  4,
+                                                                      "symlink_count":  0,
+                                                                      "reserved_bytes":  0,
+                                                                      "snapshot_bytes":  0,
+                                                                      "snapshot_count":  0,
+                                                                      "scanned_at":  "2026-09-09T13:20:32.075592+00:00",
+                                                                      "revision":  1,
+                                                                      "accounted_bytes":  0
+                                                                  },
+                                                        "mounts":  [
+                                                                       {
+                                                                           "mount_id":  "mount_8e592b165021bb6b7bea0567",
+                                                                           "kind":  "task",
+                                                                           "access":  "read_write",
+                                                                           "quota":  {
+                                                                                         "max_bytes":  1073741824,
+                                                                                         "max_files":  100000,
+                                                                                         "max_directories":  20000,
+                                                                                         "max_single_file_bytes":  134217728,
+                                                                                         "max_path_depth":  64,
+                                                                                         "max_snapshots":  32,
+                                                                                         "max_snapshot_bytes":  4294967296,
+                                                                                         "include_generated":  true
+                                                                                     },
+                                                                           "physical_location_redacted":  true
+                                                                       },
+                                                                       {
+                                                                           "mount_id":  "mount_bc0afcf69983a5e139cea43c",
+                                                                           "kind":  "artifact",
+                                                                           "access":  "read_only",
+                                                                           "quota":  {
+                                                                                         "max_bytes":  1073741824,
+                                                                                         "max_files":  100000,
+                                                                                         "max_directories":  20000,
+                                                                                         "max_single_file_bytes":  134217728,
+                                                                                         "max_path_depth":  64,
+                                                                                         "max_snapshots":  32,
+                                                                                         "max_snapshot_bytes":  4294967296,
+                                                                                         "include_generated":  true
+                                                                                     },
+                                                                           "physical_location_redacted":  true
+                                                                       },
+                                                                       {
+                                                                           "mount_id":  "mount_d8d2f0e31107571c1f855479",
+                                                                           "kind":  "download",
+                                                                           "access":  "append_only",
+                                                                           "quota":  {
+                                                                                         "max_bytes":  1073741824,
+                                                                                         "max_files":  100000,
+                                                                                         "max_directories":  20000,
+                                                                                         "max_single_file_bytes":  134217728,
+                                                                                         "max_path_depth":  64,
+                                                                                         "max_snapshots":  32,
+                                                                                         "max_snapshot_bytes":  4294967296,
+                                                                                         "include_generated":  true
+                                                                                     },
+                                                                           "physical_location_redacted":  true
+                                                                       },
+                                                                       {
+                                                                           "mount_id":  "mount_516ac2bdbbeb5e25a1a32bd0",
+                                                                           "kind":  "temp",
+                                                                           "access":  "read_write",
+                                                                           "quota":  {
+                                                                                         "max_bytes":  1073741824,
+                                                                                         "max_files":  100000,
+                                                                                         "max_directories":  20000,
+                                                                                         "max_single_file_bytes":  134217728,
+                                                                                         "max_path_depth":  64,
+                                                                                         "max_snapshots":  32,
+                                                                                         "max_snapshot_bytes":  4294967296,
+                                                                                         "include_generated":  true
+                                                                                     },
+                                                                           "physical_location_redacted":  true
+                                                                       }
+                                                                   ],
+                                                        "updated_at":  "2026-09-09T13:20:32.095696+00:00",
+                                                        "physical_location_redacted":  true
+                                                    },
+                                  "graph_version":  "m3-symbolic-v1",
+                                  "stage_order":  [
+                                                      "node_5c9692a8fc63",
+                                                      "node_ffcaf2dcf6e1",
+                                                      "node_91cf96bc915b",
+                                                      "node_08d6cbf55620",
+                                                      "node_054c2d7ff0ca"
+                                                  ],
+                                  "dynamic_graph_id":  "graph:task_dd71fffc3375",
+                                  "dynamic_graph_ref":  {
+                                                            "graph_id":  "graph:task_dd71fffc3375",
+                                                            "run_id":  "run_75d4122286fa",
+                                                            "revision":  1,
+                                                            "signature":  "c41f480c678387fbf68458fd2d776163ea3c3526fd6a427a7af297374bd92c77",
+                                                            "commit_id":  "graph_commit_2294ccad333c4eea913191d9db07e59e"
+                                                        },
+                                  "worker_pool":  {
+                                                      "attempt_id":  "attempt_99e0ad8373774513a9d5c315b3ced45c",
+                                                      "attempt_number":  1,
+                                                      "lease_id":  "lease_a8904379f84143c8baa68fd9767616c7",
+                                                      "worker_id":  "local-code-worker",
+                                                      "backend_id":  "local-sandbox-gateway",
+                                                      "graph_ref":  {
+                                                                        "graph_id":  "graph:task_dd71fffc3375",
+                                                                        "run_id":  "run_75d4122286fa",
+                                                                        "revision":  2,
+                                                                        "signature":  "846106b01aebf0b3806eae457282b821dcead2576070a38ef216d39b74aab90f",
+                                                                        "commit_id":  "graph_commit_c614b4e37e5d4c0680aff1f28b27a05e"
+                                                                    },
+                                                      "graph_commit":  {
+                                                                           "graph_id":  "graph:task_dd71fffc3375",
+                                                                           "delta_id":  "delta_4ea6c8162ef44bcf8f25b5e90e4950a4",
+                                                                           "status":  "committed",
+                                                                           "strategy":  "serialize",
+                                                                           "base_revision":  1,
+                                                                           "committed_revision":  2,
+                                                                           "snapshot_signature":  "846106b01aebf0b3806eae457282b821dcead2576070a38ef216d39b74aab90f",
+                                                                           "commit_id":  "graph_commit_c614b4e37e5d4c0680aff1f28b27a05e",
+                                                                           "conflicts":  [
+
+                                                                                         ],
+                                                                           "rebased_from_revision":  null,
+                                                                           "created_at":  "2026-09-09T13:20:32.414Z",
+                                                                           "metadata":  {
+                                                                                            "causation_id":  "lease_a8904379f84143c8baa68fd9767616c7",
+                                                                                            "correlation_id":  "",
+                                                                                            "read_set":  [
+                                                                                                             "node:node_054c2d7ff0ca",
+                                                                                                             "node:node_08d6cbf55620",
+                                                                                                             "node:node_2d6788e78dc5",
+                                                                                                             "node:node_5c9692a8fc63",
+                                                                                                             "node:node_91cf96bc915b",
+                                                                                                             "node:node_ffcaf2dcf6e1"
+                                                                                                         ],
+                                                                                            "write_set":  [
+                                                                                                              "node:node_054c2d7ff0ca",
+                                                                                                              "node:node_08d6cbf55620",
+                                                                                                              "node:node_2d6788e78dc5",
+                                                                                                              "node:node_5c9692a8fc63",
+                                                                                                              "node:node_91cf96bc915b",
+                                                                                                              "node:node_ffcaf2dcf6e1"
+                                                                                                          ]
+                                                                                        }
+                                                                       },
+                                                      "operator_placement_causality":  {
+
+                                                                                       }
+                                                  }
+                              }
+             },
+    "events":  [
+                   {
+                       "run_id":  "run_75d4122286fa",
+                       "task_id":  "task_dd71fffc3375",
+                       "event_type":  "task_created",
+                       "event_id":  "event_4556f112167f",
+                       "node_id":  "node_2d6788e78dc5",
+                       "created_at":  "2026-09-09T13:20:32.015Z",
+                       "payload":  {
+                                       "task":  {
+                                                    "run_id":  "run_75d4122286fa",
+                                                    "task_id":  "task_dd71fffc3375",
+                                                    "user_goal":  "Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.\n\nCase() crashes with ~Q(pk__in=[]).\n\nDescription\n\nThe following query generates invalid SQL:\n\n```python\nUser.objects.annotate(\n    _a=Case(\n        When(~Q(pk__in=[]), then=Value(True)),\n        default=Value(False),\n        output_field=BooleanField(),\n    )\n).order_by(\"-a\").values(\"pk\")\n```\n\nIt raises `ProgrammingError: syntax error at or near \"THEN\"`, because `~Q(pk__in=[])` produces an empty `CASE WHEN` condition. The generated SQL is:\n\n```text\nSELECT \"users_user\".\"id\" FROM \"users_user\" ORDER BY CASE WHEN THEN True ELSE False END ASC\n```\n\nExpected behavior: since `~Q(pk__in=[])` negates an empty membership set, every row matches, so all rows should be annotated `True`. Fix the ORM so that `~Q(pk__in=[])` (an empty negated membership) is handled correctly.\n\nPreserve unrelated ORM and query-building behavior.",
+                                                    "root_node_id":  "node_2d6788e78dc5",
+                                                    "status":  "pending",
+                                                    "created_at":  "2026-09-09T13:20:32.010Z",
+                                                    "updated_at":  "2026-09-09T13:20:32.010Z",
+                                                    "constraints":  {
+                                                                        "objectives":  [
+                                                                                           "Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.\n\nCase() crashes with ~Q(pk__in=[]).\n\nDescription\n\nThe following query generates invalid SQL:\n\n```python\nUser.objects.annotate(\n    _a=Case(\n        When(~Q(pk__in=[]), then=Value(True)),\n        default=Value(False),\n        output_field=BooleanField(),\n    )\n).order_by(\"-a\").values(\"pk\")\n```\n\nIt raises `ProgrammingError: syntax error at or near \"THEN\"`, because `~Q(pk__in=[])` produces an empty `CASE WHEN` condition. The generated SQL is:\n\n```text\nSELECT \"users_user\".\"id\" FROM \"users_user\" ORDER BY CASE WHEN THEN True ELSE False END ASC\n```\n\nExpected behavior: since `~Q(pk__in=[])` negates an empty membership set, every row matches, so all rows should be annotated `True`. Fix the ORM so that `~Q(pk__in=[])` (an empty negated membership) is handled correctly.\n\nPreserve unrelated ORM and query-building behavior."
+                                                                                       ],
+                                                                        "requirements":  [
+
+                                                                                         ],
+                                                                        "forbidden":  [
+
+                                                                                      ],
+                                                                        "assumptions":  [
+
+                                                                                        ],
+                                                                        "success_criteria":  [
+                                                                                                 "Produce a traceable result that satisfies the user goal."
+                                                                                             ],
+                                                                        "allowed_tools":  [
+
+                                                                                          ],
+                                                                        "required_tools":  [
+
+                                                                                           ],
+                                                                        "allowed_workers":  [
+
+                                                                                            ],
+                                                                        "required_artifacts":  [
+
+                                                                                               ],
+                                                                        "resource_preferences":  [
+
+                                                                                                 ],
+                                                                        "output_schema":  {
+
+                                                                                          },
+                                                                        "state_transition_rules":  {
+
+                                                                                                   },
+                                                                        "max_tool_calls":  null,
+                                                                        "max_input_tokens":  null,
+                                                                        "max_output_tokens":  null,
+                                                                        "time_limit_ms":  null,
+                                                                        "message_budget_chars":  2000
+                                                                    },
+                                                    "plan_nodes":  {
+                                                                       "node_2d6788e78dc5":  {
+                                                                                                 "node_id":  "node_2d6788e78dc5",
+                                                                                                 "title":  "Root task",
+                                                                                                 "description":  "Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.\n\nCase() crashes with ~Q(pk__in=[]).\n\nDescription\n\nThe following query generates invalid SQL:\n\n```python\nUser.objects.annotate(\n    _a=Case(\n        When(~Q(pk__in=[]), then=Value(True)),\n        default=Value(False),\n        output_field=BooleanField(),\n    )\n).order_by(\"-a\").values(\"pk\")\n```\n\nIt raises `ProgrammingError: syntax error at or near \"THEN\"`, because `~Q(pk__in=[])` produces an empty `CASE WHEN` condition. The generated SQL is:\n\n```text\nSELECT \"users_user\".\"id\" FROM \"users_user\" ORDER BY CASE WHEN THEN True ELSE False END ASC\n```\n\nExpected behavior: since `~Q(pk__in=[])` negates an empty membership set, every row matches, so all rows should be annotated `True`. Fix the ORM so that `~Q(pk__in=[])` (an empty negated membership) is handled correctly.\n\nPreserve unrelated ORM and query-building behavior.",
+                                                                                                 "status":  "pending",
+                                                                                                 "intent":  "plan",
+                                                                                                 "summary":  "",
+                                                                                                 "parent_node_id":  null,
+                                                                                                 "assigned_worker_id":  null,
+                                                                                                 "depends_on":  [
+
+                                                                                                                ],
+                                                                                                 "constraints":  {
+                                                                                                                     "objectives":  [
+
+                                                                                                                                    ],
+                                                                                                                     "requirements":  [
+
+                                                                                                                                      ],
+                                                                                                                     "forbidden":  [
+
+                                                                                                                                   ],
+                                                                                                                     "assumptions":  [
+
+                                                                                                                                     ],
+                                                                                                                     "success_criteria":  [
+
+                                                                                                                                          ],
+                                                                                                                     "allowed_tools":  [
+
+                                                                                                                                       ],
+                                                                                                                     "required_tools":  [
+
+                                                                                                                                        ],
+                                                                                                                     "allowed_workers":  [
+
+                                                                                                                                         ],
+                                                                                                                     "required_artifacts":  [
+
+                                                                                                                                            ],
+                                                                                                                     "resource_preferences":  [
+
+                                                                                                                                              ],
+                                                                                                                     "output_schema":  {
+
+                                                                                                                                       },
+                                                                                                                     "state_transition_rules":  {
+
+                                                                                                                                                },
+                                                                                                                     "max_tool_calls":  null,
+                                                                                                                     "max_input_tokens":  null,
+                                                                                                                     "max_output_tokens":  null,
+                                                                                                                     "time_limit_ms":  null,
+                                                                                                                     "message_budget_chars":  2000
+                                                                                                                 },
+                                                                                                 "expected_output_schema":  {
+
+                                                                                                                            },
+                                                                                                 "completion_criteria":  [
+
+                                                                                                                         ],
+                                                                                                 "evidence_refs":  [
+
+                                                                                                                   ],
+                                                                                                 "artifact_refs":  [
+
+                                                                                                                   ],
+                                                                                                 "state_delta":  {
+
+                                                                                                                 },
+                                                                                                 "created_at":  "2026-09-09T13:20:32.010Z",
+                                                                                                 "updated_at":  "2026-09-09T13:20:32.010Z",
+                                                                                                 "metadata":  {
+                                                                                                                  "source":  "initial_user_goal"
+                                                                                                              }
+                                                                                             }
+                                                                   },
+                                                    "artifacts":  [
+
+                                                                  ],
+                                                    "decisions":  [
+
+                                                                  ],
+                                                    "budget":  {
+                                                                   "input_tokens":  0,
+                                                                   "output_tokens":  0,
+                                                                   "tool_calls":  0,
+                                                                   "wall_time_ms":  0,
+                                                                   "cost_usd_estimate":  0.0,
+                                                                   "metadata":  {
+
+                                                                                }
+                                                               },
+                                                    "metadata":  {
+                                                                     "delivery_contract":  {
+                                                                                               "schema":  "zyra.goal-delivery-contract/v2",
+                                                                                               "interaction_kind":  "workspace_change",
+                                                                                               "workspace_mutation_required":  true,
+                                                                                               "verification_required":  true,
+                                                                                               "required_paths":  [
+
+                                                                                                                  ],
+                                                                                               "expected_file_contents":  {
+
+                                                                                                                          },
+                                                                                               "required_skills":  [
+
+                                                                                                                   ],
+                                                                                               "required_executed_paths":  [
+
+                                                                                                                           ],
+                                                                                               "provenance_index_paths":  [
+
+                                                                                                                          ],
+                                                                                               "loopx_required":  false,
+                                                                                               "role_separation_required":  false,
+                                                                                               "mutation_policy":  {
+                                                                                                                       "schema":  "zyra.task-mutation-policy/v1",
+                                                                                                                       "enabled":  false,
+                                                                                                                       "protected_source_roots":  [
+
+                                                                                                                                                  ],
+                                                                                                                       "required_pre_mutation_evidence":  [
+
+                                                                                                                                                          ],
+                                                                                                                       "protect_existing_test_files":  false,
+                                                                                                                       "inherit_across_execution_lineage":  false
+                                                                                                                   },
+                                                                                               "provider_reasoning_required":  true,
+                                                                                               "final_response_required":  true,
+                                                                                               "goal_digest":  "sha256:9353d491c974a92d75b6db6f67250e63f92435850392b1ac0e719a4288402080"
+                                                                                           }
+                                                                 }
+                                                }
+                                   },
+                       "causation_id":  null
+                   },
+                   {
+                       "run_id":  "run_75d4122286fa",
+                       "task_id":  "task_dd71fffc3375",
+                       "event_type":  "node_created",
+                       "event_id":  "event_239f2c800bd4",
+                       "node_id":  "node_5c9692a8fc63",
+                       "created_at":  "2026-09-09T13:20:32.115Z",
+                       "payload":  {
+                                       "node":  {
+                                                    "node_id":  "node_5c9692a8fc63",
+                                                    "title":  "Plan",
+                                                    "description":  "Decompose the user goal into an executable task graph.",
+                                                    "status":  "pending",
+                                                    "intent":  "plan",
+                                                    "summary":  "",
+                                                    "parent_node_id":  "node_2d6788e78dc5",
+                                                    "assigned_worker_id":  null,
+                                                    "depends_on":  [
+                                                                       "node_2d6788e78dc5"
+                                                                   ],
+                                                    "constraints":  {
+                                                                        "objectives":  [
+
+                                                                                       ],
+                                                                        "requirements":  [
+
+                                                                                         ],
+                                                                        "forbidden":  [
+
+                                                                                      ],
+                                                                        "assumptions":  [
+
+                                                                                        ],
+                                                                        "success_criteria":  [
+
+                                                                                             ],
+                                                                        "allowed_tools":  [
+
+                                                                                          ],
+                                                                        "required_tools":  [
+
+                                                                                           ],
+                                                                        "allowed_workers":  [
+
+                                                                                            ],
+                                                                        "required_artifacts":  [
+
+                                                                                               ],
+                                                                        "resource_preferences":  [
+
+                                                                                                 ],
+                                                                        "output_schema":  {
+
+                                                                                          },
+                                                                        "state_transition_rules":  {
+
+                                                                                                   },
+                                                                        "max_tool_calls":  null,
+                                                                        "max_input_tokens":  null,
+                                                                        "max_output_tokens":  null,
+                                                                        "time_limit_ms":  null,
+                                                                        "message_budget_chars":  2000
+                                                                    },
+                                                    "expected_output_schema":  {
+                                                                                   "type":  "object",
+                                                                                   "required":  [
+                                                                                                    "stage_order"
+                                                                                                ]
+                                                                               },
+                                                    "completion_criteria":  [
+                                                                                "Task graph has ordered stage nodes.",
+                                                                                "Each stage is traceable by node_id."
+                                                                            ],
+                                                    "evidence_refs":  [
+
+                                                                      ],
+                                                    "artifact_refs":  [
+
+                                                                      ],
+                                                    "state_delta":  {
+
+                                                                    },
+                                                    "created_at":  "2026-09-09T13:20:32.115Z",
+                                                    "updated_at":  "2026-09-09T13:20:32.115Z",
+                                                    "metadata":  {
+                                                                     "stage":  "plan",
+                                                                     "graph_version":  "m3-symbolic-v1"
+                                                                 }
+                                                }
+                                   },
+                       "causation_id":  null
+                   },
+                   {
+                       "run_id":  "run_75d4122286fa",
+                       "task_id":  "task_dd71fffc3375",
+                       "event_type":  "node_created",
+                       "event_id":  "event_0256dbcdd667",
+                       "node_id":  "node_ffcaf2dcf6e1",
+                       "created_at":  "2026-09-09T13:20:32.116Z",
+                       "payload":  {
+                                       "node":  {
+                                                    "node_id":  "node_ffcaf2dcf6e1",
+                                                    "title":  "Route",
+                                                    "description":  "Select the worker and control route for the executable node.",
+                                                    "status":  "pending",
+                                                    "intent":  "decision",
+                                                    "summary":  "",
+                                                    "parent_node_id":  "node_2d6788e78dc5",
+                                                    "assigned_worker_id":  null,
+                                                    "depends_on":  [
+                                                                       "node_5c9692a8fc63"
+                                                                   ],
+                                                    "constraints":  {
+                                                                        "objectives":  [
+
+                                                                                       ],
+                                                                        "requirements":  [
+
+                                                                                         ],
+                                                                        "forbidden":  [
+
+                                                                                      ],
+                                                                        "assumptions":  [
+
+                                                                                        ],
+                                                                        "success_criteria":  [
+
+                                                                                             ],
+                                                                        "allowed_tools":  [
+
+                                                                                          ],
+                                                                        "required_tools":  [
+
+                                                                                           ],
+                                                                        "allowed_workers":  [
+
+                                                                                            ],
+                                                                        "required_artifacts":  [
+
+                                                                                               ],
+                                                                        "resource_preferences":  [
+
+                                                                                                 ],
+                                                                        "output_schema":  {
+
+                                                                                          },
+                                                                        "state_transition_rules":  {
+
+                                                                                                   },
+                                                                        "max_tool_calls":  null,
+                                                                        "max_input_tokens":  null,
+                                                                        "max_output_tokens":  null,
+                                                                        "time_limit_ms":  null,
+                                                                        "message_budget_chars":  2000
+                                                                    },
+                                                    "expected_output_schema":  {
+                                                                                   "type":  "object",
+                                                                                   "required":  [
+                                                                                                    "selected_worker",
+                                                                                                    "route_candidates"
+                                                                                                ]
+                                                                               },
+                                                    "completion_criteria":  [
+                                                                                "A topology_route event is emitted.",
+                                                                                "A DecisionRecord is appended."
+                                                                            ],
+                                                    "evidence_refs":  [
+
+                                                                      ],
+                                                    "artifact_refs":  [
+
+                                                                      ],
+                                                    "state_delta":  {
+
+                                                                    },
+                                                    "created_at":  "2026-09-09T13:20:32.116Z",
+                                                    "updated_at":  "2026-09-09T13:20:32.116Z",
+                                                    "metadata":  {
+                                                                     "stage":  "route",
+                                                                     "graph_version":  "m3-symbolic-v1"
+                                                                 }
+                                                }
+                                   },
+                       "causation_id":  null
+                   },
+                   {
+                       "run_id":  "run_75d4122286fa",
+                       "task_id":  "task_dd71fffc3375",
+                       "event_type":  "node_created",
+                       "event_id":  "event_a06ab861ec0a",
+                       "node_id":  "node_91cf96bc915b",
+                       "created_at":  "2026-09-09T13:20:32.116Z",
+                       "payload":  {
+                                       "node":  {
+                                                    "node_id":  "node_91cf96bc915b",
+                                                    "title":  "Execute",
+                                                    "description":  "Run the current node through the selected worker runtime.",
+                                                    "status":  "pending",
+                                                    "intent":  "tool_call",
+                                                    "summary":  "",
+                                                    "parent_node_id":  "node_2d6788e78dc5",
+                                                    "assigned_worker_id":  null,
+                                                    "depends_on":  [
+                                                                       "node_ffcaf2dcf6e1"
+                                                                   ],
+                                                    "constraints":  {
+                                                                        "objectives":  [
+
+                                                                                       ],
+                                                                        "requirements":  [
+
+                                                                                         ],
+                                                                        "forbidden":  [
+
+                                                                                      ],
+                                                                        "assumptions":  [
+
+                                                                                        ],
+                                                                        "success_criteria":  [
+
+                                                                                             ],
+                                                                        "allowed_tools":  [
+
+                                                                                          ],
+                                                                        "required_tools":  [
+
+                                                                                           ],
+                                                                        "allowed_workers":  [
+
+                                                                                            ],
+                                                                        "required_artifacts":  [
+
+                                                                                               ],
+                                                                        "resource_preferences":  [
+
+                                                                                                 ],
+                                                                        "output_schema":  {
+
+                                                                                          },
+                                                                        "state_transition_rules":  {
+
+                                                                                                   },
+                                                                        "max_tool_calls":  null,
+                                                                        "max_input_tokens":  null,
+                                                                        "max_output_tokens":  null,
+                                                                        "time_limit_ms":  null,
+                                                                        "message_budget_chars":  2000
+                                                                    },
+                                                    "expected_output_schema":  {
+                                                                                   "type":  "object",
+                                                                                   "required":  [
+                                                                                                    "worker_result"
+                                                                                                ]
+                                                                               },
+                                                    "completion_criteria":  [
+                                                                                "Worker runtime returns trace events.",
+                                                                                "Artifacts or tool results are preserved."
+                                                                            ],
+                                                    "evidence_refs":  [
+
+                                                                      ],
+                                                    "artifact_refs":  [
+
+                                                                      ],
+                                                    "state_delta":  {
+
+                                                                    },
+                                                    "created_at":  "2026-09-09T13:20:32.116Z",
+                                                    "updated_at":  "2026-09-09T13:20:32.116Z",
+                                                    "metadata":  {
+                                                                     "stage":  "execute",
+                                                                     "graph_version":  "m3-symbolic-v1"
+                                                                 }
+                                                }
+                                   },
+                       "causation_id":  null
+                   },
+                   {
+                       "run_id":  "run_75d4122286fa",
+                       "task_id":  "task_dd71fffc3375",
+                       "event_type":  "node_created",
+                       "event_id":  "event_8147336eb87c",
+                       "node_id":  "node_08d6cbf55620",
+                       "created_at":  "2026-09-09T13:20:32.116Z",
+                       "payload":  {
+                                       "node":  {
+                                                    "node_id":  "node_08d6cbf55620",
+                                                    "title":  "Verify",
+                                                    "description":  "Check node outputs, event coverage, and checkpoint readiness.",
+                                                    "status":  "pending",
+                                                    "intent":  "critique",
+                                                    "summary":  "",
+                                                    "parent_node_id":  "node_2d6788e78dc5",
+                                                    "assigned_worker_id":  null,
+                                                    "depends_on":  [
+                                                                       "node_91cf96bc915b"
+                                                                   ],
+                                                    "constraints":  {
+                                                                        "objectives":  [
+
+                                                                                       ],
+                                                                        "requirements":  [
+
+                                                                                         ],
+                                                                        "forbidden":  [
+
+                                                                                      ],
+                                                                        "assumptions":  [
+
+                                                                                        ],
+                                                                        "success_criteria":  [
+
+                                                                                             ],
+                                                                        "allowed_tools":  [
+
+                                                                                          ],
+                                                                        "required_tools":  [
+
+                                                                                           ],
+                                                                        "allowed_workers":  [
+
+                                                                                            ],
+                                                                        "required_artifacts":  [
+
+                                                                                               ],
+                                                                        "resource_preferences":  [
+
+                                                                                                 ],
+                                                                        "output_schema":  {
+
+                                                                                          },
+                                                                        "state_transition_rules":  {
+
+                                                                                                   },
+                                                                        "max_tool_calls":  null,
+                                                                        "max_input_tokens":  null,
+                                                                        "max_output_tokens":  null,
+                                                                        "time_limit_ms":  null,
+                                                                        "message_budget_chars":  2000
+                                                                    },
+                                                    "expected_output_schema":  {
+                                                                                   "type":  "object",
+                                                                                   "required":  [
+                                                                                                    "constraint_results"
+                                                                                                ]
+                                                                               },
+                                                    "completion_criteria":  [
+                                                                                "ConstraintKeeper emits a constraint_check event."
+                                                                            ],
+                                                    "evidence_refs":  [
+
+                                                                      ],
+                                                    "artifact_refs":  [
+
+                                                                      ],
+                                                    "state_delta":  {
+
+                                                                    },
+                                                    "created_at":  "2026-09-09T13:20:32.116Z",
+                                                    "updated_at":  "2026-09-09T13:20:32.116Z",
+                                                    "metadata":  {
+                                                                     "stage":  "verify",
+                                                                     "graph_version":  "m3-symbolic-v1"
+                                                                 }
+                                                }
+                                   },
+                       "causation_id":  null
+                   },
+                   {
+                       "run_id":  "run_75d4122286fa",
+                       "task_id":  "task_dd71fffc3375",
+                       "event_type":  "node_created",
+                       "event_id":  "event_b0117217aa1f",
+                       "node_id":  "node_054c2d7ff0ca",
+                       "created_at":  "2026-09-09T13:20:32.116Z",
+                       "payload":  {
+                                       "node":  {
+                                                    "node_id":  "node_054c2d7ff0ca",
+                                                    "title":  "Finalize",
+                                                    "description":  "Finalize the trace and mark the task ready for inspection.",
+                                                    "status":  "pending",
+                                                    "intent":  "status",
+                                                    "summary":  "",
+                                                    "parent_node_id":  "node_2d6788e78dc5",
+                                                    "assigned_worker_id":  null,
+                                                    "depends_on":  [
+                                                                       "node_08d6cbf55620"
+                                                                   ],
+                                                    "constraints":  {
+                                                                        "objectives":  [
+
+                                                                                       ],
+                                                                        "requirements":  [
+
+                                                                                         ],
+                                                                        "forbidden":  [
+
+                                                                                      ],
+                                                                        "assumptions":  [
+
+                                                                                        ],
+                                                                        "success_criteria":  [
+
+                                                                                             ],
+                                                                        "allowed_tools":  [
+
+                                                                                          ],
+                                                                        "required_tools":  [
+
+                                                                                           ],
+                                                                        "allowed_workers":  [
+
+                                                                                            ],
+                                                                        "required_artifacts":  [
+
+                                                                                               ],
+                                                                        "resource_preferences":  [
+
+                                                                                                 ],
+                                                                        "output_schema":  {
+
+                                                                                          },
+                                                                        "state_transition_rules":  {
+
+                                                                                                   },
+                                                                        "max_tool_calls":  null,
+                                                                        "max_input_tokens":  null,
+                                                                        "max_output_tokens":  null,
+                                                                        "time_limit_ms":  null,
+                                                                        "message_budget_chars":  2000
+                                                                    },
+                                                    "expected_output_schema":  {
+                                                                                   "type":  "object",
+                                                                                   "required":  [
+                                                                                                    "status"
+                                                                                                ]
+                                                                               },
+                                                    "completion_criteria":  [
+                                                                                "Task trace is ready for inspection."
+                                                                            ],
+                                                    "evidence_refs":  [
+
+                                                                      ],
+                                                    "artifact_refs":  [
+
+                                                                      ],
+                                                    "state_delta":  {
+
+                                                                    },
+                                                    "created_at":  "2026-09-09T13:20:32.116Z",
+                                                    "updated_at":  "2026-09-09T13:20:32.116Z",
+                                                    "metadata":  {
+                                                                     "stage":  "finalize",
+                                                                     "graph_version":  "m3-symbolic-v1"
+                                                                 }
+                                                }
+                                   },
+                       "causation_id":  null
+                   },
+                   {
+                       "run_id":  "run_75d4122286fa",
+                       "task_id":  "task_dd71fffc3375",
+                       "event_type":  "system_notice",
+                       "event_id":  "event_ddeb4017ca59",
+                       "node_id":  null,
+                       "created_at":  "2026-09-09T13:20:32.055Z",
+                       "payload":  {
+                                       "workspace_event":  {
+                                                               "event_type":  "workspace.creating",
+                                                               "workspace_id":  "ws_b4368ce0114cf03fcdf686b8",
+                                                               "run_id":  "run_75d4122286fa",
+                                                               "task_id":  "task_dd71fffc3375",
+                                                               "session_id":  "task:task_dd71fffc3375",
+                                                               "backend_id":  "local-default",
+                                                               "lifecycle_state":  "creating",
+                                                               "owner_epoch":  1,
+                                                               "binding_revision":  2,
+                                                               "causation_id":  "event_4556f112167f",
+                                                               "receipt":  {
+
+                                                                           },
+                                                               "metadata":  {
+
+                                                                            },
+                                                               "physical_location_redacted":  true
+                                                           }
+                                   },
+                       "causation_id":  null
+                   },
+                   {
+                       "run_id":  "run_75d4122286fa",
+                       "task_id":  "task_dd71fffc3375",
+                       "event_type":  "system_notice",
+                       "event_id":  "event_164c801987fd",
+                       "node_id":  null,
+                       "created_at":  "2026-09-09T13:20:32.094Z",
+                       "payload":  {
+                                       "workspace_event":  {
+                                                               "event_type":  "workspace.ready",
+                                                               "workspace_id":  "ws_b4368ce0114cf03fcdf686b8",
+                                                               "run_id":  "run_75d4122286fa",
+                                                               "task_id":  "task_dd71fffc3375",
+                                                               "session_id":  "task:task_dd71fffc3375",
+                                                               "backend_id":  "local-default",
+                                                               "lifecycle_state":  "ready",
+                                                               "owner_epoch":  1,
+                                                               "binding_revision":  3,
+                                                               "causation_id":  "event_4556f112167f",
+                                                               "receipt":  {
+
+                                                                           },
+                                                               "metadata":  {
+
+                                                                            },
+                                                               "physical_location_redacted":  true
+                                                           }
+                                   },
+                       "causation_id":  null
+                   },
+                   {
+                       "run_id":  "run_75d4122286fa",
+                       "task_id":  "task_dd71fffc3375",
+                       "event_type":  "system_notice",
+                       "event_id":  "event_30ff4245075a",
+                       "node_id":  null,
+                       "created_at":  "2026-09-09T13:20:32.114Z",
+                       "payload":  {
+                                       "workspace_event":  {
+                                                               "event_type":  "workspace.opened",
+                                                               "workspace_id":  "ws_b4368ce0114cf03fcdf686b8",
+                                                               "run_id":  "run_75d4122286fa",
+                                                               "task_id":  "task_dd71fffc3375",
+                                                               "session_id":  "task:task_dd71fffc3375",
+                                                               "backend_id":  "local-default",
+                                                               "lifecycle_state":  "open",
+                                                               "owner_epoch":  1,
+                                                               "binding_revision":  4,
+                                                               "causation_id":  "event_4556f112167f",
+                                                               "receipt":  {
+                                                                               "receipt_id":  "receipt_191d3b5b88df757e161a6b0e",
+                                                                               "workspace_id":  "ws_b4368ce0114cf03fcdf686b8",
+                                                                               "operation":  "create",
+                                                                               "ok":  true,
+                                                                               "owner_epoch":  1,
+                                                                               "binding_revision":  4,
+                                                                               "lease_id":  "lease_b925630f96bf3710641cccbf",
+                                                                               "started_at":  "2026-09-09T13:20:32.027089+00:00",
+                                                                               "completed_at":  "2026-09-09T13:20:32.105829+00:00",
+                                                                               "causation_id":  "event_4556f112167f",
+                                                                               "idempotency_key":  "task-create:task_dd71fffc3375",
+                                                                               "snapshot_id":  "",
+                                                                               "paths":  [
+
+                                                                                         ],
+                                                                               "bytes_changed":  0,
+                                                                               "state_before":  "requested",
+                                                                               "state_after":  "open",
+                                                                               "error_code":  "",
+                                                                               "message":  "workspace created and passed ready barrier",
+                                                                               "metadata":  {
+                                                                                                "mount_count":  4,
+                                                                                                "ready_barrier":  true,
+                                                                                                "state_owner":  "WorkspaceManagerRuntime"
+                                                                                            }
+                                                                           },
+                                                               "metadata":  {
+
+                                                                            },
+                                                               "physical_location_redacted":  true
+                                                           }
+                                   },
+                       "causation_id":  null
+                   },
+                   {
+                       "run_id":  "run_75d4122286fa",
+                       "task_id":  "task_dd71fffc3375",
+                       "event_type":  "system_notice",
+                       "event_id":  "event_f717f3811b55",
+                       "node_id":  null,
+                       "created_at":  "2026-09-09T13:20:32.433Z",
+                       "payload":  {
+                                       "worker_pool_operation":  "attempt_created",
+                                       "aggregate_type":  "task_attempt",
+                                       "aggregate_id":  "attempt_99e0ad8373774513a9d5c315b3ced45c",
+                                       "journal_sequence":  7,
+                                       "physical_state_owner":  "WorkerPoolStore",
+                                       "causation_id":  "",
+                                       "correlation_id":  "",
+                                       "attempt_number":  1,
+                                       "parent_attempt_id":  "",
+                                       "recovery_reason":  ""
+                                   },
+                       "causation_id":  null
+                   },
+                   {
+                       "run_id":  "run_75d4122286fa",
+                       "task_id":  "task_dd71fffc3375",
+                       "event_type":  "resource_decision",
+                       "event_id":  "event_9de92bba751d",
+                       "node_id":  null,
+                       "created_at":  "2026-09-09T13:20:32.433Z",
+                       "payload":  {
+                                       "worker_pool_operation":  "lease_acquired",
+                                       "aggregate_type":  "worker_lease",
+                                       "aggregate_id":  "lease_a8904379f84143c8baa68fd9767616c7",
+                                       "journal_sequence":  8,
+                                       "physical_state_owner":  "WorkerPoolStore",
+                                       "causation_id":  "",
+                                       "correlation_id":  "",
+                                       "attempt_id":  "attempt_99e0ad8373774513a9d5c315b3ced45c",
+                                       "backend_id":  "local-sandbox-gateway",
+                                       "deadline_at":  "2026-09-09T14:20:32.347Z",
+                                       "fence_epoch":  1,
+                                       "owner_session_id":  "task:task_dd71fffc3375",
+                                       "resources":  {
+                                                         "browser_slots":  0,
+                                                         "cpu_cores":  0.0,
+                                                         "custom":  {
+
+                                                                    },
+                                                         "disk_mb":  0,
+                                                         "gpu_units":  0.0,
+                                                         "memory_mb":  64,
+                                                         "network_mbps":  0.0,
+                                                         "process_slots":  1
+                                                     },
+                                       "worker_id":  "local-code-worker"
+                                   },
+                       "causation_id":  null
+                   },
+                   {
+                       "run_id":  "run_75d4122286fa",
+                       "task_id":  "task_dd71fffc3375",
+                       "event_type":  "system_notice",
+                       "event_id":  "event_6425193ca345",
+                       "node_id":  null,
+                       "created_at":  "2026-09-09T13:20:32.433Z",
+                       "payload":  {
+                                       "worker_pool_operation":  "attempt_leased",
+                                       "aggregate_type":  "task_attempt",
+                                       "aggregate_id":  "attempt_99e0ad8373774513a9d5c315b3ced45c",
+                                       "journal_sequence":  9,
+                                       "physical_state_owner":  "WorkerPoolStore",
+                                       "causation_id":  "",
+                                       "correlation_id":  "",
+                                       "attempt_number":  1,
+                                       "lease_id":  "lease_a8904379f84143c8baa68fd9767616c7",
+                                       "worker_id":  "local-code-worker"
+                                   },
+                       "causation_id":  null
+                   }
+               ],
+    "memory_curator":  null
+}

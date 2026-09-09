@@ -1,0 +1,54 @@
+{
+  "schema": "zyra.experiment-run-summary/v1",
+  "instance_id": "django__django-15930",
+  "system": "ZYRA",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "invalidation_reason": "",
+  "task_id": "task_dd71fffc3375",
+  "run_id": "run_75d4122286fa",
+  "task_status": "failed",
+  "started_at": "2026-09-09T13:20:22.6132486Z",
+  "ended_at": "2026-09-09T14:06:22.2340918Z",
+  "elapsed_seconds": 2759.621,
+  "budget": {
+    "max_total_tokens": 600000,
+    "max_turns": 80,
+    "deadline_minutes": 45
+  },
+  "usage": {
+    "input_tokens": 392415,
+    "output_tokens": 60960,
+    "total_tokens": 453375,
+    "cache_read_input_tokens": 305536,
+    "cache_creation_input_tokens": 0,
+    "cost_usd": 0.03008736,
+    "provider_calls": 33,
+    "tool_calls": 32,
+    "context_compactions": 0
+  },
+  "workspace_deltas": [
+    {
+      "schema": "zyra.physical-workspace-delta/v1",
+      "before_manifest_digest": "sha256:6a326d4ac3df20045797115eb2b2f3388499c6a88d9db42cb8e6d84ee6ef93c9",
+      "after_manifest_digest": "sha256:5bc2d7316628fa5ed9a483ff258ce88f57f384fde63ead5a8e8e28918b9fa5da",
+      "created": [
+        "repro_case_q.py"
+      ],
+      "modified": [],
+      "deleted": [],
+      "changed": [
+        "repro_case_q.py"
+      ]
+    }
+  ],
+  "evidence_integrity": {
+    "task_run_present": true,
+    "canonical_task_record_observed": true,
+    "terminal_state_observed": true,
+    "run_transport_ok": false,
+    "run_transport_error": "{\n  \"schema\": \"zyra.task-execution-http-error/v1\",\n  \"error\": \"task_execution_failed\",\n  \"message\": \"worker.code-worker.typescript-provider-tool-loop preserved an incomplete physical layer 1 for recovery.\",\n  \"task_id\": \"task_dd71fffc3375\",\n  \"run_id\": \"run_75d4122286fa\",\n  \"task_status\": \"failed\",\n  \"execution_error\": {\n    \"schema\": \"zyra.task-execution-error/v1\",\n    \"error\": \"RuntimeError\",\n    \"message\": \"worker.code-worker.typescript-provider-tool-loop preserved an incomplete physical layer 1 for recovery.\",\n    \"retryable\": false,\n    \"fallback\": false\n  },\n  \"event_count\": 725,\n  \"event_refs\": [\n    {\n      \"event_id\": \"event_dfd21ba29df3\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_e28e8b2ea8ef\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_9e357f827f67\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_29937b21c645\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_7d8c083787f3\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_29554cc6dbf5\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_e19e39a4fc7b\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_1919701cb2d6\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_5ba441b6b3a8\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_04cf92d0fad2\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_b3f0316dcef2\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_1d961478062b\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_870c036871d1\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_d432da00fc08\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_0805fe23c64a\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_ce1f37223d12\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_66596d029e90\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_29d21041b498\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_0619b6ce67f9\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_87ad2bbecc16\",\n      \"event_type\": \"artifact_written\"\n    },\n    {\n      \"event_id\": \"event_6398b77c228c\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_d33a0687dd92\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_3728522eb7ac\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_7086ddc648dc\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_af34e365a3a5\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_4c4f06e98906\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_83d011b3945f\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_f8e1a483ede6\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_c75511b6173c\",\n      \"event_type\": \"resource_decision\"\n    },\n    {\n      \"event_id\": \"event_a5d542768df9\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_7a76daf76646\",\n      \"event_type\": \"system_notice\"\n    },\n    {\n      \"event_id\": \"event_f2bda2646699\",\n      \"event_type\": \"artifact_written\"\n    }\n  ],\n  \"task_ref\": \"/tasks/task_dd71fffc3375\",\n  \"event_stream_ref\": \"/tasks/task_dd71fffc3375/events\",\n  \"retryable\": false,\n  \"fallback\": false,\n  \"terminal_reconciliation\": {},\n  \"memory_curator\": {\n    \"operation\": \"schedule_task_end\",\n    \"status\": \"scheduled\",\n    \"scheduled\": {\n      \"request\": {\n        \"protocol\": \"zyra.memory-curator.v1\",\n        \"request_id\": \"curator_request_430c67230f8169ef319151b4\",\n        \"run_id\": \"run_75d4122286fa\",\n        \"task_id\": \"task_dd71fffc3375\",\n        \"trigger\": \"task_end\",\n        \"requested_by\": \"task-lifecycle\",\n        \"input_watermark\": 802,\n        \"evidence_start\": 0,\n        \"evidence_end\": null,\n        \"allow_model_assist\": true,\n        \"max_candidates\": 64,\n        \"lease_seconds\": 30.0,\n        \"idempotency_key\": \"curator-task-end:task_dd71fffc3375:802:2026-09-09T14:04:53.069Z\",\n        \"created_at\": \"2026-09-09T14:06:18.972Z\",\n        \"metadata\": {\n          \"task_status\": \"failed\",\n          \"task_updated_at\": \"2026-09-09T14:04:53.069Z\",\n          \"event_count_at_schedule\": 802,\n          \"automatic\": true\n        }\n      },\n      \"job\": {\n        \"job_id\": \"curator_job_c5cf11154db810f5e7b3bf51\",\n        \"request\": {\n          \"protocol\": \"zyra.memory-curator.v1\",\n          \"request_id\": \"curator_request_430c67230f8169ef319151b4\",\n          \"run_id\": \"run_75d4122286fa\",\n          \"task_id\": \"task_dd71fffc3375\",\n          \"trigger\": \"task_end\",\n          \"requested_by\": \"task-lifecycle\",\n          \"input_watermark\": 802,\n          \"evidence_start\": 0,\n          \"evidence_end\": null,\n          \"allow_model_assist\": true,\n          \"max_candidates\": 64,\n          \"lease_seconds\": 30.0,\n          \"idempotency_key\": \"curator-task-end:task_dd71fffc3375:802:2026-09-09T14:04:53.069Z\",\n          \"created_at\": \"2026-09-09T14:06:18.972Z\",\n          \"metadata\": {\n            \"automatic\": true,\n            \"event_count_at_schedule\": 802,\n            \"task_status\": \"failed\",\n            \"task_updated_at\": \"2026-09-09T14:04:53.069Z\"\n          }\n        },\n        \"state\": \"queued\",\n        \"input_watermark\": 802,\n        \"last_success_watermark\": 0,\n        \"lease_owner\": \"\",\n        \"ownership_token\": \"\",\n        \"lease_epoch\": 0,\n        \"lease_expires_at\": null,\n        \"attempt\": 0,\n        \"retry_remaining\": 3,\n        \"retry_at\": null,\n        \"error_code\": \"\",\n        \"error_message\": \"\",\n        \"created_at\": 1788962778.9725225,\n        \"updated_at\": 1788962778.9725225,\n        \"started_at\": null,\n        \"finished_at\": null,\n        \"candidate_count\": 0,\n        \"committed_count\": 0,\n        \"dirty\": true,\n        \"terminal\": false\n      },\n      \"created\": true,\n      \"event_id\": \"event_7ac7d3416564f108838a1b12\"\n    },\n    \"result\": null,\n    \"data\": {},\n    \"integration\": null\n  }\n}"
+  },
+  "official_evaluator": null,
+  "strict_success": false
+}
