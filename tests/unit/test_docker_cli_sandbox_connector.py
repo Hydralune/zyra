@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import subprocess
 import shutil
 import sys
@@ -203,6 +204,96 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 result.metadata["workspace_state_after_digest"],
             )
 
+    def test_delivery_driving_benchmark_shell_refreshes_container_mirror_without_host_mount(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            data_root = root / "data"
+            workspace = data_root / "task-1"
+            sync_root = root / "sync"
+            workspace.mkdir(parents=True)
+            sync_root.mkdir()
+            target = workspace / "tracked.txt"
+            target.write_text("before", encoding="utf-8")
+            binding = {
+                "container": "task-main-1",
+                "container_ref_digest": "digest",
+                "workdir": "/app",
+                "docker_executable": "docker-test",
+                "workspace_data_root": data_root,
+                "sync_root": sync_root,
+            }
+            mirror = code_worker_adapter._BenchmarkWorkspaceMirror(
+                binding,
+                workspace,
+                synced_manifest=code_worker_adapter._workspace_manifest(workspace),
+            )
+            connector = code_worker_adapter._BenchmarkDockerCliSandboxConnector(
+                container="task-main-1",
+                workdir="/app",
+                docker_executable="docker-test",
+                benchmark_mirror=mirror,
+            )
+            envelope = GatewayCommandEnvelope.build(
+                session_id="session-1",
+                run_id="run-1",
+                task_id="task-1",
+                worker_id="worker-1",
+                executable="python",
+                argv=("-c", "write"),
+                metadata={"progressive_delivery_driving_shell": True},
+            )
+            session = BackendSession(
+                session_id="session-1",
+                backend_id=connector.backend_id,
+                execution_root=root,
+                generation=1,
+                prepared_at=0.0,
+            )
+
+            def fake_execute(*_args, **_kwargs):
+                return ProcessResult(
+                    command_id=envelope.command_id,
+                    termination=ProcessTermination.EXITED,
+                    return_code=0,
+                    started_at=1.0,
+                    finished_at=2.0,
+                    output=ProcessOutput(stdout=b"changed"),
+                    backend_id=connector.backend_id,
+                    metadata={"connector": "docker-cli"},
+                )
+
+            def fake_pull(*_args, **_kwargs):
+                target.write_text("after", encoding="utf-8")
+
+            with (
+                patch.object(
+                    code_worker_adapter,
+                    "_push_benchmark_workspace_delta",
+                    return_value={
+                        "written_count": 0,
+                        "deleted_count": 0,
+                        "written_path_digests": [],
+                        "deleted_path_digests": [],
+                    },
+                ),
+                patch.object(
+                    code_worker_adapter,
+                    "_pull_benchmark_workspace",
+                    side_effect=fake_pull,
+                ),
+                patch.object(
+                    DockerCliSandboxConnector,
+                    "execute",
+                    side_effect=fake_execute,
+                ),
+            ):
+                result = connector.execute(session, envelope, CancellationToken())
+
+            self.assertTrue(result.metadata["workspace_mutation_committed"])
+            self.assertEqual(result.metadata["workspace_state_source"], "managed-mirror")
+
     def test_worker_failure_with_workspace_effects_requires_verification(self) -> None:
         self.assertEqual(
             code_worker_adapter._workspace_execution_outcome(
@@ -217,6 +308,48 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 workspace_delta={"created": [], "modified": [], "deleted": []},
             ),
             ("failed", False),
+        )
+
+    def test_benchmark_closeout_requires_source_test_and_pytest_receipt(self) -> None:
+        evidence = {
+            "obligation_evidence": {
+                "verification_command_receipts": [
+                    {
+                        "status": "passed",
+                        "command": "python -m pytest tests/test_blueprints.py -q",
+                    }
+                ]
+            }
+        }
+        self.assertTrue(
+            code_worker_adapter._benchmark_delivery_evidence_satisfied(
+                evidence,
+                {
+                    "created": [],
+                    "modified": [
+                        "src/flask/blueprints.py",
+                        "tests/test_blueprints.py",
+                    ],
+                },
+            )
+        )
+        self.assertFalse(
+            code_worker_adapter._benchmark_delivery_evidence_satisfied(
+                evidence,
+                {"created": [], "modified": ["src/flask/blueprints.py"]},
+            )
+        )
+        self.assertFalse(
+            code_worker_adapter._benchmark_delivery_evidence_satisfied(
+                {"obligation_evidence": {"verification_command_receipts": []}},
+                {
+                    "created": [],
+                    "modified": [
+                        "src/flask/blueprints.py",
+                        "tests/test_blueprints.py",
+                    ],
+                },
+            )
         )
 
     def test_delivery_completion_gate_blocks_partial_workspace(self) -> None:
@@ -390,7 +523,13 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
         )
         self.assertEqual(
             code_worker_adapter._benchmark_runtime_constraints({}),
-            {"benchmark_physical_dispatch": True},
+            {
+                "benchmark_physical_dispatch": True,
+                "query_context_budget_chars": 96_000,
+                "pre_delivery_observation_nudge_after": 2,
+                "pre_delivery_inspection_block_after_nudges": 2,
+                "targeted_repair_inspection_limit": 4,
+            },
         )
 
     def test_benchmark_network_grant_is_scoped_to_container_loopback(self) -> None:
@@ -416,6 +555,18 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 {"query_context_budget_chars": 720_000}
             ),
             720_000,
+        )
+        self.assertEqual(
+            code_worker_adapter._benchmark_runtime_constraints(
+                {"query_context_budget_chars": 64_000}
+            )["query_context_budget_chars"],
+            64_000,
+        )
+        self.assertEqual(
+            code_worker_adapter._benchmark_runtime_constraints(
+                {"query_context_budget_chars": 720_000}
+            )["query_context_budget_chars"],
+            96_000,
         )
 
     def test_explicit_long_horizon_budget_uses_the_authoritative_deadline(self) -> None:
@@ -444,6 +595,10 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             code_worker_adapter._benchmark_runtime_constraints(context),
             {
                 "benchmark_physical_dispatch": True,
+                "query_context_budget_chars": 96_000,
+                "pre_delivery_observation_nudge_after": 2,
+                "pre_delivery_inspection_block_after_nudges": 2,
+                "targeted_repair_inspection_limit": 4,
                 "benchmark_long_horizon": True,
                 "model_api_timeout_seconds": 300.0,
                 "model_api_timeout_milliseconds": 300_000,
@@ -989,9 +1144,14 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
 
             def fake_docker(_binding, argv, **_kwargs):
                 calls.append(argv)
-                if argv[0] == "cp":
-                    Path(argv[-1]).write_text("current", encoding="utf-8")
-                return subprocess.CompletedProcess(argv, 0, b"", b"")
+                payload = io.BytesIO()
+                if "tar" in argv:
+                    with tarfile.open(fileobj=payload, mode="w") as archive:
+                        info = tarfile.TarInfo("services/api.py")
+                        content = b"current"
+                        info.size = len(content)
+                        archive.addfile(info, io.BytesIO(content))
+                return subprocess.CompletedProcess(argv, 0, payload.getvalue(), b"")
 
             with patch.object(
                 code_worker_adapter,
@@ -1009,8 +1169,8 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 "current",
             )
             self.assertEqual(len(calls), 2)
-            self.assertEqual(calls[1][0], "cp")
-            self.assertEqual(calls[1][1], "task-main-1:/app/services/api.py")
+            self.assertEqual(calls[1][:3], ("exec", "task-main-1", "tar"))
+            self.assertEqual(calls[1][-1], "services/api.py")
 
     def test_targeted_pull_preserves_identity_when_container_bytes_are_unchanged(
         self,
@@ -1035,9 +1195,14 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             }
 
             def fake_docker(_binding, argv, **_kwargs):
-                if argv[0] == "cp":
-                    Path(argv[-1]).write_text("unchanged", encoding="utf-8")
-                return subprocess.CompletedProcess(argv, 0, b"", b"")
+                payload = io.BytesIO()
+                if "tar" in argv:
+                    with tarfile.open(fileobj=payload, mode="w") as archive:
+                        info = tarfile.TarInfo("services/api.py")
+                        content = b"unchanged"
+                        info.size = len(content)
+                        archive.addfile(info, io.BytesIO(content))
+                return subprocess.CompletedProcess(argv, 0, payload.getvalue(), b"")
 
             with patch.object(
                 code_worker_adapter,
@@ -1115,10 +1280,10 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 "workspace_data_root": data_root,
                 "sync_root": sync_root,
             }
-            calls: list[tuple[str, ...]] = []
+            calls: list[tuple[tuple[str, ...], dict[str, object]]] = []
 
-            def record_docker(_binding, argv, **_kwargs):
-                calls.append(argv)
+            def record_docker(_binding, argv, **kwargs):
+                calls.append((argv, kwargs))
                 return subprocess.CompletedProcess(argv, 0, b"", b"")
 
             with patch.object(
@@ -1136,16 +1301,18 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             self.assertEqual(report["deleted_count"], 1)
             self.assertIn(
                 ("exec", "task-main-1", "rm", "-f", "--", "/app/deleted.txt"),
-                calls,
+                [call for call, _kwargs in calls],
             )
-            copied_destinations = {
-                call[-1] for call in calls if call and call[0] == "cp"
+            streamed_destinations = {
+                call[-1]: kwargs.get("input_bytes")
+                for call, kwargs in calls
+                if call[:2] == ("exec", "-i")
             }
             self.assertEqual(
-                copied_destinations,
+                streamed_destinations,
                 {
-                    "task-main-1:/app/changed.txt",
-                    "task-main-1:/app/created.txt",
+                    "/app/changed.txt": b"new",
+                    "/app/created.txt": b"created",
                 },
             )
 
