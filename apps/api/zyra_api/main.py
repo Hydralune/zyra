@@ -7618,6 +7618,7 @@ def _production_physical_dispatch_port(
             "provider_constraints": provider_constraints,
             "model_id": route_ref.model_id,
             "max_turns": reasoning_max_turns,
+            "maximum_total_tokens": _maximum_total_tokens_from_environment(),
             "query_context_budget_chars": (
                 TYPESCRIPT_AGENT_QUERY_CONTEXT_BUDGET_CHARS
             ),
@@ -7828,8 +7829,19 @@ def _configured_model_output_tokens(
     }
 
 
-def _reasoning_budget_from_environment() -> tuple[None, float | None, int, bool]:
-    """Use an outer deadline when present; otherwise keep the agent open."""
+def _reasoning_budget_from_environment() -> tuple[int | None, float | None, int, bool]:
+    """Read only explicitly configured reasoning limits from the environment."""
+
+    raw_max_turns = str(os.environ.get("ZYRA_REASONING_MAX_TURNS") or "").strip()
+    if raw_max_turns:
+        try:
+            max_turns = int(raw_max_turns)
+        except ValueError as error:
+            raise RuntimeError("ZYRA_REASONING_MAX_TURNS must be an integer") from error
+        if not 1 <= max_turns <= 200:
+            raise RuntimeError("ZYRA_REASONING_MAX_TURNS must be between 1 and 200")
+    else:
+        max_turns = None
 
     benchmark_bound = bool(
         str(os.environ.get("ZYRA_BENCHMARK_DOCKER_CONTAINER") or "").strip()
@@ -7840,7 +7852,7 @@ def _reasoning_budget_from_environment() -> tuple[None, float | None, int, bool]
     ).strip().casefold() in {"1", "true", "yes"}
     deadline = _external_deadline_epoch_ms()
     if deadline is None:
-        return (None, None, 0, long_horizon)
+        return (max_turns, None, 0, long_horizon)
     transport_remaining_ms = (
         deadline - int(time.time() * 1000) - _BENCHMARK_CLOSEOUT_RESERVE_MS
     )
@@ -7852,11 +7864,25 @@ def _reasoning_budget_from_environment() -> tuple[None, float | None, int, bool]
         transport_remaining_ms - _PHYSICAL_DISPATCH_RECEIPT_RESERVE_MS
     )
     return (
-        None,
+        max_turns,
         runtime_remaining_ms / 1000.0,
         transport_remaining_ms,
         long_horizon,
     )
+
+
+def _maximum_total_tokens_from_environment() -> int | None:
+    """Return an opt-in whole-session provider-token ceiling."""
+    raw = str(os.environ.get("ZYRA_MAX_TOTAL_TOKENS") or "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise RuntimeError("ZYRA_MAX_TOTAL_TOKENS must be an integer") from error
+    if not 1_000 <= value <= 10_000_000:
+        raise RuntimeError("ZYRA_MAX_TOTAL_TOKENS must be between 1000 and 10000000")
+    return value
 
 # Permission freshness is independent from the agent lifetime. This window
 # remains long enough for ordinary multi-layer work without becoming a hidden

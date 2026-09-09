@@ -34,9 +34,16 @@ const runtimeKind = typeof globalThis === "object"
   ? "bun"
   : "node";
 
+// Keep runtime-specific module names out of static import analysis.  Bun
+// versions that predate node:sqlite compatibility otherwise reject the
+// Node-only branch before the runtimeKind guard can select bun:sqlite.
+const sqliteModuleSpecifier = runtimeKind === "bun"
+  ? ["bun", "sqlite"].join(":")
+  : ["node", "sqlite"].join(":");
+const sqliteModule = await import(sqliteModuleSpecifier);
 const runtimeConstructor: NodeDatabaseConstructor | BunDatabaseConstructor = runtimeKind === "bun"
-  ? (await import("bun:sqlite")).Database as unknown as BunDatabaseConstructor
-  : (await import("node:sqlite")).DatabaseSync as unknown as NodeDatabaseConstructor;
+  ? sqliteModule.Database as unknown as BunDatabaseConstructor
+  : sqliteModule.DatabaseSync as unknown as NodeDatabaseConstructor;
 
 export type SqliteRuntimeKind = "node" | "bun";
 

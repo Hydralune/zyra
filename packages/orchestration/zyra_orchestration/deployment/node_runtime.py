@@ -6,6 +6,7 @@ import os
 import re
 import socket
 import sqlite3
+import traceback
 import threading
 import time
 import zlib
@@ -902,6 +903,16 @@ class DeploymentNodeRuntime:
                 details=error.details,
             )
         except BaseException as error:
+            # Node receipts intentionally expose only a redacted, stable error
+            # summary.  Preserve the local traceback in the node-process log so
+            # an operator can diagnose an infrastructure failure without
+            # widening the network-visible error surface.
+            print(
+                "zyra.deployment-node-execution-traceback "
+                f"workload_id={workload.workload_id}\n"
+                f"{traceback.format_exc()}",
+                flush=True,
+            )
             return self._terminal_failure(
                 workload,
                 attempt_id=attempt_id,

@@ -175,6 +175,7 @@ export function normalizeLegacyEvent(value: unknown): NormalizedLegacyEvent {
     aggregateId: `run:${record.run_id}:task:${record.task_id}`,
     idempotencyKey: `legacy:${eventId}`,
     correlationId: normalizeIdentifier(correlationId, "legacy.correlation_id", 512),
+    causationId: record.causation_id ?? undefined,
     createdAt: String(record.created_at),
     durability: EventDurability.DURABLE,
     effect: mapping.effective ? EventEffect.EFFECTIVE : EventEffect.NON_EFFECTIVE,

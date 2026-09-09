@@ -336,14 +336,53 @@ export async function resolveProviderControlPlaneTurns(
       modelDefinition.maximumOutputTokens,
       providerOutputCap,
     );
+    // This is the real provider dispatch path for benchmark runs.  Account
+    // against durable dispatch results before admitting another request; E01
+    // telemetry alone is not authoritative when the control plane owns I/O.
+    const maximumTotalTokens = boundedPositiveInteger(
+      constraints.maximum_total_tokens,
+      0,
+    );
+    const completedDispatches = controlPlane.dispatches.list()
+      .filter((item) => item.result !== null);
+    const consumedProviderTokens = completedDispatches.reduce(
+      (total, item) => total + providerTotalUsage(item.result!.usage),
+      0,
+    );
+    // Provider-side prompt accounting includes durable instructions, tools and
+    // cached context which are not all represented in `messages`.  A raw
+    // JSON-size estimate can therefore under-reserve the next request and let
+    // a nominal cap be exceeded by one round.  Use the largest observed prompt
+    // plus a growth margin; for the first request reserve a conservative floor.
+    const messageInputEstimate = Math.max(1, Math.ceil(JSON.stringify(messages).length / 4));
+    const largestObservedInput = completedDispatches.reduce(
+      (largest, item) => Math.max(largest, providerInputUsage(item.result!.usage)),
+      0,
+    );
+    const estimatedInputTokens = Math.max(
+      8_192,
+      messageInputEstimate,
+      Math.ceil(largestObservedInput * 1.15),
+    );
+    const remainingProviderTokens = maximumTotalTokens > 0
+      ? maximumTotalTokens - consumedProviderTokens
+      : null;
+    if (remainingProviderTokens !== null && remainingProviderTokens - estimatedInputTokens < 256) {
+      return failClosed("provider_total_token_budget_exhausted", config.modelName);
+    }
+    const budgetedOutputTokens = remainingProviderTokens === null
+      ? effectiveOutputTokens
+      : Math.min(effectiveOutputTokens, remainingProviderTokens - estimatedInputTokens);
     const configuredBudget = asObject(constraints.model_output_token_budget);
     const outputTokenBudget: JsonObject = {
       schema: "zyra.model-output-token-budget/v1",
       requested: requestedOutputTokens,
-      effective: effectiveOutputTokens,
+      effective: budgetedOutputTokens,
       model_cap: modelDefinition.maximumOutputTokens,
       provider_cap: providerOutputCap,
       requested_source: asString(configuredBudget.requested_source, "model-catalog"),
+      input_reservation: estimatedInputTokens,
+      observed_input_high_watermark: largestObservedInput,
       model_cap_source: `provider-catalog://${route.providerId}/${route.modelId}`,
       provider_cap_source: providerDefinition.metadata.maximum_output_tokens
         ? `provider-profile://${route.providerId}`
@@ -363,7 +402,7 @@ export async function resolveProviderControlPlaneTurns(
       routeFallbackPolicy: "pin_initial_route",
       messages,
       tools: providerTools,
-      maximumOutputTokens: effectiveOutputTokens,
+      maximumOutputTokens: budgetedOutputTokens,
       maximumAttempts: boundedPositiveInteger(
         constraints.api_retry_max_attempts,
         route.retryPolicy.maximumAttempts,
@@ -561,9 +600,13 @@ function nonnegativeUsage(value: unknown): number {
 }
 
 function providerTotalUsage(usage: JsonRecord): number {
-  const input = nonnegativeUsage(usage.input_tokens ?? usage.prompt_tokens);
+  const input = providerInputUsage(usage);
   const output = nonnegativeUsage(usage.output_tokens ?? usage.completion_tokens);
   return nonnegativeUsage(usage.total_tokens) || input + output;
+}
+
+function providerInputUsage(usage: JsonRecord): number {
+  return nonnegativeUsage(usage.input_tokens ?? usage.prompt_tokens);
 }
 
 export function providerControlPlaneEvidenceFrames(

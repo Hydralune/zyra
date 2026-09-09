@@ -117,6 +117,8 @@ export interface ProviderRuntimeConfiguration {
   baseUrl: string;
   apiKey: string;
   timeoutMs: number;
+  /** Hard per-session cap for billable provider tokens, including cache input. */
+  maximumTotalTokens?: number | null;
 }
 
 export interface ProviderOwnedExecution {
@@ -240,6 +242,8 @@ export class E01RuntimeCoordinator {
   private activeProviderCredentialId: string | null = null;
   private activeProviderHeaders: Record<string, string> = {};
   private providerTimeoutMs = 120_000;
+  private maximumProviderTokens: number | null = null;
+  private consumedProviderTokens = 0;
 
   constructor(
     runId: string,
@@ -816,6 +820,7 @@ export class E01RuntimeCoordinator {
       100,
       Math.min(3_600_000, Math.floor(input.timeoutMs || 120_000)),
     );
+    this.maximumProviderTokens = positiveRuntimeInteger(input.maximumTotalTokens);
     this.ensureProviderModel(modelId, providerId);
     this.provider.selectModel(modelId);
     this.provider.configureEndpoint({
@@ -1987,6 +1992,10 @@ export class E01RuntimeCoordinator {
       enableDeferredTools: true,
       preserveLastUserMessage: true,
     });
+    const estimatedInputTokens = Math.max(
+      1,
+      Math.ceil((builtPrompt.systemChars + builtPrompt.messagesChars + builtPrompt.toolsChars) / 4),
+    );
     this.ensureProviderModel(modelId, providerId);
     this.provider.selectModel(modelId);
     const ownedRequest = this.provider.prepare({
@@ -1994,7 +2003,7 @@ export class E01RuntimeCoordinator {
       messages,
       system: providerSystemBlocks(prepared.system),
       tools: providerToolDefinitions(prepared.tools),
-      maxTokens: 16_000,
+      maxTokens: this.availableProviderOutputTokens(estimatedInputTokens),
       temperature: null,
       topP: null,
       stopSequences: [],
@@ -2018,10 +2027,6 @@ export class E01RuntimeCoordinator {
       authorizationHeaders: { ...this.activeProviderHeaders },
     });
     this.ensureProviderPolicy(providerId);
-    const estimatedInputTokens = Math.max(
-      1,
-      Math.ceil((builtPrompt.systemChars + builtPrompt.messagesChars + builtPrompt.toolsChars) / 4),
-    );
     // The provider-control-plane call may legitimately stream until the
     // configured request timeout.  Keep the E01 route and rate-limit custody
     // alive for that same interval plus settlement headroom; fixed short
@@ -2038,7 +2043,7 @@ export class E01RuntimeCoordinator {
       requiredCapabilities: ["text", "streaming"],
       privacyClass: "internal",
       estimatedInputTokens,
-      requestedOutputTokens: 16_000,
+      requestedOutputTokens: this.availableProviderOutputTokens(estimatedInputTokens),
       maximumCost: null,
       maximumLatencyMilliseconds: null,
       preferredProviderIds: [providerId],
@@ -2058,7 +2063,7 @@ export class E01RuntimeCoordinator {
         modelId,
         requests: 1,
         inputTokens: estimatedInputTokens,
-        outputTokens: 16_000,
+        outputTokens: this.availableProviderOutputTokens(estimatedInputTokens),
         estimatedCost: route.estimatedCost,
         priority: 100,
         deadlineAt,
@@ -2078,7 +2083,7 @@ export class E01RuntimeCoordinator {
         budget: {
           maximumAttempts: 1,
           maximumInputTokens: Math.max(estimatedInputTokens, 1_000_000),
-          maximumOutputTokens: 128_000,
+          maximumOutputTokens: this.availableProviderOutputTokens(estimatedInputTokens),
           maximumCost: null,
           deadlineAt,
         },
@@ -2341,6 +2346,13 @@ export class E01RuntimeCoordinator {
           cost: usage.cost ?? 0,
         })
         : null;
+      // The provider report is the authoritative usage receipt.  Count cache
+      // reads/writes as input work too: excluding them would make a cached
+      // long-horizon run appear artificially cheap.
+      this.consumedProviderTokens += Math.max(
+        0,
+        usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheWriteTokens,
+      );
       canonicalPayload.provider_lifecycle = {
         request_id: requestId,
         request_status: completed.status,
@@ -2545,6 +2557,19 @@ export class E01RuntimeCoordinator {
         default_path: true,
       },
     });
+  }
+
+  private availableProviderOutputTokens(estimatedInputTokens: number): number {
+    const defaultLimit = 16_000;
+    if (this.maximumProviderTokens === null) return defaultLimit;
+    const remaining = this.maximumProviderTokens - this.consumedProviderTokens;
+    // Reserve the estimated prompt cost before dispatch.  Do not send a
+    // request that cannot admit even a minimal useful completion.
+    const available = remaining - Math.max(0, estimatedInputTokens);
+    if (available < 256) {
+      throw new Error("provider_total_token_budget_exhausted");
+    }
+    return Math.min(defaultLimit, Math.floor(available));
   }
 
   private installDefaultStopRules(): void {
@@ -2791,6 +2816,11 @@ function providerUsage(value: JsonObject): {
     cacheWriteTokens: asRuntimeNumber(value.cache_creation_input_tokens),
     cost: value.cost === undefined || value.cost === null ? null : asRuntimeNumber(value.cost),
   };
+}
+
+function positiveRuntimeInteger(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function normalizeProviderId(value: string): "anthropic" | "compatible" | "local" {

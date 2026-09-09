@@ -20,9 +20,57 @@ from zyra_runtime.runtime_events import (  # noqa: E402
     release_runtime_event_spine,
     reset_runtime_event_spines,
 )
+from zyra_core import EventRecord, EventType  # noqa: E402
 
 
 class RuntimeEventSpineFoundationTests(unittest.TestCase):
+    def test_legacy_node_update_infers_the_preceding_event_as_its_cause(self) -> None:
+        """A node identifier is not a causal event identifier.
+
+        Legacy task-graph emitters omit causation for node transitions.  The
+        canonical spine must bind the transition to the preceding event in the
+        same aggregate and correlation rather than accepting a node ID as a
+        nonexistent causal event.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            bridge = RuntimeEventSpineBridge.create(
+                database_path=root / "events.sqlite3",
+                artifact_root=root / "artifacts",
+                workspace_root=ROOT,
+            )
+            try:
+                receipts = bridge.append_legacy_events(
+                    [
+                        EventRecord(
+                            event_id="task-created",
+                            run_id="run-1",
+                            task_id="task-1",
+                            event_type=EventType.TASK_CREATED,
+                            payload={"goal": "verify causal normalization"},
+                        ),
+                        EventRecord(
+                            event_id="node-updated",
+                            run_id="run-1",
+                            task_id="task-1",
+                            node_id="root-node",
+                            event_type=EventType.NODE_UPDATED,
+                            payload={"transition": "started"},
+                        ),
+                    ]
+                )
+                self.assertEqual(len(receipts.receipts), 2)
+                self.assertEqual(
+                    receipts.receipts[1].event.causation_id,
+                    "task-created",
+                )
+                self.assertTrue(
+                    receipts.receipts[1].event.canonical["metadata"]
+                    ["legacy_causation_inferred"]
+                )
+            finally:
+                bridge.close()
+
     def test_releasing_one_cached_bridge_does_not_close_another_owner(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

@@ -10,7 +10,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from .backends import BackendSession
 from .canonical import canonical_logical_path, digest
@@ -110,6 +110,7 @@ class DockerCliSandboxConnector:
         container: str,
         workdir: str,
         docker_executable: str | Path | None = None,
+        docker_command_prefix: Sequence[str | Path] | None = None,
         redactor: SecretRedactor | None = None,
     ) -> None:
         container_ref = str(container).strip()
@@ -126,6 +127,11 @@ class DockerCliSandboxConnector:
         self.container = container_ref
         self.workdir = posixpath.normpath(normalized_workdir)
         self.docker_executable = executable
+        self.docker_command_prefix = tuple(
+            str(item) for item in (docker_command_prefix or (executable,))
+        )
+        if not self.docker_command_prefix:
+            raise ValueError("Docker command prefix cannot be empty")
         self.redactor = redactor or SecretRedactor()
         self.tree = ProcessTreeController()
         self._processes: dict[str, subprocess.Popen[bytes]] = {}
@@ -146,7 +152,7 @@ class DockerCliSandboxConnector:
         try:
             check = subprocess.run(
                 [
-                    self.docker_executable,
+                    *self.docker_command_prefix,
                     "inspect",
                     "--format={{.State.Running}}",
                     self.container,
@@ -385,7 +391,7 @@ class DockerCliSandboxConnector:
 
     def raw_command_argv(self, envelope: GatewayCommandEnvelope) -> list[str]:
         command = [
-            self.docker_executable,
+            *self.docker_command_prefix,
             "exec",
             "--workdir",
             self.resolve_cwd(envelope.cwd),
@@ -465,7 +471,7 @@ class DockerCliSandboxConnector:
             try:
                 observed = subprocess.run(
                     [
-                        self.docker_executable,
+                        *self.docker_command_prefix,
                         "exec",
                         self.container,
                         "sh",
@@ -501,7 +507,7 @@ class DockerCliSandboxConnector:
         try:
             stopped = subprocess.run(
                 [
-                    self.docker_executable,
+                    *self.docker_command_prefix,
                     "exec",
                     self.container,
                     "sh",

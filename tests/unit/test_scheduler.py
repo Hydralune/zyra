@@ -109,6 +109,37 @@ class SchedulerTests(unittest.TestCase):
         self.assertTrue(state.metadata["recovery_plans"])
         self.assertEqual(state.metadata["last_resource_decision"]["selected_manifest_id"], plan.selected_manifest_id)
 
+    def test_watchdog_does_not_misclassify_unselected_worker_metadata(self) -> None:
+        state = create_task_state("Repair and verify a Python repository change.")
+        node = state.plan_nodes[state.root_node_id]
+        node.assigned_worker_id = "CodeWorkerRuntime"
+        node.metadata.update(
+            {
+                "resource_decision": {
+                    "selected_worker": "CodeWorkerRuntime",
+                    "alternatives": ["BrowserWorker"],
+                },
+                "checks": [
+                    {
+                        "check_type": "permission.worker",
+                        "reason": "blocked candidates are excluded",
+                    }
+                ],
+            }
+        )
+
+        signal = RuntimeWatchdog().classify(
+            state,
+            node=node,
+            error=RuntimeError(
+                "dynamic graph terminal state conflicts with the canonical WorkerPool outcome"
+            ),
+        )
+
+        self.assertEqual(signal.kind, "node_failed")
+        self.assertEqual(signal.failed_worker, "CodeWorkerRuntime")
+        self.assertNotEqual(signal.summary, "Permission policy blocked a runtime operation.")
+
     def test_operator_candidate_ignores_infrastructure_endpoint_and_credential_metadata(self) -> None:
         state = create_task_state("测试，收到请回复 ok")
         scheduler = ResourceScheduler(

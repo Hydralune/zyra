@@ -28,11 +28,18 @@ class RuntimeWatchdog:
         decision: ResourceDecision | None = None,
     ) -> FailureSignal:
         raw_parts: list[str] = []
+        classification_parts: list[str] = []
         evidence_event_ids: list[str] = []
         if event is not None:
             event_dict = _event_dict(event)
             raw_parts.append(str(event_dict.get("event_type") or ""))
             raw_parts.append(str(event_dict.get("payload") or ""))
+            classification_parts.extend(
+                [
+                    str(event_dict.get("event_type") or ""),
+                    str(event_dict.get("payload") or ""),
+                ]
+            )
             event_id = str(event_dict.get("event_id") or "")
             if event_id:
                 evidence_event_ids.append(event_id)
@@ -40,14 +47,28 @@ class RuntimeWatchdog:
             raw_parts.append(str(getattr(worker_result, "summary", "")))
             raw_parts.append(str(getattr(worker_result, "error", "")))
             raw_parts.append(str(getattr(worker_result, "metadata", "")))
+            classification_parts.extend(
+                [
+                    str(getattr(worker_result, "summary", "")),
+                    str(getattr(worker_result, "error", "")),
+                ]
+            )
         if error is not None:
             raw_parts.append(f"{type(error).__name__}: {error}")
+            # An exception is the primary failure evidence.  Candidate lists,
+            # permission check descriptions, and other node metadata are useful
+            # in the audit trail but must not overwrite its classification.
+            classification_parts = [f"{type(error).__name__}: {error}"]
         if node is not None:
             raw_parts.append(node.title)
             raw_parts.append(node.description)
             raw_parts.append(str(node.metadata))
+            if not classification_parts:
+                classification_parts.extend([node.title, node.description])
         raw = "\n".join(part for part in raw_parts if part).strip()
-        lowered = raw.lower()
+        lowered = "\n".join(
+            part for part in classification_parts if part
+        ).strip().lower()
 
         kind = FailureKind.UNKNOWN
         severity = "medium"
@@ -77,11 +98,16 @@ class RuntimeWatchdog:
             kind = FailureKind.WORKER_UNAVAILABLE
             summary = "Worker backend unavailable."
 
-        failed_worker = _worker_from_text(lowered)
-        if not failed_worker and decision is not None:
+        # Structured ownership outranks free-text mentions.  In particular, an
+        # unselected BrowserWorker alternative in route metadata is not the
+        # worker that failed a CodeWorker execution.
+        failed_worker = ""
+        if decision is not None:
             failed_worker = decision.selected_worker
         if not failed_worker and node is not None and node.assigned_worker_id:
             failed_worker = str(node.assigned_worker_id)
+        if not failed_worker:
+            failed_worker = _worker_from_text(lowered)
         if kind == FailureKind.UNKNOWN and failed_worker:
             kind = FailureKind.NODE_FAILED
             summary = "Worker-linked failure detected."

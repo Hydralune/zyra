@@ -290,6 +290,8 @@ export interface LegacyEventRecord {
   eventType?: string;
   created_at?: string;
   createdAt?: string;
+  causation_id?: string | null;
+  causationId?: string | null;
   payload?: Record<string, unknown>;
 }
 
@@ -929,6 +931,7 @@ export function normalizeLegacyRecord(value: unknown): LegacyEventRecord {
     node_id: optionalString(value.node_id ?? value.nodeId, "legacy.node_id", 256),
     event_type: requireString(value.event_type ?? value.eventType, "legacy.event_type", 256),
     created_at: value.created_at ?? value.createdAt ? parseTimestamp(value.created_at ?? value.createdAt, "legacy.created_at") : utcNow(),
+    causation_id: optionalString(value.causation_id ?? value.causationId, "legacy.causation_id", 256),
     payload,
   };
 }

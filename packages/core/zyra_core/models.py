@@ -256,6 +256,7 @@ class EventRecord:
     node_id: str | None = None
     created_at: str = field(default_factory=now_iso)
     payload: dict[str, Any] = field(default_factory=dict)
+    causation_id: str | None = None
 
 
 @dataclass(slots=True)

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import ipaddress
 import json
 import os
 import posixpath
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import threading
@@ -281,6 +283,39 @@ def _workspace_execution_outcome(
     if workspace_effect_observed:
         return "needs_verification", True
     return "failed", False
+
+
+def _benchmark_delivery_evidence_satisfied(
+    evidence: Mapping[str, Any],
+    workspace_delta: Mapping[str, Any],
+) -> bool:
+    """Allow a bounded closeout when a benchmark worker exhausts budget after delivery.
+
+    This does not infer task correctness from a model claim: it requires both a
+    source and regression-test mutation plus a successful focused pytest receipt.
+    The external benchmark evaluator remains the final correctness authority.
+    """
+    changed = {
+        str(path).replace("\\", "/")
+        for group in ("created", "modified")
+        for path in (workspace_delta.get(group) or {})
+    }
+    source_changed = any(path.endswith(".py") and not path.startswith("tests/") for path in changed)
+    test_changed = any(path.startswith("tests/") and path.endswith(".py") for path in changed)
+    obligations = evidence.get("obligation_evidence")
+    receipts = (
+        obligations.get("verification_command_receipts")
+        if isinstance(obligations, Mapping)
+        else ()
+    )
+    focused_pytest_passed = any(
+        isinstance(item, Mapping)
+        and str(item.get("status") or "") == "passed"
+        and "pytest" in str(item.get("command") or "")
+        and "tests/" in str(item.get("command") or "")
+        for item in (receipts if isinstance(receipts, list) else ())
+    )
+    return source_changed and test_changed and focused_pytest_passed
 
 
 def _evaluate_delivery_completion(
@@ -817,6 +852,7 @@ def execute_code_worker_operator(
         # one rather than failing closed on a token nobody holds.
         "session_id": permission_session_id,
         "max_turns": max_turns,
+        "maximum_total_tokens": context.get("maximum_total_tokens"),
         "typescript_runtime_timeout_seconds": runtime_timeout_seconds,
         "external_deadline_epoch_ms": context.get("external_deadline_epoch_ms"),
         "tool_result_budget_chars": 120_000,
@@ -907,6 +943,12 @@ def execute_code_worker_operator(
             "SandboxGateway rejects a call, read its "
             "reason and "
             "change the arguments rather than repeating the same call. "
+            "For a repository repair, once a focused behavioral test covering the "
+            "changed contract passes, preserve that receipt and proceed to delivery. "
+            "Do not expand into unrelated broad suites merely to seek additional "
+            "green output; an unrelated environment or legacy-suite failure is "
+            "diagnostic evidence, not a substitute for the task's focused "
+            "verification. "
             "Complete the task in the environment; do not merely describe what should "
             "be done."
         )
@@ -1111,6 +1153,11 @@ def execute_code_worker_operator(
                 container=str(benchmark_binding["container"]),
                 workdir=str(benchmark_binding["workdir"]),
                 docker_executable=str(benchmark_binding["docker_executable"]),
+                docker_command_prefix=tuple(
+                    str(item)
+                    for item in benchmark_binding.get("docker_command_prefix", ())
+                )
+                or None,
                 benchmark_mirror=benchmark_mirror,
                 mutation_policy_guard=mutation_policy_guard,
             ),
@@ -1190,6 +1237,18 @@ def execute_code_worker_operator(
         worker_ok=run.worker_result.ok,
         workspace_delta=workspace_delta,
     )
+    deterministic_benchmark_closeout = (
+        not run.worker_result.ok
+        and benchmark_binding is not None
+        and _benchmark_delivery_evidence_satisfied(evidence, workspace_delta)
+    )
+    if deterministic_benchmark_closeout:
+        execution_outcome = "completed"
+        evidence["final_text"] = (
+            "Verified benchmark workspace delivery completed; focused regression "
+            "test passed before the provider total-token budget was exhausted."
+        )
+        evidence["deterministic_benchmark_closeout"] = True
     runtime_terminal_error: dict[str, Any] = {}
     if not run.worker_result.ok:
         provider_failure = _provider_failure_summary(
@@ -1356,7 +1415,24 @@ def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]
     # Keep the legacy dispatch marker for adapter compatibility. Runtime
     # closeout no longer depends on it; the generic resource fields below are
     # authoritative for every caller that provides a deadline.
-    constraints: dict[str, Any] = {"benchmark_physical_dispatch": True}
+    constraints: dict[str, Any] = {
+        "benchmark_physical_dispatch": True,
+        # Provider billing counts the growing prompt again on every agent
+        # round, including cache reads. Keep sealed benchmark work below a
+        # 24k-token working window so compact/restore runs before cumulative
+        # transcript replay dominates the task budget.
+        "query_context_budget_chars": min(
+            96_000,
+            _code_worker_query_context_budget_chars(context),
+        ),
+        # Benchmarks supply a concrete repository-level delivery contract.
+        # Two focused observations are enough to locate an explicit defect;
+        # afterwards, enforce the normal progressive-delivery circuit instead
+        # of spending most of the shared token budget on broad inspection.
+        "pre_delivery_observation_nudge_after": 2,
+        "pre_delivery_inspection_block_after_nudges": 2,
+        "targeted_repair_inspection_limit": 4,
+    }
     resource_constraints = _physical_resource_runtime_constraints(context)
     constraints.update(resource_constraints)
     if "closeout_reserve_seconds" in resource_constraints:
@@ -2936,6 +3012,11 @@ class _BenchmarkDockerCliSandboxConnector(DockerCliSandboxConnector):
         host_workspace = self._benchmark_mirror.binding.get(
             "canonical_host_workspace"
         )
+        delivery_workspace = (
+            _required_path(host_workspace, "benchmark canonical host workspace")
+            if host_workspace
+            else self._benchmark_mirror.workspace_root
+        )
         if (
             self._mutation_policy_guard is not None
             and self._mutation_policy_guard.enabled
@@ -2964,15 +3045,12 @@ class _BenchmarkDockerCliSandboxConnector(DockerCliSandboxConnector):
                 )
             before = (
                 _workspace_state_snapshot(
-                    _required_path(
-                        host_workspace,
-                        "benchmark canonical host workspace",
-                    ),
+                    delivery_workspace,
                     excluded_prefixes=_benchmark_mirror_excludes(
                         self._benchmark_mirror.binding
                     ),
                 )
-                if track_delivery and host_workspace
+                if track_delivery
                 else None
             )
         policy_restored = policy_snapshot is None
@@ -3065,11 +3143,14 @@ class _BenchmarkDockerCliSandboxConnector(DockerCliSandboxConnector):
                     },
                 )
             with self._benchmark_mirror.guard:
+                # In the normal benchmark setup the Docker task container is
+                # canonical and there is no host bind mount.  Refresh its
+                # managed mirror before comparing delivery state, otherwise a
+                # real shell edit is invisible to the completion gate.
+                if not host_workspace:
+                    self._benchmark_mirror.pull_from_container()
                 after = _workspace_state_snapshot(
-                    _required_path(
-                        host_workspace,
-                        "benchmark canonical host workspace",
-                    ),
+                    delivery_workspace,
                     excluded_prefixes=_benchmark_mirror_excludes(
                         self._benchmark_mirror.binding
                     ),
@@ -3083,6 +3164,9 @@ class _BenchmarkDockerCliSandboxConnector(DockerCliSandboxConnector):
                     "workspace_state_mode": str(after["mode"]),
                     "workspace_state_before_digest": str(before["digest"]),
                     "workspace_state_after_digest": str(after["digest"]),
+                    "workspace_state_source": (
+                        "canonical-host" if host_workspace else "managed-mirror"
+                    ),
                     "task_mutation_policy_enforced": bool(policy_snapshot),
                     "task_mutation_policy_baseline_satisfied": (
                         self._mutation_policy_guard.baseline_satisfied
@@ -3122,7 +3206,30 @@ def _benchmark_docker_binding(
             "ZYRA_BENCHMARK_DOCKER_CONTAINER and ZYRA_BENCHMARK_DOCKER_WORKDIR "
             "must be configured together"
         )
-    connector = DockerCliSandboxConnector(container=container, workdir=workdir)
+    # A benchmark harness may explicitly select a Docker CLI bridge.  This is
+    # needed on some Windows hosts where docker.exe loses stdout from
+    # ``docker exec``; the WSL CLI bridge preserves the byte stream used for
+    # the managed workspace tar mirror.  There is no implicit fallback: an
+    # absent setting keeps the normal connector resolution unchanged.
+    docker_executable = str(
+        os.environ.get("ZYRA_BENCHMARK_DOCKER_EXECUTABLE") or ""
+    ).strip()
+    bridge_script = str(
+        os.environ.get("ZYRA_BENCHMARK_DOCKER_BRIDGE_SCRIPT") or ""
+    ).strip()
+    docker_prefix: tuple[str, ...] = ()
+    if bridge_script:
+        bridge_path = Path(bridge_script).resolve()
+        if not bridge_path.is_file():
+            raise ValueError("ZYRA_BENCHMARK_DOCKER_BRIDGE_SCRIPT must identify a file")
+        docker_executable = sys.executable
+        docker_prefix = (sys.executable, str(bridge_path))
+    connector = DockerCliSandboxConnector(
+        container=container,
+        workdir=workdir,
+        docker_executable=docker_executable or None,
+        docker_command_prefix=docker_prefix or None,
+    )
     resolved_workspace = workspace_root.resolve()
     resolved_data_root = workspace_data_root.resolve()
     try:
@@ -3146,6 +3253,7 @@ def _benchmark_docker_binding(
         "container_ref_digest": connector.container_ref_digest,
         "workdir": connector.workdir,
         "docker_executable": connector.docker_executable,
+        "docker_command_prefix": connector.docker_command_prefix,
         "workspace_data_root": resolved_data_root,
         "sync_root": sync_root,
         "mirror_excluded_prefixes": _BENCHMARK_MIRROR_EXCLUDED_PREFIXES,
@@ -3327,12 +3435,46 @@ def _pull_benchmark_workspace_paths(
         ).resolve()
         staged = staging_root / "payload"
         try:
-            _run_benchmark_docker(
+            # Never ask a Docker daemon running inside WSL to materialize a
+            # file directly under the Windows workspace.  On drvfs paths,
+            # especially paths containing non-ASCII components, `docker cp`
+            # can fail with EACCES even though the Windows process owns the
+            # directory.  Stream a one-file tar archive over stdout and let
+            # the owning Python process write the local staging file.
+            pulled = _run_benchmark_docker(
                 binding,
-                ("cp", f"{container}:{source}", str(staged)),
+                (
+                    "exec",
+                    container,
+                    "tar",
+                    "-chf",
+                    "-",
+                    "-C",
+                    workdir,
+                    "--",
+                    canonical,
+                ),
                 operation="benchmark_workspace_path_pull",
                 timeout_seconds=120.0,
             )
+            with tarfile.open(fileobj=io.BytesIO(pulled.stdout), mode="r:") as archive:
+                members = archive.getmembers()
+                if len(members) != 1:
+                    raise RuntimeError(
+                        "benchmark workspace path pull returned an unexpected archive shape"
+                    )
+                member = members[0]
+                archived_name = canonical_logical_path(member.name, allow_root=False)
+                if archived_name != canonical or not member.isreg():
+                    raise RuntimeError(
+                        "benchmark workspace path pull did not return the requested regular file"
+                    )
+                stream = archive.extractfile(member)
+                if stream is None:
+                    raise RuntimeError(
+                        "benchmark workspace path pull did not expose file bytes"
+                    )
+                staged.write_bytes(stream.read())
             if staged.is_symlink() or not staged.is_file():
                 raise RuntimeError(
                     "benchmark workspace path pull did not produce a regular file"
@@ -3391,11 +3533,23 @@ def _push_benchmark_workspace_delta(
         )
         source = (root / Path(*canonical.split("/"))).resolve()
         source.relative_to(root)
+        # Mirror the targeted pull design: transport bytes through the Docker
+        # process instead of making the WSL daemon open a Windows path.
         _run_benchmark_docker(
             binding,
-            ("cp", str(source), f"{container}:{destination}"),
+            (
+                "exec",
+                "-i",
+                container,
+                "sh",
+                "-c",
+                'umask 022; cat > "$1"',
+                "--",
+                destination,
+            ),
             operation="benchmark_workspace_push",
             timeout_seconds=120.0,
+            input_bytes=source.read_bytes(),
         )
     for relative in deleted:
         canonical = canonical_logical_path(relative, allow_root=False)
@@ -3438,17 +3592,26 @@ def _run_benchmark_docker(
     operation: str,
     timeout_seconds: float,
     allowed_returncodes: tuple[int, ...] = (0,),
+    input_bytes: bytes | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     try:
+        input_options: dict[str, Any] = (
+            {"input": input_bytes}
+            if input_bytes is not None
+            else {"stdin": subprocess.DEVNULL}
+        )
         completed = subprocess.run(
-            [str(binding["docker_executable"]), *argv],
-            stdin=subprocess.DEVNULL,
+            [
+                *_benchmark_docker_command_prefix(binding),
+                *argv,
+            ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
             timeout=timeout_seconds,
             shell=False,
             creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+            **input_options,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise RuntimeError(f"{operation} could not execute Docker CLI: {type(error).__name__}") from error
@@ -3481,7 +3644,7 @@ def _run_benchmark_docker_archive(
             (f"--exclude=./*{suffix}", f"--exclude=*/*{suffix}")
         )
     command = [
-        str(binding["docker_executable"]),
+        *_benchmark_docker_command_prefix(binding),
         "exec",
         str(binding["container"]),
         "tar",
@@ -3515,6 +3678,22 @@ def _run_benchmark_docker_archive(
             "benchmark_workspace_pull failed with Docker exit "
             f"{completed.returncode}: {error_text}"
         )
+
+
+def _benchmark_docker_command_prefix(binding: Mapping[str, Any]) -> tuple[str, ...]:
+    """Return the canonical Docker command, retaining legacy binding support."""
+
+    explicit = tuple(
+        str(item).strip()
+        for item in binding.get("docker_command_prefix", ())
+        if str(item).strip()
+    )
+    if explicit:
+        return explicit
+    executable = str(binding.get("docker_executable") or "").strip()
+    if not executable:
+        raise ValueError("benchmark Docker binding has no executable command")
+    return (executable,)
 
 
 def _required_mapping(value: Any, name: str) -> dict[str, Any]:

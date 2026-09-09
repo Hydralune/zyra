@@ -2656,6 +2656,17 @@ def test_long_horizon_reasoning_budget_requires_an_external_docker_binding(
     )
 
 
+def test_reasoning_turn_limit_is_explicit_and_auditable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ZYRA_REASONING_MAX_TURNS", "80")
+    assert api._reasoning_budget_from_environment() == (80, None, 0, False)
+
+    monkeypatch.setenv("ZYRA_REASONING_MAX_TURNS", "not-a-number")
+    with pytest.raises(RuntimeError, match="must be an integer"):
+        api._reasoning_budget_from_environment()
+
+
 def test_model_output_token_priority_has_one_auditable_source(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
