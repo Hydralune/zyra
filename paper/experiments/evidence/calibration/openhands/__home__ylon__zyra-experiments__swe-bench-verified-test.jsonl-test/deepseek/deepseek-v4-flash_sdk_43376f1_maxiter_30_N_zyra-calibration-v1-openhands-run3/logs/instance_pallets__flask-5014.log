@@ -1,0 +1,367 @@
+2026-09-07 23:07:20,946 - INFO - root - === Evaluation Started (instance pallets__flask-5014) ===
+    View live output:
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/logs/instance_pallets__flask-5014.log          (logger)
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/logs/instance_pallets__flask-5014.output.log   (stdout/stderr)
+    ===============================================
+2026-09-07 23:07:20,947 - INFO - benchmarks.utils.evaluation - [worker] start id=pallets__flask-5014
+2026-09-07 23:07:20,992 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal
+2026-09-07 23:07:21,000 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-07 23:07:21,029 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-1394bad7-a656-44cf-a85c-5d96b2ca3457 -e LMNR_SPAN_CONTEXT=null -p 38986:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --host 0.0.0.0 --port 8000
+2026-09-07 23:07:21,400 - INFO - openhands.workspace.docker.workspace - Started container: ec469836ca3b276fb5bb53d92c118f7472f84aef3d2df40b278a16445ab2ee62
+2026-09-07 23:07:21,402 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ec469836ca3b276fb5bb53d92c118f7472f84aef3d2df40b278a16445ab2ee62
+2026-09-07 23:07:22,420 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ec469836ca3b276fb5bb53d92c118f7472f84aef3d2df40b278a16445ab2ee62
+2026-09-07 23:07:23,434 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ec469836ca3b276fb5bb53d92c118f7472f84aef3d2df40b278a16445ab2ee62
+2026-09-07 23:07:24,448 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ec469836ca3b276fb5bb53d92c118f7472f84aef3d2df40b278a16445ab2ee62
+2026-09-07 23:07:25,462 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ec469836ca3b276fb5bb53d92c118f7472f84aef3d2df40b278a16445ab2ee62
+2026-09-07 23:07:26,477 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ec469836ca3b276fb5bb53d92c118f7472f84aef3d2df40b278a16445ab2ee62
+2026-09-07 23:07:27,490 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ec469836ca3b276fb5bb53d92c118f7472f84aef3d2df40b278a16445ab2ee62
+2026-09-07 23:07:28,504 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ec469836ca3b276fb5bb53d92c118f7472f84aef3d2df40b278a16445ab2ee62
+2026-09-07 23:07:29,518 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ec469836ca3b276fb5bb53d92c118f7472f84aef3d2df40b278a16445ab2ee62
+2026-09-07 23:07:30,534 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:38986
+2026-09-07 23:07:30,649 - INFO - openhands.sdk.git.cached_repo - Cloning repository from https://github.com/OpenHands/extensions
+2026-09-07 23:07:33,672 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-07 23:07:33,687 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-07 23:07:33,809 - INFO - __main__ - repo_path: /workspace/flask/
+2026-09-07 23:07:34,103 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-07 23:10:28,304 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=1
+2026-09-07 23:10:28,311 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed (attempt 1/4): Conversation run failed for id=519e62e0-feaa-4f2f-8ab2-2272818bf5ba: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-07 23:10:28,438 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pallets__flask-5014 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/conversations/pallets__flask-5014.tar.gz
+2026-09-07 23:10:30,439 - INFO - openhands.workspace.docker.workspace - Stopping container: ec469836ca3b276fb5bb53d92c118f7472f84aef3d2df40b278a16445ab2ee62
+2026-09-07 23:10:30,440 - INFO - openhands.sdk.utils.command - $ docker stop ec469836ca3b276fb5bb53d92c118f7472f84aef3d2df40b278a16445ab2ee62
+2026-09-07 23:10:30,951 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: attempt 2/4, runtime_failure_count=1, resource_factor=2
+2026-09-07 23:10:30,992 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal
+2026-09-07 23:10:31,001 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-07 23:10:31,025 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-5b08e88a-62bf-4be3-b5f2-e9692ef7378d -e LMNR_SPAN_CONTEXT=null -p 36397:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --host 0.0.0.0 --port 8000
+2026-09-07 23:10:31,318 - INFO - openhands.workspace.docker.workspace - Started container: c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:31,320 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:32,333 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:33,347 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:34,360 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:35,374 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:36,387 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:37,400 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:38,415 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:39,429 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:40,443 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:41,459 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:42,473 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:43,488 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:10:44,505 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:36397
+2026-09-07 23:10:45,728 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-07 23:10:45,742 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-07 23:10:45,824 - INFO - __main__ - repo_path: /workspace/flask/
+2026-09-07 23:10:46,121 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-07 23:12:35,477 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=2
+2026-09-07 23:12:35,478 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed (attempt 2/4): Conversation run failed for id=df057f06-8857-4000-89a9-231611e7d529: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-07 23:12:35,608 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pallets__flask-5014 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/conversations/pallets__flask-5014.tar.gz
+2026-09-07 23:12:37,609 - INFO - openhands.workspace.docker.workspace - Stopping container: c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:12:37,609 - INFO - openhands.sdk.utils.command - $ docker stop c32e931073fe102ffa02ba3c32cd8f722f43e09dc481249e5471398c3d41414c
+2026-09-07 23:12:38,203 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: attempt 3/4, runtime_failure_count=2, resource_factor=4
+2026-09-07 23:12:38,241 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal
+2026-09-07 23:12:38,250 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-07 23:12:38,277 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-d08a6735-adf8-4305-be34-cdbc28561cd6 -e LMNR_SPAN_CONTEXT=null -p 35089:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --host 0.0.0.0 --port 8000
+2026-09-07 23:12:38,561 - INFO - openhands.workspace.docker.workspace - Started container: ac5a28c71db90c790e107325db4e5de086aa0ee42b0dc053464e0a515de4c22a
+2026-09-07 23:12:38,563 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ac5a28c71db90c790e107325db4e5de086aa0ee42b0dc053464e0a515de4c22a
+2026-09-07 23:12:39,576 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ac5a28c71db90c790e107325db4e5de086aa0ee42b0dc053464e0a515de4c22a
+2026-09-07 23:12:40,590 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ac5a28c71db90c790e107325db4e5de086aa0ee42b0dc053464e0a515de4c22a
+2026-09-07 23:12:41,602 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ac5a28c71db90c790e107325db4e5de086aa0ee42b0dc053464e0a515de4c22a
+2026-09-07 23:12:42,617 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ac5a28c71db90c790e107325db4e5de086aa0ee42b0dc053464e0a515de4c22a
+2026-09-07 23:12:43,631 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ac5a28c71db90c790e107325db4e5de086aa0ee42b0dc053464e0a515de4c22a
+2026-09-07 23:12:44,645 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ac5a28c71db90c790e107325db4e5de086aa0ee42b0dc053464e0a515de4c22a
+2026-09-07 23:12:45,658 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' ac5a28c71db90c790e107325db4e5de086aa0ee42b0dc053464e0a515de4c22a
+2026-09-07 23:12:46,674 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:35089
+2026-09-07 23:12:47,859 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-07 23:12:47,889 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-07 23:12:47,973 - INFO - __main__ - repo_path: /workspace/flask/
+2026-09-07 23:12:48,264 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-07 23:14:31,446 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=3
+2026-09-07 23:14:31,453 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed (attempt 3/4): Conversation run failed for id=b1462646-3979-472f-86d8-f675a743e76d: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-07 23:14:31,580 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pallets__flask-5014 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/conversations/pallets__flask-5014.tar.gz
+2026-09-07 23:14:33,581 - INFO - openhands.workspace.docker.workspace - Stopping container: ac5a28c71db90c790e107325db4e5de086aa0ee42b0dc053464e0a515de4c22a
+2026-09-07 23:14:33,581 - INFO - openhands.sdk.utils.command - $ docker stop ac5a28c71db90c790e107325db4e5de086aa0ee42b0dc053464e0a515de4c22a
+2026-09-07 23:14:34,116 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: attempt 4/4, runtime_failure_count=3, resource_factor=8
+2026-09-07 23:14:34,153 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal
+2026-09-07 23:14:34,162 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-07 23:14:34,187 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-553df480-b5a7-4110-8763-a1d290d6b2ef -e LMNR_SPAN_CONTEXT=null -p 36576:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --host 0.0.0.0 --port 8000
+2026-09-07 23:14:34,477 - INFO - openhands.workspace.docker.workspace - Started container: 4e55cf46d96ea9100b45191c98c929acfcec9c2fb0c0e9c5b1e11b5ee07c2250
+2026-09-07 23:14:34,479 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 4e55cf46d96ea9100b45191c98c929acfcec9c2fb0c0e9c5b1e11b5ee07c2250
+2026-09-07 23:14:35,493 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 4e55cf46d96ea9100b45191c98c929acfcec9c2fb0c0e9c5b1e11b5ee07c2250
+2026-09-07 23:14:36,505 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 4e55cf46d96ea9100b45191c98c929acfcec9c2fb0c0e9c5b1e11b5ee07c2250
+2026-09-07 23:14:37,518 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 4e55cf46d96ea9100b45191c98c929acfcec9c2fb0c0e9c5b1e11b5ee07c2250
+2026-09-07 23:14:38,532 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 4e55cf46d96ea9100b45191c98c929acfcec9c2fb0c0e9c5b1e11b5ee07c2250
+2026-09-07 23:14:39,546 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 4e55cf46d96ea9100b45191c98c929acfcec9c2fb0c0e9c5b1e11b5ee07c2250
+2026-09-07 23:14:40,561 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 4e55cf46d96ea9100b45191c98c929acfcec9c2fb0c0e9c5b1e11b5ee07c2250
+2026-09-07 23:14:41,575 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 4e55cf46d96ea9100b45191c98c929acfcec9c2fb0c0e9c5b1e11b5ee07c2250
+2026-09-07 23:14:42,590 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:36576
+2026-09-07 23:14:43,972 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-07 23:14:44,002 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-07 23:14:44,090 - INFO - __main__ - repo_path: /workspace/flask/
+2026-09-07 23:14:44,393 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-07 23:16:24,962 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=4
+2026-09-07 23:16:24,963 - ERROR - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed after 4 attempts. Last error: Conversation run failed for id=bc9fd0d6-f704-4835-82fb-14cf626dcfa3: MaxIterationsReached: Agent reached maximum iterations limit (30).
+Traceback (most recent call last):
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/evaluation.py", line 1113, in _execute_single_attempt
+    out = self.evaluate_instance(instance, workspace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/swebench/run_infer.py", line 485, in evaluate_instance
+    run_conversation_with_fake_user_response(conversation)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/fake_user_response.py", line 148, in run_conversation_with_fake_user_response
+    conversation.run(timeout=run_timeout)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/observability/laminar.py", line 187, in sync_wrapper
+    return func(*args, **fkwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1092, in run
+    self._wait_for_run_completion(poll_interval, timeout)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1154, in _wait_for_run_completion
+    self._handle_conversation_status(ws_status)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1254, in _handle_conversation_status
+    raise ConversationRunError(
+openhands.sdk.conversation.exceptions.ConversationRunError: Conversation run failed for id=bc9fd0d6-f704-4835-82fb-14cf626dcfa3: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-07 23:16:25,196 - INFO - __main__ - Collected failure patch for pallets__flask-5014: 0 chars
+2026-09-07 23:16:25,311 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pallets__flask-5014 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/conversations/pallets__flask-5014.tar.gz
+2026-09-07 23:16:27,328 - INFO - openhands.workspace.docker.workspace - Stopping container: 4e55cf46d96ea9100b45191c98c929acfcec9c2fb0c0e9c5b1e11b5ee07c2250
+2026-09-07 23:16:27,329 - INFO - openhands.sdk.utils.command - $ docker stop 4e55cf46d96ea9100b45191c98c929acfcec9c2fb0c0e9c5b1e11b5ee07c2250
+2026-09-07 23:16:27,979 - INFO - root - === Evaluation Started (instance pallets__flask-5014) ===
+    View live output:
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/logs/instance_pallets__flask-5014.log          (logger)
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/logs/instance_pallets__flask-5014.output.log   (stdout/stderr)
+    ===============================================
+2026-09-07 23:16:27,979 - INFO - benchmarks.utils.evaluation - [worker] start id=pallets__flask-5014
+2026-09-07 23:16:28,029 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal
+2026-09-07 23:16:28,044 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-07 23:16:28,082 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-93e4e9c6-fb46-4ed5-bd08-f8f893b270e0 -e LMNR_SPAN_CONTEXT=null -p 34581:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --host 0.0.0.0 --port 8000
+2026-09-07 23:16:28,435 - INFO - openhands.workspace.docker.workspace - Started container: 805051ece22b8f1c913c4b04e6b405a86ed8fc7a577640e3cd328b88dfc86935
+2026-09-07 23:16:28,438 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 805051ece22b8f1c913c4b04e6b405a86ed8fc7a577640e3cd328b88dfc86935
+2026-09-07 23:16:29,456 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 805051ece22b8f1c913c4b04e6b405a86ed8fc7a577640e3cd328b88dfc86935
+2026-09-07 23:16:30,471 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 805051ece22b8f1c913c4b04e6b405a86ed8fc7a577640e3cd328b88dfc86935
+2026-09-07 23:16:31,486 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 805051ece22b8f1c913c4b04e6b405a86ed8fc7a577640e3cd328b88dfc86935
+2026-09-07 23:16:32,502 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 805051ece22b8f1c913c4b04e6b405a86ed8fc7a577640e3cd328b88dfc86935
+2026-09-07 23:16:33,520 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 805051ece22b8f1c913c4b04e6b405a86ed8fc7a577640e3cd328b88dfc86935
+2026-09-07 23:16:34,536 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 805051ece22b8f1c913c4b04e6b405a86ed8fc7a577640e3cd328b88dfc86935
+2026-09-07 23:16:35,552 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 805051ece22b8f1c913c4b04e6b405a86ed8fc7a577640e3cd328b88dfc86935
+2026-09-07 23:16:36,566 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 805051ece22b8f1c913c4b04e6b405a86ed8fc7a577640e3cd328b88dfc86935
+2026-09-07 23:16:37,581 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 805051ece22b8f1c913c4b04e6b405a86ed8fc7a577640e3cd328b88dfc86935
+2026-09-07 23:16:38,598 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:34581
+2026-09-07 23:16:39,803 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-07 23:16:39,834 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-07 23:16:39,926 - INFO - __main__ - repo_path: /workspace/flask/
+2026-09-07 23:16:40,330 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-07 23:18:42,304 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=1
+2026-09-07 23:18:42,305 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed (attempt 1/4): Conversation run failed for id=1b989a2c-c8a5-46ee-878e-9920c75e8142: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-07 23:18:42,435 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pallets__flask-5014 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/conversations/pallets__flask-5014.tar.gz
+2026-09-07 23:18:44,436 - INFO - openhands.workspace.docker.workspace - Stopping container: 805051ece22b8f1c913c4b04e6b405a86ed8fc7a577640e3cd328b88dfc86935
+2026-09-07 23:18:44,437 - INFO - openhands.sdk.utils.command - $ docker stop 805051ece22b8f1c913c4b04e6b405a86ed8fc7a577640e3cd328b88dfc86935
+2026-09-07 23:18:45,001 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: attempt 2/4, runtime_failure_count=1, resource_factor=2
+2026-09-07 23:18:45,039 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal
+2026-09-07 23:18:45,048 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-07 23:18:45,074 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-824b5279-7e45-4a8d-9dd6-1a2eb4073b1b -e LMNR_SPAN_CONTEXT=null -p 33902:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --host 0.0.0.0 --port 8000
+2026-09-07 23:18:45,345 - INFO - openhands.workspace.docker.workspace - Started container: 6940dc4b4f0f3062e32d80917064767c6774f246e8de4f187a41f58c71a154fd
+2026-09-07 23:18:45,346 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 6940dc4b4f0f3062e32d80917064767c6774f246e8de4f187a41f58c71a154fd
+2026-09-07 23:18:46,362 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 6940dc4b4f0f3062e32d80917064767c6774f246e8de4f187a41f58c71a154fd
+2026-09-07 23:18:47,375 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 6940dc4b4f0f3062e32d80917064767c6774f246e8de4f187a41f58c71a154fd
+2026-09-07 23:18:48,388 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 6940dc4b4f0f3062e32d80917064767c6774f246e8de4f187a41f58c71a154fd
+2026-09-07 23:18:49,401 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 6940dc4b4f0f3062e32d80917064767c6774f246e8de4f187a41f58c71a154fd
+2026-09-07 23:18:50,415 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 6940dc4b4f0f3062e32d80917064767c6774f246e8de4f187a41f58c71a154fd
+2026-09-07 23:18:51,429 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 6940dc4b4f0f3062e32d80917064767c6774f246e8de4f187a41f58c71a154fd
+2026-09-07 23:18:52,443 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 6940dc4b4f0f3062e32d80917064767c6774f246e8de4f187a41f58c71a154fd
+2026-09-07 23:18:53,458 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:33902
+2026-09-07 23:19:53,641 - ERROR - openhands.sdk.git.utils - Git command timed out: git fetch origin
+2026-09-07 23:19:53,651 - WARNING - openhands.sdk.git.cached_repo - Failed to fetch updates: Git command timed out: git fetch origin. Using cached version.
+2026-09-07 23:19:53,791 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-07 23:19:53,817 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-07 23:19:53,901 - INFO - __main__ - repo_path: /workspace/flask/
+2026-09-07 23:19:54,197 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-07 23:22:37,331 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=2
+2026-09-07 23:22:37,331 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed (attempt 2/4): Conversation run failed for id=fdb679e8-f1a4-4728-9db5-50e9d609245c: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-07 23:22:37,463 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pallets__flask-5014 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/conversations/pallets__flask-5014.tar.gz
+2026-09-07 23:22:39,463 - INFO - openhands.workspace.docker.workspace - Stopping container: 6940dc4b4f0f3062e32d80917064767c6774f246e8de4f187a41f58c71a154fd
+2026-09-07 23:22:39,464 - INFO - openhands.sdk.utils.command - $ docker stop 6940dc4b4f0f3062e32d80917064767c6774f246e8de4f187a41f58c71a154fd
+2026-09-07 23:22:39,986 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: attempt 3/4, runtime_failure_count=2, resource_factor=4
+2026-09-07 23:22:40,025 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal
+2026-09-07 23:22:40,033 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-07 23:22:40,056 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-227b6105-d663-4395-8a98-23e8c0a48a7d -e LMNR_SPAN_CONTEXT=null -p 34753:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --host 0.0.0.0 --port 8000
+2026-09-07 23:22:40,329 - INFO - openhands.workspace.docker.workspace - Started container: 9ce49f9a40a6144482cd6da92cb2cd3bde233d51953241a3e6695e1754cc0beb
+2026-09-07 23:22:40,330 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 9ce49f9a40a6144482cd6da92cb2cd3bde233d51953241a3e6695e1754cc0beb
+2026-09-07 23:22:41,343 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 9ce49f9a40a6144482cd6da92cb2cd3bde233d51953241a3e6695e1754cc0beb
+2026-09-07 23:22:42,357 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 9ce49f9a40a6144482cd6da92cb2cd3bde233d51953241a3e6695e1754cc0beb
+2026-09-07 23:22:43,371 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 9ce49f9a40a6144482cd6da92cb2cd3bde233d51953241a3e6695e1754cc0beb
+2026-09-07 23:22:44,384 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 9ce49f9a40a6144482cd6da92cb2cd3bde233d51953241a3e6695e1754cc0beb
+2026-09-07 23:22:45,397 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 9ce49f9a40a6144482cd6da92cb2cd3bde233d51953241a3e6695e1754cc0beb
+2026-09-07 23:22:46,410 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 9ce49f9a40a6144482cd6da92cb2cd3bde233d51953241a3e6695e1754cc0beb
+2026-09-07 23:22:47,424 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 9ce49f9a40a6144482cd6da92cb2cd3bde233d51953241a3e6695e1754cc0beb
+2026-09-07 23:22:48,438 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:34753
+2026-09-07 23:23:48,619 - ERROR - openhands.sdk.git.utils - Git command timed out: git fetch origin
+2026-09-07 23:23:48,630 - WARNING - openhands.sdk.git.cached_repo - Failed to fetch updates: Git command timed out: git fetch origin. Using cached version.
+2026-09-07 23:23:48,770 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-07 23:23:48,797 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-07 23:23:48,883 - INFO - __main__ - repo_path: /workspace/flask/
+2026-09-07 23:23:49,179 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-07 23:25:18,313 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=3
+2026-09-07 23:25:18,313 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed (attempt 3/4): Conversation run failed for id=1b5efd09-e40b-4015-98d5-a464aaf9719c: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-07 23:25:18,444 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pallets__flask-5014 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/conversations/pallets__flask-5014.tar.gz
+2026-09-07 23:25:20,445 - INFO - openhands.workspace.docker.workspace - Stopping container: 9ce49f9a40a6144482cd6da92cb2cd3bde233d51953241a3e6695e1754cc0beb
+2026-09-07 23:25:20,445 - INFO - openhands.sdk.utils.command - $ docker stop 9ce49f9a40a6144482cd6da92cb2cd3bde233d51953241a3e6695e1754cc0beb
+2026-09-07 23:25:20,958 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: attempt 4/4, runtime_failure_count=3, resource_factor=8
+2026-09-07 23:25:20,993 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal
+2026-09-07 23:25:21,001 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-07 23:25:21,027 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-66be86d5-2039-4726-9559-c522fb87dbb7 -e LMNR_SPAN_CONTEXT=null -p 35744:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --host 0.0.0.0 --port 8000
+2026-09-07 23:25:21,305 - INFO - openhands.workspace.docker.workspace - Started container: c2a6c4e86a168fd2ae30a7bd185fb05f28dae02d137bba038de853d254ee4792
+2026-09-07 23:25:21,307 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c2a6c4e86a168fd2ae30a7bd185fb05f28dae02d137bba038de853d254ee4792
+2026-09-07 23:25:22,320 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c2a6c4e86a168fd2ae30a7bd185fb05f28dae02d137bba038de853d254ee4792
+2026-09-07 23:25:23,333 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c2a6c4e86a168fd2ae30a7bd185fb05f28dae02d137bba038de853d254ee4792
+2026-09-07 23:25:24,347 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c2a6c4e86a168fd2ae30a7bd185fb05f28dae02d137bba038de853d254ee4792
+2026-09-07 23:25:25,360 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c2a6c4e86a168fd2ae30a7bd185fb05f28dae02d137bba038de853d254ee4792
+2026-09-07 23:25:26,374 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c2a6c4e86a168fd2ae30a7bd185fb05f28dae02d137bba038de853d254ee4792
+2026-09-07 23:25:27,388 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c2a6c4e86a168fd2ae30a7bd185fb05f28dae02d137bba038de853d254ee4792
+2026-09-07 23:25:28,404 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' c2a6c4e86a168fd2ae30a7bd185fb05f28dae02d137bba038de853d254ee4792
+2026-09-07 23:25:29,420 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:35744
+2026-09-07 23:25:30,585 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-07 23:25:30,597 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-07 23:25:30,674 - INFO - __main__ - repo_path: /workspace/flask/
+2026-09-07 23:25:30,962 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-07 23:27:23,481 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=4
+2026-09-07 23:27:23,481 - ERROR - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed after 4 attempts. Last error: Conversation run failed for id=9a0131dc-4c92-41bd-822f-27df13a2ffd7: MaxIterationsReached: Agent reached maximum iterations limit (30).
+Traceback (most recent call last):
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/evaluation.py", line 1113, in _execute_single_attempt
+    out = self.evaluate_instance(instance, workspace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/swebench/run_infer.py", line 485, in evaluate_instance
+    run_conversation_with_fake_user_response(conversation)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/fake_user_response.py", line 148, in run_conversation_with_fake_user_response
+    conversation.run(timeout=run_timeout)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/observability/laminar.py", line 187, in sync_wrapper
+    return func(*args, **fkwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1092, in run
+    self._wait_for_run_completion(poll_interval, timeout)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1154, in _wait_for_run_completion
+    self._handle_conversation_status(ws_status)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1254, in _handle_conversation_status
+    raise ConversationRunError(
+openhands.sdk.conversation.exceptions.ConversationRunError: Conversation run failed for id=9a0131dc-4c92-41bd-822f-27df13a2ffd7: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-07 23:27:23,613 - INFO - __main__ - Collected failure patch for pallets__flask-5014: 0 chars
+2026-09-07 23:27:23,727 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pallets__flask-5014 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/conversations/pallets__flask-5014.tar.gz
+2026-09-07 23:27:25,745 - INFO - openhands.workspace.docker.workspace - Stopping container: c2a6c4e86a168fd2ae30a7bd185fb05f28dae02d137bba038de853d254ee4792
+2026-09-07 23:27:25,745 - INFO - openhands.sdk.utils.command - $ docker stop c2a6c4e86a168fd2ae30a7bd185fb05f28dae02d137bba038de853d254ee4792
+2026-09-07 23:27:26,398 - INFO - root - === Evaluation Started (instance pallets__flask-5014) ===
+    View live output:
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/logs/instance_pallets__flask-5014.log          (logger)
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/logs/instance_pallets__flask-5014.output.log   (stdout/stderr)
+    ===============================================
+2026-09-07 23:27:26,399 - INFO - benchmarks.utils.evaluation - [worker] start id=pallets__flask-5014
+2026-09-07 23:27:26,452 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal
+2026-09-07 23:27:26,465 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-07 23:27:26,500 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-1e1feeaf-0e8b-41ff-ab0d-503d2af285eb -e LMNR_SPAN_CONTEXT=null -p 39806:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --host 0.0.0.0 --port 8000
+2026-09-07 23:27:26,854 - INFO - openhands.workspace.docker.workspace - Started container: a0850b6acea1f502aee0e13c0b4633c47eab32351a10900a3958e79c24b474cb
+2026-09-07 23:27:26,856 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a0850b6acea1f502aee0e13c0b4633c47eab32351a10900a3958e79c24b474cb
+2026-09-07 23:27:27,874 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a0850b6acea1f502aee0e13c0b4633c47eab32351a10900a3958e79c24b474cb
+2026-09-07 23:27:28,892 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a0850b6acea1f502aee0e13c0b4633c47eab32351a10900a3958e79c24b474cb
+2026-09-07 23:27:29,909 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a0850b6acea1f502aee0e13c0b4633c47eab32351a10900a3958e79c24b474cb
+2026-09-07 23:27:30,925 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a0850b6acea1f502aee0e13c0b4633c47eab32351a10900a3958e79c24b474cb
+2026-09-07 23:27:31,942 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a0850b6acea1f502aee0e13c0b4633c47eab32351a10900a3958e79c24b474cb
+2026-09-07 23:27:32,957 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a0850b6acea1f502aee0e13c0b4633c47eab32351a10900a3958e79c24b474cb
+2026-09-07 23:27:33,976 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a0850b6acea1f502aee0e13c0b4633c47eab32351a10900a3958e79c24b474cb
+2026-09-07 23:27:34,992 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a0850b6acea1f502aee0e13c0b4633c47eab32351a10900a3958e79c24b474cb
+2026-09-07 23:27:36,007 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a0850b6acea1f502aee0e13c0b4633c47eab32351a10900a3958e79c24b474cb
+2026-09-07 23:27:37,024 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:39806
+2026-09-07 23:27:38,252 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-07 23:27:38,285 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-07 23:27:38,383 - INFO - __main__ - repo_path: /workspace/flask/
+2026-09-07 23:27:38,694 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-07 23:29:36,261 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=1
+2026-09-07 23:29:36,268 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed (attempt 1/4): Conversation run failed for id=5dd0042f-69cd-4cb7-a9c1-d2395133fa53: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-07 23:29:36,395 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pallets__flask-5014 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/conversations/pallets__flask-5014.tar.gz
+2026-09-07 23:29:38,396 - INFO - openhands.workspace.docker.workspace - Stopping container: a0850b6acea1f502aee0e13c0b4633c47eab32351a10900a3958e79c24b474cb
+2026-09-07 23:29:38,397 - INFO - openhands.sdk.utils.command - $ docker stop a0850b6acea1f502aee0e13c0b4633c47eab32351a10900a3958e79c24b474cb
+2026-09-07 23:29:38,900 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: attempt 2/4, runtime_failure_count=1, resource_factor=2
+2026-09-07 23:29:38,953 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal
+2026-09-07 23:29:38,961 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-07 23:29:38,990 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-0f6aed3c-9771-4a82-b3f8-29fcc5d5a6e2 -e LMNR_SPAN_CONTEXT=null -p 36332:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --host 0.0.0.0 --port 8000
+2026-09-07 23:29:39,289 - INFO - openhands.workspace.docker.workspace - Started container: 445e02ce0c40ec3efc8681053ff5aa2b4206cb7991ca51b6418fff27d61385d6
+2026-09-07 23:29:39,290 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 445e02ce0c40ec3efc8681053ff5aa2b4206cb7991ca51b6418fff27d61385d6
+2026-09-07 23:29:40,305 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 445e02ce0c40ec3efc8681053ff5aa2b4206cb7991ca51b6418fff27d61385d6
+2026-09-07 23:29:41,320 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 445e02ce0c40ec3efc8681053ff5aa2b4206cb7991ca51b6418fff27d61385d6
+2026-09-07 23:29:42,334 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 445e02ce0c40ec3efc8681053ff5aa2b4206cb7991ca51b6418fff27d61385d6
+2026-09-07 23:29:43,349 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 445e02ce0c40ec3efc8681053ff5aa2b4206cb7991ca51b6418fff27d61385d6
+2026-09-07 23:29:44,363 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 445e02ce0c40ec3efc8681053ff5aa2b4206cb7991ca51b6418fff27d61385d6
+2026-09-07 23:29:45,377 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 445e02ce0c40ec3efc8681053ff5aa2b4206cb7991ca51b6418fff27d61385d6
+2026-09-07 23:29:46,390 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 445e02ce0c40ec3efc8681053ff5aa2b4206cb7991ca51b6418fff27d61385d6
+2026-09-07 23:29:47,404 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:36332
+2026-09-07 23:30:47,587 - ERROR - openhands.sdk.git.utils - Git command timed out: git fetch origin
+2026-09-07 23:30:47,588 - WARNING - openhands.sdk.git.cached_repo - Failed to fetch updates: Git command timed out: git fetch origin. Using cached version.
+2026-09-07 23:30:47,742 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-07 23:30:47,768 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-07 23:30:47,857 - INFO - __main__ - repo_path: /workspace/flask/
+2026-09-07 23:30:48,152 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-07 23:32:37,177 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=2
+2026-09-07 23:32:37,177 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed (attempt 2/4): Conversation run failed for id=f2be75d8-adea-4dfd-9127-8a34396a361b: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-07 23:32:37,309 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pallets__flask-5014 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/conversations/pallets__flask-5014.tar.gz
+2026-09-07 23:32:39,310 - INFO - openhands.workspace.docker.workspace - Stopping container: 445e02ce0c40ec3efc8681053ff5aa2b4206cb7991ca51b6418fff27d61385d6
+2026-09-07 23:32:39,311 - INFO - openhands.sdk.utils.command - $ docker stop 445e02ce0c40ec3efc8681053ff5aa2b4206cb7991ca51b6418fff27d61385d6
+2026-09-07 23:32:39,875 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: attempt 3/4, runtime_failure_count=2, resource_factor=4
+2026-09-07 23:32:39,912 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal
+2026-09-07 23:32:39,920 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-07 23:32:39,948 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-81c754e9-edcd-4137-bbe8-b66c1adc7775 -e LMNR_SPAN_CONTEXT=null -p 37244:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --host 0.0.0.0 --port 8000
+2026-09-07 23:32:40,210 - INFO - openhands.workspace.docker.workspace - Started container: 7f9c61e8727bbc1becc66e800fe01a957e33abc2c90b834b610393911e2a273b
+2026-09-07 23:32:40,212 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7f9c61e8727bbc1becc66e800fe01a957e33abc2c90b834b610393911e2a273b
+2026-09-07 23:32:41,227 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7f9c61e8727bbc1becc66e800fe01a957e33abc2c90b834b610393911e2a273b
+2026-09-07 23:32:42,240 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7f9c61e8727bbc1becc66e800fe01a957e33abc2c90b834b610393911e2a273b
+2026-09-07 23:32:43,254 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7f9c61e8727bbc1becc66e800fe01a957e33abc2c90b834b610393911e2a273b
+2026-09-07 23:32:44,267 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7f9c61e8727bbc1becc66e800fe01a957e33abc2c90b834b610393911e2a273b
+2026-09-07 23:32:45,281 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7f9c61e8727bbc1becc66e800fe01a957e33abc2c90b834b610393911e2a273b
+2026-09-07 23:32:46,295 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7f9c61e8727bbc1becc66e800fe01a957e33abc2c90b834b610393911e2a273b
+2026-09-07 23:32:47,308 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7f9c61e8727bbc1becc66e800fe01a957e33abc2c90b834b610393911e2a273b
+2026-09-07 23:32:48,325 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:37244
+2026-09-07 23:33:48,505 - ERROR - openhands.sdk.git.utils - Git command timed out: git fetch origin
+2026-09-07 23:33:48,515 - WARNING - openhands.sdk.git.cached_repo - Failed to fetch updates: Git command timed out: git fetch origin. Using cached version.
+2026-09-07 23:33:48,656 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-07 23:33:48,683 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-07 23:33:48,768 - INFO - __main__ - repo_path: /workspace/flask/
+2026-09-07 23:33:49,064 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-07 23:35:21,422 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=3
+2026-09-07 23:35:21,422 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed (attempt 3/4): Conversation run failed for id=9175c098-2681-467d-94b1-d033f70e3dc8: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-07 23:35:21,552 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pallets__flask-5014 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/conversations/pallets__flask-5014.tar.gz
+2026-09-07 23:35:23,553 - INFO - openhands.workspace.docker.workspace - Stopping container: 7f9c61e8727bbc1becc66e800fe01a957e33abc2c90b834b610393911e2a273b
+2026-09-07 23:35:23,553 - INFO - openhands.sdk.utils.command - $ docker stop 7f9c61e8727bbc1becc66e800fe01a957e33abc2c90b834b610393911e2a273b
+2026-09-07 23:35:24,066 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: attempt 4/4, runtime_failure_count=3, resource_factor=8
+2026-09-07 23:35:24,105 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal
+2026-09-07 23:35:24,113 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-07 23:35:24,138 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-d9b0b76e-562f-4701-9b36-c0cfa9912880 -e LMNR_SPAN_CONTEXT=null -p 37760:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --host 0.0.0.0 --port 8000
+2026-09-07 23:35:24,423 - INFO - openhands.workspace.docker.workspace - Started container: 043bd4d2c30fc6272a05cbebd8b8b211c1b0900de218793f265c06c62194498e
+2026-09-07 23:35:24,424 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 043bd4d2c30fc6272a05cbebd8b8b211c1b0900de218793f265c06c62194498e
+2026-09-07 23:35:25,438 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 043bd4d2c30fc6272a05cbebd8b8b211c1b0900de218793f265c06c62194498e
+2026-09-07 23:35:26,452 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 043bd4d2c30fc6272a05cbebd8b8b211c1b0900de218793f265c06c62194498e
+2026-09-07 23:35:27,467 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 043bd4d2c30fc6272a05cbebd8b8b211c1b0900de218793f265c06c62194498e
+2026-09-07 23:35:28,481 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 043bd4d2c30fc6272a05cbebd8b8b211c1b0900de218793f265c06c62194498e
+2026-09-07 23:35:29,495 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 043bd4d2c30fc6272a05cbebd8b8b211c1b0900de218793f265c06c62194498e
+2026-09-07 23:35:30,509 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 043bd4d2c30fc6272a05cbebd8b8b211c1b0900de218793f265c06c62194498e
+2026-09-07 23:35:31,523 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 043bd4d2c30fc6272a05cbebd8b8b211c1b0900de218793f265c06c62194498e
+2026-09-07 23:35:32,538 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:37760
+2026-09-07 23:35:40,891 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-07 23:35:40,903 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-07 23:35:40,981 - INFO - __main__ - repo_path: /workspace/flask/
+2026-09-07 23:35:41,272 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-07 23:37:14,372 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=4
+2026-09-07 23:37:14,373 - ERROR - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed after 4 attempts. Last error: Conversation run failed for id=9bc5f6cb-bb8d-4ee5-9dae-46c833679951: MaxIterationsReached: Agent reached maximum iterations limit (30).
+Traceback (most recent call last):
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/evaluation.py", line 1113, in _execute_single_attempt
+    out = self.evaluate_instance(instance, workspace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/swebench/run_infer.py", line 485, in evaluate_instance
+    run_conversation_with_fake_user_response(conversation)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/fake_user_response.py", line 148, in run_conversation_with_fake_user_response
+    conversation.run(timeout=run_timeout)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/observability/laminar.py", line 187, in sync_wrapper
+    return func(*args, **fkwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1092, in run
+    self._wait_for_run_completion(poll_interval, timeout)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1154, in _wait_for_run_completion
+    self._handle_conversation_status(ws_status)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1254, in _handle_conversation_status
+    raise ConversationRunError(
+openhands.sdk.conversation.exceptions.ConversationRunError: Conversation run failed for id=9bc5f6cb-bb8d-4ee5-9dae-46c833679951: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-07 23:37:14,608 - INFO - __main__ - Collected failure patch for pallets__flask-5014: 1673 chars
+2026-09-07 23:37:14,725 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pallets__flask-5014 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run3/conversations/pallets__flask-5014.tar.gz
+2026-09-07 23:37:16,742 - INFO - openhands.workspace.docker.workspace - Stopping container: 043bd4d2c30fc6272a05cbebd8b8b211c1b0900de218793f265c06c62194498e
+2026-09-07 23:37:16,743 - INFO - openhands.sdk.utils.command - $ docker stop 043bd4d2c30fc6272a05cbebd8b8b211c1b0900de218793f265c06c62194498e

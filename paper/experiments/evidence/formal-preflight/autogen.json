@@ -1,0 +1,22 @@
+{
+  "schema": "zyra.external-baseline-preflight/v1",
+  "baseline": "autogen",
+  "model": "deepseek-v4-flash",
+  "started_at": "2026-09-07T08:17:25.821564+00:00",
+  "elapsed_ms": 5815,
+  "task_digest": "a4d30358ddebf9a6fd6370de56513ea92cf642f4f1d644f4abe008a9fe2686cb",
+  "output_digest": "2cf5649f973e0a55211020ff65c6561b645e792555bef5fed494a1103a1d1099",
+  "parsed_output": {
+    "region": "cn-south",
+    "retries": 4
+  },
+  "expected": {
+    "region": "cn-south",
+    "retries": 4
+  },
+  "strict_success": true,
+  "framework": {
+    "framework_messages": 7
+  },
+  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]"
+}

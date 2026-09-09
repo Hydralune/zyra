@@ -1,0 +1,18 @@
+{
+  "schema": "zyra.swebench-formal-run.v1",
+  "instance_id": "pylint-dev__pylint-8898",
+  "system": "ZYRA",
+  "run_class": "integration_calibration",
+  "model": "deepseek-v4-flash",
+  "temperature": 0,
+  "sealed": true,
+  "container": "zyra-pylint-dev--pylint-8898-bench",
+  "container_image": "swebench/sweb.eval.x86_64.pylint-dev_1776_pylint-8898:latest",
+  "base_commit": "1f8c4d9eb185c16a2c1d881c054f015e1c2eb334",
+  "deadline_minutes": 45,
+  "max_turns": 80,
+  "max_total_tokens": 600000,
+  "max_output_tokens_per_request": 16384,
+  "external_deadline_epoch_ms": 1788913341989,
+  "started_at": "2026-09-08T23:37:22.0261590Z"
+}

@@ -1,0 +1,30 @@
+{
+  "schema": "zyra.experiment-run-summary/v1",
+  "instance_id": "sympy__sympy-17655",
+  "system": "ZYRA",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "invalidation_reason": "",
+  "task_id": null,
+  "run_id": null,
+  "task_status": "unknown",
+  "started_at": "2026-09-09T02:19:31.8031239Z",
+  "ended_at": null,
+  "elapsed_seconds": null,
+  "budget": {
+    "max_total_tokens": 600000,
+    "max_turns": 80,
+    "deadline_minutes": 45
+  },
+  "usage": null,
+  "workspace_deltas": [],
+  "evidence_integrity": {
+    "task_run_present": false,
+    "canonical_task_record_observed": false,
+    "terminal_state_observed": false,
+    "run_transport_ok": false,
+    "run_transport_error": ""
+  },
+  "official_evaluator": null,
+  "strict_success": false
+}

@@ -1,0 +1,23 @@
+{
+  "schema": "zyra.experiment-run-summary/v1",
+  "instance_id": "pylint-dev__pylint-8898",
+  "system": "ZYRA",
+  "analysis_class": "invalidated_development",
+  "efficacy_eligible": false,
+  "invalidation_reason": "cancelled for root-cause audit after result-driven development",
+  "task_id": "task_8ef5be12e2fb",
+  "run_id": "run_298b047e4909",
+  "task_status": "cancelled",
+  "started_at": "2026-09-09T01:06:29.7268882Z",
+  "ended_at": "2026-09-09T01:15:10.6368190Z",
+  "elapsed_seconds": 520.91,
+  "budget": {
+    "max_total_tokens": 2000000,
+    "max_turns": 120,
+    "deadline_minutes": 45
+  },
+  "usage": null,
+  "workspace_deltas": [],
+  "official_evaluator": null,
+  "strict_success": false
+}

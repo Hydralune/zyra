@@ -1,0 +1,23 @@
+{
+  "schema": "zyra.swebench-formal-run.v1",
+  "instance_id": "sympy__sympy-17655",
+  "system": "ZYRA",
+  "run_class": "calibration",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "invalidation_reason": "",
+  "model": "deepseek-v4-flash",
+  "temperature": 0,
+  "sealed": true,
+  "container": "zyra-sympy--sympy-17655-bench",
+  "container_image": "swebench/sweb.eval.x86_64.sympy_1776_sympy-17655:latest",
+  "base_commit": "f5e965947af2410ded92cfad987aaf45262ea434",
+  "container_head": "f5e965947af2410ded92cfad987aaf45262ea434",
+  "base_tree_equivalent": true,
+  "deadline_minutes": 45,
+  "max_turns": 80,
+  "max_total_tokens": 600000,
+  "max_output_tokens_per_request": 16384,
+  "external_deadline_epoch_ms": 1788923071793,
+  "started_at": "2026-09-09T02:19:31.8031239Z"
+}

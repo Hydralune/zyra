@@ -1,0 +1,33 @@
+{
+  "schema": "zyra.calibration-manifest/v1",
+  "status": "frozen-before-calibration-results",
+  "seed": "zyra-calibration-v1-20260907",
+  "purpose": "compatibility, observability, evaluator agreement and budget gate only; excluded from all efficacy analyses",
+  "selected_task_count": 11,
+  "planned_cell_count": 29,
+  "systems": {
+    "openhands_official": "official OpenHands default Agent; only its native SWE-bench calibration tasks",
+    "autogen_static_official": "official AutoGen AssistantAgent team with fixed RoundRobin scheduling",
+    "autogen_magentic_one_official": "official AutoGen Magentic-One",
+    "zyra": "full ZYRA system"
+  },
+  "cells": [
+    {"family": "swe_bench_verified", "task_id": "pylint-dev__pylint-8898", "systems": ["openhands_official", "autogen_static_official", "autogen_magentic_one_official", "zyra"]},
+    {"family": "swe_bench_verified", "task_id": "pallets__flask-5014", "systems": ["openhands_official", "autogen_static_official", "autogen_magentic_one_official", "zyra"]},
+    {"family": "tau2_bench", "domain": "airline", "task_id": "7", "systems": ["autogen_static_official", "autogen_magentic_one_official", "zyra"]},
+    {"family": "tau2_bench", "domain": "telecom", "task_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling[PERSONA:None]", "systems": ["autogen_static_official", "autogen_magentic_one_official", "zyra"]},
+    {"family": "multiagentbench", "scenario": "database", "task_id": "94", "systems": ["autogen_static_official", "autogen_magentic_one_official", "zyra"]},
+    {"family": "multiagentbench", "scenario": "research", "task_id": "55", "systems": ["autogen_static_official", "autogen_magentic_one_official", "zyra"]},
+    {"family": "agentbench_v0.2", "scenario": "os_interaction", "task_id": "os-3-ac-5", "systems": ["autogen_static_official", "autogen_magentic_one_official", "zyra"]},
+    {"family": "agentbench_v0.2", "scenario": "dbbench", "task_id": "db-228", "systems": ["autogen_static_official", "autogen_magentic_one_official", "zyra"]},
+    {"family": "swe_bench_verified", "task_id": "sympy__sympy-17655", "systems": ["zyra"], "purpose": "post-fix pipeline and live-progress calibration selected by SHA-256 rank from unused <15 minute tasks before observing any result; efficacy excluded"},
+    {"family": "swe_bench_verified", "task_id": "scikit-learn__scikit-learn-13439", "systems": ["zyra"], "purpose": "fresh post-repair calibration selected before reading the gold patch by frozen SHA-256 rank over unused non-formal <15 minute tasks; pipeline, evidence-integrity and budget gate only; efficacy excluded", "selection_record": "paper/experiments/tasksets/scikit-learn-13439-calibration-selection-v1.json"},
+    {"family": "swe_bench_verified", "task_id": "matplotlib__matplotlib-13989", "systems": ["zyra"], "purpose": "fresh cross-repository calibration after inline-probe and WSL path-stream repairs; selected before reading the gold patch; efficacy excluded", "selection_record": "paper/experiments/tasksets/matplotlib-13989-calibration-selection-v1.json"}
+  ],
+  "acceptance_gates": [
+    "Each scheduled cell yields a unique run identifier, task-record hash, model identifier, start/end time, input/output/reasoning/cache token usage, tool-call count, terminal status and raw evaluator result.",
+    "The official evaluator or hidden test can be rerun independently from the agent trace and returns the same terminal verdict.",
+    "Every system uses the same DeepSeek model, temperature, server-default reasoning mode and per-family budget; unsupported systems are recorded as not applicable, never imitated.",
+    "Any ordinary timeout, agent crash, tool failure or malformed result remains a failed cell; only host-wide outage or evidence-store failure triggers a rerun after recording the incident."
+  ]
+}

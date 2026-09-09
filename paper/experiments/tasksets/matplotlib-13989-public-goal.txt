@@ -1,0 +1,5 @@
+Fix the reported Matplotlib regression in the repository at /testbed.
+
+Problem: hist() no longer respects an explicitly supplied range when density=True. For example, calling plt.hist on random values with bins="auto", range=(0, 1), and density=True can produce bin edges whose first and last values are not 0 and 1. The same range is respected when density=False.
+
+Implement a correct, minimal repository change. Add or update an appropriate regression test when warranted, run the relevant repository tests using the test environment provided by the benchmark image, and leave the working tree containing the complete solution. Do not use external network access or hidden evaluator information.

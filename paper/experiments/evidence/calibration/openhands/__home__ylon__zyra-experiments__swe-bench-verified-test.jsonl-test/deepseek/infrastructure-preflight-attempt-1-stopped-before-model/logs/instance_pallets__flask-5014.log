@@ -1,0 +1,19 @@
+2026-09-07 21:21:32,793 - INFO - benchmarks.utils.evaluation - [worker] start id=pallets__flask-5014
+2026-09-07 21:21:32,814 - INFO - benchmarks.utils.build_utils - Building image from docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest...
+2026-09-07 21:21:32,827 - INFO - openhands.agent_server.docker.build - $ git rev-parse --verify HEAD (cwd=/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk)
+2026-09-07 21:21:32,831 - INFO - openhands.agent_server.docker.build - $ git symbolic-ref -q --short HEAD (cwd=/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk)
+2026-09-07 21:21:32,841 - INFO - benchmarks.utils.build_utils - SDK submodule info: ref=unknown, sha=43376f1, version=1.27.0
+2026-09-07 21:21:35,960 - INFO - openhands.agent_server.docker.build - $ uv build --sdist --out-dir /tmp/agent-sdist-5l589bwe (cwd=/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk)
+2026-09-07 21:21:49,169 - INFO - openhands.agent_server.docker.build - [build] Built 1 sdists for clean context: /tmp/agent-sdist-5l589bwe/unknown-0.0.0.tar.gz
+2026-09-07 21:21:49,271 - INFO - openhands.agent_server.docker.build - [build] Clean build context: /tmp/agent-build-1_mc3veq/unknown-0.0.0
+2026-09-07 21:21:49,272 - INFO - openhands.agent_server.docker.build - $ docker buildx inspect --bootstrap (cwd=None)
+2026-09-07 21:21:49,561 - WARNING - openhands.agent_server.docker.build - [build] WARNING: Active buildx driver is 'docker', which does not support local dir caching. Fallback to INLINE CACHE
+ Consider running the following commands to set up a compatible buildx environment:
+  1. docker buildx create --name openhands-builder --driver docker-container --use
+  2. docker buildx inspect --bootstrap
+
+2026-09-07 21:21:49,562 - INFO - openhands.agent_server.docker.build - [build] Cache: inline only (driver=docker)
+2026-09-07 21:21:49,562 - INFO - openhands.agent_server.docker.build - [build] Building target='source-minimal' image='ghcr.io/openhands/eval-agent-server' custom_tags='sweb.eval.x86_64.pallets_1776_flask-5014' from base='docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest' for platforms='local-arch'
+2026-09-07 21:21:49,563 - INFO - openhands.agent_server.docker.build - [build] Git ref='unknown' sha='43376f1868ffd702746080714a59c16d3f69ec12' package_version='1.27.0'
+2026-09-07 21:21:49,563 - INFO - openhands.agent_server.docker.build - [build] Cache tag: buildcache-source-minimal-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b
+2026-09-07 21:21:49,564 - INFO - openhands.agent_server.docker.build - $ docker buildx build --file /home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile --target source-minimal --build-arg BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest --build-arg OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12 --build-arg OPENHANDS_BUILD_GIT_REF=unknown --load --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal --build-arg BUILDKIT_INLINE_CACHE=1 /tmp/agent-build-1_mc3veq/unknown-0.0.0 (cwd=/tmp/agent-build-1_mc3veq/unknown-0.0.0)

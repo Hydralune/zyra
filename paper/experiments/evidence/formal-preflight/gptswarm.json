@@ -1,0 +1,25 @@
+{
+  "schema": "zyra.external-baseline-preflight/v1",
+  "baseline": "gptswarm",
+  "model": "deepseek-v4-flash",
+  "started_at": "2026-09-07T08:23:54.832347+00:00",
+  "elapsed_ms": 17498,
+  "task_digest": "a4d30358ddebf9a6fd6370de56513ea92cf642f4f1d644f4abe008a9fe2686cb",
+  "output_digest": "2cf5649f973e0a55211020ff65c6561b645e792555bef5fed494a1103a1d1099",
+  "parsed_output": {
+    "region": "cn-south",
+    "retries": 4
+  },
+  "expected": {
+    "region": "cn-south",
+    "retries": 4
+  },
+  "strict_success": true,
+  "framework": {
+    "framework_answers": 1,
+    "agents": 3,
+    "prompt_tokens": 890.0,
+    "completion_tokens": 238.0
+  },
+  "python": "3.10.6 (tags/v3.10.6:9c7b4bd, Aug  1 2022, 21:53:49) [MSC v.1932 64 bit (AMD64)]"
+}

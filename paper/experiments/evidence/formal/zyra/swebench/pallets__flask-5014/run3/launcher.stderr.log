@@ -1,0 +1,8 @@
+node.exe : Workspace file exceeds the CLI transfer limit: docs/evidence/phase2/final/0485261/final-regression-supplemen
+t/logs/internalization-ledger.stdout.log
+At C:\Users\Ylon\Desktop\挑战杯2026\zyra\scripts\run_zyra_swebench_flask5014.ps1:84 char:5
++     & node "apps/cli/dist/zyra.js" run --sealed --base-url "http://12 ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Workspace file ...dger.stdout.log:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

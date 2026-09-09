@@ -1,0 +1,338 @@
+2026-09-07 22:07:58,465 - INFO - root - === Evaluation Started (instance pallets__flask-5014) ===
+    View live output:
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-proxyverified/logs/instance_pallets__flask-5014.log          (logger)
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-proxyverified/logs/instance_pallets__flask-5014.output.log   (stdout/stderr)
+    ===============================================
+2026-09-07 22:07:58,466 - INFO - benchmarks.utils.evaluation - [worker] start id=pallets__flask-5014
+2026-09-07 22:07:58,481 - INFO - benchmarks.utils.build_utils - Building image from docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest...
+2026-09-07 22:07:58,486 - INFO - openhands.agent_server.docker.build - $ git rev-parse --verify HEAD (cwd=/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk)
+2026-09-07 22:07:58,489 - INFO - openhands.agent_server.docker.build - $ git symbolic-ref -q --short HEAD (cwd=/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk)
+2026-09-07 22:07:58,496 - INFO - benchmarks.utils.build_utils - SDK submodule info: ref=unknown, sha=43376f1, version=1.27.0
+2026-09-07 22:08:07,023 - INFO - openhands.agent_server.docker.build - $ uv build --sdist --out-dir /tmp/agent-sdist-03oxu7ks (cwd=/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk)
+2026-09-07 22:08:08,330 - INFO - openhands.agent_server.docker.build - [build] Built 1 sdists for clean context: /tmp/agent-sdist-03oxu7ks/unknown-0.0.0.tar.gz
+2026-09-07 22:08:08,421 - INFO - openhands.agent_server.docker.build - [build] Clean build context: /tmp/agent-build-60bmwpiv/unknown-0.0.0
+2026-09-07 22:08:08,422 - INFO - openhands.agent_server.docker.build - $ docker buildx inspect --bootstrap (cwd=None)
+2026-09-07 22:08:08,588 - WARNING - openhands.agent_server.docker.build - [build] WARNING: Active buildx driver is 'docker', which does not support local dir caching. Fallback to INLINE CACHE
+ Consider running the following commands to set up a compatible buildx environment:
+  1. docker buildx create --name openhands-builder --driver docker-container --use
+  2. docker buildx inspect --bootstrap
+
+2026-09-07 22:08:08,588 - INFO - openhands.agent_server.docker.build - [build] Cache: inline only (driver=docker)
+2026-09-07 22:08:08,589 - INFO - openhands.agent_server.docker.build - [build] Building target='source-minimal' image='ghcr.io/openhands/eval-agent-server' custom_tags='sweb.eval.x86_64.pallets_1776_flask-5014' from base='docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest' for platforms='local-arch'
+2026-09-07 22:08:08,589 - INFO - openhands.agent_server.docker.build - [build] Git ref='unknown' sha='43376f1868ffd702746080714a59c16d3f69ec12' package_version='1.27.0'
+2026-09-07 22:08:08,590 - INFO - openhands.agent_server.docker.build - [build] Cache tag: buildcache-source-minimal-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b
+2026-09-07 22:08:08,590 - INFO - openhands.agent_server.docker.build - $ docker buildx build --file /home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile --target source-minimal --build-arg BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest --build-arg OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12 --build-arg OPENHANDS_BUILD_GIT_REF=unknown --load --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal --build-arg BUILDKIT_INLINE_CACHE=1 /tmp/agent-build-60bmwpiv/unknown-0.0.0 (cwd=/tmp/agent-build-60bmwpiv/unknown-0.0.0)
+2026-09-07 22:10:41,542 - ERROR - openhands.agent_server.docker.build - [build] ERROR: Build failed with exit code 1
+2026-09-07 22:10:41,543 - ERROR - openhands.agent_server.docker.build - [build] Command: docker buildx build --file /home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile --target source-minimal --build-arg BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest --build-arg OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12 --build-arg OPENHANDS_BUILD_GIT_REF=unknown --load --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal --build-arg BUILDKIT_INLINE_CACHE=1 /tmp/agent-build-60bmwpiv/unknown-0.0.0
+2026-09-07 22:10:41,543 - ERROR - openhands.agent_server.docker.build - [build] Full stdout:
+
+2026-09-07 22:10:41,544 - ERROR - openhands.agent_server.docker.build - [build] Full stderr:
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 17.75kB done
+#1 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#2 ...
+
+#3 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#2 ...
+
+#4 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#4 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#2 DONE 61.2s
+
+#5 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#5 DONE 0.0s
+
+#6 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#6 resolve docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#6 ...
+
+#7 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#7 DONE 0.0s
+
+#6 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#6 resolve docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e 60.0s done
+#6 CACHED
+
+#8 [internal] load metadata for ghcr.io/astral-sh/uv:0.11.6
+#8 ...
+
+#9 [auth] library/python:pull token for registry-1.docker.io
+#9 DONE 0.0s
+
+#10 [auth] swebench/sweb.eval.x86_64.pallets_1776_flask-5014:pull token for registry-1.docker.io
+#10 DONE 0.0s
+
+#11 [internal] load metadata for docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest
+#11 ...
+
+#8 [internal] load metadata for ghcr.io/astral-sh/uv:0.11.6
+#8 DONE 3.7s
+
+#12 [internal] load metadata for docker.io/library/python:3.13-bookworm
+#12 ERROR: failed to authorize: DeadlineExceeded: failed to fetch oauth token: Post "https://auth.docker.io/token": dial tcp 128.242.245.212:443: i/o timeout
+
+#11 [internal] load metadata for docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest
+#11 ERROR: failed to authorize: DeadlineExceeded: failed to fetch oauth token: Post "https://auth.docker.io/token": dial tcp 128.242.245.212:443: i/o timeout
+------
+ > [internal] load metadata for docker.io/library/python:3.13-bookworm:
+------
+------
+ > [internal] load metadata for docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest:
+------
+Dockerfile:78
+--------------------
+  76 |     # Suitable for running in headless/evaluation mode.
+  77 |     ####################################################################################
+  78 | >>> FROM ${BASE_IMAGE} AS base-image-minimal
+  79 |     ARG USERNAME UID GID PORT
+  80 |     
+--------------------
+ERROR: failed to solve: DeadlineExceeded: docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest: DeadlineExceeded: failed to fetch oauth token: Post "https://auth.docker.io/token": dial tcp 128.242.245.212:443: i/o timeout
+
+2026-09-07 22:10:41,544 - INFO - openhands.agent_server.docker.build - [build] Cleaning /tmp/agent-build-60bmwpiv/unknown-0.0.0
+2026-09-07 22:10:41,549 - INFO - benchmarks.utils.build_utils - Image build output: time='2026-09-07T14:10:41.549429+00:00' base_image='docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest' tags=[] error="BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-60bmwpiv/unknown-0.0.0'])" log_path=None status='failed' skip_reason=None attempt_count=1 started_at=None finished_at=None duration_seconds=None remote_check_seconds=8.525 build_seconds=154.532 post_build_seconds=None sdk_build_context_seconds=1.398 sdk_buildx_wall_clock_seconds=152.958 sdk_cleanup_seconds=0.004 sdk_cache_import_seconds=0.0 sdk_cache_import_miss_count=0 sdk_cache_export_seconds=0.0 sdk_image_export_seconds=0.0 sdk_push_layers_seconds=0.0 sdk_export_manifest_seconds=0.0 sdk_cached_step_count=1
+2026-09-07 22:10:41,550 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=1
+2026-09-07 22:10:41,550 - ERROR - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed after 1 attempts. Last error: Image build failed: BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-60bmwpiv/unknown-0.0.0'])
+Traceback (most recent call last):
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/evaluation.py", line 1084, in _execute_single_attempt
+    workspace = self.prepare_workspace(
+                ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/swebench/run_infer.py", line 274, in prepare_workspace
+    built = ensure_local_image(
+            ^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/build_utils.py", line 515, in ensure_local_image
+    raise RuntimeError(f"Image build failed: {output.error}")
+RuntimeError: Image build failed: BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-60bmwpiv/unknown-0.0.0'])
+2026-09-07 22:10:41,623 - INFO - root - === Evaluation Started (instance pallets__flask-5014) ===
+    View live output:
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-proxyverified/logs/instance_pallets__flask-5014.log          (logger)
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-proxyverified/logs/instance_pallets__flask-5014.output.log   (stdout/stderr)
+    ===============================================
+2026-09-07 22:10:41,624 - INFO - benchmarks.utils.evaluation - [worker] start id=pallets__flask-5014
+2026-09-07 22:10:41,646 - INFO - benchmarks.utils.build_utils - Building image from docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest...
+2026-09-07 22:10:41,651 - INFO - benchmarks.utils.build_utils - SDK submodule info: ref=unknown, sha=43376f1, version=1.27.0
+2026-09-07 22:10:50,263 - INFO - openhands.agent_server.docker.build - $ uv build --sdist --out-dir /tmp/agent-sdist-3vgjxhtu (cwd=/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk)
+2026-09-07 22:10:51,758 - INFO - openhands.agent_server.docker.build - [build] Built 1 sdists for clean context: /tmp/agent-sdist-3vgjxhtu/unknown-0.0.0.tar.gz
+2026-09-07 22:10:51,830 - INFO - openhands.agent_server.docker.build - [build] Clean build context: /tmp/agent-build-srupp123/unknown-0.0.0
+2026-09-07 22:10:51,831 - INFO - openhands.agent_server.docker.build - $ docker buildx inspect --bootstrap (cwd=None)
+2026-09-07 22:10:51,982 - WARNING - openhands.agent_server.docker.build - [build] WARNING: Active buildx driver is 'docker', which does not support local dir caching. Fallback to INLINE CACHE
+ Consider running the following commands to set up a compatible buildx environment:
+  1. docker buildx create --name openhands-builder --driver docker-container --use
+  2. docker buildx inspect --bootstrap
+
+2026-09-07 22:10:51,983 - INFO - openhands.agent_server.docker.build - [build] Cache: inline only (driver=docker)
+2026-09-07 22:10:51,983 - INFO - openhands.agent_server.docker.build - [build] Building target='source-minimal' image='ghcr.io/openhands/eval-agent-server' custom_tags='sweb.eval.x86_64.pallets_1776_flask-5014' from base='docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest' for platforms='local-arch'
+2026-09-07 22:10:51,984 - INFO - openhands.agent_server.docker.build - [build] Git ref='unknown' sha='43376f1868ffd702746080714a59c16d3f69ec12' package_version='1.27.0'
+2026-09-07 22:10:51,984 - INFO - openhands.agent_server.docker.build - [build] Cache tag: buildcache-source-minimal-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b
+2026-09-07 22:10:51,985 - INFO - openhands.agent_server.docker.build - $ docker buildx build --file /home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile --target source-minimal --build-arg BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest --build-arg OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12 --build-arg OPENHANDS_BUILD_GIT_REF=unknown --load --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal --build-arg BUILDKIT_INLINE_CACHE=1 /tmp/agent-build-srupp123/unknown-0.0.0 (cwd=/tmp/agent-build-srupp123/unknown-0.0.0)
+2026-09-07 22:13:22,739 - ERROR - openhands.agent_server.docker.build - [build] ERROR: Build failed with exit code 1
+2026-09-07 22:13:22,739 - ERROR - openhands.agent_server.docker.build - [build] Command: docker buildx build --file /home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile --target source-minimal --build-arg BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest --build-arg OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12 --build-arg OPENHANDS_BUILD_GIT_REF=unknown --load --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal --build-arg BUILDKIT_INLINE_CACHE=1 /tmp/agent-build-srupp123/unknown-0.0.0
+2026-09-07 22:13:22,740 - ERROR - openhands.agent_server.docker.build - [build] Full stdout:
+
+2026-09-07 22:13:22,740 - ERROR - openhands.agent_server.docker.build - [build] Full stderr:
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 17.75kB done
+#1 DONE 0.0s
+
+#2 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#2 DONE 0.0s
+
+#3 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#3 ...
+
+#4 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#4 DONE 0.0s
+
+#3 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#3 DONE 60.2s
+
+#5 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#5 DONE 0.0s
+
+#6 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#6 resolve docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#6 ...
+
+#7 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#7 DONE 0.0s
+
+#6 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#6 resolve docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e 60.0s done
+#6 DONE 60.0s
+
+#6 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#6 CACHED
+
+#8 [internal] load metadata for ghcr.io/astral-sh/uv:0.11.6
+#8 ...
+
+#9 [auth] swebench/sweb.eval.x86_64.pallets_1776_flask-5014:pull token for registry-1.docker.io
+#9 DONE 0.0s
+
+#10 [auth] library/python:pull token for registry-1.docker.io
+#10 DONE 0.0s
+
+#11 [internal] load metadata for docker.io/library/python:3.13-bookworm
+#11 ...
+
+#8 [internal] load metadata for ghcr.io/astral-sh/uv:0.11.6
+#8 DONE 2.3s
+
+#12 [internal] load metadata for docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest
+#12 ERROR: failed to authorize: DeadlineExceeded: failed to fetch oauth token: Post "https://auth.docker.io/token": dial tcp 128.242.245.212:443: i/o timeout
+
+#11 [internal] load metadata for docker.io/library/python:3.13-bookworm
+#11 CANCELED
+------
+ > [internal] load metadata for docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest:
+------
+Dockerfile:78
+--------------------
+  76 |     # Suitable for running in headless/evaluation mode.
+  77 |     ####################################################################################
+  78 | >>> FROM ${BASE_IMAGE} AS base-image-minimal
+  79 |     ARG USERNAME UID GID PORT
+  80 |     
+--------------------
+ERROR: failed to solve: DeadlineExceeded: docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest: DeadlineExceeded: failed to fetch oauth token: Post "https://auth.docker.io/token": dial tcp 128.242.245.212:443: i/o timeout
+
+2026-09-07 22:13:22,741 - INFO - openhands.agent_server.docker.build - [build] Cleaning /tmp/agent-build-srupp123/unknown-0.0.0
+2026-09-07 22:13:22,750 - INFO - benchmarks.utils.build_utils - Image build output: time='2026-09-07T14:13:22.750015+00:00' base_image='docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest' tags=[] error="BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-srupp123/unknown-0.0.0'])" log_path=None status='failed' skip_reason=None attempt_count=1 started_at=None finished_at=None duration_seconds=None remote_check_seconds=8.608 build_seconds=152.493 post_build_seconds=None sdk_build_context_seconds=1.568 sdk_buildx_wall_clock_seconds=150.76 sdk_cleanup_seconds=0.009 sdk_cache_import_seconds=0.0 sdk_cache_import_miss_count=0 sdk_cache_export_seconds=0.0 sdk_image_export_seconds=0.0 sdk_push_layers_seconds=0.0 sdk_export_manifest_seconds=0.0 sdk_cached_step_count=1
+2026-09-07 22:13:22,751 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=1
+2026-09-07 22:13:22,752 - ERROR - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed after 1 attempts. Last error: Image build failed: BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-srupp123/unknown-0.0.0'])
+Traceback (most recent call last):
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/evaluation.py", line 1084, in _execute_single_attempt
+    workspace = self.prepare_workspace(
+                ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/swebench/run_infer.py", line 274, in prepare_workspace
+    built = ensure_local_image(
+            ^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/build_utils.py", line 515, in ensure_local_image
+    raise RuntimeError(f"Image build failed: {output.error}")
+RuntimeError: Image build failed: BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-srupp123/unknown-0.0.0'])
+2026-09-07 22:13:22,953 - INFO - root - === Evaluation Started (instance pallets__flask-5014) ===
+    View live output:
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-proxyverified/logs/instance_pallets__flask-5014.log          (logger)
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-proxyverified/logs/instance_pallets__flask-5014.output.log   (stdout/stderr)
+    ===============================================
+2026-09-07 22:13:22,955 - INFO - benchmarks.utils.evaluation - [worker] start id=pallets__flask-5014
+2026-09-07 22:13:22,983 - INFO - benchmarks.utils.build_utils - Building image from docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest...
+2026-09-07 22:13:22,991 - INFO - benchmarks.utils.build_utils - SDK submodule info: ref=unknown, sha=43376f1, version=1.27.0
+2026-09-07 22:13:27,276 - INFO - openhands.agent_server.docker.build - $ uv build --sdist --out-dir /tmp/agent-sdist-xz7d9unc (cwd=/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk)
+2026-09-07 22:13:28,203 - INFO - openhands.agent_server.docker.build - [build] Built 1 sdists for clean context: /tmp/agent-sdist-xz7d9unc/unknown-0.0.0.tar.gz
+2026-09-07 22:13:28,285 - INFO - openhands.agent_server.docker.build - [build] Clean build context: /tmp/agent-build-vd_nr1h7/unknown-0.0.0
+2026-09-07 22:13:28,286 - INFO - openhands.agent_server.docker.build - $ docker buildx inspect --bootstrap (cwd=None)
+2026-09-07 22:13:28,437 - WARNING - openhands.agent_server.docker.build - [build] WARNING: Active buildx driver is 'docker', which does not support local dir caching. Fallback to INLINE CACHE
+ Consider running the following commands to set up a compatible buildx environment:
+  1. docker buildx create --name openhands-builder --driver docker-container --use
+  2. docker buildx inspect --bootstrap
+
+2026-09-07 22:13:28,438 - INFO - openhands.agent_server.docker.build - [build] Cache: inline only (driver=docker)
+2026-09-07 22:13:28,438 - INFO - openhands.agent_server.docker.build - [build] Building target='source-minimal' image='ghcr.io/openhands/eval-agent-server' custom_tags='sweb.eval.x86_64.pallets_1776_flask-5014' from base='docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest' for platforms='local-arch'
+2026-09-07 22:13:28,439 - INFO - openhands.agent_server.docker.build - [build] Git ref='unknown' sha='43376f1868ffd702746080714a59c16d3f69ec12' package_version='1.27.0'
+2026-09-07 22:13:28,439 - INFO - openhands.agent_server.docker.build - [build] Cache tag: buildcache-source-minimal-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b
+2026-09-07 22:13:28,440 - INFO - openhands.agent_server.docker.build - $ docker buildx build --file /home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile --target source-minimal --build-arg BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest --build-arg OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12 --build-arg OPENHANDS_BUILD_GIT_REF=unknown --load --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal --build-arg BUILDKIT_INLINE_CACHE=1 /tmp/agent-build-vd_nr1h7/unknown-0.0.0 (cwd=/tmp/agent-build-vd_nr1h7/unknown-0.0.0)
+2026-09-07 22:15:39,548 - ERROR - openhands.agent_server.docker.build - [build] ERROR: Build failed with exit code 1
+2026-09-07 22:15:39,549 - ERROR - openhands.agent_server.docker.build - [build] Command: docker buildx build --file /home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile --target source-minimal --build-arg BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest --build-arg OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12 --build-arg OPENHANDS_BUILD_GIT_REF=unknown --load --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal --build-arg BUILDKIT_INLINE_CACHE=1 /tmp/agent-build-vd_nr1h7/unknown-0.0.0
+2026-09-07 22:15:39,549 - ERROR - openhands.agent_server.docker.build - [build] Full stdout:
+
+2026-09-07 22:15:39,550 - ERROR - openhands.agent_server.docker.build - [build] Full stderr:
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 17.75kB done
+#1 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#2 ...
+
+#3 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#2 ...
+
+#4 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#4 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#2 DONE 60.3s
+
+#5 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#5 DONE 0.0s
+
+#6 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#6 resolve docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#6 ...
+
+#7 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#7 DONE 0.0s
+
+#6 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#6 resolve docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e 40.0s done
+#6 DONE 40.0s
+
+#6 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#6 CACHED
+
+#8 [internal] load metadata for ghcr.io/astral-sh/uv:0.11.6
+#8 ...
+
+#9 [auth] swebench/sweb.eval.x86_64.pallets_1776_flask-5014:pull token for registry-1.docker.io
+#9 DONE 0.0s
+
+#10 [auth] library/python:pull token for registry-1.docker.io
+#10 DONE 0.0s
+
+#11 [internal] load metadata for docker.io/library/python:3.13-bookworm
+#11 ...
+
+#8 [internal] load metadata for ghcr.io/astral-sh/uv:0.11.6
+#8 DONE 2.3s
+
+#12 [internal] load metadata for docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest
+#12 ERROR: failed to authorize: failed to fetch oauth token: Post "https://auth.docker.io/token": dial tcp 128.242.245.212:443: i/o timeout
+
+#11 [internal] load metadata for docker.io/library/python:3.13-bookworm
+#11 ERROR: failed to authorize: DeadlineExceeded: failed to fetch oauth token: Post "https://auth.docker.io/token": dial tcp 128.242.245.212:443: i/o timeout
+------
+ > [internal] load metadata for docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest:
+------
+------
+ > [internal] load metadata for docker.io/library/python:3.13-bookworm:
+------
+Dockerfile:28
+--------------------
+  26 |     # See OpenHands/software-agent-sdk#2761.
+  27 |     ####################################################################################
+  28 | >>> FROM python:3.13-bookworm AS builder
+  29 |     ARG USERNAME UID GID
+  30 |     ENV UV_PROJECT_ENVIRONMENT=/agent-server/.venv
+--------------------
+ERROR: failed to solve: DeadlineExceeded: python:3.13-bookworm: DeadlineExceeded: failed to fetch oauth token: Post "https://auth.docker.io/token": dial tcp 128.242.245.212:443: i/o timeout
+
+2026-09-07 22:15:39,550 - INFO - openhands.agent_server.docker.build - [build] Cleaning /tmp/agent-build-vd_nr1h7/unknown-0.0.0
+2026-09-07 22:15:39,555 - INFO - benchmarks.utils.build_utils - Image build output: time='2026-09-07T14:15:39.555248+00:00' base_image='docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest' tags=[] error="BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-vd_nr1h7/unknown-0.0.0'])" log_path=None status='failed' skip_reason=None attempt_count=1 started_at=None finished_at=None duration_seconds=None remote_check_seconds=4.28 build_seconds=132.284 post_build_seconds=None sdk_build_context_seconds=1.009 sdk_buildx_wall_clock_seconds=131.114 sdk_cleanup_seconds=0.005 sdk_cache_import_seconds=0.0 sdk_cache_import_miss_count=0 sdk_cache_export_seconds=0.0 sdk_image_export_seconds=0.0 sdk_push_layers_seconds=0.0 sdk_export_manifest_seconds=0.0 sdk_cached_step_count=1
+2026-09-07 22:15:39,555 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=1
+2026-09-07 22:15:39,556 - ERROR - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed after 1 attempts. Last error: Image build failed: BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-vd_nr1h7/unknown-0.0.0'])
+Traceback (most recent call last):
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/evaluation.py", line 1084, in _execute_single_attempt
+    workspace = self.prepare_workspace(
+                ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/swebench/run_infer.py", line 274, in prepare_workspace
+    built = ensure_local_image(
+            ^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/build_utils.py", line 515, in ensure_local_image
+    raise RuntimeError(f"Image build failed: {output.error}")
+RuntimeError: Image build failed: BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-vd_nr1h7/unknown-0.0.0'])

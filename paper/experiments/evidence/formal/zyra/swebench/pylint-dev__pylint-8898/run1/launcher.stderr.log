@@ -1,0 +1,6 @@
+Exception: C:\Users\Ylon\Desktop\ÃÙ’Ω±≠2026\zyra\scripts\run_zyra_swebench_flask5014.ps1:26
+Line |
+  26 |      throw "Refusing to reuse an existing state directory: $stateRoot"
+     |      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Refusing to reuse an existing state directory:
+     | C:\Users\Ylon\Desktop\ÃÙ’Ω±≠2026\zyra\.tmp\zyra-swebench-formal-run1

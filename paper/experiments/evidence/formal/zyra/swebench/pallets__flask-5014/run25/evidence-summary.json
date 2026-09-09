@@ -1,0 +1,86 @@
+{
+  "schema": "zyra.experiment-run-summary/v1",
+  "instance_id": "pallets__flask-5014",
+  "system": "ZYRA",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "invalidation_reason": "",
+  "task_id": "task_ab76aa1a6330",
+  "run_id": "run_6921770caec9",
+  "task_status": "completed",
+  "started_at": "2026-09-08T23:11:41.3624771Z",
+  "ended_at": "2026-09-08T23:20:18.5987029Z",
+  "elapsed_seconds": 517.236,
+  "budget": {
+    "max_total_tokens": 600000,
+    "max_turns": 80,
+    "deadline_minutes": 45
+  },
+  "usage": {
+    "input_tokens": 534411,
+    "output_tokens": 34558,
+    "total_tokens": 568969,
+    "cache_read_input_tokens": 501632,
+    "cache_creation_input_tokens": 0,
+    "cost_usd": 0.01566987,
+    "provider_calls": 22,
+    "tool_calls": 24,
+    "context_compactions": 0
+  },
+  "workspace_deltas": [
+    {
+      "schema": "zyra.physical-workspace-delta/v1",
+      "before_manifest_digest": "sha256:c460171da885541cc96d6df28fdf8df780694ac58fc3ddfebbab2bc145885c5e",
+      "after_manifest_digest": "sha256:60440324457598e2b9ced9509b594e4474e586ab8fb345118eda1c40b576a6fc",
+      "created": [],
+      "modified": [
+        "src/flask/blueprints.py",
+        "tests/test_blueprints.py"
+      ],
+      "deleted": [],
+      "changed": [
+        "src/flask/blueprints.py",
+        "tests/test_blueprints.py"
+      ]
+    }
+  ],
+  "evidence_integrity": {
+    "task_run_present": true,
+    "canonical_task_record_observed": true,
+    "terminal_state_observed": true,
+    "run_transport_ok": true,
+    "run_transport_error": ""
+  },
+  "official_evaluator": {
+    "path": "paper\\experiments\\evidence\\formal\\zyra\\swebench\\pallets__flask-5014\\run25\\official-swebench-report\\ZYRA-deepseek-v4-flash-run25.zyra-run25-e2e.json",
+    "raw": {
+      "total_instances": 1,
+      "submitted_instances": 1,
+      "completed_instances": 1,
+      "resolved_instances": 1,
+      "unresolved_instances": 0,
+      "empty_patch_instances": 0,
+      "error_instances": 0,
+      "unstopped_instances": 0,
+      "completed_ids": [
+        "pallets__flask-5014"
+      ],
+      "incomplete_ids": [],
+      "empty_patch_ids": [],
+      "submitted_ids": [
+        "pallets__flask-5014"
+      ],
+      "resolved_ids": [
+        "pallets__flask-5014"
+      ],
+      "unresolved_ids": [],
+      "error_ids": [],
+      "unstopped_containers": [],
+      "unremoved_images": [
+        "sweb.eval.x86_64.pallets__flask-5014:latest"
+      ],
+      "schema_version": 2
+    }
+  },
+  "strict_success": true
+}

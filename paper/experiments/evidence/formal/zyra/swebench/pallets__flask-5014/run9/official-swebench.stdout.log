@@ -1,0 +1,32 @@
+                                                                                
+ Usage: swebench [OPTIONS] COMMAND [ARGS]...                                    
+                                                                                
+ SWE-bench - evaluate language models on real GitHub issues.                    
+                                                                                
+ Examples:                                                                      
+                                                                                
+ swebench eval verified --gold                                                  
+ swebench eval verified -p preds.jsonl --run-id gpt5 -j 16                      
+ swebench eval multimodal --gold -i carbon-design-system__carbon-10188          
+ swebench report my-run -d verified                                             
+ swebench images build verified -j 8                                            
+ swebench images check multilingual                                             
+ swebench images clean --run-id my-run                                          
+ swebench dataset build multimodal -s test                                      
+ swebench dataset collect scikit-learn/scikit-learn                             
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --verbose  -v        Enable DEBUG logging                                    │
+│ --help     -h        Show this message and exit.                             │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Evaluate ───────────────────────────────────────────────────────────────────╮
+│ eval     Evaluate gold or model predictions against a dataset.               │
+│ report   Re-grade a finished run from its saved logs, without starting       │
+│          containers.                                                         │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Images ─────────────────────────────────────────────────────────────────────╮
+│ images   Build, check and clean instance images.                             │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Datasets ───────────────────────────────────────────────────────────────────╮
+│ dataset  Build, collect and version task instances.                          │
+╰──────────────────────────────────────────────────────────────────────────────╯

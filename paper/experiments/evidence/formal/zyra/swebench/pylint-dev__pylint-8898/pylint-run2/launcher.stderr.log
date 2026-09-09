@@ -1,0 +1,98 @@
+Invoke-RestMethod: C:\Users\Ylon\Desktop\ÃÙ’Ω±≠2026\zyra\scripts\run_zyra_swebench_flask5014.ps1:150
+Line |
+ 150 |  °≠ completed = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:800 °≠
+     |                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     |  {   "schema": "zyra.task-execution-http-error/v1",   "error":
+     | "task_execution_failed",   "message": "the physical deployment node
+     | returned a failed attempt",   "task_id": "task_fbe46f6a6624",  
+     | "run_id": "run_58abc2c0d45e",   "task_status": "failed",  
+     | "execution_error": {     "schema": "zyra.task-execution-error/v1",    
+     | "error": "RuntimeError",     "message": "the physical deployment node
+     | returned a failed attempt",     "retryable": false,     "fallback":
+     | false   },   "event_count": 45,   "event_refs": [     {      
+     | "event_id": "event_96418d75d302",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_d6f3c33909f5",
+     | "event_type": "node_updated"     },     {       "event_id":
+     | "event_78f30b1aa8b3",       "event_type": "constraint_check"     },    
+     | {       "event_id": "event_0ef5812dcf0a",       "event_type":
+     | "agent_message"     },     {       "event_id": "event_9159780c0dea",    
+     | "event_type": "constraint_check"     },     {       "event_id":
+     | "event_e75a132f80bb",       "event_type": "node_updated"     },     {   
+     | "event_id": "event_ae136646147d",       "event_type": "node_updated"    
+     | },     {       "event_id": "event_de2bf546db9f",       "event_type":
+     | "system_notice"     },     {       "event_id": "event_2b4fc2815e99",    
+     | "event_type": "recovery_planned"     },     {       "event_id":
+     | "event_f3125f364fbb",       "event_type": "node_updated"     },     {   
+     | "event_id": "event_cc45f7e676f3",       "event_type": "system_notice"   
+     | },     {       "event_id": "event_a43103db33ee",       "event_type":
+     | "node_failed"     },     {       "event_id": "event_bd9ac4ed0cbc",      
+     | "event_type": "system_notice"     },     {       "event_id":
+     | "event_70c9adf893d9",       "event_type": "system_notice"     },     {  
+     | "event_id": "event_5587a1b9ee63",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_850cc9ac1c0c",
+     | "event_type": "system_notice"     },     {       "event_id":
+     | "event_4ca615878eeb",       "event_type": "system_notice"     },     {  
+     | "event_id": "event_fb54586aa928",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_caf105770c6b",
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_d6bd2ad39933",       "event_type": "resource_decision"     },    
+     | {       "event_id": "event_0d88b8b403f9",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_dcba162e1064",
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_96cb42cb912e",       "event_type": "resource_decision"     },    
+     | {       "event_id": "event_d79533e865ec",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_c3298c45cad8",
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_421a4175e93d",       "event_type": "resource_decision"     },    
+     | {       "event_id": "event_4a4d390ea6c7",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_3db6d8e41080",
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_53b1d01b77d7",       "event_type": "resource_decision"     },    
+     | {       "event_id": "event_e693c9559494",       "event_type":
+     | "system_notice"     },     {       "event_id": "event_6c03cc0eb148",    
+     | "event_type": "system_notice"     },     {       "event_id":
+     | "event_cb51e987ff32",       "event_type": "artifact_written"     }   ], 
+     | "task_ref": "/tasks/task_fbe46f6a6624",   "event_stream_ref":
+     | "/tasks/task_fbe46f6a6624/events",   "retryable": false,   "fallback":
+     | false,   "terminal_reconciliation": {},   "memory_curator": {    
+     | "operation": "schedule_task_end",     "status": "scheduled",    
+     | "scheduled": {       "request": {         "protocol":
+     | "zyra.memory-curator.v1",         "request_id":
+     | "curator_request_f1a9ab594f7f0d00f99e4664",         "run_id":
+     | "run_58abc2c0d45e",         "task_id": "task_fbe46f6a6624",        
+     | "trigger": "task_end",         "requested_by": "task-lifecycle",        
+     | "input_watermark": 118,         "evidence_start": 0,        
+     | "evidence_end": null,         "allow_model_assist": true,        
+     | "max_candidates": 64,         "lease_seconds": 30.0,        
+     | "idempotency_key":
+     | "curator-task-end:task_fbe46f6a6624:118:2026-09-08T23:49:44.353Z",      
+     | "created_at": "2026-09-08T23:49:46.504Z",         "metadata": {         
+     | "task_status": "failed",           "task_updated_at":
+     | "2026-09-08T23:49:44.353Z",           "event_count_at_schedule": 118,   
+     | "automatic": true         }       },       "job": {         "job_id":
+     | "curator_job_297197e57ce89a55b26db029",         "request": {          
+     | "protocol": "zyra.memory-curator.v1",           "request_id":
+     | "curator_request_f1a9ab594f7f0d00f99e4664",           "run_id":
+     | "run_58abc2c0d45e",           "task_id": "task_fbe46f6a6624",          
+     | "trigger": "task_end",           "requested_by": "task-lifecycle",      
+     | "input_watermark": 118,           "evidence_start": 0,          
+     | "evidence_end": null,           "allow_model_assist": true,          
+     | "max_candidates": 64,           "lease_seconds": 30.0,          
+     | "idempotency_key":
+     | "curator-task-end:task_fbe46f6a6624:118:2026-09-08T23:49:44.353Z",      
+     | "created_at": "2026-09-08T23:49:46.504Z",           "metadata": {       
+     | "automatic": true,             "event_count_at_schedule": 118,          
+     | "task_status": "failed",             "task_updated_at":
+     | "2026-09-08T23:49:44.353Z"           }         },         "state":
+     | "queued",         "input_watermark": 118,        
+     | "last_success_watermark": 0,         "lease_owner": "",        
+     | "ownership_token": "",         "lease_epoch": 0,        
+     | "lease_expires_at": null,         "attempt": 0,        
+     | "retry_remaining": 3,         "retry_at": null,         "error_code":
+     | "",         "error_message": "",         "created_at":
+     | 1788911386.5047245,         "updated_at": 1788911386.5047245,        
+     | "started_at": null,         "finished_at": null,        
+     | "candidate_count": 0,         "committed_count": 0,         "dirty":
+     | true,         "terminal": false       },       "created": true,      
+     | "event_id": "event_0a6e35bccd8dd06aa655f8b0"     },     "result": null, 
+     | "data": {},     "integration": null   } }

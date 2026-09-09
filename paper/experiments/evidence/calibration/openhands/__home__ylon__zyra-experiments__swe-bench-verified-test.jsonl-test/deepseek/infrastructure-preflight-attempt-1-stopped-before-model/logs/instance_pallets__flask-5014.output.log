@@ -1,0 +1,1930 @@
+[stdout] 43376f1868ffd702746080714a59c16d3f69ec12
+[stderr] Downloading cpython-3.13.15-linux-x86_64-gnu (download) (33.2MiB)
+[stderr]  Downloaded cpython-3.13.15-linux-x86_64-gnu (download)
+[stderr] Building source distribution...
+[stderr] warning: `/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk` appears to be a workspace root without a Python project; consider using `uv sync` to install the workspace, or add a `[build-system]` table to `pyproject.toml`
+[stderr] running egg_info
+[stderr] creating UNKNOWN.egg-info
+[stderr] writing UNKNOWN.egg-info/PKG-INFO
+[stderr] writing dependency_links to UNKNOWN.egg-info/dependency_links.txt
+[stderr] writing top-level names to UNKNOWN.egg-info/top_level.txt
+[stderr] writing manifest file 'UNKNOWN.egg-info/SOURCES.txt'
+[stderr] reading manifest file 'UNKNOWN.egg-info/SOURCES.txt'
+[stderr] reading manifest template 'MANIFEST.in'
+[stderr] adding license file 'LICENSE'
+[stderr] writing manifest file 'UNKNOWN.egg-info/SOURCES.txt'
+[stderr] running sdist
+[stderr] running egg_info
+[stderr] writing UNKNOWN.egg-info/PKG-INFO
+[stderr] writing dependency_links to UNKNOWN.egg-info/dependency_links.txt
+[stderr] writing top-level names to UNKNOWN.egg-info/top_level.txt
+[stderr] reading manifest file 'UNKNOWN.egg-info/SOURCES.txt'
+[stderr] reading manifest template 'MANIFEST.in'
+[stderr] adding license file 'LICENSE'
+[stderr] writing manifest file 'UNKNOWN.egg-info/SOURCES.txt'
+[stderr] running check
+[stderr] warning: check: missing required meta-data: name
+[stderr] 
+[stderr] creating unknown-0.0.0
+[stderr] creating unknown-0.0.0/UNKNOWN.egg-info
+[stderr] creating unknown-0.0.0/openhands-agent-server
+[stderr] creating unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] creating unknown-0.0.0/openhands-agent-server/openhands/agent_server/docker
+[stderr] creating unknown-0.0.0/openhands-agent-server/openhands/agent_server/openai
+[stderr] creating unknown-0.0.0/openhands-agent-server/openhands/agent_server/persistence
+[stderr] creating unknown-0.0.0/openhands-agent-server/openhands/agent_server/vscode_extensions/openhands-settings
+[stderr] creating unknown-0.0.0/openhands-sdk
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/agent
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts/model_specific
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts/model_specific/openai_gpt
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/context
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/context/condenser
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/context/condenser/prompts
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/context/prompts
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/context/prompts/templates
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/context/skills
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/context/view
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/context/view/properties
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/conversation/impl
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/conversation/visualizer
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/critic
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/critic/impl
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/critic/impl/api
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/event/llm_convertible
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/extensions
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/extensions/installation
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/git
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/hooks
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/io
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/llm
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/llm/auth
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/llm/exceptions
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/llm/mixins
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/llm/options
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/llm/router
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/llm/router/impl
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/logger
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/marketplace
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/mcp
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/observability
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/plugin
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/secret
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/security
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/security/defense_in_depth
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/security/grayswan
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/settings
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/skills
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/subagent
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/testing
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/tool
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/tool/builtins
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/workspace
+[stderr] creating unknown-0.0.0/openhands-sdk/openhands/sdk/workspace/remote
+[stderr] creating unknown-0.0.0/openhands-tools
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/apply_patch
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/browser_use
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/delegate
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/delegate/templates
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/file_editor
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/file_editor/utils
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/gemini
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/gemini/edit
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/gemini/list_directory
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/gemini/read_file
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/gemini/write_file
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/glob
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/grep
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/planning_file_editor
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/preset
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/task
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/task_tracker
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/terminal
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/terminal/terminal
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/terminal/utils
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/tom_consult
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/utils
+[stderr] creating unknown-0.0.0/openhands-tools/openhands/tools/workflow
+[stderr] creating unknown-0.0.0/openhands-workspace
+[stderr] creating unknown-0.0.0/openhands-workspace/openhands/workspace
+[stderr] creating unknown-0.0.0/openhands-workspace/openhands/workspace/apptainer
+[stderr] creating unknown-0.0.0/openhands-workspace/openhands/workspace/cloud
+[stderr] creating unknown-0.0.0/openhands-workspace/openhands/workspace/docker
+[stderr] creating unknown-0.0.0/openhands-workspace/openhands/workspace/remote_api
+[stderr] copying files to unknown-0.0.0...
+[stderr] copying LICENSE -> unknown-0.0.0
+[stderr] copying MANIFEST.in -> unknown-0.0.0
+[stderr] copying README.md -> unknown-0.0.0
+[stderr] copying pyproject.toml -> unknown-0.0.0
+[stderr] copying uv.lock -> unknown-0.0.0
+[stderr] copying UNKNOWN.egg-info/PKG-INFO -> unknown-0.0.0/UNKNOWN.egg-info
+[stderr] copying UNKNOWN.egg-info/SOURCES.txt -> unknown-0.0.0/UNKNOWN.egg-info
+[stderr] copying UNKNOWN.egg-info/dependency_links.txt -> unknown-0.0.0/UNKNOWN.egg-info
+[stderr] copying UNKNOWN.egg-info/top_level.txt -> unknown-0.0.0/UNKNOWN.egg-info
+[stderr] copying openhands-agent-server/pyproject.toml -> unknown-0.0.0/openhands-agent-server
+[stderr] copying openhands-agent-server/openhands/agent_server/__init__.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/__main__.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/_secrets_exposure.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/agent-server.spec -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/api.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/auth_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/bash_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/bash_service.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/cloud_proxy_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/config.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/conversation_lease.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/conversation_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/conversation_service.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/dependencies.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/desktop_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/desktop_service.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/env_parser.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/event_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/event_service.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/file_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/git_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/hooks_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/hooks_service.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/llm_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/logging_config.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/mcp_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/middleware.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/models.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/openapi.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/profiles_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/pub_sub.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/py.typed -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/server_details_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/settings_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/skills_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/skills_service.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/sockets.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/tool_preload_service.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/tool_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/utils.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/vscode_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/vscode_service.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/workspace_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/workspaces_router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server
+[stderr] copying openhands-agent-server/openhands/agent_server/docker/Dockerfile -> unknown-0.0.0/openhands-agent-server/openhands/agent_server/docker
+[stderr] copying openhands-agent-server/openhands/agent_server/docker/build.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server/docker
+[stderr] copying openhands-agent-server/openhands/agent_server/docker/wallpaper.svg -> unknown-0.0.0/openhands-agent-server/openhands/agent_server/docker
+[stderr] copying openhands-agent-server/openhands/agent_server/openai/__init__.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server/openai
+[stderr] copying openhands-agent-server/openhands/agent_server/openai/models.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server/openai
+[stderr] copying openhands-agent-server/openhands/agent_server/openai/router.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server/openai
+[stderr] copying openhands-agent-server/openhands/agent_server/openai/service.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server/openai
+[stderr] copying openhands-agent-server/openhands/agent_server/persistence/__init__.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server/persistence
+[stderr] copying openhands-agent-server/openhands/agent_server/persistence/models.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server/persistence
+[stderr] copying openhands-agent-server/openhands/agent_server/persistence/store.py -> unknown-0.0.0/openhands-agent-server/openhands/agent_server/persistence
+[stderr] copying openhands-agent-server/openhands/agent_server/vscode_extensions/openhands-settings/extension.js -> unknown-0.0.0/openhands-agent-server/openhands/agent_server/vscode_extensions/openhands-settings
+[stderr] copying openhands-agent-server/openhands/agent_server/vscode_extensions/openhands-settings/package.json -> unknown-0.0.0/openhands-agent-server/openhands/agent_server/vscode_extensions/openhands-settings
+[stderr] copying openhands-sdk/pyproject.toml -> unknown-0.0.0/openhands-sdk
+[stderr] copying openhands-sdk/openhands/sdk/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk
+[stderr] copying openhands-sdk/openhands/sdk/banner.py -> unknown-0.0.0/openhands-sdk/openhands/sdk
+[stderr] copying openhands-sdk/openhands/sdk/py.typed -> unknown-0.0.0/openhands-sdk/openhands/sdk
+[stderr] copying openhands-sdk/openhands/sdk/agent/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent
+[stderr] copying openhands-sdk/openhands/sdk/agent/acp_agent.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent
+[stderr] copying openhands-sdk/openhands/sdk/agent/acp_models.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent
+[stderr] copying openhands-sdk/openhands/sdk/agent/agent.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent
+[stderr] copying openhands-sdk/openhands/sdk/agent/base.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent
+[stderr] copying openhands-sdk/openhands/sdk/agent/critic_mixin.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent
+[stderr] copying openhands-sdk/openhands/sdk/agent/parallel_executor.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent
+[stderr] copying openhands-sdk/openhands/sdk/agent/response_dispatch.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent
+[stderr] copying openhands-sdk/openhands/sdk/agent/utils.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/in_context_learning_example.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/in_context_learning_example_suffix.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/security_policy.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/security_risk_assessment.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/self_documentation.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/system_prompt.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/system_prompt_interactive.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/system_prompt_long_horizon.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/system_prompt_planning.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/system_prompt_tech_philosophy.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/model_specific/anthropic_claude.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts/model_specific
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/model_specific/google_gemini.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts/model_specific
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/model_specific/openai_gpt/gpt-5-codex.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts/model_specific/openai_gpt
+[stderr] copying openhands-sdk/openhands/sdk/agent/prompts/model_specific/openai_gpt/gpt-5.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/agent/prompts/model_specific/openai_gpt
+[stderr] copying openhands-sdk/openhands/sdk/context/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context
+[stderr] copying openhands-sdk/openhands/sdk/context/agent_context.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context
+[stderr] copying openhands-sdk/openhands/sdk/context/condenser/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/condenser
+[stderr] copying openhands-sdk/openhands/sdk/context/condenser/base.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/condenser
+[stderr] copying openhands-sdk/openhands/sdk/context/condenser/llm_summarizing_condenser.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/condenser
+[stderr] copying openhands-sdk/openhands/sdk/context/condenser/no_op_condenser.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/condenser
+[stderr] copying openhands-sdk/openhands/sdk/context/condenser/pipeline_condenser.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/condenser
+[stderr] copying openhands-sdk/openhands/sdk/context/condenser/utils.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/condenser
+[stderr] copying openhands-sdk/openhands/sdk/context/condenser/prompts/summarizing_prompt.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/condenser/prompts
+[stderr] copying openhands-sdk/openhands/sdk/context/prompts/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/prompts
+[stderr] copying openhands-sdk/openhands/sdk/context/prompts/prompt.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/prompts
+[stderr] copying openhands-sdk/openhands/sdk/context/prompts/templates/ask_agent_template.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/prompts/templates
+[stderr] copying openhands-sdk/openhands/sdk/context/prompts/templates/skill_knowledge_info.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/prompts/templates
+[stderr] copying openhands-sdk/openhands/sdk/context/prompts/templates/system_message_suffix.j2 -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/prompts/templates
+[stderr] copying openhands-sdk/openhands/sdk/context/skills/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/skills
+[stderr] copying openhands-sdk/openhands/sdk/context/view/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/view
+[stderr] copying openhands-sdk/openhands/sdk/context/view/manipulation_indices.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/view
+[stderr] copying openhands-sdk/openhands/sdk/context/view/view.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/view
+[stderr] copying openhands-sdk/openhands/sdk/context/view/properties/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/view/properties
+[stderr] copying openhands-sdk/openhands/sdk/context/view/properties/base.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/view/properties
+[stderr] copying openhands-sdk/openhands/sdk/context/view/properties/batch_atomicity.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/view/properties
+[stderr] copying openhands-sdk/openhands/sdk/context/view/properties/observation_uniqueness.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/view/properties
+[stderr] copying openhands-sdk/openhands/sdk/context/view/properties/tool_call_matching.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/view/properties
+[stderr] copying openhands-sdk/openhands/sdk/context/view/properties/tool_loop_atomicity.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/context/view/properties
+[stderr] copying openhands-sdk/openhands/sdk/conversation/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/base.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/cancellation.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/conversation.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/conversation_stats.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/event_store.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/events_list_base.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/exceptions.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/fifo_lock.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/persistence_const.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/request.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/resource_lock_manager.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/response_utils.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/secret_registry.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/serialization_diff.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/state.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/stuck_detector.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/title_utils.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/types.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation
+[stderr] copying openhands-sdk/openhands/sdk/conversation/impl/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation/impl
+[stderr] copying openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation/impl
+[stderr] copying openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation/impl
+[stderr] copying openhands-sdk/openhands/sdk/conversation/visualizer/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation/visualizer
+[stderr] copying openhands-sdk/openhands/sdk/conversation/visualizer/base.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation/visualizer
+[stderr] copying openhands-sdk/openhands/sdk/conversation/visualizer/default.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/conversation/visualizer
+[stderr] copying openhands-sdk/openhands/sdk/critic/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/critic
+[stderr] copying openhands-sdk/openhands/sdk/critic/base.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/critic
+[stderr] copying openhands-sdk/openhands/sdk/critic/result.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/critic
+[stderr] copying openhands-sdk/openhands/sdk/critic/impl/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/critic/impl
+[stderr] copying openhands-sdk/openhands/sdk/critic/impl/agent_finished.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/critic/impl
+[stderr] copying openhands-sdk/openhands/sdk/critic/impl/empty_patch.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/critic/impl
+[stderr] copying openhands-sdk/openhands/sdk/critic/impl/pass_critic.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/critic/impl
+[stderr] copying openhands-sdk/openhands/sdk/critic/impl/api/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/critic/impl/api
+[stderr] copying openhands-sdk/openhands/sdk/critic/impl/api/chat_template.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/critic/impl/api
+[stderr] copying openhands-sdk/openhands/sdk/critic/impl/api/client.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/critic/impl/api
+[stderr] copying openhands-sdk/openhands/sdk/critic/impl/api/critic.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/critic/impl/api
+[stderr] copying openhands-sdk/openhands/sdk/critic/impl/api/taxonomy.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/critic/impl/api
+[stderr] copying openhands-sdk/openhands/sdk/event/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] copying openhands-sdk/openhands/sdk/event/acp_tool_call.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] copying openhands-sdk/openhands/sdk/event/base.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] copying openhands-sdk/openhands/sdk/event/condenser.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] copying openhands-sdk/openhands/sdk/event/conversation_error.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] copying openhands-sdk/openhands/sdk/event/conversation_state.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] copying openhands-sdk/openhands/sdk/event/hook_execution.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] copying openhands-sdk/openhands/sdk/event/llm_completion_log.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] copying openhands-sdk/openhands/sdk/event/resume_transcript.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] copying openhands-sdk/openhands/sdk/event/streaming_delta.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] copying openhands-sdk/openhands/sdk/event/token.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] copying openhands-sdk/openhands/sdk/event/types.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] copying openhands-sdk/openhands/sdk/event/user_action.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event
+[stderr] copying openhands-sdk/openhands/sdk/event/llm_convertible/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event/llm_convertible
+[stderr] copying openhands-sdk/openhands/sdk/event/llm_convertible/action.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event/llm_convertible
+[stderr] copying openhands-sdk/openhands/sdk/event/llm_convertible/message.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event/llm_convertible
+[stderr] copying openhands-sdk/openhands/sdk/event/llm_convertible/observation.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event/llm_convertible
+[stderr] copying openhands-sdk/openhands/sdk/event/llm_convertible/reasoning_utils.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event/llm_convertible
+[stderr] copying openhands-sdk/openhands/sdk/event/llm_convertible/system.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/event/llm_convertible
+[stderr] copying openhands-sdk/openhands/sdk/extensions/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/extensions
+[stderr] copying openhands-sdk/openhands/sdk/extensions/fetch.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/extensions
+[stderr] copying openhands-sdk/openhands/sdk/extensions/installation/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/extensions/installation
+[stderr] copying openhands-sdk/openhands/sdk/extensions/installation/info.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/extensions/installation
+[stderr] copying openhands-sdk/openhands/sdk/extensions/installation/interface.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/extensions/installation
+[stderr] copying openhands-sdk/openhands/sdk/extensions/installation/manager.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/extensions/installation
+[stderr] copying openhands-sdk/openhands/sdk/extensions/installation/metadata.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/extensions/installation
+[stderr] copying openhands-sdk/openhands/sdk/extensions/installation/utils.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/extensions/installation
+[stderr] copying openhands-sdk/openhands/sdk/git/cached_repo.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/git
+[stderr] copying openhands-sdk/openhands/sdk/git/exceptions.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/git
+[stderr] copying openhands-sdk/openhands/sdk/git/git_changes.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/git
+[stderr] copying openhands-sdk/openhands/sdk/git/git_diff.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/git
+[stderr] copying openhands-sdk/openhands/sdk/git/models.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/git
+[stderr] copying openhands-sdk/openhands/sdk/git/utils.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/git
+[stderr] copying openhands-sdk/openhands/sdk/hooks/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/hooks
+[stderr] copying openhands-sdk/openhands/sdk/hooks/config.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/hooks
+[stderr] copying openhands-sdk/openhands/sdk/hooks/conversation_hooks.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/hooks
+[stderr] copying openhands-sdk/openhands/sdk/hooks/executor.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/hooks
+[stderr] copying openhands-sdk/openhands/sdk/hooks/manager.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/hooks
+[stderr] copying openhands-sdk/openhands/sdk/hooks/types.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/hooks
+[stderr] copying openhands-sdk/openhands/sdk/io/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/io
+[stderr] copying openhands-sdk/openhands/sdk/io/base.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/io
+[stderr] copying openhands-sdk/openhands/sdk/io/cache.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/io
+[stderr] copying openhands-sdk/openhands/sdk/io/local.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/io
+[stderr] copying openhands-sdk/openhands/sdk/io/memory.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/io
+[stderr] copying openhands-sdk/openhands/sdk/llm/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm
+[stderr] copying openhands-sdk/openhands/sdk/llm/fallback_strategy.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm
+[stderr] copying openhands-sdk/openhands/sdk/llm/llm.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm
+[stderr] copying openhands-sdk/openhands/sdk/llm/llm_profile_store.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm
+[stderr] copying openhands-sdk/openhands/sdk/llm/llm_registry.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm
+[stderr] copying openhands-sdk/openhands/sdk/llm/llm_response.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm
+[stderr] copying openhands-sdk/openhands/sdk/llm/message.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm
+[stderr] copying openhands-sdk/openhands/sdk/llm/streaming.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm
+[stderr] copying openhands-sdk/openhands/sdk/llm/auth/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/auth
+[stderr] copying openhands-sdk/openhands/sdk/llm/auth/credentials.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/auth
+[stderr] copying openhands-sdk/openhands/sdk/llm/auth/openai.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/auth
+[stderr] copying openhands-sdk/openhands/sdk/llm/exceptions/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/exceptions
+[stderr] copying openhands-sdk/openhands/sdk/llm/exceptions/classifier.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/exceptions
+[stderr] copying openhands-sdk/openhands/sdk/llm/exceptions/mapping.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/exceptions
+[stderr] copying openhands-sdk/openhands/sdk/llm/exceptions/types.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/exceptions
+[stderr] copying openhands-sdk/openhands/sdk/llm/mixins/fn_call_converter.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/mixins
+[stderr] copying openhands-sdk/openhands/sdk/llm/mixins/fn_call_examples.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/mixins
+[stderr] copying openhands-sdk/openhands/sdk/llm/mixins/non_native_fc.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/mixins
+[stderr] copying openhands-sdk/openhands/sdk/llm/options/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/options
+[stderr] copying openhands-sdk/openhands/sdk/llm/options/chat_options.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/options
+[stderr] copying openhands-sdk/openhands/sdk/llm/options/common.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/options
+[stderr] copying openhands-sdk/openhands/sdk/llm/options/responses_options.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/options
+[stderr] copying openhands-sdk/openhands/sdk/llm/router/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/router
+[stderr] copying openhands-sdk/openhands/sdk/llm/router/base.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/router
+[stderr] copying openhands-sdk/openhands/sdk/llm/router/impl/multimodal.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/router/impl
+[stderr] copying openhands-sdk/openhands/sdk/llm/router/impl/random.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/router/impl
+[stderr] copying openhands-sdk/openhands/sdk/llm/utils/image_inline.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] copying openhands-sdk/openhands/sdk/llm/utils/image_resize.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] copying openhands-sdk/openhands/sdk/llm/utils/litellm_provider.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] copying openhands-sdk/openhands/sdk/llm/utils/metrics.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] copying openhands-sdk/openhands/sdk/llm/utils/model_features.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] copying openhands-sdk/openhands/sdk/llm/utils/model_info.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] copying openhands-sdk/openhands/sdk/llm/utils/model_prompt_spec.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] copying openhands-sdk/openhands/sdk/llm/utils/openhands_provider.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] copying openhands-sdk/openhands/sdk/llm/utils/responses_serialization.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] copying openhands-sdk/openhands/sdk/llm/utils/retry_mixin.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] copying openhands-sdk/openhands/sdk/llm/utils/telemetry.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] copying openhands-sdk/openhands/sdk/llm/utils/unverified_models.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] copying openhands-sdk/openhands/sdk/llm/utils/verified_models.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/llm/utils
+[stderr] copying openhands-sdk/openhands/sdk/logger/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/logger
+[stderr] copying openhands-sdk/openhands/sdk/logger/logger.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/logger
+[stderr] copying openhands-sdk/openhands/sdk/logger/rolling.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/logger
+[stderr] copying openhands-sdk/openhands/sdk/marketplace/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/marketplace
+[stderr] copying openhands-sdk/openhands/sdk/marketplace/types.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/marketplace
+[stderr] copying openhands-sdk/openhands/sdk/mcp/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/mcp
+[stderr] copying openhands-sdk/openhands/sdk/mcp/client.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/mcp
+[stderr] copying openhands-sdk/openhands/sdk/mcp/definition.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/mcp
+[stderr] copying openhands-sdk/openhands/sdk/mcp/exceptions.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/mcp
+[stderr] copying openhands-sdk/openhands/sdk/mcp/tool.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/mcp
+[stderr] copying openhands-sdk/openhands/sdk/mcp/utils.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/mcp
+[stderr] copying openhands-sdk/openhands/sdk/observability/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/observability
+[stderr] copying openhands-sdk/openhands/sdk/observability/laminar.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/observability
+[stderr] copying openhands-sdk/openhands/sdk/observability/utils.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/observability
+[stderr] copying openhands-sdk/openhands/sdk/plugin/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/plugin
+[stderr] copying openhands-sdk/openhands/sdk/plugin/fetch.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/plugin
+[stderr] copying openhands-sdk/openhands/sdk/plugin/installed.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/plugin
+[stderr] copying openhands-sdk/openhands/sdk/plugin/loader.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/plugin
+[stderr] copying openhands-sdk/openhands/sdk/plugin/plugin.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/plugin
+[stderr] copying openhands-sdk/openhands/sdk/plugin/source.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/plugin
+[stderr] copying openhands-sdk/openhands/sdk/plugin/types.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/plugin
+[stderr] copying openhands-sdk/openhands/sdk/secret/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/secret
+[stderr] copying openhands-sdk/openhands/sdk/secret/secrets.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/secret
+[stderr] copying openhands-sdk/openhands/sdk/security/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security
+[stderr] copying openhands-sdk/openhands/sdk/security/analyzer.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security
+[stderr] copying openhands-sdk/openhands/sdk/security/confirmation_policy.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security
+[stderr] copying openhands-sdk/openhands/sdk/security/ensemble.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security
+[stderr] copying openhands-sdk/openhands/sdk/security/llm_analyzer.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security
+[stderr] copying openhands-sdk/openhands/sdk/security/risk.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security
+[stderr] copying openhands-sdk/openhands/sdk/security/shell_parser.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security
+[stderr] copying openhands-sdk/openhands/sdk/security/defense_in_depth/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security/defense_in_depth
+[stderr] copying openhands-sdk/openhands/sdk/security/defense_in_depth/pattern.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security/defense_in_depth
+[stderr] copying openhands-sdk/openhands/sdk/security/defense_in_depth/policy_rails.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security/defense_in_depth
+[stderr] copying openhands-sdk/openhands/sdk/security/defense_in_depth/utils.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security/defense_in_depth
+[stderr] copying openhands-sdk/openhands/sdk/security/grayswan/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security/grayswan
+[stderr] copying openhands-sdk/openhands/sdk/security/grayswan/analyzer.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security/grayswan
+[stderr] copying openhands-sdk/openhands/sdk/security/grayswan/utils.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/security/grayswan
+[stderr] copying openhands-sdk/openhands/sdk/settings/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/settings
+[stderr] copying openhands-sdk/openhands/sdk/settings/acp_providers.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/settings
+[stderr] copying openhands-sdk/openhands/sdk/settings/api_models.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/settings
+[stderr] copying openhands-sdk/openhands/sdk/settings/metadata.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/settings
+[stderr] copying openhands-sdk/openhands/sdk/settings/model.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/settings
+[stderr] copying openhands-sdk/openhands/sdk/skills/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/skills
+[stderr] copying openhands-sdk/openhands/sdk/skills/exceptions.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/skills
+[stderr] copying openhands-sdk/openhands/sdk/skills/execute.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/skills
+[stderr] copying openhands-sdk/openhands/sdk/skills/fetch.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/skills
+[stderr] copying openhands-sdk/openhands/sdk/skills/installed.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/skills
+[stderr] copying openhands-sdk/openhands/sdk/skills/skill.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/skills
+[stderr] copying openhands-sdk/openhands/sdk/skills/trigger.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/skills
+[stderr] copying openhands-sdk/openhands/sdk/skills/types.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/skills
+[stderr] copying openhands-sdk/openhands/sdk/skills/utils.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/skills
+[stderr] copying openhands-sdk/openhands/sdk/subagent/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/subagent
+[stderr] copying openhands-sdk/openhands/sdk/subagent/load.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/subagent
+[stderr] copying openhands-sdk/openhands/sdk/subagent/registry.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/subagent
+[stderr] copying openhands-sdk/openhands/sdk/subagent/schema.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/subagent
+[stderr] copying openhands-sdk/openhands/sdk/testing/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/testing
+[stderr] copying openhands-sdk/openhands/sdk/testing/test_llm.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/testing
+[stderr] copying openhands-sdk/openhands/sdk/tool/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/tool
+[stderr] copying openhands-sdk/openhands/sdk/tool/client_tool.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/tool
+[stderr] copying openhands-sdk/openhands/sdk/tool/registry.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/tool
+[stderr] copying openhands-sdk/openhands/sdk/tool/schema.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/tool
+[stderr] copying openhands-sdk/openhands/sdk/tool/spec.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/tool
+[stderr] copying openhands-sdk/openhands/sdk/tool/tool.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/tool
+[stderr] copying openhands-sdk/openhands/sdk/tool/builtins/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/tool/builtins
+[stderr] copying openhands-sdk/openhands/sdk/tool/builtins/finish.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/tool/builtins
+[stderr] copying openhands-sdk/openhands/sdk/tool/builtins/invoke_skill.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/tool/builtins
+[stderr] copying openhands-sdk/openhands/sdk/tool/builtins/switch_llm.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/tool/builtins
+[stderr] copying openhands-sdk/openhands/sdk/tool/builtins/think.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/tool/builtins
+[stderr] copying openhands-sdk/openhands/sdk/utils/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/async_executor.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/async_utils.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/cipher.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/command.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/datetime.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/deprecation.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/github.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/json.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/models.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/paging.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/path.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/pydantic_diff.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/pydantic_secrets.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/redact.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/truncate.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/utils/visualize.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/utils
+[stderr] copying openhands-sdk/openhands/sdk/workspace/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/workspace
+[stderr] copying openhands-sdk/openhands/sdk/workspace/base.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/workspace
+[stderr] copying openhands-sdk/openhands/sdk/workspace/local.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/workspace
+[stderr] copying openhands-sdk/openhands/sdk/workspace/models.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/workspace
+[stderr] copying openhands-sdk/openhands/sdk/workspace/repo.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/workspace
+[stderr] copying openhands-sdk/openhands/sdk/workspace/workspace.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/workspace
+[stderr] copying openhands-sdk/openhands/sdk/workspace/remote/__init__.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/workspace/remote
+[stderr] copying openhands-sdk/openhands/sdk/workspace/remote/async_remote_workspace.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/workspace/remote
+[stderr] copying openhands-sdk/openhands/sdk/workspace/remote/base.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/workspace/remote
+[stderr] copying openhands-sdk/openhands/sdk/workspace/remote/remote_workspace_mixin.py -> unknown-0.0.0/openhands-sdk/openhands/sdk/workspace/remote
+[stderr] copying openhands-tools/pyproject.toml -> unknown-0.0.0/openhands-tools
+[stderr] copying openhands-tools/openhands/tools/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools
+[stderr] copying openhands-tools/openhands/tools/py.typed -> unknown-0.0.0/openhands-tools/openhands/tools
+[stderr] copying openhands-tools/openhands/tools/apply_patch/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/apply_patch
+[stderr] copying openhands-tools/openhands/tools/apply_patch/core.py -> unknown-0.0.0/openhands-tools/openhands/tools/apply_patch
+[stderr] copying openhands-tools/openhands/tools/apply_patch/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/apply_patch
+[stderr] copying openhands-tools/openhands/tools/browser_use/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/browser_use
+[stderr] copying openhands-tools/openhands/tools/browser_use/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/browser_use
+[stderr] copying openhands-tools/openhands/tools/browser_use/event_storage.py -> unknown-0.0.0/openhands-tools/openhands/tools/browser_use
+[stderr] copying openhands-tools/openhands/tools/browser_use/impl.py -> unknown-0.0.0/openhands-tools/openhands/tools/browser_use
+[stderr] copying openhands-tools/openhands/tools/browser_use/logging_fix.py -> unknown-0.0.0/openhands-tools/openhands/tools/browser_use
+[stderr] copying openhands-tools/openhands/tools/browser_use/recording.py -> unknown-0.0.0/openhands-tools/openhands/tools/browser_use
+[stderr] copying openhands-tools/openhands/tools/browser_use/server.py -> unknown-0.0.0/openhands-tools/openhands/tools/browser_use
+[stderr] copying openhands-tools/openhands/tools/delegate/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/delegate
+[stderr] copying openhands-tools/openhands/tools/delegate/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/delegate
+[stderr] copying openhands-tools/openhands/tools/delegate/impl.py -> unknown-0.0.0/openhands-tools/openhands/tools/delegate
+[stderr] copying openhands-tools/openhands/tools/delegate/visualizer.py -> unknown-0.0.0/openhands-tools/openhands/tools/delegate
+[stderr] copying openhands-tools/openhands/tools/delegate/templates/delegate_tool_description.j2 -> unknown-0.0.0/openhands-tools/openhands/tools/delegate/templates
+[stderr] copying openhands-tools/openhands/tools/file_editor/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/file_editor
+[stderr] copying openhands-tools/openhands/tools/file_editor/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/file_editor
+[stderr] copying openhands-tools/openhands/tools/file_editor/editor.py -> unknown-0.0.0/openhands-tools/openhands/tools/file_editor
+[stderr] copying openhands-tools/openhands/tools/file_editor/exceptions.py -> unknown-0.0.0/openhands-tools/openhands/tools/file_editor
+[stderr] copying openhands-tools/openhands/tools/file_editor/impl.py -> unknown-0.0.0/openhands-tools/openhands/tools/file_editor
+[stderr] copying openhands-tools/openhands/tools/file_editor/utils/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/file_editor/utils
+[stderr] copying openhands-tools/openhands/tools/file_editor/utils/config.py -> unknown-0.0.0/openhands-tools/openhands/tools/file_editor/utils
+[stderr] copying openhands-tools/openhands/tools/file_editor/utils/constants.py -> unknown-0.0.0/openhands-tools/openhands/tools/file_editor/utils
+[stderr] copying openhands-tools/openhands/tools/file_editor/utils/diff.py -> unknown-0.0.0/openhands-tools/openhands/tools/file_editor/utils
+[stderr] copying openhands-tools/openhands/tools/file_editor/utils/encoding.py -> unknown-0.0.0/openhands-tools/openhands/tools/file_editor/utils
+[stderr] copying openhands-tools/openhands/tools/file_editor/utils/file_cache.py -> unknown-0.0.0/openhands-tools/openhands/tools/file_editor/utils
+[stderr] copying openhands-tools/openhands/tools/file_editor/utils/history.py -> unknown-0.0.0/openhands-tools/openhands/tools/file_editor/utils
+[stderr] copying openhands-tools/openhands/tools/file_editor/utils/shell.py -> unknown-0.0.0/openhands-tools/openhands/tools/file_editor/utils
+[stderr] copying openhands-tools/openhands/tools/gemini/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/gemini
+[stderr] copying openhands-tools/openhands/tools/gemini/edit/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/gemini/edit
+[stderr] copying openhands-tools/openhands/tools/gemini/edit/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/gemini/edit
+[stderr] copying openhands-tools/openhands/tools/gemini/edit/impl.py -> unknown-0.0.0/openhands-tools/openhands/tools/gemini/edit
+[stderr] copying openhands-tools/openhands/tools/gemini/list_directory/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/gemini/list_directory
+[stderr] copying openhands-tools/openhands/tools/gemini/list_directory/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/gemini/list_directory
+[stderr] copying openhands-tools/openhands/tools/gemini/list_directory/impl.py -> unknown-0.0.0/openhands-tools/openhands/tools/gemini/list_directory
+[stderr] copying openhands-tools/openhands/tools/gemini/read_file/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/gemini/read_file
+[stderr] copying openhands-tools/openhands/tools/gemini/read_file/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/gemini/read_file
+[stderr] copying openhands-tools/openhands/tools/gemini/read_file/impl.py -> unknown-0.0.0/openhands-tools/openhands/tools/gemini/read_file
+[stderr] copying openhands-tools/openhands/tools/gemini/write_file/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/gemini/write_file
+[stderr] copying openhands-tools/openhands/tools/gemini/write_file/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/gemini/write_file
+[stderr] copying openhands-tools/openhands/tools/gemini/write_file/impl.py -> unknown-0.0.0/openhands-tools/openhands/tools/gemini/write_file
+[stderr] copying openhands-tools/openhands/tools/glob/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/glob
+[stderr] copying openhands-tools/openhands/tools/glob/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/glob
+[stderr] copying openhands-tools/openhands/tools/glob/impl.py -> unknown-0.0.0/openhands-tools/openhands/tools/glob
+[stderr] copying openhands-tools/openhands/tools/grep/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/grep
+[stderr] copying openhands-tools/openhands/tools/grep/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/grep
+[stderr] copying openhands-tools/openhands/tools/grep/impl.py -> unknown-0.0.0/openhands-tools/openhands/tools/grep
+[stderr] copying openhands-tools/openhands/tools/planning_file_editor/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/planning_file_editor
+[stderr] copying openhands-tools/openhands/tools/planning_file_editor/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/planning_file_editor
+[stderr] copying openhands-tools/openhands/tools/planning_file_editor/impl.py -> unknown-0.0.0/openhands-tools/openhands/tools/planning_file_editor
+[stderr] copying openhands-tools/openhands/tools/preset/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/preset
+[stderr] copying openhands-tools/openhands/tools/preset/default.py -> unknown-0.0.0/openhands-tools/openhands/tools/preset
+[stderr] copying openhands-tools/openhands/tools/preset/gemini.py -> unknown-0.0.0/openhands-tools/openhands/tools/preset
+[stderr] copying openhands-tools/openhands/tools/preset/gpt5.py -> unknown-0.0.0/openhands-tools/openhands/tools/preset
+[stderr] copying openhands-tools/openhands/tools/preset/planning.py -> unknown-0.0.0/openhands-tools/openhands/tools/preset
+[stderr] copying openhands-tools/openhands/tools/task/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/task
+[stderr] copying openhands-tools/openhands/tools/task/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/task
+[stderr] copying openhands-tools/openhands/tools/task/impl.py -> unknown-0.0.0/openhands-tools/openhands/tools/task
+[stderr] copying openhands-tools/openhands/tools/task/manager.py -> unknown-0.0.0/openhands-tools/openhands/tools/task
+[stderr] copying openhands-tools/openhands/tools/task_tracker/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/task_tracker
+[stderr] copying openhands-tools/openhands/tools/task_tracker/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/task_tracker
+[stderr] copying openhands-tools/openhands/tools/terminal/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/constants.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/descriptions.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/impl.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/metadata.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/timeout_policy.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/terminal/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/terminal/factory.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/terminal/interface.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/terminal/subprocess_terminal.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/terminal/terminal_session.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/terminal/tmux_pane_pool.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/terminal/tmux_terminal.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/terminal/windows_terminal.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal/terminal
+[stderr] copying openhands-tools/openhands/tools/terminal/utils/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal/utils
+[stderr] copying openhands-tools/openhands/tools/terminal/utils/command.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal/utils
+[stderr] copying openhands-tools/openhands/tools/terminal/utils/escape_filter.py -> unknown-0.0.0/openhands-tools/openhands/tools/terminal/utils
+[stderr] copying openhands-tools/openhands/tools/tom_consult/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/tom_consult
+[stderr] copying openhands-tools/openhands/tools/tom_consult/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/tom_consult
+[stderr] copying openhands-tools/openhands/tools/tom_consult/executor.py -> unknown-0.0.0/openhands-tools/openhands/tools/tom_consult
+[stderr] copying openhands-tools/openhands/tools/utils/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/utils
+[stderr] copying openhands-tools/openhands/tools/utils/timeout.py -> unknown-0.0.0/openhands-tools/openhands/tools/utils
+[stderr] copying openhands-tools/openhands/tools/workflow/__init__.py -> unknown-0.0.0/openhands-tools/openhands/tools/workflow
+[stderr] copying openhands-tools/openhands/tools/workflow/definition.py -> unknown-0.0.0/openhands-tools/openhands/tools/workflow
+[stderr] copying openhands-tools/openhands/tools/workflow/impl.py -> unknown-0.0.0/openhands-tools/openhands/tools/workflow
+[stderr] copying openhands-workspace/pyproject.toml -> unknown-0.0.0/openhands-workspace
+[stderr] copying openhands-workspace/openhands/workspace/__init__.py -> unknown-0.0.0/openhands-workspace/openhands/workspace
+[stderr] copying openhands-workspace/openhands/workspace/py.typed -> unknown-0.0.0/openhands-workspace/openhands/workspace
+[stderr] copying openhands-workspace/openhands/workspace/apptainer/__init__.py -> unknown-0.0.0/openhands-workspace/openhands/workspace/apptainer
+[stderr] copying openhands-workspace/openhands/workspace/apptainer/workspace.py -> unknown-0.0.0/openhands-workspace/openhands/workspace/apptainer
+[stderr] copying openhands-workspace/openhands/workspace/cloud/__init__.py -> unknown-0.0.0/openhands-workspace/openhands/workspace/cloud
+[stderr] copying openhands-workspace/openhands/workspace/cloud/workspace.py -> unknown-0.0.0/openhands-workspace/openhands/workspace/cloud
+[stderr] copying openhands-workspace/openhands/workspace/docker/__init__.py -> unknown-0.0.0/openhands-workspace/openhands/workspace/docker
+[stderr] copying openhands-workspace/openhands/workspace/docker/dev_workspace.py -> unknown-0.0.0/openhands-workspace/openhands/workspace/docker
+[stderr] copying openhands-workspace/openhands/workspace/docker/workspace.py -> unknown-0.0.0/openhands-workspace/openhands/workspace/docker
+[stderr] copying openhands-workspace/openhands/workspace/remote_api/__init__.py -> unknown-0.0.0/openhands-workspace/openhands/workspace/remote_api
+[stderr] copying openhands-workspace/openhands/workspace/remote_api/workspace.py -> unknown-0.0.0/openhands-workspace/openhands/workspace/remote_api
+[stderr] Writing unknown-0.0.0/setup.cfg
+[stderr] Creating tar archive
+[stderr] removing 'unknown-0.0.0' (and everything under it)
+[stderr] Successfully built /tmp/agent-sdist-5l589bwe/unknown-0.0.0.tar.gz
+[stdout] Name:   default
+[stdout] Driver: docker
+[stdout] 
+[stdout] Nodes:
+[stdout] Name:             default
+[stdout] Endpoint:         default
+[stdout] Status:           running
+[stdout] BuildKit version: v0.26.2
+[stdout] Platforms:        linux/amd64, linux/amd64/v2, linux/amd64/v3, linux/amd64/v4, linux/arm64, linux/riscv64, linux/ppc64le, linux/s390x, linux/arm/v7, linux/arm/v6
+[stdout] Labels:
+[stdout]  org.mobyproject.buildkit.worker.containerd.namespace: moby
+[stdout]  org.mobyproject.buildkit.worker.containerd.uuid:      ec57d45d-e412-4632-a194-81fc028219d1
+[stdout]  org.mobyproject.buildkit.worker.executor:             containerd
+[stdout]  org.mobyproject.buildkit.worker.hostname:             haoylon
+[stdout]  org.mobyproject.buildkit.worker.moby.host-gateway-ip: 172.17.0.1
+[stdout]  org.mobyproject.buildkit.worker.network:              host
+[stdout]  org.mobyproject.buildkit.worker.selinux.enabled:      false
+[stdout]  org.mobyproject.buildkit.worker.snapshotter:          overlayfs
+[stdout] GC Policy rule#0:
+[stdout]  All:            false
+[stdout]  Filters:        type==source.local,type==exec.cachemount,type==source.git.checkout
+[stdout]  Keep Duration:  48h0m0s
+[stdout]  Max Used Space: 13GiB
+[stdout] GC Policy rule#1:
+[stdout]  All:            false
+[stdout]  Keep Duration:  1440h0m0s
+[stdout]  Reserved Space: 94.06GiB
+[stdout]  Max Used Space: 750.6GiB
+[stdout]  Min Free Space: 188.1GiB
+[stdout] GC Policy rule#2:
+[stdout]  All:            false
+[stdout]  Reserved Space: 94.06GiB
+[stdout]  Max Used Space: 750.6GiB
+[stdout]  Min Free Space: 188.1GiB
+[stdout] GC Policy rule#3:
+[stdout]  All:            true
+[stdout]  Reserved Space: 94.06GiB
+[stdout]  Max Used Space: 750.6GiB
+[stdout]  Min Free Space: 188.1GiB
+[stderr] #0 building with "default" instance using docker driver
+[stderr] 
+[stderr] #1 [internal] load build definition from Dockerfile
+[stderr] #1 transferring dockerfile: 17.75kB done
+[stderr] #1 DONE 0.1s
+[stderr] 
+[stderr] #2 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+[stderr] #2 DONE 4.5s
+[stderr] 
+[stderr] #3 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+[stderr] #3 resolve docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e 0.0s done
+[stderr] #3 sha256:96918c57e42509b97f10c074d80672ecdbd3bb7dcd38c1bd95960cf291207416 0B / 11.98MB 0.2s
+[stderr] #3 sha256:96918c57e42509b97f10c074d80672ecdbd3bb7dcd38c1bd95960cf291207416 1.05MB / 11.98MB 2.3s
+[stderr] #3 sha256:96918c57e42509b97f10c074d80672ecdbd3bb7dcd38c1bd95960cf291207416 4.19MB / 11.98MB 2.4s
+[stderr] #3 sha256:96918c57e42509b97f10c074d80672ecdbd3bb7dcd38c1bd95960cf291207416 5.24MB / 11.98MB 2.6s
+[stderr] #3 sha256:96918c57e42509b97f10c074d80672ecdbd3bb7dcd38c1bd95960cf291207416 7.34MB / 11.98MB 2.7s
+[stderr] #3 sha256:96918c57e42509b97f10c074d80672ecdbd3bb7dcd38c1bd95960cf291207416 9.44MB / 11.98MB 2.9s
+[stderr] #3 sha256:96918c57e42509b97f10c074d80672ecdbd3bb7dcd38c1bd95960cf291207416 11.98MB / 11.98MB 3.0s
+[stderr] #3 sha256:96918c57e42509b97f10c074d80672ecdbd3bb7dcd38c1bd95960cf291207416 11.98MB / 11.98MB 3.0s done
+[stderr] #3 extracting sha256:96918c57e42509b97f10c074d80672ecdbd3bb7dcd38c1bd95960cf291207416 0.1s done
+[stderr] #3 DONE 3.3s
+[stderr] 
+[stderr] #4 [internal] load metadata for ghcr.io/astral-sh/uv:0.11.6
+[stderr] #4 DONE 3.3s
+[stderr] 
+[stderr] #5 [internal] load metadata for docker.io/library/python:3.13-bookworm
+[stderr] #5 DONE 9.0s
+[stderr] 
+[stderr] #6 [internal] load metadata for docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest
+[stderr] #6 DONE 12.0s
+[stderr] 
+[stderr] #7 [internal] load .dockerignore
+[stderr] #7 transferring context: 2B done
+[stderr] #7 DONE 0.1s
+[stderr] 
+[stderr] #8 [internal] load build context
+[stderr] #8 DONE 0.0s
+[stderr] 
+[stderr] #9 [internal] settings cache mount permissions
+[stderr] #9 DONE 0.0s
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 resolve docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72 0.1s done
+[stderr] #10 ...
+[stderr] 
+[stderr] #9 [internal] settings cache mount permissions
+[stderr] #9 DONE 0.2s
+[stderr] 
+[stderr] #11 FROM ghcr.io/astral-sh/uv:0.11.6@sha256:b1e699368d24c57cda93c338a57a8c5a119009ba809305cc8e86986d4a006754
+[stderr] #11 resolve ghcr.io/astral-sh/uv:0.11.6@sha256:b1e699368d24c57cda93c338a57a8c5a119009ba809305cc8e86986d4a006754 0.1s done
+[stderr] #11 DONE 0.4s
+[stderr] 
+[stderr] #8 [internal] load build context
+[stderr] #8 transferring context: 4.39MB 0.1s done
+[stderr] #8 DONE 0.4s
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 resolve docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c 0.1s done
+[stderr] #12 DONE 0.9s
+[stderr] 
+[stderr] #11 FROM ghcr.io/astral-sh/uv:0.11.6@sha256:b1e699368d24c57cda93c338a57a8c5a119009ba809305cc8e86986d4a006754
+[stderr] #11 sha256:b2aec5afb2dfa270be1458176f97e524bf33a9c0a1d51f396d4ebe07f21ad436 0B / 98B 0.3s
+[stderr] #11 sha256:84680555efbed604c9b200588ee8aab41a0e5e8c54df188dfba754c0e6f6a067 0B / 25.22MB 0.3s
+[stderr] #11 sha256:b2aec5afb2dfa270be1458176f97e524bf33a9c0a1d51f396d4ebe07f21ad436 98B / 98B 0.6s done
+[stderr] #11 sha256:84680555efbed604c9b200588ee8aab41a0e5e8c54df188dfba754c0e6f6a067 2.10MB / 25.22MB 2.0s
+[stderr] #11 sha256:84680555efbed604c9b200588ee8aab41a0e5e8c54df188dfba754c0e6f6a067 4.19MB / 25.22MB 2.1s
+[stderr] #11 sha256:84680555efbed604c9b200588ee8aab41a0e5e8c54df188dfba754c0e6f6a067 6.29MB / 25.22MB 2.3s
+[stderr] #11 sha256:84680555efbed604c9b200588ee8aab41a0e5e8c54df188dfba754c0e6f6a067 8.39MB / 25.22MB 2.4s
+[stderr] #11 sha256:84680555efbed604c9b200588ee8aab41a0e5e8c54df188dfba754c0e6f6a067 10.49MB / 25.22MB 2.6s
+[stderr] #11 sha256:84680555efbed604c9b200588ee8aab41a0e5e8c54df188dfba754c0e6f6a067 12.58MB / 25.22MB 2.7s
+[stderr] #11 sha256:84680555efbed604c9b200588ee8aab41a0e5e8c54df188dfba754c0e6f6a067 14.68MB / 25.22MB 2.9s
+[stderr] #11 sha256:84680555efbed604c9b200588ee8aab41a0e5e8c54df188dfba754c0e6f6a067 16.78MB / 25.22MB 3.0s
+[stderr] #11 sha256:84680555efbed604c9b200588ee8aab41a0e5e8c54df188dfba754c0e6f6a067 18.87MB / 25.22MB 3.6s
+[stderr] #11 sha256:84680555efbed604c9b200588ee8aab41a0e5e8c54df188dfba754c0e6f6a067 25.22MB / 25.22MB 3.8s done
+[stderr] #11 extracting sha256:84680555efbed604c9b200588ee8aab41a0e5e8c54df188dfba754c0e6f6a067
+[stderr] #11 extracting sha256:84680555efbed604c9b200588ee8aab41a0e5e8c54df188dfba754c0e6f6a067 0.3s done
+[stderr] #11 extracting sha256:b2aec5afb2dfa270be1458176f97e524bf33a9c0a1d51f396d4ebe07f21ad436
+[stderr] #11 extracting sha256:b2aec5afb2dfa270be1458176f97e524bf33a9c0a1d51f396d4ebe07f21ad436 0.0s done
+[stderr] #11 DONE 4.7s
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:c696b6a84063ac75f9a13fe12c0952e505d3a72ce273f071ab0fa2772366a182 250B / 250B 3.6s done
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 0B / 27.83MB 3.8s
+[stderr] #12 sha256:d3d41deec81954be79a2442a587b0dbecb08709045480459d8e26e305fa5253b 6.16MB / 6.16MB 3.8s done
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 0B / 211.66MB 3.8s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 0B / 64.41MB 0.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 0.2s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 5.24MB / 64.41MB 2.3s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 9.44MB / 64.41MB 2.6s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 13.63MB / 64.41MB 3.0s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 18.87MB / 64.41MB 3.5s
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 2.10MB / 27.83MB 7.4s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 23.07MB / 64.41MB 3.8s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 27.26MB / 64.41MB 4.2s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 0B / 211.66MB 8.9s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 31.46MB / 64.41MB 5.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 5.3s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 35.65MB / 64.41MB 6.6s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 39.85MB / 64.41MB 7.4s
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 4.19MB / 27.83MB 11.4s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 44.04MB / 64.41MB 8.3s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 48.23MB / 64.41MB 8.7s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 53.48MB / 64.41MB 9.2s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 58.72MB / 64.41MB 9.6s
+[stderr] #12 sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 64.41MB / 64.41MB 10.1s done
+[stderr] #12 sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 0B / 48.50MB 0.2s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 0B / 211.66MB 14.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 10.4s
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 6.29MB / 27.83MB 15.3s
+[stderr] #12 sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 3.15MB / 48.50MB 2.1s
+[stderr] #12 sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 7.34MB / 48.50MB 2.4s
+[stderr] #12 sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 11.53MB / 48.50MB 2.7s
+[stderr] #12 sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 15.73MB / 48.50MB 3.0s
+[stderr] #12 sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 19.92MB / 48.50MB 3.3s
+[stderr] #12 sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 24.12MB / 48.50MB 3.6s
+[stderr] #12 sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 27.26MB / 48.50MB 3.9s
+[stderr] #12 sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 32.51MB / 48.50MB 4.2s
+[stderr] #12 sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 36.70MB / 48.50MB 4.5s
+[stderr] #12 sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 40.89MB / 48.50MB 4.8s
+[stderr] #12 sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 44.04MB / 48.50MB 5.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 1.05MB / 211.66MB 19.1s
+[stderr] #12 sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 48.50MB / 48.50MB 5.4s done
+[stderr] #12 extracting sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 15.5s
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 8.39MB / 27.83MB 19.5s
+[stderr] #12 extracting sha256:abf56b2f87242de589f03ea56779358079c07c4c099bd1e454d083538eb6666d 1.5s done
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 10.49MB / 27.83MB 20.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 1.05MB / 211.66MB 24.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 20.6s
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 12.58MB / 27.83MB 25.8s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 1.05MB / 211.66MB 29.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1 32B / 32B 2.9s done
+[stderr] #10 sha256:a8bb24be479693455e88bca35c72c31247886910b84647d71a879060a7bdb6ef 189B / 189B 2.7s done
+[stderr] #10 sha256:40a6daff0f1b9711747096290e90c2b26f7f53562e42bbfa0d0ceab92bdd3eff 5.24MB / 7.73MB 4.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 25.7s
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 13.63MB / 27.83MB 30.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 2.10MB / 211.66MB 34.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 30.8s
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 14.68MB / 27.83MB 36.0s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 2.10MB / 211.66MB 39.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 35.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:40a6daff0f1b9711747096290e90c2b26f7f53562e42bbfa0d0ceab92bdd3eff 7.73MB / 7.73MB 5.5s done
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 14.68MB / 477.58MB 9.5s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 16.78MB / 27.83MB 40.2s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 2.10MB / 211.66MB 44.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 41.0s
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 16.78MB / 27.83MB 45.3s
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 18.87MB / 27.83MB 48.6s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 2.10MB / 211.66MB 49.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 46.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 44.04MB / 477.58MB 19.8s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 20.97MB / 27.83MB 50.7s
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 23.07MB / 27.83MB 53.6s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 2.10MB / 211.66MB 54.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 51.1s
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 25.17MB / 27.83MB 56.5s
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 27.26MB / 27.83MB 58.5s
+[stderr] #12 sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 27.83MB / 27.83MB 59.1s done
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 3.15MB / 211.66MB 59.8s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 56.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 74.45MB / 477.58MB 30.1s
+[stderr] #10 sha256:53752545c9b26814a5dadb2ac5d26e71ee039f17d72ee04fbc55e8e14a42966e 0B / 4.31kB 1.2s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 3.15MB / 211.66MB 64.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 61.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 3.15MB / 211.66MB 70.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 66.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 108.00MB / 477.58MB 40.3s
+[stderr] #10 sha256:53752545c9b26814a5dadb2ac5d26e71ee039f17d72ee04fbc55e8e14a42966e 4.31kB / 4.31kB 6.4s done
+[stderr] #10 sha256:0ddda5039dab8b2772d0f65857071df489438384259b8fabd0a7882656cf8ca0 164B / 164B 2.6s done
+[stderr] #10 sha256:407de719c2d3bde9e1d31481e451ac465ef6cdcf90f48b446b000dd907979233 0B / 21.57kB 2.3s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 4.19MB / 211.66MB 75.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 71.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 4.19MB / 211.66MB 80.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0B / 24.06MB 76.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 146.80MB / 477.58MB 50.6s
+[stderr] #10 sha256:407de719c2d3bde9e1d31481e451ac465ef6cdcf90f48b446b000dd907979233 21.57kB / 21.57kB 2.8s done
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 4.19MB / 420.17MB 9.8s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 5.24MB / 211.66MB 85.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 81.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 6.29MB / 211.66MB 90.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 86.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 178.26MB / 477.58MB 60.7s
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 8.39MB / 420.17MB 20.0s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 6.29MB / 211.66MB 95.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 91.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 7.34MB / 211.66MB 100.6s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 97.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 223.35MB / 477.58MB 70.9s
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 10.49MB / 420.17MB 30.1s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 7.34MB / 211.66MB 105.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 102.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 8.39MB / 211.66MB 110.8s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 107.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 259.00MB / 477.58MB 81.1s
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 14.68MB / 420.17MB 40.3s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 9.44MB / 211.66MB 115.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 112.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 9.44MB / 211.66MB 121.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 117.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 299.89MB / 477.58MB 91.3s
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 18.87MB / 420.17MB 50.5s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 9.44MB / 211.66MB 126.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 122.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 9.44MB / 211.66MB 131.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 127.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 328.20MB / 477.58MB 101.5s
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 23.07MB / 420.17MB 60.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 9.44MB / 211.66MB 136.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 132.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 9.44MB / 211.66MB 141.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 137.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 351.27MB / 477.58MB 111.7s
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 31.46MB / 420.17MB 70.9s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 10.49MB / 211.66MB 146.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 142.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 10.49MB / 211.66MB 151.6s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 148.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 373.29MB / 477.58MB 121.9s
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 33.55MB / 420.17MB 81.1s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 10.49MB / 211.66MB 156.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 153.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 11.53MB / 211.66MB 161.8s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 158.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 392.17MB / 477.58MB 132.1s
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 35.65MB / 420.17MB 91.3s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 11.53MB / 211.66MB 166.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 163.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 12.58MB / 211.66MB 172.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 168.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 408.94MB / 477.58MB 142.3s
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 39.85MB / 420.17MB 101.5s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 12.58MB / 211.66MB 177.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 1.05MB / 24.06MB 173.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 12.58MB / 211.66MB 182.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 178.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 433.06MB / 477.58MB 152.5s
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 40.89MB / 420.17MB 111.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 12.58MB / 211.66MB 187.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 183.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 12.58MB / 211.66MB 192.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 188.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 457.18MB / 477.58MB 162.7s
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 44.04MB / 420.17MB 121.9s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 12.58MB / 211.66MB 197.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 193.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 12.58MB / 211.66MB 202.6s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 199.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:360f7d768fa7cb59b27b2b615d6dbe35549aec2e6c1898bb3a9b31c0e790bd74 477.58MB / 477.58MB 170.2s done
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 46.14MB / 420.17MB 132.1s
+[stderr] #10 sha256:fd3f01088aa854fa99907bd918d9bc8146064c2f452aae3e07d61a6244ca9968 0B / 210.30MB 2.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 12.58MB / 211.66MB 207.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 204.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 12.58MB / 211.66MB 212.8s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 209.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 47.19MB / 420.17MB 142.3s
+[stderr] #10 sha256:fd3f01088aa854fa99907bd918d9bc8146064c2f452aae3e07d61a6244ca9968 112.20MB / 210.30MB 12.9s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 13.63MB / 211.66MB 217.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 214.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 223.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 219.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 48.23MB / 420.17MB 152.5s
+[stderr] #10 sha256:fd3f01088aa854fa99907bd918d9bc8146064c2f452aae3e07d61a6244ca9968 210.30MB / 210.30MB 20.3s done
+[stderr] #10 sha256:39a945af8df2ad9343f141c82355d3f2c4b576d432eda34c460d630607462b60 0B / 29.74MB 2.9s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 228.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 224.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 233.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 229.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 50.33MB / 420.17MB 162.9s
+[stderr] #10 sha256:39a945af8df2ad9343f141c82355d3f2c4b576d432eda34c460d630607462b60 29.74MB / 29.74MB 5.4s done
+[stderr] #10 extracting sha256:39a945af8df2ad9343f141c82355d3f2c4b576d432eda34c460d630607462b60 0.9s done
+[stderr] #10 extracting sha256:fd3f01088aa854fa99907bd918d9bc8146064c2f452aae3e07d61a6244ca9968 5.1s done
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 238.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 234.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 243.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 239.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 51.38MB / 420.17MB 173.2s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 248.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 244.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 253.6s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 250.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 54.53MB / 420.17MB 183.6s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 258.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 255.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 263.8s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 260.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 58.72MB / 420.17MB 193.9s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 268.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 265.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 274.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 270.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 59.77MB / 420.17MB 204.3s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 279.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 275.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 284.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 280.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 59.77MB / 420.17MB 214.6s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 289.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 285.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 294.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 290.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 60.82MB / 420.17MB 225.0s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 299.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 2.10MB / 24.06MB 295.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 14.68MB / 211.66MB 304.6s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 301.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 61.87MB / 420.17MB 235.3s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 15.73MB / 211.66MB 309.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 306.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 19.92MB / 211.66MB 314.8s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 311.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 62.91MB / 420.17MB 245.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 26.21MB / 211.66MB 319.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 316.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 27.26MB / 211.66MB 325.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 321.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 63.96MB / 420.17MB 256.0s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 28.31MB / 211.66MB 330.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 326.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 28.31MB / 211.66MB 335.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 331.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 65.01MB / 420.17MB 266.4s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 28.31MB / 211.66MB 340.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 336.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 29.36MB / 211.66MB 345.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 341.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 67.11MB / 420.17MB 276.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 29.36MB / 211.66MB 350.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 346.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 29.36MB / 211.66MB 355.6s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 352.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 68.16MB / 420.17MB 287.1s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 30.41MB / 211.66MB 360.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 357.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 30.41MB / 211.66MB 365.8s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 362.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 68.16MB / 420.17MB 297.4s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 30.41MB / 211.66MB 370.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 3.15MB / 24.06MB 367.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 31.46MB / 211.66MB 376.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 5.24MB / 24.06MB 372.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 7.34MB / 24.06MB 373.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 69.21MB / 420.17MB 307.8s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 9.44MB / 24.06MB 375.4s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 31.46MB / 211.66MB 381.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 11.53MB / 24.06MB 378.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 13.63MB / 24.06MB 380.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 15.73MB / 24.06MB 382.2s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 31.46MB / 211.66MB 386.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 70.25MB / 420.17MB 318.1s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 16.78MB / 24.06MB 387.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 31.46MB / 211.66MB 391.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 17.83MB / 24.06MB 392.4s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 31.46MB / 211.66MB 396.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 71.30MB / 420.17MB 328.5s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 17.83MB / 24.06MB 397.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 31.46MB / 211.66MB 401.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 17.83MB / 24.06MB 402.6s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 32.51MB / 211.66MB 406.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 72.35MB / 420.17MB 338.8s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 17.83MB / 24.06MB 407.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 32.51MB / 211.66MB 411.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 17.83MB / 24.06MB 412.8s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 32.51MB / 211.66MB 416.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 73.40MB / 420.17MB 349.2s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 17.83MB / 24.06MB 417.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 32.51MB / 211.66MB 421.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 17.83MB / 24.06MB 423.0s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 32.51MB / 211.66MB 427.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 74.45MB / 420.17MB 359.5s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 17.83MB / 24.06MB 428.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 32.51MB / 211.66MB 432.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 17.83MB / 24.06MB 433.2s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 32.51MB / 211.66MB 437.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 75.50MB / 420.17MB 369.9s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 17.83MB / 24.06MB 438.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 32.51MB / 211.66MB 442.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 17.83MB / 24.06MB 443.4s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 32.51MB / 211.66MB 447.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 76.55MB / 420.17MB 380.2s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 18.87MB / 24.06MB 448.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 33.55MB / 211.66MB 452.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 18.87MB / 24.06MB 453.6s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 33.55MB / 211.66MB 457.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 76.55MB / 420.17MB 390.6s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 18.87MB / 24.06MB 458.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 33.55MB / 211.66MB 462.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 18.87MB / 24.06MB 463.8s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 33.55MB / 211.66MB 467.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 400.9s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 18.87MB / 24.06MB 468.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 34.60MB / 211.66MB 472.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 18.87MB / 24.06MB 474.0s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 34.60MB / 211.66MB 478.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 411.3s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 18.87MB / 24.06MB 479.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 34.60MB / 211.66MB 483.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 18.87MB / 24.06MB 484.2s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 34.60MB / 211.66MB 488.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 421.6s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 18.87MB / 24.06MB 489.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 34.60MB / 211.66MB 493.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 494.4s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 35.65MB / 211.66MB 498.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 432.0s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 499.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 35.65MB / 211.66MB 503.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 504.6s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 35.65MB / 211.66MB 508.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 442.3s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 509.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 35.65MB / 211.66MB 513.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 514.8s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 35.65MB / 211.66MB 518.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 452.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 519.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 36.70MB / 211.66MB 523.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 525.0s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 36.70MB / 211.66MB 529.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 530.1s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 463.0s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 36.70MB / 211.66MB 534.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 535.2s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 36.70MB / 211.66MB 539.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 540.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 36.70MB / 211.66MB 544.3s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 473.4s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 545.4s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 37.75MB / 211.66MB 549.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 550.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 37.75MB / 211.66MB 554.5s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 483.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 555.6s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 37.75MB / 211.66MB 559.6s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 560.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 38.80MB / 211.66MB 564.7s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 494.1s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 565.8s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 38.80MB / 211.66MB 569.8s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 570.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 38.80MB / 211.66MB 574.9s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 504.4s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 576.0s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 38.80MB / 211.66MB 580.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 581.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 38.80MB / 211.66MB 585.1s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 514.8s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 586.2s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 38.80MB / 211.66MB 590.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 591.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 39.85MB / 211.66MB 595.3s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 525.1s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 596.4s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 39.85MB / 211.66MB 600.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 19.92MB / 24.06MB 601.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 39.85MB / 211.66MB 605.5s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 77.59MB / 420.17MB 535.5s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 606.6s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 39.85MB / 211.66MB 610.6s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 611.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 39.85MB / 211.66MB 615.7s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 97.52MB / 420.17MB 545.8s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 616.8s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 40.89MB / 211.66MB 620.8s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 621.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 40.89MB / 211.66MB 625.9s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 118.49MB / 420.17MB 556.2s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 627.0s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 40.89MB / 211.66MB 631.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 632.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 40.89MB / 211.66MB 636.1s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 119.54MB / 420.17MB 566.5s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 637.2s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 40.89MB / 211.66MB 641.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 642.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 40.89MB / 211.66MB 646.3s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 119.54MB / 420.17MB 576.9s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 647.4s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 41.94MB / 211.66MB 651.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 652.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 41.94MB / 211.66MB 656.5s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 120.59MB / 420.17MB 587.2s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 657.6s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 41.94MB / 211.66MB 661.6s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 662.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 41.94MB / 211.66MB 666.7s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 120.59MB / 420.17MB 597.6s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 667.8s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 41.94MB / 211.66MB 671.8s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 672.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 41.94MB / 211.66MB 676.9s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 121.63MB / 420.17MB 607.9s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 678.0s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 41.94MB / 211.66MB 682.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 20.97MB / 24.06MB 683.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 42.99MB / 211.66MB 687.1s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 121.63MB / 420.17MB 618.3s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 688.2s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 42.99MB / 211.66MB 692.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 693.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 42.99MB / 211.66MB 697.3s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 121.63MB / 420.17MB 628.6s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 698.4s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 42.99MB / 211.66MB 702.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 703.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 42.99MB / 211.66MB 707.5s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 121.63MB / 420.17MB 639.0s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 708.6s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 42.99MB / 211.66MB 712.6s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 713.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 42.99MB / 211.66MB 717.7s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 121.63MB / 420.17MB 649.3s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 718.8s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 44.04MB / 211.66MB 722.8s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 55.57MB / 211.66MB 727.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 723.9s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 121.63MB / 420.17MB 659.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 67.11MB / 211.66MB 731.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 729.0s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 77.59MB / 211.66MB 736.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 734.1s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 121.63MB / 420.17MB 670.0s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 77.59MB / 211.66MB 741.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 739.2s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 77.59MB / 211.66MB 746.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 744.3s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 122.68MB / 420.17MB 680.4s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 77.59MB / 211.66MB 751.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 749.4s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 77.59MB / 211.66MB 756.6s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 754.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 77.59MB / 211.66MB 761.7s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 122.68MB / 420.17MB 690.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 759.6s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 77.59MB / 211.66MB 766.8s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 764.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 77.59MB / 211.66MB 771.9s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 122.68MB / 420.17MB 701.1s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 769.8s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 77.59MB / 211.66MB 777.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 774.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 77.59MB / 211.66MB 782.1s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 122.68MB / 420.17MB 711.4s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 780.0s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 77.59MB / 211.66MB 787.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 785.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 77.59MB / 211.66MB 792.3s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 122.68MB / 420.17MB 721.8s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 790.2s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 77.59MB / 211.66MB 797.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 795.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 84.93MB / 211.66MB 802.5s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 123.73MB / 420.17MB 732.1s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 800.4s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 96.47MB / 211.66MB 806.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 805.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 108.00MB / 211.66MB 811.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 123.73MB / 420.17MB 742.5s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 810.6s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 116.39MB / 211.66MB 816.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 815.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 117.44MB / 211.66MB 821.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 123.73MB / 420.17MB 752.8s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 820.8s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 117.44MB / 211.66MB 826.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 825.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 118.49MB / 211.66MB 832.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 123.73MB / 420.17MB 763.2s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 831.0s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 118.49MB / 211.66MB 837.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 836.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 118.49MB / 211.66MB 842.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 124.78MB / 420.17MB 773.5s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 841.2s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 118.49MB / 211.66MB 847.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 846.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 119.54MB / 211.66MB 852.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 124.78MB / 420.17MB 783.9s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 851.4s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 119.54MB / 211.66MB 857.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 856.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 119.54MB / 211.66MB 862.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 124.78MB / 420.17MB 794.2s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 861.6s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 119.54MB / 211.66MB 867.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 866.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 119.54MB / 211.66MB 872.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 124.78MB / 420.17MB 804.6s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 22.02MB / 24.06MB 871.8s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 119.54MB / 211.66MB 877.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 876.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 119.54MB / 211.66MB 883.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 882.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 124.78MB / 420.17MB 814.9s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 119.54MB / 211.66MB 888.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 887.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 119.54MB / 211.66MB 893.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 892.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 125.83MB / 420.17MB 825.3s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 119.54MB / 211.66MB 898.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 897.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 120.59MB / 211.66MB 903.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 902.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 125.83MB / 420.17MB 835.6s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 120.59MB / 211.66MB 908.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 907.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 120.59MB / 211.66MB 913.6s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 912.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 125.83MB / 420.17MB 846.0s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 120.59MB / 211.66MB 918.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 917.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 120.59MB / 211.66MB 923.8s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 922.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 126.88MB / 420.17MB 856.3s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 121.63MB / 211.66MB 928.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 927.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 121.63MB / 211.66MB 934.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 933.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 126.88MB / 420.17MB 866.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 121.63MB / 211.66MB 939.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 938.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 121.63MB / 211.66MB 944.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 943.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 126.88MB / 420.17MB 877.0s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 121.63MB / 211.66MB 949.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 948.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 121.63MB / 211.66MB 954.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 953.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 127.93MB / 420.17MB 887.4s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 121.63MB / 211.66MB 959.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 958.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 121.63MB / 211.66MB 964.6s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 963.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 127.93MB / 420.17MB 897.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 121.63MB / 211.66MB 969.7s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 968.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 121.63MB / 211.66MB 974.8s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 973.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 128.97MB / 420.17MB 908.1s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 122.68MB / 211.66MB 979.9s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 978.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 122.68MB / 211.66MB 985.0s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 984.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 128.97MB / 420.17MB 918.4s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 122.68MB / 211.66MB 990.1s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 989.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 122.68MB / 211.66MB 995.2s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 994.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 130.02MB / 420.17MB 928.8s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 122.68MB / 211.66MB 1000.3s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 999.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 122.68MB / 211.66MB 1005.4s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 1004.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 130.02MB / 420.17MB 939.1s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 122.68MB / 211.66MB 1010.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 23.07MB / 24.06MB 1009.5s
+[stderr] #12 sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 24.06MB / 24.06MB 1010.6s done
+[stderr] #12 extracting sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2
+[stderr] #12 extracting sha256:08457856946d74c8aede7d750e185d1e479a79b8123d1b805182a580d224a6e2 0.4s done
+[stderr] #12 extracting sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 122.68MB / 211.66MB 1015.6s
+[stderr] #12 extracting sha256:8cab6ce149c24516f80b26a762b6b9aaebcaf4fbe51d4c6844af7d7dbc372f2d 1.7s done
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 130.02MB / 420.17MB 949.5s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 122.68MB / 211.66MB 1020.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 123.73MB / 211.66MB 1025.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 131.07MB / 420.17MB 959.5s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 123.73MB / 211.66MB 1030.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 123.73MB / 211.66MB 1036.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 131.07MB / 420.17MB 969.6s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 123.73MB / 211.66MB 1041.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 123.73MB / 211.66MB 1046.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 131.07MB / 420.17MB 979.6s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 123.73MB / 211.66MB 1051.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 123.73MB / 211.66MB 1056.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 132.12MB / 420.17MB 989.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 123.73MB / 211.66MB 1061.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 124.78MB / 211.66MB 1066.6s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 132.12MB / 420.17MB 999.7s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 124.78MB / 211.66MB 1071.7s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 124.78MB / 211.66MB 1076.8s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 132.12MB / 420.17MB 1009.8s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 124.78MB / 211.66MB 1081.9s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 124.78MB / 211.66MB 1087.0s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 133.17MB / 420.17MB 1019.8s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 124.78MB / 211.66MB 1092.1s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 124.78MB / 211.66MB 1097.2s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 133.17MB / 420.17MB 1029.9s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 124.78MB / 211.66MB 1102.3s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 124.78MB / 211.66MB 1107.4s
+[stderr] #12 ...
+[stderr] 
+[stderr] #10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+[stderr] #10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 133.17MB / 420.17MB 1039.9s
+[stderr] #10 ...
+[stderr] 
+[stderr] #12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 124.78MB / 211.66MB 1112.5s
+[stderr] #12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 125.83MB / 211.66MB 1117.6s

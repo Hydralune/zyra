@@ -1,0 +1,96 @@
+Invoke-RestMethod: C:\Users\Ylon\Desktop\ÃÙ’Ω±≠2026\zyra\scripts\run_zyra_swebench_flask5014.ps1:139
+Line |
+ 139 |  °≠ completed = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:800 °≠
+     |                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     |  {   "schema": "zyra.task-execution-http-error/v1",   "error":
+     | "task_execution_failed",   "message": "the physical deployment node
+     | returned a failed attempt",   "task_id": "task_c0e1bf171051",  
+     | "run_id": "run_0b7a6d974e86",   "task_status": "failed",  
+     | "execution_error": {     "schema": "zyra.task-execution-error/v1",    
+     | "error": "RuntimeError",     "message": "the physical deployment node
+     | returned a failed attempt",     "retryable": false,     "fallback":
+     | false   },   "event_count": 34,   "event_refs": [     {      
+     | "event_id": "event_e6a4bbac924c",       "event_type": "constraint_check"
+     | },     {       "event_id": "event_acd8540609de",       "event_type":
+     | "agent_message"     },     {       "event_id": "event_69a4d9245c03",    
+     | "event_type": "node_updated"     },     {       "event_id":
+     | "event_96b338899e02",       "event_type": "node_updated"     },     {   
+     | "event_id": "event_b22b36e0aadd",       "event_type": "constraint_check"
+     | },     {       "event_id": "event_72449e69355d",       "event_type":
+     | "agent_message"     },     {       "event_id": "event_e16915a369ec",    
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_06454b0ea9b6",       "event_type": "node_updated"     },     {   
+     | "event_id": "event_473dc938c34f",       "event_type": "topology_route"  
+     | },     {       "event_id": "event_841c6e5ed715",       "event_type":
+     | "system_notice"     },     {       "event_id": "event_230a010a2038",    
+     | "event_type": "topology_route"     },     {       "event_id":
+     | "event_562609a330b8",       "event_type": "resource_decision"     },    
+     | {       "event_id": "event_57b5ffeb12ee",       "event_type":
+     | "node_updated"     },     {       "event_id": "event_d4ecaf127cd1",     
+     | "event_type": "constraint_check"     },     {       "event_id":
+     | "event_6f3bf58f42a8",       "event_type": "agent_message"     },     {  
+     | "event_id": "event_c905873852ca",       "event_type": "constraint_check"
+     | },     {       "event_id": "event_c72ca0d8b923",       "event_type":
+     | "node_updated"     },     {       "event_id": "event_29e77b3857c0",     
+     | "event_type": "node_updated"     },     {       "event_id":
+     | "event_6a90681c2c5d",       "event_type": "system_notice"     },     {  
+     | "event_id": "event_d442315a8d1e",       "event_type": "recovery_planned"
+     | },     {       "event_id": "event_d50d427042ae",       "event_type":
+     | "node_updated"     },     {       "event_id": "event_b58f5f347b68",     
+     | "event_type": "system_notice"     },     {       "event_id":
+     | "event_e56dbeafef4d",       "event_type": "node_failed"     },     {    
+     | "event_id": "event_8e5094400c31",       "event_type": "system_notice"   
+     | },     {       "event_id": "event_08f61315243c",       "event_type":
+     | "system_notice"     },     {       "event_id": "event_de52ae5b5b4c",    
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_cd8560382bf6",       "event_type": "system_notice"     },     {  
+     | "event_id": "event_23414326ab53",       "event_type": "system_notice"   
+     | },     {       "event_id": "event_956cae3ba186",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_241190d4c08b",
+     | "event_type": "system_notice"     },     {       "event_id":
+     | "event_de743de09c79",       "event_type": "system_notice"     },     {  
+     | "event_id": "event_c60305059426",       "event_type": "artifact_written"
+     | }   ],   "task_ref": "/tasks/task_c0e1bf171051",   "event_stream_ref":
+     | "/tasks/task_c0e1bf171051/events",   "retryable": false,   "fallback":
+     | false,   "terminal_reconciliation": {},   "memory_curator": {    
+     | "operation": "schedule_task_end",     "status": "scheduled",    
+     | "scheduled": {       "request": {         "protocol":
+     | "zyra.memory-curator.v1",         "request_id":
+     | "curator_request_941b448c35ffd13c03a0bba0",         "run_id":
+     | "run_0b7a6d974e86",         "task_id": "task_c0e1bf171051",        
+     | "trigger": "task_end",         "requested_by": "task-lifecycle",        
+     | "input_watermark": 76,         "evidence_start": 0,        
+     | "evidence_end": null,         "allow_model_assist": true,        
+     | "max_candidates": 64,         "lease_seconds": 30.0,        
+     | "idempotency_key":
+     | "curator-task-end:task_c0e1bf171051:76:2026-09-08T23:04:04.492Z",       
+     | "created_at": "2026-09-08T23:04:06.268Z",         "metadata": {         
+     | "task_status": "failed",           "task_updated_at":
+     | "2026-09-08T23:04:04.492Z",           "event_count_at_schedule": 76,    
+     | "automatic": true         }       },       "job": {         "job_id":
+     | "curator_job_353d768bcf674b7fe7572e7f",         "request": {          
+     | "protocol": "zyra.memory-curator.v1",           "request_id":
+     | "curator_request_941b448c35ffd13c03a0bba0",           "run_id":
+     | "run_0b7a6d974e86",           "task_id": "task_c0e1bf171051",          
+     | "trigger": "task_end",           "requested_by": "task-lifecycle",      
+     | "input_watermark": 76,           "evidence_start": 0,          
+     | "evidence_end": null,           "allow_model_assist": true,          
+     | "max_candidates": 64,           "lease_seconds": 30.0,          
+     | "idempotency_key":
+     | "curator-task-end:task_c0e1bf171051:76:2026-09-08T23:04:04.492Z",       
+     | "created_at": "2026-09-08T23:04:06.268Z",           "metadata": {       
+     | "automatic": true,             "event_count_at_schedule": 76,           
+     | "task_status": "failed",             "task_updated_at":
+     | "2026-09-08T23:04:04.492Z"           }         },         "state":
+     | "queued",         "input_watermark": 76,        
+     | "last_success_watermark": 0,         "lease_owner": "",        
+     | "ownership_token": "",         "lease_epoch": 0,        
+     | "lease_expires_at": null,         "attempt": 0,        
+     | "retry_remaining": 3,         "retry_at": null,         "error_code":
+     | "",         "error_message": "",         "created_at":
+     | 1788908646.2681413,         "updated_at": 1788908646.2681413,        
+     | "started_at": null,         "finished_at": null,        
+     | "candidate_count": 0,         "committed_count": 0,         "dirty":
+     | true,         "terminal": false       },       "created": true,      
+     | "event_id": "event_0596cf88e48f774aee0becdb"     },     "result": null, 
+     | "data": {},     "integration": null   } }

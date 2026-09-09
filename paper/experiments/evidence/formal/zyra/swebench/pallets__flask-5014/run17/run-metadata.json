@@ -1,0 +1,17 @@
+﻿{
+    "schema":  "zyra.swebench-formal-run.v1",
+    "instance_id":  "pallets__flask-5014",
+    "system":  "ZYRA",
+    "run_class":  "integration_calibration",
+    "model":  "deepseek-v4-flash",
+    "temperature":  0,
+    "sealed":  true,
+    "container":  "zyra-flask-5014-bench",
+    "base_commit":  "7ee9ceb71e868944a46e1ff00b506772a53a4f1d",
+    "deadline_minutes":  45,
+    "max_turns":  80,
+    "max_total_tokens":  420000,
+    "max_output_tokens_per_request":  4096,
+    "external_deadline_epoch_ms":  1788885420614,
+    "started_at":  "2026-09-08T15:52:00.6493915Z"
+}

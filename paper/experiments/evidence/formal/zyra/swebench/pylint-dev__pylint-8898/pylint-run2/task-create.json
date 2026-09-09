@@ -1,0 +1,1155 @@
+{
+  "task": {
+    "run_id": "run_58abc2c0d45e",
+    "task_id": "task_fbe46f6a6624",
+    "user_goal": "Work on the repository in the supplied benchmark container. Diagnose and fix the reported Pylint defect: the bad-name-rgxs configuration option mishandles valid regular expressions that contain commas, causing Pylint to crash. Implement the smallest correct production fix, add or adapt a focused regression test, and run relevant tests. Preserve unrelated behavior and deliver the code change in the repository; do not only describe a patch.",
+    "root_node_id": "node_7597663cbf87",
+    "status": "pending",
+    "created_at": "2026-09-08T23:37:30.853Z",
+    "updated_at": "2026-09-08T23:37:30.946Z",
+    "constraints": {
+      "objectives": [
+        "Work on the repository in the supplied benchmark container. Diagnose and fix the reported Pylint defect: the bad-name-rgxs configuration option mishandles valid regular expressions that contain commas, causing Pylint to crash. Implement the smallest correct production fix, add or adapt a focused regression test, and run relevant tests. Preserve unrelated behavior and deliver the code change in the repository; do not only describe a patch."
+      ],
+      "requirements": [],
+      "forbidden": [],
+      "assumptions": [],
+      "success_criteria": [
+        "Produce a traceable result that satisfies the user goal."
+      ],
+      "allowed_tools": [],
+      "required_tools": [],
+      "allowed_workers": [],
+      "required_artifacts": [],
+      "resource_preferences": [],
+      "output_schema": {},
+      "state_transition_rules": {},
+      "max_tool_calls": null,
+      "max_input_tokens": null,
+      "max_output_tokens": null,
+      "time_limit_ms": null,
+      "message_budget_chars": 2000
+    },
+    "plan_nodes": {
+      "node_7597663cbf87": {
+        "node_id": "node_7597663cbf87",
+        "title": "Root task",
+        "description": "Work on the repository in the supplied benchmark container. Diagnose and fix the reported Pylint defect: the bad-name-rgxs configuration option mishandles valid regular expressions that contain commas, causing Pylint to crash. Implement the smallest correct production fix, add or adapt a focused regression test, and run relevant tests. Preserve unrelated behavior and deliver the code change in the repository; do not only describe a patch.",
+        "status": "pending",
+        "intent": "plan",
+        "summary": "",
+        "parent_node_id": null,
+        "assigned_worker_id": null,
+        "depends_on": [],
+        "constraints": {
+          "objectives": [],
+          "requirements": [],
+          "forbidden": [],
+          "assumptions": [],
+          "success_criteria": [],
+          "allowed_tools": [],
+          "required_tools": [],
+          "allowed_workers": [],
+          "required_artifacts": [],
+          "resource_preferences": [],
+          "output_schema": {},
+          "state_transition_rules": {},
+          "max_tool_calls": null,
+          "max_input_tokens": null,
+          "max_output_tokens": null,
+          "time_limit_ms": null,
+          "message_budget_chars": 2000
+        },
+        "expected_output_schema": {},
+        "completion_criteria": [],
+        "evidence_refs": [],
+        "artifact_refs": [],
+        "state_delta": {},
+        "created_at": "2026-09-08T23:37:30.853Z",
+        "updated_at": "2026-09-08T23:37:30.853Z",
+        "metadata": {
+          "source": "initial_user_goal"
+        }
+      },
+      "node_ff8557c9be9a": {
+        "node_id": "node_ff8557c9be9a",
+        "title": "Plan",
+        "description": "Decompose the user goal into an executable task graph.",
+        "status": "pending",
+        "intent": "plan",
+        "summary": "",
+        "parent_node_id": "node_7597663cbf87",
+        "assigned_worker_id": null,
+        "depends_on": [
+          "node_7597663cbf87"
+        ],
+        "constraints": {
+          "objectives": [],
+          "requirements": [],
+          "forbidden": [],
+          "assumptions": [],
+          "success_criteria": [],
+          "allowed_tools": [],
+          "required_tools": [],
+          "allowed_workers": [],
+          "required_artifacts": [],
+          "resource_preferences": [],
+          "output_schema": {},
+          "state_transition_rules": {},
+          "max_tool_calls": null,
+          "max_input_tokens": null,
+          "max_output_tokens": null,
+          "time_limit_ms": null,
+          "message_budget_chars": 2000
+        },
+        "expected_output_schema": {
+          "type": "object",
+          "required": [
+            "stage_order"
+          ]
+        },
+        "completion_criteria": [
+          "Task graph has ordered stage nodes.",
+          "Each stage is traceable by node_id."
+        ],
+        "evidence_refs": [],
+        "artifact_refs": [],
+        "state_delta": {},
+        "created_at": "2026-09-08T23:37:30.946Z",
+        "updated_at": "2026-09-08T23:37:30.946Z",
+        "metadata": {
+          "stage": "plan",
+          "graph_version": "m3-symbolic-v1"
+        }
+      },
+      "node_bcf9ed95f3af": {
+        "node_id": "node_bcf9ed95f3af",
+        "title": "Route",
+        "description": "Select the worker and control route for the executable node.",
+        "status": "pending",
+        "intent": "decision",
+        "summary": "",
+        "parent_node_id": "node_7597663cbf87",
+        "assigned_worker_id": null,
+        "depends_on": [
+          "node_ff8557c9be9a"
+        ],
+        "constraints": {
+          "objectives": [],
+          "requirements": [],
+          "forbidden": [],
+          "assumptions": [],
+          "success_criteria": [],
+          "allowed_tools": [],
+          "required_tools": [],
+          "allowed_workers": [],
+          "required_artifacts": [],
+          "resource_preferences": [],
+          "output_schema": {},
+          "state_transition_rules": {},
+          "max_tool_calls": null,
+          "max_input_tokens": null,
+          "max_output_tokens": null,
+          "time_limit_ms": null,
+          "message_budget_chars": 2000
+        },
+        "expected_output_schema": {
+          "type": "object",
+          "required": [
+            "selected_worker",
+            "route_candidates"
+          ]
+        },
+        "completion_criteria": [
+          "A topology_route event is emitted.",
+          "A DecisionRecord is appended."
+        ],
+        "evidence_refs": [],
+        "artifact_refs": [],
+        "state_delta": {},
+        "created_at": "2026-09-08T23:37:30.946Z",
+        "updated_at": "2026-09-08T23:37:30.946Z",
+        "metadata": {
+          "stage": "route",
+          "graph_version": "m3-symbolic-v1"
+        }
+      },
+      "node_2e50164881a1": {
+        "node_id": "node_2e50164881a1",
+        "title": "Execute",
+        "description": "Run the current node through the selected worker runtime.",
+        "status": "pending",
+        "intent": "tool_call",
+        "summary": "",
+        "parent_node_id": "node_7597663cbf87",
+        "assigned_worker_id": null,
+        "depends_on": [
+          "node_bcf9ed95f3af"
+        ],
+        "constraints": {
+          "objectives": [],
+          "requirements": [],
+          "forbidden": [],
+          "assumptions": [],
+          "success_criteria": [],
+          "allowed_tools": [],
+          "required_tools": [],
+          "allowed_workers": [],
+          "required_artifacts": [],
+          "resource_preferences": [],
+          "output_schema": {},
+          "state_transition_rules": {},
+          "max_tool_calls": null,
+          "max_input_tokens": null,
+          "max_output_tokens": null,
+          "time_limit_ms": null,
+          "message_budget_chars": 2000
+        },
+        "expected_output_schema": {
+          "type": "object",
+          "required": [
+            "worker_result"
+          ]
+        },
+        "completion_criteria": [
+          "Worker runtime returns trace events.",
+          "Artifacts or tool results are preserved."
+        ],
+        "evidence_refs": [],
+        "artifact_refs": [],
+        "state_delta": {},
+        "created_at": "2026-09-08T23:37:30.946Z",
+        "updated_at": "2026-09-08T23:37:30.946Z",
+        "metadata": {
+          "stage": "execute",
+          "graph_version": "m3-symbolic-v1"
+        }
+      },
+      "node_87a5c21f321a": {
+        "node_id": "node_87a5c21f321a",
+        "title": "Verify",
+        "description": "Check node outputs, event coverage, and checkpoint readiness.",
+        "status": "pending",
+        "intent": "critique",
+        "summary": "",
+        "parent_node_id": "node_7597663cbf87",
+        "assigned_worker_id": null,
+        "depends_on": [
+          "node_2e50164881a1"
+        ],
+        "constraints": {
+          "objectives": [],
+          "requirements": [],
+          "forbidden": [],
+          "assumptions": [],
+          "success_criteria": [],
+          "allowed_tools": [],
+          "required_tools": [],
+          "allowed_workers": [],
+          "required_artifacts": [],
+          "resource_preferences": [],
+          "output_schema": {},
+          "state_transition_rules": {},
+          "max_tool_calls": null,
+          "max_input_tokens": null,
+          "max_output_tokens": null,
+          "time_limit_ms": null,
+          "message_budget_chars": 2000
+        },
+        "expected_output_schema": {
+          "type": "object",
+          "required": [
+            "constraint_results"
+          ]
+        },
+        "completion_criteria": [
+          "ConstraintKeeper emits a constraint_check event."
+        ],
+        "evidence_refs": [],
+        "artifact_refs": [],
+        "state_delta": {},
+        "created_at": "2026-09-08T23:37:30.946Z",
+        "updated_at": "2026-09-08T23:37:30.946Z",
+        "metadata": {
+          "stage": "verify",
+          "graph_version": "m3-symbolic-v1"
+        }
+      },
+      "node_9319a5950d81": {
+        "node_id": "node_9319a5950d81",
+        "title": "Finalize",
+        "description": "Finalize the trace and mark the task ready for inspection.",
+        "status": "pending",
+        "intent": "status",
+        "summary": "",
+        "parent_node_id": "node_7597663cbf87",
+        "assigned_worker_id": null,
+        "depends_on": [
+          "node_87a5c21f321a"
+        ],
+        "constraints": {
+          "objectives": [],
+          "requirements": [],
+          "forbidden": [],
+          "assumptions": [],
+          "success_criteria": [],
+          "allowed_tools": [],
+          "required_tools": [],
+          "allowed_workers": [],
+          "required_artifacts": [],
+          "resource_preferences": [],
+          "output_schema": {},
+          "state_transition_rules": {},
+          "max_tool_calls": null,
+          "max_input_tokens": null,
+          "max_output_tokens": null,
+          "time_limit_ms": null,
+          "message_budget_chars": 2000
+        },
+        "expected_output_schema": {
+          "type": "object",
+          "required": [
+            "status"
+          ]
+        },
+        "completion_criteria": [
+          "Task trace is ready for inspection."
+        ],
+        "evidence_refs": [],
+        "artifact_refs": [],
+        "state_delta": {},
+        "created_at": "2026-09-08T23:37:30.946Z",
+        "updated_at": "2026-09-08T23:37:30.946Z",
+        "metadata": {
+          "stage": "finalize",
+          "graph_version": "m3-symbolic-v1"
+        }
+      }
+    },
+    "artifacts": [],
+    "decisions": [],
+    "budget": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "tool_calls": 0,
+      "wall_time_ms": 0,
+      "cost_usd_estimate": 0.0,
+      "metadata": {}
+    },
+    "metadata": {
+      "delivery_contract": {
+        "schema": "zyra.goal-delivery-contract/v2",
+        "interaction_kind": "workspace_change",
+        "workspace_mutation_required": true,
+        "verification_required": true,
+        "required_paths": [],
+        "expected_file_contents": {},
+        "required_skills": [],
+        "required_executed_paths": [],
+        "provenance_index_paths": [],
+        "loopx_required": false,
+        "role_separation_required": false,
+        "mutation_policy": {
+          "schema": "zyra.task-mutation-policy/v1",
+          "enabled": false,
+          "protected_source_roots": [],
+          "required_pre_mutation_evidence": [],
+          "protect_existing_test_files": false,
+          "inherit_across_execution_lineage": false
+        },
+        "provider_reasoning_required": true,
+        "final_response_required": true,
+        "goal_digest": "sha256:26622b8dd3ba187c4ce8e247f680766cf1a7529166139f34b70d073057ce7913"
+      },
+      "query_session_id": "task:task_fbe46f6a6624",
+      "runtime_hints": {
+        "external_deadline_epoch_ms": 1788913341989,
+        "benchmark_closeout_reserve_seconds": 586.2264,
+        "benchmark_agent_closeout_reserve_seconds": 526.2264
+      },
+      "sealed": true,
+      "sealed_autonomous": true,
+      "competition_mode": "sealed_autonomous",
+      "workspace_ref": {
+        "workspace_id": "ws_24896dfdd1ddeb7c27c68563",
+        "run_id": "run_58abc2c0d45e",
+        "task_id": "task_fbe46f6a6624",
+        "session_id": "task:task_fbe46f6a6624",
+        "backend_id": "local-default",
+        "backend_kind": "local",
+        "workspace_kind": "task",
+        "lifecycle_state": "open",
+        "owner_epoch": 1,
+        "binding_revision": 4,
+        "capability_revision": 1,
+        "lease_id": "lease_5a4bf566bd3ef88508bd4a34",
+        "active_snapshot_id": "",
+        "quota": {
+          "max_bytes": 1073741824,
+          "max_files": 100000,
+          "max_directories": 20000,
+          "max_single_file_bytes": 134217728,
+          "max_path_depth": 64,
+          "max_snapshots": 32,
+          "max_snapshot_bytes": 4294967296,
+          "include_generated": true
+        },
+        "usage": {
+          "used_bytes": 0,
+          "file_count": 0,
+          "directory_count": 4,
+          "symlink_count": 0,
+          "reserved_bytes": 0,
+          "snapshot_bytes": 0,
+          "snapshot_count": 0,
+          "scanned_at": "2026-09-09T07:37:30.910997+08:00",
+          "revision": 1,
+          "accounted_bytes": 0
+        },
+        "mounts": [
+          {
+            "mount_id": "mount_b3cd60096792c9e0e6c159bb",
+            "kind": "task",
+            "access": "read_write",
+            "quota": {
+              "max_bytes": 1073741824,
+              "max_files": 100000,
+              "max_directories": 20000,
+              "max_single_file_bytes": 134217728,
+              "max_path_depth": 64,
+              "max_snapshots": 32,
+              "max_snapshot_bytes": 4294967296,
+              "include_generated": true
+            },
+            "physical_location_redacted": true
+          },
+          {
+            "mount_id": "mount_5cb2e06e70b4b0b86e85c488",
+            "kind": "artifact",
+            "access": "read_only",
+            "quota": {
+              "max_bytes": 1073741824,
+              "max_files": 100000,
+              "max_directories": 20000,
+              "max_single_file_bytes": 134217728,
+              "max_path_depth": 64,
+              "max_snapshots": 32,
+              "max_snapshot_bytes": 4294967296,
+              "include_generated": true
+            },
+            "physical_location_redacted": true
+          },
+          {
+            "mount_id": "mount_867427be10e2cd0f411eebfe",
+            "kind": "download",
+            "access": "append_only",
+            "quota": {
+              "max_bytes": 1073741824,
+              "max_files": 100000,
+              "max_directories": 20000,
+              "max_single_file_bytes": 134217728,
+              "max_path_depth": 64,
+              "max_snapshots": 32,
+              "max_snapshot_bytes": 4294967296,
+              "include_generated": true
+            },
+            "physical_location_redacted": true
+          },
+          {
+            "mount_id": "mount_26855150d149179cf0c62ef1",
+            "kind": "temp",
+            "access": "read_write",
+            "quota": {
+              "max_bytes": 1073741824,
+              "max_files": 100000,
+              "max_directories": 20000,
+              "max_single_file_bytes": 134217728,
+              "max_path_depth": 64,
+              "max_snapshots": 32,
+              "max_snapshot_bytes": 4294967296,
+              "include_generated": true
+            },
+            "physical_location_redacted": true
+          }
+        ],
+        "updated_at": "2026-09-09T07:37:30.928996+08:00",
+        "physical_location_redacted": true
+      },
+      "graph_version": "m3-symbolic-v1",
+      "stage_order": [
+        "node_ff8557c9be9a",
+        "node_bcf9ed95f3af",
+        "node_2e50164881a1",
+        "node_87a5c21f321a",
+        "node_9319a5950d81"
+      ],
+      "dynamic_graph_id": "graph:task_fbe46f6a6624",
+      "dynamic_graph_ref": {
+        "graph_id": "graph:task_fbe46f6a6624",
+        "run_id": "run_58abc2c0d45e",
+        "revision": 1,
+        "signature": "1f2c4d4b7944b8832c3265c6f7c21a9b8e6c28407f930a880f4fb6238c2fbcac",
+        "commit_id": "graph_commit_809bf7c184634ea7b715e3c09253250a"
+      },
+      "worker_pool": {
+        "attempt_id": "attempt_412bcce451b44d19adc0f63cae46654f",
+        "attempt_number": 1,
+        "lease_id": "lease_29489f7a3b7c448da73374bbf24ab680",
+        "worker_id": "local-code-worker",
+        "backend_id": "local-sandbox-gateway",
+        "graph_ref": {
+          "graph_id": "graph:task_fbe46f6a6624",
+          "run_id": "run_58abc2c0d45e",
+          "revision": 2,
+          "signature": "dfeb0678b36edf69670eab6ea1cdfc0151f1bb76588cdea042d2157ccf9e2857",
+          "commit_id": "graph_commit_e0ba213d1a8b427d953f10c44c82bab2"
+        },
+        "graph_commit": {
+          "graph_id": "graph:task_fbe46f6a6624",
+          "delta_id": "delta_0a6d4126f3014313bc4ac2c2340893c3",
+          "status": "committed",
+          "strategy": "serialize",
+          "base_revision": 1,
+          "committed_revision": 2,
+          "snapshot_signature": "dfeb0678b36edf69670eab6ea1cdfc0151f1bb76588cdea042d2157ccf9e2857",
+          "commit_id": "graph_commit_e0ba213d1a8b427d953f10c44c82bab2",
+          "conflicts": [],
+          "rebased_from_revision": null,
+          "created_at": "2026-09-08T23:37:31.183Z",
+          "metadata": {
+            "causation_id": "lease_29489f7a3b7c448da73374bbf24ab680",
+            "correlation_id": "",
+            "read_set": [
+              "node:node_2e50164881a1",
+              "node:node_7597663cbf87",
+              "node:node_87a5c21f321a",
+              "node:node_9319a5950d81",
+              "node:node_bcf9ed95f3af",
+              "node:node_ff8557c9be9a"
+            ],
+            "write_set": [
+              "node:node_2e50164881a1",
+              "node:node_7597663cbf87",
+              "node:node_87a5c21f321a",
+              "node:node_9319a5950d81",
+              "node:node_bcf9ed95f3af",
+              "node:node_ff8557c9be9a"
+            ]
+          }
+        },
+        "operator_placement_causality": {}
+      }
+    }
+  },
+  "events": [
+    {
+      "run_id": "run_58abc2c0d45e",
+      "task_id": "task_fbe46f6a6624",
+      "event_type": "task_created",
+      "event_id": "event_58923bfc5170",
+      "node_id": "node_7597663cbf87",
+      "created_at": "2026-09-08T23:37:30.857Z",
+      "payload": {
+        "task": {
+          "run_id": "run_58abc2c0d45e",
+          "task_id": "task_fbe46f6a6624",
+          "user_goal": "Work on the repository in the supplied benchmark container. Diagnose and fix the reported Pylint defect: the bad-name-rgxs configuration option mishandles valid regular expressions that contain commas, causing Pylint to crash. Implement the smallest correct production fix, add or adapt a focused regression test, and run relevant tests. Preserve unrelated behavior and deliver the code change in the repository; do not only describe a patch.",
+          "root_node_id": "node_7597663cbf87",
+          "status": "pending",
+          "created_at": "2026-09-08T23:37:30.853Z",
+          "updated_at": "2026-09-08T23:37:30.853Z",
+          "constraints": {
+            "objectives": [
+              "Work on the repository in the supplied benchmark container. Diagnose and fix the reported Pylint defect: the bad-name-rgxs configuration option mishandles valid regular expressions that contain commas, causing Pylint to crash. Implement the smallest correct production fix, add or adapt a focused regression test, and run relevant tests. Preserve unrelated behavior and deliver the code change in the repository; do not only describe a patch."
+            ],
+            "requirements": [],
+            "forbidden": [],
+            "assumptions": [],
+            "success_criteria": [
+              "Produce a traceable result that satisfies the user goal."
+            ],
+            "allowed_tools": [],
+            "required_tools": [],
+            "allowed_workers": [],
+            "required_artifacts": [],
+            "resource_preferences": [],
+            "output_schema": {},
+            "state_transition_rules": {},
+            "max_tool_calls": null,
+            "max_input_tokens": null,
+            "max_output_tokens": null,
+            "time_limit_ms": null,
+            "message_budget_chars": 2000
+          },
+          "plan_nodes": {
+            "node_7597663cbf87": {
+              "node_id": "node_7597663cbf87",
+              "title": "Root task",
+              "description": "Work on the repository in the supplied benchmark container. Diagnose and fix the reported Pylint defect: the bad-name-rgxs configuration option mishandles valid regular expressions that contain commas, causing Pylint to crash. Implement the smallest correct production fix, add or adapt a focused regression test, and run relevant tests. Preserve unrelated behavior and deliver the code change in the repository; do not only describe a patch.",
+              "status": "pending",
+              "intent": "plan",
+              "summary": "",
+              "parent_node_id": null,
+              "assigned_worker_id": null,
+              "depends_on": [],
+              "constraints": {
+                "objectives": [],
+                "requirements": [],
+                "forbidden": [],
+                "assumptions": [],
+                "success_criteria": [],
+                "allowed_tools": [],
+                "required_tools": [],
+                "allowed_workers": [],
+                "required_artifacts": [],
+                "resource_preferences": [],
+                "output_schema": {},
+                "state_transition_rules": {},
+                "max_tool_calls": null,
+                "max_input_tokens": null,
+                "max_output_tokens": null,
+                "time_limit_ms": null,
+                "message_budget_chars": 2000
+              },
+              "expected_output_schema": {},
+              "completion_criteria": [],
+              "evidence_refs": [],
+              "artifact_refs": [],
+              "state_delta": {},
+              "created_at": "2026-09-08T23:37:30.853Z",
+              "updated_at": "2026-09-08T23:37:30.853Z",
+              "metadata": {
+                "source": "initial_user_goal"
+              }
+            }
+          },
+          "artifacts": [],
+          "decisions": [],
+          "budget": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "tool_calls": 0,
+            "wall_time_ms": 0,
+            "cost_usd_estimate": 0.0,
+            "metadata": {}
+          },
+          "metadata": {
+            "delivery_contract": {
+              "schema": "zyra.goal-delivery-contract/v2",
+              "interaction_kind": "workspace_change",
+              "workspace_mutation_required": true,
+              "verification_required": true,
+              "required_paths": [],
+              "expected_file_contents": {},
+              "required_skills": [],
+              "required_executed_paths": [],
+              "provenance_index_paths": [],
+              "loopx_required": false,
+              "role_separation_required": false,
+              "mutation_policy": {
+                "schema": "zyra.task-mutation-policy/v1",
+                "enabled": false,
+                "protected_source_roots": [],
+                "required_pre_mutation_evidence": [],
+                "protect_existing_test_files": false,
+                "inherit_across_execution_lineage": false
+              },
+              "provider_reasoning_required": true,
+              "final_response_required": true,
+              "goal_digest": "sha256:26622b8dd3ba187c4ce8e247f680766cf1a7529166139f34b70d073057ce7913"
+            }
+          }
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_58abc2c0d45e",
+      "task_id": "task_fbe46f6a6624",
+      "event_type": "node_created",
+      "event_id": "event_1c0953997384",
+      "node_id": "node_ff8557c9be9a",
+      "created_at": "2026-09-08T23:37:30.946Z",
+      "payload": {
+        "node": {
+          "node_id": "node_ff8557c9be9a",
+          "title": "Plan",
+          "description": "Decompose the user goal into an executable task graph.",
+          "status": "pending",
+          "intent": "plan",
+          "summary": "",
+          "parent_node_id": "node_7597663cbf87",
+          "assigned_worker_id": null,
+          "depends_on": [
+            "node_7597663cbf87"
+          ],
+          "constraints": {
+            "objectives": [],
+            "requirements": [],
+            "forbidden": [],
+            "assumptions": [],
+            "success_criteria": [],
+            "allowed_tools": [],
+            "required_tools": [],
+            "allowed_workers": [],
+            "required_artifacts": [],
+            "resource_preferences": [],
+            "output_schema": {},
+            "state_transition_rules": {},
+            "max_tool_calls": null,
+            "max_input_tokens": null,
+            "max_output_tokens": null,
+            "time_limit_ms": null,
+            "message_budget_chars": 2000
+          },
+          "expected_output_schema": {
+            "type": "object",
+            "required": [
+              "stage_order"
+            ]
+          },
+          "completion_criteria": [
+            "Task graph has ordered stage nodes.",
+            "Each stage is traceable by node_id."
+          ],
+          "evidence_refs": [],
+          "artifact_refs": [],
+          "state_delta": {},
+          "created_at": "2026-09-08T23:37:30.946Z",
+          "updated_at": "2026-09-08T23:37:30.946Z",
+          "metadata": {
+            "stage": "plan",
+            "graph_version": "m3-symbolic-v1"
+          }
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_58abc2c0d45e",
+      "task_id": "task_fbe46f6a6624",
+      "event_type": "node_created",
+      "event_id": "event_1e881c18f7a0",
+      "node_id": "node_bcf9ed95f3af",
+      "created_at": "2026-09-08T23:37:30.946Z",
+      "payload": {
+        "node": {
+          "node_id": "node_bcf9ed95f3af",
+          "title": "Route",
+          "description": "Select the worker and control route for the executable node.",
+          "status": "pending",
+          "intent": "decision",
+          "summary": "",
+          "parent_node_id": "node_7597663cbf87",
+          "assigned_worker_id": null,
+          "depends_on": [
+            "node_ff8557c9be9a"
+          ],
+          "constraints": {
+            "objectives": [],
+            "requirements": [],
+            "forbidden": [],
+            "assumptions": [],
+            "success_criteria": [],
+            "allowed_tools": [],
+            "required_tools": [],
+            "allowed_workers": [],
+            "required_artifacts": [],
+            "resource_preferences": [],
+            "output_schema": {},
+            "state_transition_rules": {},
+            "max_tool_calls": null,
+            "max_input_tokens": null,
+            "max_output_tokens": null,
+            "time_limit_ms": null,
+            "message_budget_chars": 2000
+          },
+          "expected_output_schema": {
+            "type": "object",
+            "required": [
+              "selected_worker",
+              "route_candidates"
+            ]
+          },
+          "completion_criteria": [
+            "A topology_route event is emitted.",
+            "A DecisionRecord is appended."
+          ],
+          "evidence_refs": [],
+          "artifact_refs": [],
+          "state_delta": {},
+          "created_at": "2026-09-08T23:37:30.946Z",
+          "updated_at": "2026-09-08T23:37:30.946Z",
+          "metadata": {
+            "stage": "route",
+            "graph_version": "m3-symbolic-v1"
+          }
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_58abc2c0d45e",
+      "task_id": "task_fbe46f6a6624",
+      "event_type": "node_created",
+      "event_id": "event_39d0317387d8",
+      "node_id": "node_2e50164881a1",
+      "created_at": "2026-09-08T23:37:30.946Z",
+      "payload": {
+        "node": {
+          "node_id": "node_2e50164881a1",
+          "title": "Execute",
+          "description": "Run the current node through the selected worker runtime.",
+          "status": "pending",
+          "intent": "tool_call",
+          "summary": "",
+          "parent_node_id": "node_7597663cbf87",
+          "assigned_worker_id": null,
+          "depends_on": [
+            "node_bcf9ed95f3af"
+          ],
+          "constraints": {
+            "objectives": [],
+            "requirements": [],
+            "forbidden": [],
+            "assumptions": [],
+            "success_criteria": [],
+            "allowed_tools": [],
+            "required_tools": [],
+            "allowed_workers": [],
+            "required_artifacts": [],
+            "resource_preferences": [],
+            "output_schema": {},
+            "state_transition_rules": {},
+            "max_tool_calls": null,
+            "max_input_tokens": null,
+            "max_output_tokens": null,
+            "time_limit_ms": null,
+            "message_budget_chars": 2000
+          },
+          "expected_output_schema": {
+            "type": "object",
+            "required": [
+              "worker_result"
+            ]
+          },
+          "completion_criteria": [
+            "Worker runtime returns trace events.",
+            "Artifacts or tool results are preserved."
+          ],
+          "evidence_refs": [],
+          "artifact_refs": [],
+          "state_delta": {},
+          "created_at": "2026-09-08T23:37:30.946Z",
+          "updated_at": "2026-09-08T23:37:30.946Z",
+          "metadata": {
+            "stage": "execute",
+            "graph_version": "m3-symbolic-v1"
+          }
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_58abc2c0d45e",
+      "task_id": "task_fbe46f6a6624",
+      "event_type": "node_created",
+      "event_id": "event_25d60ed6fee7",
+      "node_id": "node_87a5c21f321a",
+      "created_at": "2026-09-08T23:37:30.946Z",
+      "payload": {
+        "node": {
+          "node_id": "node_87a5c21f321a",
+          "title": "Verify",
+          "description": "Check node outputs, event coverage, and checkpoint readiness.",
+          "status": "pending",
+          "intent": "critique",
+          "summary": "",
+          "parent_node_id": "node_7597663cbf87",
+          "assigned_worker_id": null,
+          "depends_on": [
+            "node_2e50164881a1"
+          ],
+          "constraints": {
+            "objectives": [],
+            "requirements": [],
+            "forbidden": [],
+            "assumptions": [],
+            "success_criteria": [],
+            "allowed_tools": [],
+            "required_tools": [],
+            "allowed_workers": [],
+            "required_artifacts": [],
+            "resource_preferences": [],
+            "output_schema": {},
+            "state_transition_rules": {},
+            "max_tool_calls": null,
+            "max_input_tokens": null,
+            "max_output_tokens": null,
+            "time_limit_ms": null,
+            "message_budget_chars": 2000
+          },
+          "expected_output_schema": {
+            "type": "object",
+            "required": [
+              "constraint_results"
+            ]
+          },
+          "completion_criteria": [
+            "ConstraintKeeper emits a constraint_check event."
+          ],
+          "evidence_refs": [],
+          "artifact_refs": [],
+          "state_delta": {},
+          "created_at": "2026-09-08T23:37:30.946Z",
+          "updated_at": "2026-09-08T23:37:30.946Z",
+          "metadata": {
+            "stage": "verify",
+            "graph_version": "m3-symbolic-v1"
+          }
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_58abc2c0d45e",
+      "task_id": "task_fbe46f6a6624",
+      "event_type": "node_created",
+      "event_id": "event_6bfb3b87d416",
+      "node_id": "node_9319a5950d81",
+      "created_at": "2026-09-08T23:37:30.946Z",
+      "payload": {
+        "node": {
+          "node_id": "node_9319a5950d81",
+          "title": "Finalize",
+          "description": "Finalize the trace and mark the task ready for inspection.",
+          "status": "pending",
+          "intent": "status",
+          "summary": "",
+          "parent_node_id": "node_7597663cbf87",
+          "assigned_worker_id": null,
+          "depends_on": [
+            "node_87a5c21f321a"
+          ],
+          "constraints": {
+            "objectives": [],
+            "requirements": [],
+            "forbidden": [],
+            "assumptions": [],
+            "success_criteria": [],
+            "allowed_tools": [],
+            "required_tools": [],
+            "allowed_workers": [],
+            "required_artifacts": [],
+            "resource_preferences": [],
+            "output_schema": {},
+            "state_transition_rules": {},
+            "max_tool_calls": null,
+            "max_input_tokens": null,
+            "max_output_tokens": null,
+            "time_limit_ms": null,
+            "message_budget_chars": 2000
+          },
+          "expected_output_schema": {
+            "type": "object",
+            "required": [
+              "status"
+            ]
+          },
+          "completion_criteria": [
+            "Task trace is ready for inspection."
+          ],
+          "evidence_refs": [],
+          "artifact_refs": [],
+          "state_delta": {},
+          "created_at": "2026-09-08T23:37:30.946Z",
+          "updated_at": "2026-09-08T23:37:30.946Z",
+          "metadata": {
+            "stage": "finalize",
+            "graph_version": "m3-symbolic-v1"
+          }
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_58abc2c0d45e",
+      "task_id": "task_fbe46f6a6624",
+      "event_type": "system_notice",
+      "event_id": "event_103fd7cd6a20",
+      "node_id": null,
+      "created_at": "2026-09-08T23:37:30.894Z",
+      "payload": {
+        "workspace_event": {
+          "event_type": "workspace.creating",
+          "workspace_id": "ws_24896dfdd1ddeb7c27c68563",
+          "run_id": "run_58abc2c0d45e",
+          "task_id": "task_fbe46f6a6624",
+          "session_id": "task:task_fbe46f6a6624",
+          "backend_id": "local-default",
+          "lifecycle_state": "creating",
+          "owner_epoch": 1,
+          "binding_revision": 2,
+          "causation_id": "event_58923bfc5170",
+          "receipt": {},
+          "metadata": {},
+          "physical_location_redacted": true
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_58abc2c0d45e",
+      "task_id": "task_fbe46f6a6624",
+      "event_type": "system_notice",
+      "event_id": "event_707a0bc6dc4d",
+      "node_id": null,
+      "created_at": "2026-09-08T23:37:30.928Z",
+      "payload": {
+        "workspace_event": {
+          "event_type": "workspace.ready",
+          "workspace_id": "ws_24896dfdd1ddeb7c27c68563",
+          "run_id": "run_58abc2c0d45e",
+          "task_id": "task_fbe46f6a6624",
+          "session_id": "task:task_fbe46f6a6624",
+          "backend_id": "local-default",
+          "lifecycle_state": "ready",
+          "owner_epoch": 1,
+          "binding_revision": 3,
+          "causation_id": "event_58923bfc5170",
+          "receipt": {},
+          "metadata": {},
+          "physical_location_redacted": true
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_58abc2c0d45e",
+      "task_id": "task_fbe46f6a6624",
+      "event_type": "system_notice",
+      "event_id": "event_90e7caed0140",
+      "node_id": null,
+      "created_at": "2026-09-08T23:37:30.945Z",
+      "payload": {
+        "workspace_event": {
+          "event_type": "workspace.opened",
+          "workspace_id": "ws_24896dfdd1ddeb7c27c68563",
+          "run_id": "run_58abc2c0d45e",
+          "task_id": "task_fbe46f6a6624",
+          "session_id": "task:task_fbe46f6a6624",
+          "backend_id": "local-default",
+          "lifecycle_state": "open",
+          "owner_epoch": 1,
+          "binding_revision": 4,
+          "causation_id": "event_58923bfc5170",
+          "receipt": {
+            "receipt_id": "receipt_a7f8a98ee50913f3d86d95d9",
+            "workspace_id": "ws_24896dfdd1ddeb7c27c68563",
+            "operation": "create",
+            "ok": true,
+            "owner_epoch": 1,
+            "binding_revision": 4,
+            "lease_id": "lease_5a4bf566bd3ef88508bd4a34",
+            "started_at": "2026-09-09T07:37:30.869606+08:00",
+            "completed_at": "2026-09-09T07:37:30.937996+08:00",
+            "causation_id": "event_58923bfc5170",
+            "idempotency_key": "task-create:task_fbe46f6a6624",
+            "snapshot_id": "",
+            "paths": [],
+            "bytes_changed": 0,
+            "state_before": "requested",
+            "state_after": "open",
+            "error_code": "",
+            "message": "workspace created and passed ready barrier",
+            "metadata": {
+              "mount_count": 4,
+              "ready_barrier": true,
+              "state_owner": "WorkspaceManagerRuntime"
+            }
+          },
+          "metadata": {},
+          "physical_location_redacted": true
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_58abc2c0d45e",
+      "task_id": "task_fbe46f6a6624",
+      "event_type": "system_notice",
+      "event_id": "event_76fd931c9d0d",
+      "node_id": null,
+      "created_at": "2026-09-08T23:37:31.199Z",
+      "payload": {
+        "worker_pool_operation": "attempt_created",
+        "aggregate_type": "task_attempt",
+        "aggregate_id": "attempt_412bcce451b44d19adc0f63cae46654f",
+        "journal_sequence": 7,
+        "physical_state_owner": "WorkerPoolStore",
+        "causation_id": "",
+        "correlation_id": "",
+        "attempt_number": 1,
+        "parent_attempt_id": "",
+        "recovery_reason": ""
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_58abc2c0d45e",
+      "task_id": "task_fbe46f6a6624",
+      "event_type": "resource_decision",
+      "event_id": "event_27e2ec4c0b34",
+      "node_id": null,
+      "created_at": "2026-09-08T23:37:31.199Z",
+      "payload": {
+        "worker_pool_operation": "lease_acquired",
+        "aggregate_type": "worker_lease",
+        "aggregate_id": "lease_29489f7a3b7c448da73374bbf24ab680",
+        "journal_sequence": 8,
+        "physical_state_owner": "WorkerPoolStore",
+        "causation_id": "",
+        "correlation_id": "",
+        "attempt_id": "attempt_412bcce451b44d19adc0f63cae46654f",
+        "backend_id": "local-sandbox-gateway",
+        "deadline_at": "2026-09-09T00:37:31.129Z",
+        "fence_epoch": 1,
+        "owner_session_id": "task:task_fbe46f6a6624",
+        "resources": {
+          "browser_slots": 0,
+          "cpu_cores": 0.0,
+          "custom": {},
+          "disk_mb": 0,
+          "gpu_units": 0.0,
+          "memory_mb": 64,
+          "network_mbps": 0.0,
+          "process_slots": 1
+        },
+        "worker_id": "local-code-worker"
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_58abc2c0d45e",
+      "task_id": "task_fbe46f6a6624",
+      "event_type": "system_notice",
+      "event_id": "event_9354a7103346",
+      "node_id": null,
+      "created_at": "2026-09-08T23:37:31.199Z",
+      "payload": {
+        "worker_pool_operation": "attempt_leased",
+        "aggregate_type": "task_attempt",
+        "aggregate_id": "attempt_412bcce451b44d19adc0f63cae46654f",
+        "journal_sequence": 9,
+        "physical_state_owner": "WorkerPoolStore",
+        "causation_id": "",
+        "correlation_id": "",
+        "attempt_number": 1,
+        "lease_id": "lease_29489f7a3b7c448da73374bbf24ab680",
+        "worker_id": "local-code-worker"
+      },
+      "causation_id": null
+    }
+  ],
+  "memory_curator": null
+}

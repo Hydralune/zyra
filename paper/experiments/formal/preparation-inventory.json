@@ -1,0 +1,59 @@
+{
+  "schema": "zyra.experiment-preparation-inventory/v1",
+  "capturedAt": "2026-09-07",
+  "host": {
+    "freeDiskBytesAtCheck": 391335858176,
+    "memoryBytes": 16844877824,
+    "dockerClient": "28.2.2",
+    "dockerEngine": "29.1.3 (Ubuntu WSL standalone engine)",
+    "dockerEndpointForExperiments": "tcp://127.0.0.1:2375 (Ubuntu loopback only)",
+    "dockerSmokeTest": "passed via docker.1ms.run/hello-world; Docker Desktop engine is not used because its internal WSL service fails to initialize"
+  },
+  "officialSources": [
+    {
+      "id": "autogen-and-magentic-one",
+      "url": "https://github.com/microsoft/autogen.git",
+      "commit": "027ecf0a379bcc1d09956d46d12d44a3ad9cee14",
+      "status": "installed; AutoGen live preflight passed; Magentic-One extension, browser runtime and model-client import verified"
+    },
+    {
+      "id": "openhands-benchmarks",
+      "url": "https://github.com/OpenHands/benchmarks.git",
+      "commit": "405bae7140d7e961a75f4910a0b2e7069731db96",
+      "sdkCommit": "43376f1868ffd702746080714a59c16d3f69ec12",
+      "status": "official Linux environment installed in Ubuntu WSL; DeepSeek configuration and live SDK transport preflight passed; official CLI verified against the available standalone Docker workspace endpoint"
+    },
+    {
+      "id": "swe-bench-verified",
+      "url": "https://huggingface.co/datasets/princeton-nlp/SWE-bench_Verified",
+      "rows": 500,
+      "parquetSha256": "a45b1fe4e2f0c8390b2b2938ac83e92ed5979000856808f3679c07812e9e6dcd",
+      "status": "downloaded and parsed"
+    },
+    {
+      "id": "tau2-bench",
+      "url": "https://github.com/sierra-research/tau2-bench.git",
+      "commit": "672227c6b6676edc20d57ea53b7000262aae77b9",
+      "release": "1.0.1",
+      "status": "core environment installed"
+    },
+    {
+      "id": "multiagentbench-marble",
+      "url": "https://github.com/ulab-uiuc/MARBLE.git",
+      "commit": "8d60fa17b5596b44458a52d4296061b9fc13d6f2",
+      "status": "five scenario datasets downloaded; official Poetry environment installed in Ubuntu WSL; package import verified"
+    },
+    {
+      "id": "gaia-2023-validation",
+      "url": "https://huggingface.co/datasets/gaia-benchmark/GAIA",
+      "status": "gated download pending official Hugging Face authorization"
+    },
+    {
+      "id": "agentbench-fallback",
+      "url": "https://github.com/THUDM/AgentBench.git",
+      "release": "official v0.2 tag",
+      "commit": "ed013ff9887b0c3d7864c56ae54d41eba54a99d8",
+      "status": "official self-contained v0.2 fallback source selected because the current AgentRL-migrated branch omits a required runtime dependency; OS/DB modules import with the scoped official dependencies, and local-os/default, local-os/packages and local-os/ubuntu images are built and smoke-tested on the Ubuntu standalone Docker engine"
+    }
+  ]
+}

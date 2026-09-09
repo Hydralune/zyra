@@ -1,0 +1,93 @@
+{
+  "schema": "zyra.agentbench-fallback-task-manifest/v1",
+  "status": "frozen-before-model-results",
+  "source": {
+    "repository": "THUDM/AgentBench",
+    "tag": "v0.2",
+    "commit": "ed013ff9887b0c3d7864c56ae54d41eba54a99d8"
+  },
+  "seed": "zyra-agentbench-fallback-v1-20260907",
+  "answer_fields_included": false,
+  "selected_task_count": 12,
+  "selection_reason": "GAIA official access unavailable before results; fixed resource-bounded fallback",
+  "os_interaction": {
+    "files_sha256": {
+      "os_interaction\\data\\1\\stock.json": "fd3b1ef43506f78b5eb460363951c0c9f9b3620f38ef3c42692ccbd0dc076e85",
+      "os_interaction\\data\\3\\ac.json": "a703270c133c5d31c1402672a2a48ac43879a12f7792f0a7eb59ae99ca92df8a",
+      "os_interaction\\data\\5\\new.json": "38df55378f771d3db5418db40557cda99dc024d759ca5684180b392ea371a959",
+      "os_interaction\\data\\7\\bootstrap.json": "0e6500a09a2a361df6c6c75ec3b697d512f8b80bd5224f21aa400f188b80fd93"
+    },
+    "tasks": [
+      {
+        "task_id": "os-1-stock-6",
+        "scenario_group": "1",
+        "record_digest": "042001b84b13a9912eb1e6eec750cf2bdfdf1e0d2541f0e31fd2ff1474bab86b"
+      },
+      {
+        "task_id": "os-3-ac-5",
+        "scenario_group": "3",
+        "record_digest": "ff5465e94b9c79c1372ce21ee9dd9e4b26a4793b0dcc49c57f65be56eb32867c"
+      },
+      {
+        "task_id": "os-5-new-2",
+        "scenario_group": "5",
+        "record_digest": "f822d5acf6c2d8990a99318bfe7b8b289dec7451623089c1ee59d7c9ee25620d"
+      },
+      {
+        "task_id": "os-7-bootstrap-40",
+        "scenario_group": "7",
+        "record_digest": "aa54663d93a46122008685ae7a28c8af87ff7415c036e1c9fb4de695d3642a58"
+      }
+    ]
+  },
+  "dbbench": {
+    "source_sha256": "42970cc13812bd1bd71a000686a97c45cf9299ef144b5d15e54c87c46930fec0",
+    "tasks": [
+      {
+        "task_id": "db-74",
+        "type": "['aggregation-SUM']",
+        "record_digest": "a6a4496b01ac3666c12ab5e0ad5463eb24719bbf0abad6d1c06a0c5195203ca5"
+      },
+      {
+        "task_id": "db-17",
+        "type": "['counting']",
+        "record_digest": "7b64ab11eed0dd20e67f9586975984c8a8c0fa809d8b9fb0ece52bcd4867b92d"
+      },
+      {
+        "task_id": "db-228",
+        "type": "['UPDATE']",
+        "record_digest": "49c463c536ec8e9094fc83d1a65c763b86399c11abaa3994c37e5c83429319c3"
+      },
+      {
+        "task_id": "db-9",
+        "type": "['other']",
+        "record_digest": "1defd74645d041c8e8f1bcfd7630b9ebe4e3616f84cb8c2cbac68af848ae8d51"
+      }
+    ]
+  },
+  "alfworld": {
+    "source_sha256": "d081e7e0e2e84b0009b1dc90c9dfb914d5180cc2f2722b9d15adb61c1cabde7f",
+    "tasks": [
+      {
+        "task_id": "alf-pick_and_place-1",
+        "category": "pick_and_place",
+        "record_digest": "1720438dc5dd84236dbb7e3402fb76f04f53951a735e295138ba6649b4c53919"
+      },
+      {
+        "task_id": "alf-pick_clean_then_place-1",
+        "category": "pick_clean_then_place",
+        "record_digest": "778b371440b13c4f8f1c871d072359bd1889f5681cea7db8c1af9781a4804596"
+      },
+      {
+        "task_id": "alf-pick_heat_then_place-3",
+        "category": "pick_heat_then_place",
+        "record_digest": "edb70cdc15267cf3605701f83d270d393f4753a4bf973a0fdbec58246e51101b"
+      },
+      {
+        "task_id": "alf-look_at_obj-6",
+        "category": "look_at_obj",
+        "record_digest": "4eb875ca4e9b262177540fa01d497b41a3dcface8017fb7d2418efd2d47249c4"
+      }
+    ]
+  }
+}

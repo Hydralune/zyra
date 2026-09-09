@@ -1,0 +1,28 @@
+{
+  "schema": "zyra.openhands-llm-preflight/v1",
+  "baseline": "openhands_official_sdk_transport",
+  "scope": "llm-compatibility-only; not an agent benchmark result",
+  "model": "deepseek/deepseek-v4-flash",
+  "base_url_host": "api.deepseek.com",
+  "started_at": "2026-09-07T12:40:26.009965+00:00",
+  "elapsed_ms": 997,
+  "task_digest": "7a0255167965d523a6ab18253c901913f595e8188dc9db2264f95a50ec98c776",
+  "output_digest": "d166ba061d7aef83f3dbad3becc529c5806283c8bcfff6eb9e5789442536b049",
+  "strict_success": true,
+  "usage": {
+    "model_name": "deepseek/deepseek-v4-flash",
+    "accumulated_cost": 2.0300000000000002e-05,
+    "max_budget_per_task": null,
+    "accumulated_token_usage": {
+      "model": "deepseek/deepseek-v4-flash",
+      "prompt_tokens": 99,
+      "completion_tokens": 23,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "reasoning_tokens": 11,
+      "context_window": 1000000,
+      "per_turn_token": 122,
+      "response_id": ""
+    }
+  }
+}

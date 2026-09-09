@@ -1,0 +1,39 @@
+{
+  "schema": "zyra.calibration-selection/v1",
+  "frozen_at": "2026-09-09",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "dataset": {
+    "source_path": "/home/ylon/zyra-experiments/swe-bench-verified-test.jsonl",
+    "sha256": "889bccf7ada1a43d211050ac666f3b31032997209afb10dccdc6ea52128a8435",
+    "total_records": 500
+  },
+  "selection_rule": {
+    "seed": "zyra-postfix-calibration-v3-20260909",
+    "filter": "difficulty == '<15 min fix'; exclude all frozen formal SWE tasks, all used/exposed tasks, and repositories already used by SWE calibration runs",
+    "excluded_calibration_repositories": [
+      "pallets/flask",
+      "pylint-dev/pylint",
+      "scikit-learn/scikit-learn",
+      "sympy/sympy"
+    ],
+    "eligible_records": 152,
+    "ranking": "ascending lowercase hex SHA-256(seed + '|' + instance_id)",
+    "selected_rank": 1
+  },
+  "selected": {
+    "instance_id": "matplotlib__matplotlib-13989",
+    "repo": "matplotlib/matplotlib",
+    "base_commit": "a3e2897bfaf9eaac1d6649da535c4e721c89fa69",
+    "difficulty": "<15 min fix",
+    "rank_digest": "01b134a9413d17fafdba1da602c71a68536eee89b67448e60b3fec698aca8271",
+    "public_goal": "paper/experiments/tasksets/matplotlib-13989-public-goal.txt"
+  },
+  "leakage_controls": {
+    "gold_patch_supplied_to_agent": false,
+    "test_patch_supplied_to_agent": false,
+    "hidden_test_names_supplied_to_agent": false,
+    "result_observed_before_selection": false
+  },
+  "purpose": "Cross-repository validation of the repaired inline-probe classification, streamed file synchronization, canonical closeout and fixed SWE budget. Excluded from efficacy claims."
+}

@@ -1,0 +1,287 @@
+{
+  "schema": "zyra.public-task-manifest/v2",
+  "seed": "zyra-formal-v2-20260907",
+  "status": "frozen-before-model-results",
+  "answer_fields_included": false,
+  "selected_task_count": 42,
+  "gaia": {
+    "status": "pending-official-access",
+    "planned_count": 12,
+    "selection": "four validation tasks per official difficulty level"
+  },
+  "swe_bench_verified": {
+    "metadata": {
+      "source": "princeton-nlp/SWE-bench_Verified",
+      "source_rows": 500,
+      "source_sha256": "a45b1fe4e2f0c8390b2b2938ac83e92ed5979000856808f3679c07812e9e6dcd",
+      "selection": "one deterministic hash-ranked task per repository; difficulty quotas: 3 <15 min, 6 15 min-1 hour, 3 1-4 hours"
+    },
+    "tasks": [
+      {
+        "task_id": "astropy__astropy-14508",
+        "repo": "astropy/astropy",
+        "difficulty": "15 min - 1 hour",
+        "record_digest": "ee51fa6b71be1a912db2873107ab607eda3c3f52bbc57967238d6d1600fcc4f7"
+      },
+      {
+        "task_id": "django__django-13212",
+        "repo": "django/django",
+        "difficulty": "1-4 hours",
+        "record_digest": "b054c0088cb010c29ab23a0208164c569aa289c8b965a5baf63a97a5478d6561"
+      },
+      {
+        "task_id": "matplotlib__matplotlib-24026",
+        "repo": "matplotlib/matplotlib",
+        "difficulty": "15 min - 1 hour",
+        "record_digest": "f240a889a0b1508d9a18fb99c456ff90f62e53de07c286e946800a68a751ec8b"
+      },
+      {
+        "task_id": "mwaskom__seaborn-3187",
+        "repo": "mwaskom/seaborn",
+        "difficulty": "15 min - 1 hour",
+        "record_digest": "76df3d3d7c08808ad4419acf59fa940b5d84bbb7be075b54073032969be9ec92"
+      },
+      {
+        "task_id": "pallets__flask-5014",
+        "repo": "pallets/flask",
+        "difficulty": "<15 min fix",
+        "record_digest": "c578dbf10d3ff2927ef80a4a380812dfe61418d17285533879ddfce27e641336"
+      },
+      {
+        "task_id": "psf__requests-6028",
+        "repo": "psf/requests",
+        "difficulty": "15 min - 1 hour",
+        "record_digest": "b7ee2a70f83c279a0c79f2ac11f757ce49981bd6c28d23b2f373c97fb62dffab"
+      },
+      {
+        "task_id": "pydata__xarray-3993",
+        "repo": "pydata/xarray",
+        "difficulty": "1-4 hours",
+        "record_digest": "656c29595d64a34d613d835d410329cf063943ecba1a4843e821421e105c1b38"
+      },
+      {
+        "task_id": "pylint-dev__pylint-8898",
+        "repo": "pylint-dev/pylint",
+        "difficulty": "1-4 hours",
+        "record_digest": "001a766e8d8bf804b8bb7d02bc28ee45a153b585452e9b9309df5e90cf14c8da"
+      },
+      {
+        "task_id": "pytest-dev__pytest-5631",
+        "repo": "pytest-dev/pytest",
+        "difficulty": "15 min - 1 hour",
+        "record_digest": "07d8d4decc1bf26d0c10c249ce955663629d665f8e357ba4a66f88ad28b57e13"
+      },
+      {
+        "task_id": "scikit-learn__scikit-learn-11310",
+        "repo": "scikit-learn/scikit-learn",
+        "difficulty": "<15 min fix",
+        "record_digest": "6ed54530298a0d9365fed04ccf76867b4aca45e0d5c1a7dd67f5aea7d208f035"
+      },
+      {
+        "task_id": "sphinx-doc__sphinx-7757",
+        "repo": "sphinx-doc/sphinx",
+        "difficulty": "15 min - 1 hour",
+        "record_digest": "12fee6038b56251932326d89fe1333bdeba4c478a965ff44e32e9e0588c062da"
+      },
+      {
+        "task_id": "sympy__sympy-23534",
+        "repo": "sympy/sympy",
+        "difficulty": "<15 min fix",
+        "record_digest": "4877dc7a2f375a141d4bac97a1449523953d5ed9f1e6f81c03e136cd2a180308"
+      }
+    ]
+  },
+  "tau2_bench": {
+    "metadata": {
+      "source": "sierra-research/tau2-bench@1.0.1",
+      "source_rows": {
+        "airline": 50,
+        "retail": 114,
+        "telecom": 2285
+      },
+      "source_sha256": {
+        "airline": "34dfcf0622792d0d0fa32aa491d21582e1b5d3ec1948e7743bae881885f878ea",
+        "retail": "f44563d8f36362e2dc58282bb02cfb85010d22f27d9439808758d3e9b2bc16d2",
+        "telecom": "20793073500dba5761f76d038dd32a343903985af442b3eae7eeb3a4e0d5d75d"
+      },
+      "selection": "six deterministic hash-ranked tasks per domain"
+    },
+    "tasks": [
+      {
+        "task_id": "45",
+        "domain": "airline",
+        "record_digest": "96f89cf79a2629b9c6cf59dc2438c8bc714a3bf9a337cc528b9c67a690d43a8a"
+      },
+      {
+        "task_id": "10",
+        "domain": "airline",
+        "record_digest": "633debbb173b50ec2b547eb3e895f432d16cc47ec5e2667a0571506846c5d320"
+      },
+      {
+        "task_id": "41",
+        "domain": "airline",
+        "record_digest": "ff848c81a5cc2501bdf228c3e96416db00175da37130b83c589993d7ee2c48d5"
+      },
+      {
+        "task_id": "22",
+        "domain": "airline",
+        "record_digest": "37b9051bd79ab89dfd25db9536e599d34545aa8052c56da28634bf5a3538a239"
+      },
+      {
+        "task_id": "15",
+        "domain": "airline",
+        "record_digest": "1dcd7985c9d67bea83a0a3445b537b6db797e4ba018c3cb1dec900fc2077e1be"
+      },
+      {
+        "task_id": "7",
+        "domain": "airline",
+        "record_digest": "30700c24fae2ed56a80b93948b13ba34880574dcf0a8922b2e205de7bdd2610a"
+      },
+      {
+        "task_id": "111",
+        "domain": "retail",
+        "record_digest": "3ea532c550b4647d7fb7723e540bd029c65a607d3753a4b24039824fe0712c01"
+      },
+      {
+        "task_id": "26",
+        "domain": "retail",
+        "record_digest": "1d33daf7980a0e009e4e2f6d1ddb6ebba9dc5e337e7ad9a7a20e5a111a0f5be0"
+      },
+      {
+        "task_id": "38",
+        "domain": "retail",
+        "record_digest": "3305511c743622a893c78371125d4c9afa9e54044cfd1160b7527a1aa4777b30"
+      },
+      {
+        "task_id": "107",
+        "domain": "retail",
+        "record_digest": "79dc247589cb96e1e59227b1344c57fdb80c6a449ac6160125cc063557e7743d"
+      },
+      {
+        "task_id": "85",
+        "domain": "retail",
+        "record_digest": "ce42ae06b6babb57247ab935e044cb48a786cd5d6b5921a2a5db8beea236f22d"
+      },
+      {
+        "task_id": "75",
+        "domain": "retail",
+        "record_digest": "02dfbb4c687702cc443efe00f7ee51df7d2912bbe2174eb35a8fb9ce3b7bbd91"
+      },
+      {
+        "task_id": "[mms_issue]break_apn_mms_setting|break_app_sms_permission|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_off[PERSONA:Hard]",
+        "domain": "telecom",
+        "record_digest": "3292cf30caa903959bee46d0b9c80ffdaece438b1473c64604ff35885c43d345"
+      },
+      {
+        "task_id": "[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling[PERSONA:None]",
+        "domain": "telecom",
+        "record_digest": "d86ca6e4194a7e810b6b137914665669a8d4da80f8aacd7e8851d1abf2238845"
+      },
+      {
+        "task_id": "[mms_issue]bad_network_preference|break_app_storage_permission|data_mode_off[PERSONA:None]",
+        "domain": "telecom",
+        "record_digest": "2eab0713c058c61911f906655864ba3a0eb61bde58c7d077f70ab871d245fcbf"
+      },
+      {
+        "task_id": "[mms_issue]airplane_mode_on|bad_network_preference|break_app_both_permissions|data_mode_off|unseat_sim_card|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+        "domain": "telecom",
+        "record_digest": "66fa5045612dcd2921b0d20b79e227c88c94bb4093ae6f9145639f4acbaa083c"
+      },
+      {
+        "task_id": "[mms_issue]airplane_mode_on|bad_wifi_calling|break_apn_mms_setting|break_app_storage_permission|data_mode_off|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+        "domain": "telecom",
+        "record_digest": "98c9b3b3e6878e3f9d8f07005cacab2999245031879548fd3367f611b01c3737"
+      },
+      {
+        "task_id": "[mms_issue]bad_wifi_calling|data_usage_exceeded[PERSONA:Easy]",
+        "domain": "telecom",
+        "record_digest": "97761ac4c5e32ec3c741902f72e378bceef93cb99373cec0fcfd76c97b7d6634"
+      }
+    ]
+  },
+  "multiagentbench": {
+    "metadata": {
+      "source": "ulab-uiuc/MARBLE MultiAgentBench",
+      "source_rows": {
+        "coding": 100,
+        "database": 100,
+        "research": 100,
+        "bargaining": 100
+      },
+      "source_sha256": {
+        "coding": "5ddd9204b184bded83ea666bcac47682b80e084c46442f2b3956cd69190bd49d",
+        "database": "0b3f9133b32a73eb2936cb2efb578dcb959f8116df029a0c1d5d5452948477fe",
+        "research": "ed5a74e7cb1975bd5af00a6f8df2054966effdaa3558a8b86750000f8dcf9f27",
+        "bargaining": "015c94c5c413b77c7b055d49eb1dec8626163d1857054fa121608bd9faf7ccb7"
+      },
+      "selection": {
+        "coding": 4,
+        "database": 4,
+        "research": 2,
+        "bargaining": 2
+      }
+    },
+    "tasks": [
+      {
+        "task_id": "36",
+        "scenario": "coding",
+        "record_digest": "b499bd30978d9cdc5c5f4fb2ce53024869fa92a1d00ca14d81cfcc5199a51749"
+      },
+      {
+        "task_id": "93",
+        "scenario": "coding",
+        "record_digest": "12181f4cd50102027f490307c7cef97b1d7badd48dff660136d04165f366438b"
+      },
+      {
+        "task_id": "57",
+        "scenario": "coding",
+        "record_digest": "5e79924986d5644bf06edfb99d4b80752be46923c7b83555853fdaddafc3a284"
+      },
+      {
+        "task_id": "26",
+        "scenario": "coding",
+        "record_digest": "efa8e0ea01e2ee5c4aad351a711a9b8ae2ae096aa159a205795e2ff3497961c4"
+      },
+      {
+        "task_id": "78",
+        "scenario": "database",
+        "record_digest": "206d737478e5b223b27dc442037b9d0e25232d74b83181608f0308e5a0fad822"
+      },
+      {
+        "task_id": "94",
+        "scenario": "database",
+        "record_digest": "360751b6470075fb6f0f6d8c0eab003dbbb15b1baeb6ea82c1a8f3c909a27cc3"
+      },
+      {
+        "task_id": "23",
+        "scenario": "database",
+        "record_digest": "60485aa715a30d9fe097977d24dbad4e48c0f538714fd60bb02a852ea72b7878"
+      },
+      {
+        "task_id": "85",
+        "scenario": "database",
+        "record_digest": "db43618599df43d7a21f8f977c0dd2e3a04a9cb3ab5e3d5f42bfe09ca980ece0"
+      },
+      {
+        "task_id": "55",
+        "scenario": "research",
+        "record_digest": "e9f5ac95c9a81be49f19d7ad0743f4da83d30b8c2e11de4b6d8198fe3f86e11a"
+      },
+      {
+        "task_id": "5",
+        "scenario": "research",
+        "record_digest": "4fefa7ca90e1c47ec9e51929323493186dbc2f2a4a4cb558717199441fcf5997"
+      },
+      {
+        "task_id": "39",
+        "scenario": "bargaining",
+        "record_digest": "ad8f2790b8eec2609775aedeae27d697b33359ae61706471a0cbfbcbf75191a2"
+      },
+      {
+        "task_id": "18",
+        "scenario": "bargaining",
+        "record_digest": "19dc4e4a8dcfce54de44f2066662728fb36ed925f74570e039981bb5768345bd"
+      }
+    ]
+  }
+}

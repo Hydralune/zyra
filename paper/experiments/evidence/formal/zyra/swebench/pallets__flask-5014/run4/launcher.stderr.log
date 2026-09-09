@@ -1,0 +1,44 @@
+Invoke-RestMethod : {
+  "schema": "zyra.task-execution-http-error/v1",
+  "error": "task_execution_failed",
+  "message": "deployment port is not available",
+  "task_id": "task_177869cdac04",
+  "run_id": "run_5c2486ffd558",
+  "task_status": "blocked",
+  "execution_error": {
+    "schema": "zyra.task-execution-error/v1",
+    "error": "deployment_port_conflict",
+    "message": "deployment port is not available",
+    "retryable": false,
+    "fallback": false
+  },
+  "event_count": 4,
+  "event_refs": [
+    {
+      "event_id": "event_034176c57621",
+      "event_type": "system_notice"
+    },
+    {
+      "event_id": "event_26c3cdcd48cb",
+      "event_type": "system_notice"
+    },
+    {
+      "event_id": "event_403dffdb718b",
+      "event_type": "node_failed"
+    },
+    {
+      "event_id": "event_e5af6c198dd5",
+      "event_type": "system_notice"
+    }
+  ],
+  "task_ref": "/tasks/task_177869cdac04",
+  "event_stream_ref": "/tasks/task_177869cdac04/events",
+  "retryable": false,
+  "fallback": false
+}
+At C:\Users\Ylon\Desktop\挑战杯2026\zyra\scripts\run_zyra_swebench_flask5014.ps1:99 char:18
++ ... completed = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:800 ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (System.Net.HttpWebRequest:HttpWebRequest) [Invoke-RestMethod], WebExc 
+   eption
+    + FullyQualifiedErrorId : WebCmdletWebResponseException,Microsoft.PowerShell.Commands.InvokeRestMethodCommand

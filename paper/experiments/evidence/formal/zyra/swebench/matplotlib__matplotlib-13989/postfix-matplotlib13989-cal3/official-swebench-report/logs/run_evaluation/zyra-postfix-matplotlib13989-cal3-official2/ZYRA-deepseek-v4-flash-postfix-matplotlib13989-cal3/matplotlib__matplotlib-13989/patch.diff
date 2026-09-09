@@ -1,0 +1,37 @@
+diff --git a/lib/matplotlib/axes/_axes.py b/lib/matplotlib/axes/_axes.py
+index 4b73d5229..bc5461ad9 100644
+--- a/lib/matplotlib/axes/_axes.py
++++ b/lib/matplotlib/axes/_axes.py
+@@ -6686,7 +6686,7 @@ optional.
+ 
+         density = bool(density) or bool(normed)
+         if density and not stacked:
+-            hist_kwargs = dict(density=density)
++            hist_kwargs['density'] = density
+ 
+         # List to store all the top coordinates of the histograms
+         tops = []
+diff --git a/lib/matplotlib/tests/test_axes.py b/lib/matplotlib/tests/test_axes.py
+index cff4325f1..1f9a446e6 100644
+--- a/lib/matplotlib/tests/test_axes.py
++++ b/lib/matplotlib/tests/test_axes.py
+@@ -6357,6 +6357,19 @@ def test_hist_auto_bins():
+     assert bins[-1] >= 6
+ 
+ 
++def test_hist_auto_bins_range_density():
++    # Auto-binning with a supplied range and density must honor the range so
++    # the returned bin edges span exactly the requested range (see #17481).
++    fig, ax = plt.subplots()
++    try:
++        x = np.random.RandomState(0).randn(1000) * 0.1 + 0.5
++        _, bins, _ = ax.hist(x, bins='auto', range=(0, 1), density=True)
++        assert bins[0] == 0
++        assert bins[-1] == 1
++    finally:
++        plt.close(fig)
++
++
+ def test_hist_nan_data():
+     fig, (ax1, ax2) = plt.subplots(2)
+ 

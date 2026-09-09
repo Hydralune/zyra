@@ -1,0 +1,52 @@
+{
+  "schema": "zyra.formal-experiment-protocol/v2",
+  "status": "calibration-revision-required",
+  "frozenAt": "2026-09-07",
+  "primaryModel": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "temperature": 0,
+    "thinking": "provider_default_enabled"
+  },
+  "primaryUnit": "independent_task",
+  "primaryEndpoint": "strict_task_success",
+  "repetitionsAreIndependent": false,
+  "publicTaskPlan": {
+    "sweBenchVerified": 12,
+    "gaiaValidation": 0,
+    "agentbenchV02Fallback": 12,
+    "tau2Bench": 18,
+    "multiAgentBench": 12,
+    "total": 54,
+    "assistantBenchmarkSelection": {
+      "selected": "agentbench_v0.2_os_db_alfworld_4_each",
+      "selectionReason": "GAIA official source required authorization at protocol freeze; the official, self-contained AgentBench v0.2 fallback was selected before any benchmark result.",
+      "taskManifest": "paper/experiments/tasksets/agentbench-fallback-task-manifest-v1.json",
+      "taskManifestSha256": "4AB1ECE35BE72841C20D8BBB5383E2620C3EED30955A38066E20A687AFA0301F"
+    }
+  },
+  "customStressTasks": 24,
+  "longHorizonDemonstrations": 2,
+  "calibrationCells": {
+    "plannedRange": [26, 32],
+    "rule": "capability-matched only; no method is forced into an unsupported task family"
+  },
+  "expectedEffectiveRunRange": [500, 650],
+  "budgetPolicy": {
+    "status": "provisional-until-stage-b-completes",
+    "sweBenchVerifiedMaxTotalTokens": 600000,
+    "sweBenchVerifiedMaxContextChars": 96000,
+    "appliesEquallyWithinTaskFamily": true,
+    "resultDependentPerMethodIncreaseAllowed": false,
+    "freezeRule": "freeze once after capability-matched calibration using all methods' observed task-level usage; ordinary exhaustion remains failure"
+  },
+  "baselines": [
+    "openhands_official",
+    "autogen_static_official",
+    "autogen_magentic_one_official"
+  ],
+  "appendixBaselines": ["gptswarm_official"],
+  "multipleComparisonCorrection": "holm",
+  "resultDependentSampleExpansionAllowed": false,
+  "gaiaFallbackBeforeResultsOnly": "agentbench_v0.2_os_db_alfworld_4_each"
+}

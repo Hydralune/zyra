@@ -1,0 +1,235 @@
+Invoke-RestMethod : {
+  "schema": "zyra.task-execution-http-error/v1",
+  "error": "task_execution_failed",
+  "message": "the physical deployment node returned a failed attempt",
+  "task_id": "task_8700ec0f0c6f",
+  "run_id": "run_a02dbe49e102",
+  "task_status": "failed",
+  "execution_error": {
+    "schema": "zyra.task-execution-error/v1",
+    "error": "RuntimeError",
+    "message": "the physical deployment node returned a failed attempt",
+    "retryable": false,
+    "fallback": false
+  },
+  "event_count": 34,
+  "event_refs": [
+    {
+      "event_id": "event_ac8c19bad35f",
+      "event_type": "constraint_check"
+    },
+    {
+      "event_id": "event_e8933e3876bc",
+      "event_type": "agent_message"
+    },
+    {
+      "event_id": "event_368bada4e77b",
+      "event_type": "node_updated"
+    },
+    {
+      "event_id": "event_423767bd0dbf",
+      "event_type": "node_updated"
+    },
+    {
+      "event_id": "event_ade31c129d68",
+      "event_type": "constraint_check"
+    },
+    {
+      "event_id": "event_a7bbd806bbb3",
+      "event_type": "agent_message"
+    },
+    {
+      "event_id": "event_d78dd3884086",
+      "event_type": "resource_decision"
+    },
+    {
+      "event_id": "event_12b996578c9d",
+      "event_type": "node_updated"
+    },
+    {
+      "event_id": "event_9217eb6dfbf6",
+      "event_type": "topology_route"
+    },
+    {
+      "event_id": "event_294e963d905b",
+      "event_type": "system_notice"
+    },
+    {
+      "event_id": "event_6edeba282b54",
+      "event_type": "topology_route"
+    },
+    {
+      "event_id": "event_aafce7563cce",
+      "event_type": "resource_decision"
+    },
+    {
+      "event_id": "event_4c0279084999",
+      "event_type": "node_updated"
+    },
+    {
+      "event_id": "event_fa5144b418f9",
+      "event_type": "constraint_check"
+    },
+    {
+      "event_id": "event_906c340100bc",
+      "event_type": "agent_message"
+    },
+    {
+      "event_id": "event_e0ed9186974b",
+      "event_type": "constraint_check"
+    },
+    {
+      "event_id": "event_8008e46009e2",
+      "event_type": "node_updated"
+    },
+    {
+      "event_id": "event_39e0ab28f40a",
+      "event_type": "node_updated"
+    },
+    {
+      "event_id": "event_11e6b498f595",
+      "event_type": "system_notice"
+    },
+    {
+      "event_id": "event_4bc48b5562e7",
+      "event_type": "recovery_planned"
+    },
+    {
+      "event_id": "event_e59c90d399ad",
+      "event_type": "node_updated"
+    },
+    {
+      "event_id": "event_5c145b8351f9",
+      "event_type": "system_notice"
+    },
+    {
+      "event_id": "event_c700d9c915df",
+      "event_type": "node_failed"
+    },
+    {
+      "event_id": "event_e5c06da6a375",
+      "event_type": "system_notice"
+    },
+    {
+      "event_id": "event_e4ee6f62056b",
+      "event_type": "system_notice"
+    },
+    {
+      "event_id": "event_5d39b7adafcc",
+      "event_type": "resource_decision"
+    },
+    {
+      "event_id": "event_ead2a888b1a7",
+      "event_type": "system_notice"
+    },
+    {
+      "event_id": "event_e49589c07fa7",
+      "event_type": "system_notice"
+    },
+    {
+      "event_id": "event_22bf7df3f4e0",
+      "event_type": "resource_decision"
+    },
+    {
+      "event_id": "event_4ccbd29e0c63",
+      "event_type": "system_notice"
+    },
+    {
+      "event_id": "event_56e2d54400f5",
+      "event_type": "system_notice"
+    },
+    {
+      "event_id": "event_39eb2eb2fbdc",
+      "event_type": "artifact_written"
+    }
+  ],
+  "task_ref": "/tasks/task_8700ec0f0c6f",
+  "event_stream_ref": "/tasks/task_8700ec0f0c6f/events",
+  "retryable": false,
+  "fallback": false,
+  "terminal_reconciliation": {},
+  "memory_curator": {
+    "operation": "schedule_task_end",
+    "status": "scheduled",
+    "scheduled": {
+      "request": {
+        "protocol": "zyra.memory-curator.v1",
+        "request_id": "curator_request_7077137b25eafa9acd3631af",
+        "run_id": "run_a02dbe49e102",
+        "task_id": "task_8700ec0f0c6f",
+        "trigger": "task_end",
+        "requested_by": "task-lifecycle",
+        "input_watermark": 76,
+        "evidence_start": 0,
+        "evidence_end": null,
+        "allow_model_assist": true,
+        "max_candidates": 64,
+        "lease_seconds": 30.0,
+        "idempotency_key": "curator-task-end:task_8700ec0f0c6f:76:2026-09-08T02:20:58.282Z",
+        "created_at": "2026-09-08T02:21:00.901Z",
+        "metadata": {
+          "task_status": "failed",
+          "task_updated_at": "2026-09-08T02:20:58.282Z",
+          "event_count_at_schedule": 76,
+          "automatic": true
+        }
+      },
+      "job": {
+        "job_id": "curator_job_4f543462234c89e186bb217d",
+        "request": {
+          "protocol": "zyra.memory-curator.v1",
+          "request_id": "curator_request_7077137b25eafa9acd3631af",
+          "run_id": "run_a02dbe49e102",
+          "task_id": "task_8700ec0f0c6f",
+          "trigger": "task_end",
+          "requested_by": "task-lifecycle",
+          "input_watermark": 76,
+          "evidence_start": 0,
+          "evidence_end": null,
+          "allow_model_assist": true,
+          "max_candidates": 64,
+          "lease_seconds": 30.0,
+          "idempotency_key": "curator-task-end:task_8700ec0f0c6f:76:2026-09-08T02:20:58.282Z",
+          "created_at": "2026-09-08T02:21:00.901Z",
+          "metadata": {
+            "automatic": true,
+            "event_count_at_schedule": 76,
+            "task_status": "failed",
+            "task_updated_at": "2026-09-08T02:20:58.282Z"
+          }
+        },
+        "state": "queued",
+        "input_watermark": 76,
+        "last_success_watermark": 0,
+        "lease_owner": "",
+        "ownership_token": "",
+        "lease_epoch": 0,
+        "lease_expires_at": null,
+        "attempt": 0,
+        "retry_remaining": 3,
+        "retry_at": null,
+        "error_code": "",
+        "error_message": "",
+        "created_at": 1788834060.901689,
+        "updated_at": 1788834060.901689,
+        "started_at": null,
+        "finished_at": null,
+        "candidate_count": 0,
+        "committed_count": 0,
+        "dirty": true,
+        "terminal": false
+      },
+      "created": true,
+      "event_id": "event_967bfd49318a9336601ea0ad"
+    },
+    "result": null,
+    "data": {},
+    "integration": null
+  }
+}
+At C:\Users\Ylon\Desktop\挑战杯2026\zyra\scripts\run_zyra_swebench_flask5014.ps1:102 char:18
++ ... completed = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:800 ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (System.Net.HttpWebRequest:HttpWebRequest) [Invoke-RestMethod], WebExc 
+   eption
+    + FullyQualifiedErrorId : WebCmdletWebResponseException,Microsoft.PowerShell.Commands.InvokeRestMethodCommand

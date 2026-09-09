@@ -44,3 +44,8 @@ tmp/
 /docs/evidence/phase2/sealed/**/s/**/*.sqlite3
 /docs/evidence/phase2/sealed/**/s/runtime-event-artifacts/
 /docs/evidence/phase2/sealed/**/software_delivery/software-project/
+
+# SWE-bench harness build-image markers: empty files or broken symlinks into
+# WSL-internal paths (/home/ylon/...). Not indexable on Windows and carry no
+# evidence value; the real evaluator verdict lives in report.json.
+image_build_dir

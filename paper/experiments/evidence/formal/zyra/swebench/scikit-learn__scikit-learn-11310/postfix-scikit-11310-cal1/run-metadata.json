@@ -1,0 +1,23 @@
+{
+  "schema": "zyra.swebench-formal-run.v1",
+  "instance_id": "scikit-learn__scikit-learn-11310",
+  "system": "ZYRA",
+  "run_class": "invalidated_development",
+  "analysis_class": "invalidated_development",
+  "efficacy_eligible": false,
+  "invalidation_reason": "Operator interrupted the blocking run after misidentifying an unrelated Docker Desktop failure as the benchmark backend failing. The actual WSL Docker backend remained valid and the provider ledger records 20 successful dispatches. Excluded permanently from efficacy and calibration conclusions.",
+  "model": "deepseek-v4-flash",
+  "temperature": 0,
+  "sealed": true,
+  "container": "zyra-scikit-learn--scikit-learn-11310-bench",
+  "container_image": "swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-11310:latest",
+  "base_commit": "553b5fb8f84ba05c8397f26dd079deece2b05029",
+  "container_head": "5e1d3a117314a7b05d56bc02540698764c1e3e51",
+  "base_tree_equivalent": true,
+  "deadline_minutes": 45,
+  "max_turns": 80,
+  "max_total_tokens": 600000,
+  "max_output_tokens_per_request": 16384,
+  "external_deadline_epoch_ms": 1788921449999,
+  "started_at": "2026-09-09T01:52:30.0288418Z"
+}

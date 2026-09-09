@@ -1,0 +1,91 @@
+2026-09-08 23:18:50,958 - INFO - Environment image sweb.env.x86_64.613ff8f2239cd9f55ff18f:latest found for pallets__flask-5014
+Building instance image sweb.eval.x86_64.pallets__flask-5014:latest for pallets__flask-5014
+2026-09-08 23:18:50,989 - INFO - Image sweb.eval.x86_64.pallets__flask-5014:latest already exists, skipping build.
+2026-09-08 23:18:50,990 - INFO - Creating container for pallets__flask-5014...
+2026-09-08 23:18:51,099 - INFO - Container for pallets__flask-5014 created: 84db6479d08b96cce669007b6d2963dbbe55ac15249ea9000166b7fe0687998e
+2026-09-08 23:18:51,341 - INFO - Container for pallets__flask-5014 started: 84db6479d08b96cce669007b6d2963dbbe55ac15249ea9000166b7fe0687998e
+2026-09-08 23:18:51,342 - INFO - Intermediate patch for pallets__flask-5014 written to logs/run_evaluation/zyra-run12-patch-only-r3/ZYRA-deepseek-v4-flash-run12-patch-only/pallets__flask-5014/patch.diff, now applying to container...
+2026-09-08 23:18:51,541 - INFO - Failed to apply patch to container, trying again...
+2026-09-08 23:18:51,593 - INFO - >>>>> Applied Patch:
+patching file CHANGES.rst
+patching file src/flask/blueprints.py
+patching file tests/test_blueprints.py
+
+2026-09-08 23:18:51,738 - INFO - Git diff before:
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 498d5e51..23c0cd80 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -33,6 +33,7 @@ Unreleased
+ -   Use modern packaging metadata with ``pyproject.toml`` instead of ``setup.cfg``.
+     :pr:`4947`
+ -   Ensure subdomains are applied with nested blueprints. :issue:`4834`
++-   If a blueprint is created with an empty name it raises a ``ValueError``.
+ -   ``config.from_file`` can use ``text=False`` to indicate that the parser wants a
+     binary file instead. :issue:`4989`
+ 
+diff --git a/src/flask/blueprints.py b/src/flask/blueprints.py
+index eb50585d..1aa82562 100644
+--- a/src/flask/blueprints.py
++++ b/src/flask/blueprints.py
+@@ -190,6 +190,9 @@ class Blueprint(Scaffold):
+             root_path=root_path,
+         )
+ 
++        if not name:
++            raise ValueError("'name' may not be empty.")
++
+         if "." in name:
+             raise ValueError("'name' may not contain a dot '.' character.")
+ 
+diff --git a/tests/test_blueprints.py b/tests/test_blueprints.py
+index d46b769b..76cee660 100644
+--- a/tests/test_blueprints.py
++++ b/tests/test_blueprints.py
+@@ -256,6 +256,11 @@ def test_dotted_name_not_allowed(app, client):
+         flask.Blueprint("app.ui", __name__)
+ 
+ 
++def test_empty_name_not_allowed(app, client):
++    with pytest.raises(ValueError):
++        flask.Blueprint("", __name__)
++
++
+ def test_dotted_names_from_app(app, client):
+     test = flask.Blueprint("test", __name__)
+2026-09-08 23:18:51,738 - INFO - Eval script for pallets__flask-5014 written to logs/run_evaluation/zyra-run12-patch-only-r3/ZYRA-deepseek-v4-flash-run12-patch-only/pallets__flask-5014/eval.sh; copying to container...
+2026-09-08 23:18:56,056 - INFO - Test runtime: 4.19 seconds
+2026-09-08 23:18:56,057 - INFO - Test output for pallets__flask-5014 written to logs/run_evaluation/zyra-run12-patch-only-r3/ZYRA-deepseek-v4-flash-run12-patch-only/pallets__flask-5014/test_output.txt
+2026-09-08 23:18:56,104 - INFO - Git diff after:
+diff --git a/CHANGES.rst b/CHANGES.rst
+index 498d5e51..23c0cd80 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -33,6 +33,7 @@ Unreleased
+ -   Use modern packaging metadata with ``pyproject.toml`` instead of ``setup.cfg``.
+     :pr:`4947`
+ -   Ensure subdomains are applied with nested blueprints. :issue:`4834`
++-   If a blueprint is created with an empty name it raises a ``ValueError``.
+ -   ``config.from_file`` can use ``text=False`` to indicate that the parser wants a
+     binary file instead. :issue:`4989`
+ 
+diff --git a/src/flask/blueprints.py b/src/flask/blueprints.py
+index eb50585d..1aa82562 100644
+--- a/src/flask/blueprints.py
++++ b/src/flask/blueprints.py
+@@ -190,6 +190,9 @@ class Blueprint(Scaffold):
+             root_path=root_path,
+         )
+ 
++        if not name:
++            raise ValueError("'name' may not be empty.")
++
+         if "." in name:
+             raise ValueError("'name' may not contain a dot '.' character.")
+2026-09-08 23:18:56,104 - INFO - Git diff changed after running eval script
+2026-09-08 23:18:56,104 - INFO - Grading answer for pallets__flask-5014...
+2026-09-08 23:18:56,105 - INFO - report: {'pallets__flask-5014': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['tests/test_blueprints.py::test_empty_name_not_allowed'], 'failure': []}, 'PASS_TO_PASS': {'success': ['tests/test_blueprints.py::test_blueprint_specific_error_handling', 'tests/test_blueprints.py::test_blueprint_specific_user_error_handling', 'tests/test_blueprints.py::test_blueprint_app_error_handling', 'tests/test_blueprints.py::test_blueprint_prefix_slash[-/-/]', 'tests/test_blueprints.py::test_blueprint_prefix_slash[/--/]', 'tests/test_blueprints.py::test_blueprint_prefix_slash[/-/-/]', 'tests/test_blueprints.py::test_blueprint_prefix_slash[/foo--/foo]', 'tests/test_blueprints.py::test_blueprint_prefix_slash[/foo/--/foo/]', 'tests/test_blueprints.py::test_blueprint_prefix_slash[-/bar-/bar]', 'tests/test_blueprints.py::test_blueprint_prefix_slash[/foo/-/bar-/foo/bar]', 'tests/test_blueprints.py::test_blueprint_prefix_slash[/foo/-bar-/foo/bar]', 'tests/test_blueprints.py::test_blueprint_prefix_slash[/foo-/bar-/foo/bar]', 'tests/test_blueprints.py::test_blueprint_prefix_slash[/foo/-//bar-/foo/bar]', 'tests/test_blueprints.py::test_blueprint_prefix_slash[/foo//-/bar-/foo/bar]', 'tests/test_blueprints.py::test_blueprint_url_defaults', 'tests/test_blueprints.py::test_blueprint_url_processors', 'tests/test_blueprints.py::test_templates_and_static', 'tests/test_blueprints.py::test_default_static_max_age', 'tests/test_blueprints.py::test_templates_list', 'tests/test_blueprints.py::test_dotted_name_not_allowed', 'tests/test_blueprints.py::test_dotted_names_from_app', 'tests/test_blueprints.py::test_empty_url_defaults', 'tests/test_blueprints.py::test_route_decorator_custom_endpoint', 'tests/test_blueprints.py::test_route_decorator_custom_endpoint_with_dots', 'tests/test_blueprints.py::test_endpoint_decorator', 'tests/test_blueprints.py::test_template_filter', 'tests/test_blueprints.py::test_add_template_filter', 'tests/test_blueprints.py::test_template_filter_with_name', 'tests/test_blueprints.py::test_add_template_filter_with_name', 'tests/test_blueprints.py::test_template_filter_with_template', 'tests/test_blueprints.py::test_template_filter_after_route_with_template', 'tests/test_blueprints.py::test_add_template_filter_with_template', 'tests/test_blueprints.py::test_template_filter_with_name_and_template', 'tests/test_blueprints.py::test_add_template_filter_with_name_and_template', 'tests/test_blueprints.py::test_template_test', 'tests/test_blueprints.py::test_add_template_test', 'tests/test_blueprints.py::test_template_test_with_name', 'tests/test_blueprints.py::test_add_template_test_with_name', 'tests/test_blueprints.py::test_template_test_with_template', 'tests/test_blueprints.py::test_template_test_after_route_with_template', 'tests/test_blueprints.py::test_add_template_test_with_template', 'tests/test_blueprints.py::test_template_test_with_name_and_template', 'tests/test_blueprints.py::test_add_template_test_with_name_and_template', 'tests/test_blueprints.py::test_context_processing', 'tests/test_blueprints.py::test_template_global', 'tests/test_blueprints.py::test_request_processing', 'tests/test_blueprints.py::test_app_request_processing', 'tests/test_blueprints.py::test_app_url_processors', 'tests/test_blueprints.py::test_nested_blueprint', 'tests/test_blueprints.py::test_nested_callback_order', 'tests/test_blueprints.py::test_nesting_url_prefixes[/parent-/child-None-None]', 'tests/test_blueprints.py::test_nesting_url_prefixes[/parent-None-None-/child]', 'tests/test_blueprints.py::test_nesting_url_prefixes[None-None-/parent-/child]', 'tests/test_blueprints.py::test_nesting_url_prefixes[/other-/something-/parent-/child]', 'tests/test_blueprints.py::test_nesting_subdomains', 'tests/test_blueprints.py::test_child_and_parent_subdomain', 'tests/test_blueprints.py::test_unique_blueprint_names', 'tests/test_blueprints.py::test_self_registration', 'tests/test_blueprints.py::test_blueprint_renaming'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for pallets__flask-5014: resolved: True
+2026-09-08 23:18:56,105 - INFO - Attempting to stop container sweb.eval.pallets__flask-5014.zyra-run12-patch-only-r3...
+2026-09-08 23:19:11,408 - INFO - Attempting to remove container sweb.eval.pallets__flask-5014.zyra-run12-patch-only-r3...
+2026-09-08 23:19:11,458 - INFO - Container sweb.eval.pallets__flask-5014.zyra-run12-patch-only-r3 removed.

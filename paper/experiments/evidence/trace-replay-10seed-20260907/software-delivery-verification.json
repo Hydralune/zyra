@@ -1,0 +1,58 @@
+{
+  "bundle": {
+    "bundle_sha256": "08227b66dffa222bbb02c7c6993c328c339d7b79699a4a6caec1d97834412cca",
+    "bundle_size": 1393732,
+    "findings": [],
+    "manifest_digest": "90fcad909074d209cfc8e4b3a505ed742712b7b96ebbf00fe65277bd0106b83b",
+    "member_count": 18,
+    "path": "C:\\Users\\Ylon\\Desktop\\挑战杯2026\\zyra\\.tmp\\paper-validation-pilot\\work\\artifacts\\experiment-evidence\\bundle_43bda87eaa42489eafdfc762d89a6fe5.zip",
+    "receipt_digest": "271b0b45193436af339a716f15f61c248b7f49f4252e38e0d62ab678aa3537b4",
+    "schema": "zyra.experiment-evidence-bundle-verification/v1",
+    "valid": true,
+    "verified_at": "2026-09-07T06:07:29.349Z"
+  },
+  "completion": {
+    "cell_count": 70,
+    "experiment_id": "experiment_c6dc44a958a2442da0a3fcbe355d53a0",
+    "findings": [],
+    "missing_receipt_kinds": [],
+    "phase": "succeeded",
+    "receipt_digest": "6a6478db4eab0c203443d651f99a551cf216fb01763c4d88419d1aacabb4754b",
+    "receipt_kinds": [
+      "aggregation",
+      "bundle",
+      "cell_conditions",
+      "cell_execution",
+      "cell_observation",
+      "cell_performance",
+      "cell_plan",
+      "cell_verification",
+      "completion",
+      "envelope",
+      "external_evidence",
+      "matrix_effect",
+      "report",
+      "requirements",
+      "source_admission",
+      "source_role_audit",
+      "variant_catalog"
+    ],
+    "schema": "zyra.experiment-completion-verification/v1",
+    "valid": true,
+    "verified_at": "2026-09-07T06:07:29.243Z"
+  },
+  "experiment_id": "experiment_c6dc44a958a2442da0a3fcbe355d53a0",
+  "receipt_digest": "01a9b9d060bc25027b70147a5b602f744a1a0e5ce8629089f3ae03421f1d3922",
+  "report": {
+    "findings": [],
+    "receipt_digest": "a79c6f7f4f2b6f929b5fd7086b3ceb8e7c72363c0ec423a94d12d40429f12431",
+    "report_digest": "dc96cc68d188f8e1542b50d6a330f720f9f65cf35ac47a44e49ade42ea3d40e2",
+    "schema": "zyra.experiment-report-verification/v1",
+    "valid": true,
+    "verified_at": "2026-09-07T06:07:29.445Z"
+  },
+  "schema": "zyra.experiment-reverification/v1",
+  "valid": true,
+  "verified_at": "2026-09-07T06:07:29.445Z"
+}
+

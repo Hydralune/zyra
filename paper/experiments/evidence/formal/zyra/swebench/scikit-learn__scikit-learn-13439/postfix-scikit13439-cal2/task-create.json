@@ -1,0 +1,1155 @@
+{
+  "task": {
+    "run_id": "run_2be52fb2513d",
+    "task_id": "task_93a1ea924e09",
+    "user_goal": "Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.\n\nPipeline should implement __len__\n\nDescription\n\nWith the new indexing support, `pipe[:len(pipe)]` raises an error because Pipeline does not implement `len(pipe)`.\n\nSteps to reproduce\n\n```python\nfrom sklearn import svm\nfrom sklearn.datasets import samples_generator\nfrom sklearn.feature_selection import SelectKBest, f_regression\nfrom sklearn.pipeline import Pipeline\n\nX, y = samples_generator.make_classification(\n    n_informative=5, n_redundant=0, random_state=42)\nanova_filter = SelectKBest(f_regression, k=5)\nclf = svm.SVC(kernel='linear')\npipe = Pipeline([('anova', anova_filter), ('svc', clf)])\nlen(pipe)\n```\n\nPreserve unrelated Pipeline and sequence behavior.",
+    "root_node_id": "node_ecc7b11eebc5",
+    "status": "pending",
+    "created_at": "2026-09-09T04:02:02.246Z",
+    "updated_at": "2026-09-09T04:02:02.353Z",
+    "constraints": {
+      "objectives": [
+        "Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.\n\nPipeline should implement __len__\n\nDescription\n\nWith the new indexing support, `pipe[:len(pipe)]` raises an error because Pipeline does not implement `len(pipe)`.\n\nSteps to reproduce\n\n```python\nfrom sklearn import svm\nfrom sklearn.datasets import samples_generator\nfrom sklearn.feature_selection import SelectKBest, f_regression\nfrom sklearn.pipeline import Pipeline\n\nX, y = samples_generator.make_classification(\n    n_informative=5, n_redundant=0, random_state=42)\nanova_filter = SelectKBest(f_regression, k=5)\nclf = svm.SVC(kernel='linear')\npipe = Pipeline([('anova', anova_filter), ('svc', clf)])\nlen(pipe)\n```\n\nPreserve unrelated Pipeline and sequence behavior."
+      ],
+      "requirements": [],
+      "forbidden": [],
+      "assumptions": [],
+      "success_criteria": [
+        "Produce a traceable result that satisfies the user goal."
+      ],
+      "allowed_tools": [],
+      "required_tools": [],
+      "allowed_workers": [],
+      "required_artifacts": [],
+      "resource_preferences": [],
+      "output_schema": {},
+      "state_transition_rules": {},
+      "max_tool_calls": null,
+      "max_input_tokens": null,
+      "max_output_tokens": null,
+      "time_limit_ms": null,
+      "message_budget_chars": 2000
+    },
+    "plan_nodes": {
+      "node_ecc7b11eebc5": {
+        "node_id": "node_ecc7b11eebc5",
+        "title": "Root task",
+        "description": "Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.\n\nPipeline should implement __len__\n\nDescription\n\nWith the new indexing support, `pipe[:len(pipe)]` raises an error because Pipeline does not implement `len(pipe)`.\n\nSteps to reproduce\n\n```python\nfrom sklearn import svm\nfrom sklearn.datasets import samples_generator\nfrom sklearn.feature_selection import SelectKBest, f_regression\nfrom sklearn.pipeline import Pipeline\n\nX, y = samples_generator.make_classification(\n    n_informative=5, n_redundant=0, random_state=42)\nanova_filter = SelectKBest(f_regression, k=5)\nclf = svm.SVC(kernel='linear')\npipe = Pipeline([('anova', anova_filter), ('svc', clf)])\nlen(pipe)\n```\n\nPreserve unrelated Pipeline and sequence behavior.",
+        "status": "pending",
+        "intent": "plan",
+        "summary": "",
+        "parent_node_id": null,
+        "assigned_worker_id": null,
+        "depends_on": [],
+        "constraints": {
+          "objectives": [],
+          "requirements": [],
+          "forbidden": [],
+          "assumptions": [],
+          "success_criteria": [],
+          "allowed_tools": [],
+          "required_tools": [],
+          "allowed_workers": [],
+          "required_artifacts": [],
+          "resource_preferences": [],
+          "output_schema": {},
+          "state_transition_rules": {},
+          "max_tool_calls": null,
+          "max_input_tokens": null,
+          "max_output_tokens": null,
+          "time_limit_ms": null,
+          "message_budget_chars": 2000
+        },
+        "expected_output_schema": {},
+        "completion_criteria": [],
+        "evidence_refs": [],
+        "artifact_refs": [],
+        "state_delta": {},
+        "created_at": "2026-09-09T04:02:02.245Z",
+        "updated_at": "2026-09-09T04:02:02.246Z",
+        "metadata": {
+          "source": "initial_user_goal"
+        }
+      },
+      "node_c8d4c74b2cb4": {
+        "node_id": "node_c8d4c74b2cb4",
+        "title": "Plan",
+        "description": "Decompose the user goal into an executable task graph.",
+        "status": "pending",
+        "intent": "plan",
+        "summary": "",
+        "parent_node_id": "node_ecc7b11eebc5",
+        "assigned_worker_id": null,
+        "depends_on": [
+          "node_ecc7b11eebc5"
+        ],
+        "constraints": {
+          "objectives": [],
+          "requirements": [],
+          "forbidden": [],
+          "assumptions": [],
+          "success_criteria": [],
+          "allowed_tools": [],
+          "required_tools": [],
+          "allowed_workers": [],
+          "required_artifacts": [],
+          "resource_preferences": [],
+          "output_schema": {},
+          "state_transition_rules": {},
+          "max_tool_calls": null,
+          "max_input_tokens": null,
+          "max_output_tokens": null,
+          "time_limit_ms": null,
+          "message_budget_chars": 2000
+        },
+        "expected_output_schema": {
+          "type": "object",
+          "required": [
+            "stage_order"
+          ]
+        },
+        "completion_criteria": [
+          "Task graph has ordered stage nodes.",
+          "Each stage is traceable by node_id."
+        ],
+        "evidence_refs": [],
+        "artifact_refs": [],
+        "state_delta": {},
+        "created_at": "2026-09-09T04:02:02.353Z",
+        "updated_at": "2026-09-09T04:02:02.353Z",
+        "metadata": {
+          "stage": "plan",
+          "graph_version": "m3-symbolic-v1"
+        }
+      },
+      "node_235b13b79130": {
+        "node_id": "node_235b13b79130",
+        "title": "Route",
+        "description": "Select the worker and control route for the executable node.",
+        "status": "pending",
+        "intent": "decision",
+        "summary": "",
+        "parent_node_id": "node_ecc7b11eebc5",
+        "assigned_worker_id": null,
+        "depends_on": [
+          "node_c8d4c74b2cb4"
+        ],
+        "constraints": {
+          "objectives": [],
+          "requirements": [],
+          "forbidden": [],
+          "assumptions": [],
+          "success_criteria": [],
+          "allowed_tools": [],
+          "required_tools": [],
+          "allowed_workers": [],
+          "required_artifacts": [],
+          "resource_preferences": [],
+          "output_schema": {},
+          "state_transition_rules": {},
+          "max_tool_calls": null,
+          "max_input_tokens": null,
+          "max_output_tokens": null,
+          "time_limit_ms": null,
+          "message_budget_chars": 2000
+        },
+        "expected_output_schema": {
+          "type": "object",
+          "required": [
+            "selected_worker",
+            "route_candidates"
+          ]
+        },
+        "completion_criteria": [
+          "A topology_route event is emitted.",
+          "A DecisionRecord is appended."
+        ],
+        "evidence_refs": [],
+        "artifact_refs": [],
+        "state_delta": {},
+        "created_at": "2026-09-09T04:02:02.353Z",
+        "updated_at": "2026-09-09T04:02:02.353Z",
+        "metadata": {
+          "stage": "route",
+          "graph_version": "m3-symbolic-v1"
+        }
+      },
+      "node_e81bd4187160": {
+        "node_id": "node_e81bd4187160",
+        "title": "Execute",
+        "description": "Run the current node through the selected worker runtime.",
+        "status": "pending",
+        "intent": "tool_call",
+        "summary": "",
+        "parent_node_id": "node_ecc7b11eebc5",
+        "assigned_worker_id": null,
+        "depends_on": [
+          "node_235b13b79130"
+        ],
+        "constraints": {
+          "objectives": [],
+          "requirements": [],
+          "forbidden": [],
+          "assumptions": [],
+          "success_criteria": [],
+          "allowed_tools": [],
+          "required_tools": [],
+          "allowed_workers": [],
+          "required_artifacts": [],
+          "resource_preferences": [],
+          "output_schema": {},
+          "state_transition_rules": {},
+          "max_tool_calls": null,
+          "max_input_tokens": null,
+          "max_output_tokens": null,
+          "time_limit_ms": null,
+          "message_budget_chars": 2000
+        },
+        "expected_output_schema": {
+          "type": "object",
+          "required": [
+            "worker_result"
+          ]
+        },
+        "completion_criteria": [
+          "Worker runtime returns trace events.",
+          "Artifacts or tool results are preserved."
+        ],
+        "evidence_refs": [],
+        "artifact_refs": [],
+        "state_delta": {},
+        "created_at": "2026-09-09T04:02:02.353Z",
+        "updated_at": "2026-09-09T04:02:02.353Z",
+        "metadata": {
+          "stage": "execute",
+          "graph_version": "m3-symbolic-v1"
+        }
+      },
+      "node_7c0de1d908f5": {
+        "node_id": "node_7c0de1d908f5",
+        "title": "Verify",
+        "description": "Check node outputs, event coverage, and checkpoint readiness.",
+        "status": "pending",
+        "intent": "critique",
+        "summary": "",
+        "parent_node_id": "node_ecc7b11eebc5",
+        "assigned_worker_id": null,
+        "depends_on": [
+          "node_e81bd4187160"
+        ],
+        "constraints": {
+          "objectives": [],
+          "requirements": [],
+          "forbidden": [],
+          "assumptions": [],
+          "success_criteria": [],
+          "allowed_tools": [],
+          "required_tools": [],
+          "allowed_workers": [],
+          "required_artifacts": [],
+          "resource_preferences": [],
+          "output_schema": {},
+          "state_transition_rules": {},
+          "max_tool_calls": null,
+          "max_input_tokens": null,
+          "max_output_tokens": null,
+          "time_limit_ms": null,
+          "message_budget_chars": 2000
+        },
+        "expected_output_schema": {
+          "type": "object",
+          "required": [
+            "constraint_results"
+          ]
+        },
+        "completion_criteria": [
+          "ConstraintKeeper emits a constraint_check event."
+        ],
+        "evidence_refs": [],
+        "artifact_refs": [],
+        "state_delta": {},
+        "created_at": "2026-09-09T04:02:02.353Z",
+        "updated_at": "2026-09-09T04:02:02.353Z",
+        "metadata": {
+          "stage": "verify",
+          "graph_version": "m3-symbolic-v1"
+        }
+      },
+      "node_077ba7b56c3d": {
+        "node_id": "node_077ba7b56c3d",
+        "title": "Finalize",
+        "description": "Finalize the trace and mark the task ready for inspection.",
+        "status": "pending",
+        "intent": "status",
+        "summary": "",
+        "parent_node_id": "node_ecc7b11eebc5",
+        "assigned_worker_id": null,
+        "depends_on": [
+          "node_7c0de1d908f5"
+        ],
+        "constraints": {
+          "objectives": [],
+          "requirements": [],
+          "forbidden": [],
+          "assumptions": [],
+          "success_criteria": [],
+          "allowed_tools": [],
+          "required_tools": [],
+          "allowed_workers": [],
+          "required_artifacts": [],
+          "resource_preferences": [],
+          "output_schema": {},
+          "state_transition_rules": {},
+          "max_tool_calls": null,
+          "max_input_tokens": null,
+          "max_output_tokens": null,
+          "time_limit_ms": null,
+          "message_budget_chars": 2000
+        },
+        "expected_output_schema": {
+          "type": "object",
+          "required": [
+            "status"
+          ]
+        },
+        "completion_criteria": [
+          "Task trace is ready for inspection."
+        ],
+        "evidence_refs": [],
+        "artifact_refs": [],
+        "state_delta": {},
+        "created_at": "2026-09-09T04:02:02.353Z",
+        "updated_at": "2026-09-09T04:02:02.353Z",
+        "metadata": {
+          "stage": "finalize",
+          "graph_version": "m3-symbolic-v1"
+        }
+      }
+    },
+    "artifacts": [],
+    "decisions": [],
+    "budget": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "tool_calls": 0,
+      "wall_time_ms": 0,
+      "cost_usd_estimate": 0.0,
+      "metadata": {}
+    },
+    "metadata": {
+      "delivery_contract": {
+        "schema": "zyra.goal-delivery-contract/v2",
+        "interaction_kind": "workspace_change",
+        "workspace_mutation_required": true,
+        "verification_required": true,
+        "required_paths": [],
+        "expected_file_contents": {},
+        "required_skills": [],
+        "required_executed_paths": [],
+        "provenance_index_paths": [],
+        "loopx_required": false,
+        "role_separation_required": false,
+        "mutation_policy": {
+          "schema": "zyra.task-mutation-policy/v1",
+          "enabled": false,
+          "protected_source_roots": [],
+          "required_pre_mutation_evidence": [],
+          "protect_existing_test_files": false,
+          "inherit_across_execution_lineage": false
+        },
+        "provider_reasoning_required": true,
+        "final_response_required": true,
+        "goal_digest": "sha256:18c01c2f0857ce2e3d29c99162cfc9a1fa3336497a8911497bb8f22c88ff78a5"
+      },
+      "query_session_id": "task:task_93a1ea924e09",
+      "runtime_hints": {
+        "external_deadline_epoch_ms": 1788929212907,
+        "benchmark_closeout_reserve_seconds": 586.1316,
+        "benchmark_agent_closeout_reserve_seconds": 526.1316
+      },
+      "sealed": true,
+      "sealed_autonomous": true,
+      "competition_mode": "sealed_autonomous",
+      "workspace_ref": {
+        "workspace_id": "ws_d8bc33fab0d2edb2bb6b3f62",
+        "run_id": "run_2be52fb2513d",
+        "task_id": "task_93a1ea924e09",
+        "session_id": "task:task_93a1ea924e09",
+        "backend_id": "local-default",
+        "backend_kind": "local",
+        "workspace_kind": "task",
+        "lifecycle_state": "open",
+        "owner_epoch": 1,
+        "binding_revision": 4,
+        "capability_revision": 1,
+        "lease_id": "lease_4a5df52fe9be95648bd83404",
+        "active_snapshot_id": "",
+        "quota": {
+          "max_bytes": 1073741824,
+          "max_files": 100000,
+          "max_directories": 20000,
+          "max_single_file_bytes": 134217728,
+          "max_path_depth": 64,
+          "max_snapshots": 32,
+          "max_snapshot_bytes": 4294967296,
+          "include_generated": true
+        },
+        "usage": {
+          "used_bytes": 0,
+          "file_count": 0,
+          "directory_count": 4,
+          "symlink_count": 0,
+          "reserved_bytes": 0,
+          "snapshot_bytes": 0,
+          "snapshot_count": 0,
+          "scanned_at": "2026-09-09T12:02:02.313529+08:00",
+          "revision": 1,
+          "accounted_bytes": 0
+        },
+        "mounts": [
+          {
+            "mount_id": "mount_8a4a3cef30cbb251c75b4572",
+            "kind": "task",
+            "access": "read_write",
+            "quota": {
+              "max_bytes": 1073741824,
+              "max_files": 100000,
+              "max_directories": 20000,
+              "max_single_file_bytes": 134217728,
+              "max_path_depth": 64,
+              "max_snapshots": 32,
+              "max_snapshot_bytes": 4294967296,
+              "include_generated": true
+            },
+            "physical_location_redacted": true
+          },
+          {
+            "mount_id": "mount_aa9f0a97847eb22f4d1e7dc0",
+            "kind": "artifact",
+            "access": "read_only",
+            "quota": {
+              "max_bytes": 1073741824,
+              "max_files": 100000,
+              "max_directories": 20000,
+              "max_single_file_bytes": 134217728,
+              "max_path_depth": 64,
+              "max_snapshots": 32,
+              "max_snapshot_bytes": 4294967296,
+              "include_generated": true
+            },
+            "physical_location_redacted": true
+          },
+          {
+            "mount_id": "mount_d19ca8bc1c598e34dad6a3aa",
+            "kind": "download",
+            "access": "append_only",
+            "quota": {
+              "max_bytes": 1073741824,
+              "max_files": 100000,
+              "max_directories": 20000,
+              "max_single_file_bytes": 134217728,
+              "max_path_depth": 64,
+              "max_snapshots": 32,
+              "max_snapshot_bytes": 4294967296,
+              "include_generated": true
+            },
+            "physical_location_redacted": true
+          },
+          {
+            "mount_id": "mount_ada607a214f2854829a2c0c1",
+            "kind": "temp",
+            "access": "read_write",
+            "quota": {
+              "max_bytes": 1073741824,
+              "max_files": 100000,
+              "max_directories": 20000,
+              "max_single_file_bytes": 134217728,
+              "max_path_depth": 64,
+              "max_snapshots": 32,
+              "max_snapshot_bytes": 4294967296,
+              "include_generated": true
+            },
+            "physical_location_redacted": true
+          }
+        ],
+        "updated_at": "2026-09-09T12:02:02.335204+08:00",
+        "physical_location_redacted": true
+      },
+      "graph_version": "m3-symbolic-v1",
+      "stage_order": [
+        "node_c8d4c74b2cb4",
+        "node_235b13b79130",
+        "node_e81bd4187160",
+        "node_7c0de1d908f5",
+        "node_077ba7b56c3d"
+      ],
+      "dynamic_graph_id": "graph:task_93a1ea924e09",
+      "dynamic_graph_ref": {
+        "graph_id": "graph:task_93a1ea924e09",
+        "run_id": "run_2be52fb2513d",
+        "revision": 1,
+        "signature": "7fb50d22032477015f7375ed6d2d77e18496023ac507c1d68d80b77d3605a65c",
+        "commit_id": "graph_commit_f295ff19e24641bf85a6ee14a9bafb35"
+      },
+      "worker_pool": {
+        "attempt_id": "attempt_6d4c8e891459451b8af235c911f0cfb9",
+        "attempt_number": 1,
+        "lease_id": "lease_9c3d3a2f7f03410bbe7973580dede5ef",
+        "worker_id": "local-code-worker",
+        "backend_id": "local-sandbox-gateway",
+        "graph_ref": {
+          "graph_id": "graph:task_93a1ea924e09",
+          "run_id": "run_2be52fb2513d",
+          "revision": 2,
+          "signature": "fdc68ac31f0fbf79fad65002d5f1f60fa5bedee2f4688fa351be6833cde0650a",
+          "commit_id": "graph_commit_c6206ca0e3354dda856cc1eb9b583167"
+        },
+        "graph_commit": {
+          "graph_id": "graph:task_93a1ea924e09",
+          "delta_id": "delta_44a8d00748ac46fcb79897612c91a397",
+          "status": "committed",
+          "strategy": "serialize",
+          "base_revision": 1,
+          "committed_revision": 2,
+          "snapshot_signature": "fdc68ac31f0fbf79fad65002d5f1f60fa5bedee2f4688fa351be6833cde0650a",
+          "commit_id": "graph_commit_c6206ca0e3354dda856cc1eb9b583167",
+          "conflicts": [],
+          "rebased_from_revision": null,
+          "created_at": "2026-09-09T04:02:02.595Z",
+          "metadata": {
+            "causation_id": "lease_9c3d3a2f7f03410bbe7973580dede5ef",
+            "correlation_id": "",
+            "read_set": [
+              "node:node_077ba7b56c3d",
+              "node:node_235b13b79130",
+              "node:node_7c0de1d908f5",
+              "node:node_c8d4c74b2cb4",
+              "node:node_e81bd4187160",
+              "node:node_ecc7b11eebc5"
+            ],
+            "write_set": [
+              "node:node_077ba7b56c3d",
+              "node:node_235b13b79130",
+              "node:node_7c0de1d908f5",
+              "node:node_c8d4c74b2cb4",
+              "node:node_e81bd4187160",
+              "node:node_ecc7b11eebc5"
+            ]
+          }
+        },
+        "operator_placement_causality": {}
+      }
+    }
+  },
+  "events": [
+    {
+      "run_id": "run_2be52fb2513d",
+      "task_id": "task_93a1ea924e09",
+      "event_type": "task_created",
+      "event_id": "event_40ff355f974c",
+      "node_id": "node_ecc7b11eebc5",
+      "created_at": "2026-09-09T04:02:02.249Z",
+      "payload": {
+        "task": {
+          "run_id": "run_2be52fb2513d",
+          "task_id": "task_93a1ea924e09",
+          "user_goal": "Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.\n\nPipeline should implement __len__\n\nDescription\n\nWith the new indexing support, `pipe[:len(pipe)]` raises an error because Pipeline does not implement `len(pipe)`.\n\nSteps to reproduce\n\n```python\nfrom sklearn import svm\nfrom sklearn.datasets import samples_generator\nfrom sklearn.feature_selection import SelectKBest, f_regression\nfrom sklearn.pipeline import Pipeline\n\nX, y = samples_generator.make_classification(\n    n_informative=5, n_redundant=0, random_state=42)\nanova_filter = SelectKBest(f_regression, k=5)\nclf = svm.SVC(kernel='linear')\npipe = Pipeline([('anova', anova_filter), ('svc', clf)])\nlen(pipe)\n```\n\nPreserve unrelated Pipeline and sequence behavior.",
+          "root_node_id": "node_ecc7b11eebc5",
+          "status": "pending",
+          "created_at": "2026-09-09T04:02:02.246Z",
+          "updated_at": "2026-09-09T04:02:02.246Z",
+          "constraints": {
+            "objectives": [
+              "Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.\n\nPipeline should implement __len__\n\nDescription\n\nWith the new indexing support, `pipe[:len(pipe)]` raises an error because Pipeline does not implement `len(pipe)`.\n\nSteps to reproduce\n\n```python\nfrom sklearn import svm\nfrom sklearn.datasets import samples_generator\nfrom sklearn.feature_selection import SelectKBest, f_regression\nfrom sklearn.pipeline import Pipeline\n\nX, y = samples_generator.make_classification(\n    n_informative=5, n_redundant=0, random_state=42)\nanova_filter = SelectKBest(f_regression, k=5)\nclf = svm.SVC(kernel='linear')\npipe = Pipeline([('anova', anova_filter), ('svc', clf)])\nlen(pipe)\n```\n\nPreserve unrelated Pipeline and sequence behavior."
+            ],
+            "requirements": [],
+            "forbidden": [],
+            "assumptions": [],
+            "success_criteria": [
+              "Produce a traceable result that satisfies the user goal."
+            ],
+            "allowed_tools": [],
+            "required_tools": [],
+            "allowed_workers": [],
+            "required_artifacts": [],
+            "resource_preferences": [],
+            "output_schema": {},
+            "state_transition_rules": {},
+            "max_tool_calls": null,
+            "max_input_tokens": null,
+            "max_output_tokens": null,
+            "time_limit_ms": null,
+            "message_budget_chars": 2000
+          },
+          "plan_nodes": {
+            "node_ecc7b11eebc5": {
+              "node_id": "node_ecc7b11eebc5",
+              "title": "Root task",
+              "description": "Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.\n\nPipeline should implement __len__\n\nDescription\n\nWith the new indexing support, `pipe[:len(pipe)]` raises an error because Pipeline does not implement `len(pipe)`.\n\nSteps to reproduce\n\n```python\nfrom sklearn import svm\nfrom sklearn.datasets import samples_generator\nfrom sklearn.feature_selection import SelectKBest, f_regression\nfrom sklearn.pipeline import Pipeline\n\nX, y = samples_generator.make_classification(\n    n_informative=5, n_redundant=0, random_state=42)\nanova_filter = SelectKBest(f_regression, k=5)\nclf = svm.SVC(kernel='linear')\npipe = Pipeline([('anova', anova_filter), ('svc', clf)])\nlen(pipe)\n```\n\nPreserve unrelated Pipeline and sequence behavior.",
+              "status": "pending",
+              "intent": "plan",
+              "summary": "",
+              "parent_node_id": null,
+              "assigned_worker_id": null,
+              "depends_on": [],
+              "constraints": {
+                "objectives": [],
+                "requirements": [],
+                "forbidden": [],
+                "assumptions": [],
+                "success_criteria": [],
+                "allowed_tools": [],
+                "required_tools": [],
+                "allowed_workers": [],
+                "required_artifacts": [],
+                "resource_preferences": [],
+                "output_schema": {},
+                "state_transition_rules": {},
+                "max_tool_calls": null,
+                "max_input_tokens": null,
+                "max_output_tokens": null,
+                "time_limit_ms": null,
+                "message_budget_chars": 2000
+              },
+              "expected_output_schema": {},
+              "completion_criteria": [],
+              "evidence_refs": [],
+              "artifact_refs": [],
+              "state_delta": {},
+              "created_at": "2026-09-09T04:02:02.245Z",
+              "updated_at": "2026-09-09T04:02:02.246Z",
+              "metadata": {
+                "source": "initial_user_goal"
+              }
+            }
+          },
+          "artifacts": [],
+          "decisions": [],
+          "budget": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "tool_calls": 0,
+            "wall_time_ms": 0,
+            "cost_usd_estimate": 0.0,
+            "metadata": {}
+          },
+          "metadata": {
+            "delivery_contract": {
+              "schema": "zyra.goal-delivery-contract/v2",
+              "interaction_kind": "workspace_change",
+              "workspace_mutation_required": true,
+              "verification_required": true,
+              "required_paths": [],
+              "expected_file_contents": {},
+              "required_skills": [],
+              "required_executed_paths": [],
+              "provenance_index_paths": [],
+              "loopx_required": false,
+              "role_separation_required": false,
+              "mutation_policy": {
+                "schema": "zyra.task-mutation-policy/v1",
+                "enabled": false,
+                "protected_source_roots": [],
+                "required_pre_mutation_evidence": [],
+                "protect_existing_test_files": false,
+                "inherit_across_execution_lineage": false
+              },
+              "provider_reasoning_required": true,
+              "final_response_required": true,
+              "goal_digest": "sha256:18c01c2f0857ce2e3d29c99162cfc9a1fa3336497a8911497bb8f22c88ff78a5"
+            }
+          }
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_2be52fb2513d",
+      "task_id": "task_93a1ea924e09",
+      "event_type": "node_created",
+      "event_id": "event_8376b77719e1",
+      "node_id": "node_c8d4c74b2cb4",
+      "created_at": "2026-09-09T04:02:02.353Z",
+      "payload": {
+        "node": {
+          "node_id": "node_c8d4c74b2cb4",
+          "title": "Plan",
+          "description": "Decompose the user goal into an executable task graph.",
+          "status": "pending",
+          "intent": "plan",
+          "summary": "",
+          "parent_node_id": "node_ecc7b11eebc5",
+          "assigned_worker_id": null,
+          "depends_on": [
+            "node_ecc7b11eebc5"
+          ],
+          "constraints": {
+            "objectives": [],
+            "requirements": [],
+            "forbidden": [],
+            "assumptions": [],
+            "success_criteria": [],
+            "allowed_tools": [],
+            "required_tools": [],
+            "allowed_workers": [],
+            "required_artifacts": [],
+            "resource_preferences": [],
+            "output_schema": {},
+            "state_transition_rules": {},
+            "max_tool_calls": null,
+            "max_input_tokens": null,
+            "max_output_tokens": null,
+            "time_limit_ms": null,
+            "message_budget_chars": 2000
+          },
+          "expected_output_schema": {
+            "type": "object",
+            "required": [
+              "stage_order"
+            ]
+          },
+          "completion_criteria": [
+            "Task graph has ordered stage nodes.",
+            "Each stage is traceable by node_id."
+          ],
+          "evidence_refs": [],
+          "artifact_refs": [],
+          "state_delta": {},
+          "created_at": "2026-09-09T04:02:02.353Z",
+          "updated_at": "2026-09-09T04:02:02.353Z",
+          "metadata": {
+            "stage": "plan",
+            "graph_version": "m3-symbolic-v1"
+          }
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_2be52fb2513d",
+      "task_id": "task_93a1ea924e09",
+      "event_type": "node_created",
+      "event_id": "event_05454cc4df75",
+      "node_id": "node_235b13b79130",
+      "created_at": "2026-09-09T04:02:02.353Z",
+      "payload": {
+        "node": {
+          "node_id": "node_235b13b79130",
+          "title": "Route",
+          "description": "Select the worker and control route for the executable node.",
+          "status": "pending",
+          "intent": "decision",
+          "summary": "",
+          "parent_node_id": "node_ecc7b11eebc5",
+          "assigned_worker_id": null,
+          "depends_on": [
+            "node_c8d4c74b2cb4"
+          ],
+          "constraints": {
+            "objectives": [],
+            "requirements": [],
+            "forbidden": [],
+            "assumptions": [],
+            "success_criteria": [],
+            "allowed_tools": [],
+            "required_tools": [],
+            "allowed_workers": [],
+            "required_artifacts": [],
+            "resource_preferences": [],
+            "output_schema": {},
+            "state_transition_rules": {},
+            "max_tool_calls": null,
+            "max_input_tokens": null,
+            "max_output_tokens": null,
+            "time_limit_ms": null,
+            "message_budget_chars": 2000
+          },
+          "expected_output_schema": {
+            "type": "object",
+            "required": [
+              "selected_worker",
+              "route_candidates"
+            ]
+          },
+          "completion_criteria": [
+            "A topology_route event is emitted.",
+            "A DecisionRecord is appended."
+          ],
+          "evidence_refs": [],
+          "artifact_refs": [],
+          "state_delta": {},
+          "created_at": "2026-09-09T04:02:02.353Z",
+          "updated_at": "2026-09-09T04:02:02.353Z",
+          "metadata": {
+            "stage": "route",
+            "graph_version": "m3-symbolic-v1"
+          }
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_2be52fb2513d",
+      "task_id": "task_93a1ea924e09",
+      "event_type": "node_created",
+      "event_id": "event_26a903ccd5ac",
+      "node_id": "node_e81bd4187160",
+      "created_at": "2026-09-09T04:02:02.353Z",
+      "payload": {
+        "node": {
+          "node_id": "node_e81bd4187160",
+          "title": "Execute",
+          "description": "Run the current node through the selected worker runtime.",
+          "status": "pending",
+          "intent": "tool_call",
+          "summary": "",
+          "parent_node_id": "node_ecc7b11eebc5",
+          "assigned_worker_id": null,
+          "depends_on": [
+            "node_235b13b79130"
+          ],
+          "constraints": {
+            "objectives": [],
+            "requirements": [],
+            "forbidden": [],
+            "assumptions": [],
+            "success_criteria": [],
+            "allowed_tools": [],
+            "required_tools": [],
+            "allowed_workers": [],
+            "required_artifacts": [],
+            "resource_preferences": [],
+            "output_schema": {},
+            "state_transition_rules": {},
+            "max_tool_calls": null,
+            "max_input_tokens": null,
+            "max_output_tokens": null,
+            "time_limit_ms": null,
+            "message_budget_chars": 2000
+          },
+          "expected_output_schema": {
+            "type": "object",
+            "required": [
+              "worker_result"
+            ]
+          },
+          "completion_criteria": [
+            "Worker runtime returns trace events.",
+            "Artifacts or tool results are preserved."
+          ],
+          "evidence_refs": [],
+          "artifact_refs": [],
+          "state_delta": {},
+          "created_at": "2026-09-09T04:02:02.353Z",
+          "updated_at": "2026-09-09T04:02:02.353Z",
+          "metadata": {
+            "stage": "execute",
+            "graph_version": "m3-symbolic-v1"
+          }
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_2be52fb2513d",
+      "task_id": "task_93a1ea924e09",
+      "event_type": "node_created",
+      "event_id": "event_2dcbae083831",
+      "node_id": "node_7c0de1d908f5",
+      "created_at": "2026-09-09T04:02:02.353Z",
+      "payload": {
+        "node": {
+          "node_id": "node_7c0de1d908f5",
+          "title": "Verify",
+          "description": "Check node outputs, event coverage, and checkpoint readiness.",
+          "status": "pending",
+          "intent": "critique",
+          "summary": "",
+          "parent_node_id": "node_ecc7b11eebc5",
+          "assigned_worker_id": null,
+          "depends_on": [
+            "node_e81bd4187160"
+          ],
+          "constraints": {
+            "objectives": [],
+            "requirements": [],
+            "forbidden": [],
+            "assumptions": [],
+            "success_criteria": [],
+            "allowed_tools": [],
+            "required_tools": [],
+            "allowed_workers": [],
+            "required_artifacts": [],
+            "resource_preferences": [],
+            "output_schema": {},
+            "state_transition_rules": {},
+            "max_tool_calls": null,
+            "max_input_tokens": null,
+            "max_output_tokens": null,
+            "time_limit_ms": null,
+            "message_budget_chars": 2000
+          },
+          "expected_output_schema": {
+            "type": "object",
+            "required": [
+              "constraint_results"
+            ]
+          },
+          "completion_criteria": [
+            "ConstraintKeeper emits a constraint_check event."
+          ],
+          "evidence_refs": [],
+          "artifact_refs": [],
+          "state_delta": {},
+          "created_at": "2026-09-09T04:02:02.353Z",
+          "updated_at": "2026-09-09T04:02:02.353Z",
+          "metadata": {
+            "stage": "verify",
+            "graph_version": "m3-symbolic-v1"
+          }
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_2be52fb2513d",
+      "task_id": "task_93a1ea924e09",
+      "event_type": "node_created",
+      "event_id": "event_1c3d12079ad4",
+      "node_id": "node_077ba7b56c3d",
+      "created_at": "2026-09-09T04:02:02.353Z",
+      "payload": {
+        "node": {
+          "node_id": "node_077ba7b56c3d",
+          "title": "Finalize",
+          "description": "Finalize the trace and mark the task ready for inspection.",
+          "status": "pending",
+          "intent": "status",
+          "summary": "",
+          "parent_node_id": "node_ecc7b11eebc5",
+          "assigned_worker_id": null,
+          "depends_on": [
+            "node_7c0de1d908f5"
+          ],
+          "constraints": {
+            "objectives": [],
+            "requirements": [],
+            "forbidden": [],
+            "assumptions": [],
+            "success_criteria": [],
+            "allowed_tools": [],
+            "required_tools": [],
+            "allowed_workers": [],
+            "required_artifacts": [],
+            "resource_preferences": [],
+            "output_schema": {},
+            "state_transition_rules": {},
+            "max_tool_calls": null,
+            "max_input_tokens": null,
+            "max_output_tokens": null,
+            "time_limit_ms": null,
+            "message_budget_chars": 2000
+          },
+          "expected_output_schema": {
+            "type": "object",
+            "required": [
+              "status"
+            ]
+          },
+          "completion_criteria": [
+            "Task trace is ready for inspection."
+          ],
+          "evidence_refs": [],
+          "artifact_refs": [],
+          "state_delta": {},
+          "created_at": "2026-09-09T04:02:02.353Z",
+          "updated_at": "2026-09-09T04:02:02.353Z",
+          "metadata": {
+            "stage": "finalize",
+            "graph_version": "m3-symbolic-v1"
+          }
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_2be52fb2513d",
+      "task_id": "task_93a1ea924e09",
+      "event_type": "system_notice",
+      "event_id": "event_266afbaebb88",
+      "node_id": null,
+      "created_at": "2026-09-09T04:02:02.294Z",
+      "payload": {
+        "workspace_event": {
+          "event_type": "workspace.creating",
+          "workspace_id": "ws_d8bc33fab0d2edb2bb6b3f62",
+          "run_id": "run_2be52fb2513d",
+          "task_id": "task_93a1ea924e09",
+          "session_id": "task:task_93a1ea924e09",
+          "backend_id": "local-default",
+          "lifecycle_state": "creating",
+          "owner_epoch": 1,
+          "binding_revision": 2,
+          "causation_id": "event_40ff355f974c",
+          "receipt": {},
+          "metadata": {},
+          "physical_location_redacted": true
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_2be52fb2513d",
+      "task_id": "task_93a1ea924e09",
+      "event_type": "system_notice",
+      "event_id": "event_bda15cd187a9",
+      "node_id": null,
+      "created_at": "2026-09-09T04:02:02.335Z",
+      "payload": {
+        "workspace_event": {
+          "event_type": "workspace.ready",
+          "workspace_id": "ws_d8bc33fab0d2edb2bb6b3f62",
+          "run_id": "run_2be52fb2513d",
+          "task_id": "task_93a1ea924e09",
+          "session_id": "task:task_93a1ea924e09",
+          "backend_id": "local-default",
+          "lifecycle_state": "ready",
+          "owner_epoch": 1,
+          "binding_revision": 3,
+          "causation_id": "event_40ff355f974c",
+          "receipt": {},
+          "metadata": {},
+          "physical_location_redacted": true
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_2be52fb2513d",
+      "task_id": "task_93a1ea924e09",
+      "event_type": "system_notice",
+      "event_id": "event_686e18fbe105",
+      "node_id": null,
+      "created_at": "2026-09-09T04:02:02.353Z",
+      "payload": {
+        "workspace_event": {
+          "event_type": "workspace.opened",
+          "workspace_id": "ws_d8bc33fab0d2edb2bb6b3f62",
+          "run_id": "run_2be52fb2513d",
+          "task_id": "task_93a1ea924e09",
+          "session_id": "task:task_93a1ea924e09",
+          "backend_id": "local-default",
+          "lifecycle_state": "open",
+          "owner_epoch": 1,
+          "binding_revision": 4,
+          "causation_id": "event_40ff355f974c",
+          "receipt": {
+            "receipt_id": "receipt_aff348e193a437ba21fc1a89",
+            "workspace_id": "ws_d8bc33fab0d2edb2bb6b3f62",
+            "operation": "create",
+            "ok": true,
+            "owner_epoch": 1,
+            "binding_revision": 4,
+            "lease_id": "lease_4a5df52fe9be95648bd83404",
+            "started_at": "2026-09-09T12:02:02.263983+08:00",
+            "completed_at": "2026-09-09T12:02:02.345387+08:00",
+            "causation_id": "event_40ff355f974c",
+            "idempotency_key": "task-create:task_93a1ea924e09",
+            "snapshot_id": "",
+            "paths": [],
+            "bytes_changed": 0,
+            "state_before": "requested",
+            "state_after": "open",
+            "error_code": "",
+            "message": "workspace created and passed ready barrier",
+            "metadata": {
+              "mount_count": 4,
+              "ready_barrier": true,
+              "state_owner": "WorkspaceManagerRuntime"
+            }
+          },
+          "metadata": {},
+          "physical_location_redacted": true
+        }
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_2be52fb2513d",
+      "task_id": "task_93a1ea924e09",
+      "event_type": "system_notice",
+      "event_id": "event_3fa33bc32f2d",
+      "node_id": null,
+      "created_at": "2026-09-09T04:02:02.613Z",
+      "payload": {
+        "worker_pool_operation": "attempt_created",
+        "aggregate_type": "task_attempt",
+        "aggregate_id": "attempt_6d4c8e891459451b8af235c911f0cfb9",
+        "journal_sequence": 7,
+        "physical_state_owner": "WorkerPoolStore",
+        "causation_id": "",
+        "correlation_id": "",
+        "attempt_number": 1,
+        "parent_attempt_id": "",
+        "recovery_reason": ""
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_2be52fb2513d",
+      "task_id": "task_93a1ea924e09",
+      "event_type": "resource_decision",
+      "event_id": "event_144464752c34",
+      "node_id": null,
+      "created_at": "2026-09-09T04:02:02.613Z",
+      "payload": {
+        "worker_pool_operation": "lease_acquired",
+        "aggregate_type": "worker_lease",
+        "aggregate_id": "lease_9c3d3a2f7f03410bbe7973580dede5ef",
+        "journal_sequence": 8,
+        "physical_state_owner": "WorkerPoolStore",
+        "causation_id": "",
+        "correlation_id": "",
+        "attempt_id": "attempt_6d4c8e891459451b8af235c911f0cfb9",
+        "backend_id": "local-sandbox-gateway",
+        "deadline_at": "2026-09-09T05:02:02.536Z",
+        "fence_epoch": 1,
+        "owner_session_id": "task:task_93a1ea924e09",
+        "resources": {
+          "browser_slots": 0,
+          "cpu_cores": 0.0,
+          "custom": {},
+          "disk_mb": 0,
+          "gpu_units": 0.0,
+          "memory_mb": 64,
+          "network_mbps": 0.0,
+          "process_slots": 1
+        },
+        "worker_id": "local-code-worker"
+      },
+      "causation_id": null
+    },
+    {
+      "run_id": "run_2be52fb2513d",
+      "task_id": "task_93a1ea924e09",
+      "event_type": "system_notice",
+      "event_id": "event_5d5540a7f365",
+      "node_id": null,
+      "created_at": "2026-09-09T04:02:02.613Z",
+      "payload": {
+        "worker_pool_operation": "attempt_leased",
+        "aggregate_type": "task_attempt",
+        "aggregate_id": "attempt_6d4c8e891459451b8af235c911f0cfb9",
+        "journal_sequence": 9,
+        "physical_state_owner": "WorkerPoolStore",
+        "causation_id": "",
+        "correlation_id": "",
+        "attempt_number": 1,
+        "lease_id": "lease_9c3d3a2f7f03410bbe7973580dede5ef",
+        "worker_id": "local-code-worker"
+      },
+      "causation_id": null
+    }
+  ],
+  "memory_curator": null
+}

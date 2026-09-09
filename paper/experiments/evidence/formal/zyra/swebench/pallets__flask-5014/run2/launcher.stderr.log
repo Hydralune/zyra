@@ -1,0 +1,7 @@
+node.exe : Terminal listener health could not be attested.
+At C:\Users\Ylon\Desktop\挑战杯2026\zyra\scripts\run_zyra_swebench_flask5014.ps1:80 char:5
++     & node "apps/cli/dist/zyra.js" run --sealed --base-url "http://12 ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Terminal listen...ot be attested.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

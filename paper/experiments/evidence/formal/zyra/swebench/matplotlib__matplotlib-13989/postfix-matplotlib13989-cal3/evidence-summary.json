@@ -1,0 +1,103 @@
+{
+  "schema": "zyra.experiment-run-summary/v1",
+  "instance_id": "matplotlib__matplotlib-13989",
+  "system": "ZYRA",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "invalidation_reason": "",
+  "task_id": "task_97b17fd22645",
+  "run_id": "run_91914f566411",
+  "task_status": "failed",
+  "started_at": "2026-09-09T09:44:22.4378818Z",
+  "ended_at": "2026-09-09T10:26:09.7862929Z",
+  "elapsed_seconds": 2507.348,
+  "budget": {
+    "max_total_tokens": 600000,
+    "max_turns": 80,
+    "deadline_minutes": 45
+  },
+  "usage": {
+    "input_tokens": 315111,
+    "output_tokens": 52259,
+    "total_tokens": 367370,
+    "cache_read_input_tokens": 200320,
+    "cache_creation_input_tokens": 0,
+    "cost_usd": 0.03126416,
+    "provider_calls": 31,
+    "tool_calls": 28,
+    "context_compactions": 0
+  },
+  "workspace_deltas": [
+    {
+      "schema": "zyra.physical-workspace-delta/v1",
+      "before_manifest_digest": "sha256:c16cbeaa492942296bf3cac5a9ceb7adc831b1d7a740d97dac902700b739b824",
+      "after_manifest_digest": "sha256:9e4d60562118fc76726911865357226fc76dfacde9aab76cb8aa12b641a135ad",
+      "created": [
+        "result_images/test_axes/hist_density-expected.png",
+        "result_images/test_axes/hist_density-failed-diff.png",
+        "result_images/test_axes/hist_density.png",
+        "result_images/test_axes/hist_stacked_normed-expected.pdf",
+        "result_images/test_axes/hist_stacked_normed-expected.png",
+        "result_images/test_axes/hist_stacked_normed-failed-diff.png",
+        "result_images/test_axes/hist_stacked_normed.pdf",
+        "result_images/test_axes/hist_stacked_normed.png"
+      ],
+      "modified": [
+        "lib/matplotlib/axes/_axes.py",
+        "lib/matplotlib/tests/test_axes.py"
+      ],
+      "deleted": [],
+      "changed": [
+        "result_images/test_axes/hist_density-expected.png",
+        "result_images/test_axes/hist_density-failed-diff.png",
+        "result_images/test_axes/hist_density.png",
+        "result_images/test_axes/hist_stacked_normed-expected.pdf",
+        "result_images/test_axes/hist_stacked_normed-expected.png",
+        "result_images/test_axes/hist_stacked_normed-failed-diff.png",
+        "result_images/test_axes/hist_stacked_normed.pdf",
+        "result_images/test_axes/hist_stacked_normed.png",
+        "lib/matplotlib/axes/_axes.py",
+        "lib/matplotlib/tests/test_axes.py"
+      ]
+    }
+  ],
+  "evidence_integrity": {
+    "task_run_present": true,
+    "canonical_task_record_observed": true,
+    "terminal_state_observed": true,
+    "run_transport_ok": false,
+    "run_transport_error": "\r\n{\r\n  \"schema\": \"zyra.task-execution-http-error/v1\",\r\n  \"error\": \"task_execution_failed\",\r\n  \"message\": \"worker.code-worker.typescript-provider-tool-loop preserved an incomplete physical layer 1 for recovery.\",\r\n  \"task_id\": \"task_97b17fd22645\",\r\n  \"run_id\": \"run_91914f566411\",\r\n  \"task_status\": \"failed\",\r\n  \"execution_error\": {\r\n    \"schema\": \"zyra.task-execution-error/v1\",\r\n    \"error\": \"RuntimeError\",\r\n    \"message\": \"worker.code-worker.typescript-provider-tool-loop preserved an incomplete physical layer 1 for recovery.\",\r\n    \"retryable\": false,\r\n    \"fallback\": false\r\n  },\r\n  \"event_count\": 643,\r\n  \"event_refs\": [\r\n    {\r\n      \"event_id\": \"event_6742d87fe71f\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_47b0109c0e6d\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_f61804474631\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_4eed68709f71\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_b30fbec1fa85\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_802684b79931\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_c849dabaacaa\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_94c6e288d880\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_375f7c93c9dd\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_a7066d42e9d2\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_b4fb5567d113\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_534f52bef995\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_8fe24fcb171a\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_b3d2103ea7c4\",\r\n      \"event_type\": \"system_notice\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_c74271b69a26\",\r\n      \"event_type\": \"system_notice\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_a9f7167714b7\",\r\n      \"event_type\": \"artifact_written\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_b8359fbb7b90\",\r\n      \"event_type\": \"system_notice\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_f8777a36418b\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_33567f40f449\",\r\n      \"event_type\": \"system_notice\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_6f930ce001c2\",\r\n      \"event_type\": \"system_notice\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_8c35b43edcf7\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_a1e3c9c18a24\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_307667c6ffaa\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_e2bffdee3c60\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_798dd09e1cdc\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_c76be37eab4f\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_049aafa369ff\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_26a6fe648e75\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_6c3e8f924262\",\r\n      \"event_type\": \"resource_decision\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_05fc0067a9b2\",\r\n      \"event_type\": \"system_notice\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_75539c53fd5f\",\r\n      \"event_type\": \"system_notice\"\r\n    },\r\n    {\r\n      \"event_id\": \"event_3939d34b8159\",\r\n      \"event_type\": \"artifact_written\"\r\n    }\r\n  ],\r\n  \"task_ref\": \"/tasks/task_97b17fd22645\",\r\n  \"event_stream_ref\": \"/tasks/task_97b17fd22645/events\",\r\n  \"retryable\": false,\r\n  \"fallback\": false,\r\n  \"terminal_reconciliation\": {},\r\n  \"memory_curator\": {\r\n    \"operation\": \"schedule_task_end\",\r\n    \"status\": \"scheduled\",\r\n    \"scheduled\": {\r\n      \"request\": {\r\n        \"protocol\": \"zyra.memory-curator.v1\",\r\n        \"request_id\": \"curator_request_29c0d66b689ce425bb84c934\",\r\n        \"run_id\": \"run_91914f566411\",\r\n        \"task_id\": \"task_97b17fd22645\",\r\n        \"trigger\": \"task_end\",\r\n        \"requested_by\": \"task-lifecycle\",\r\n        \"input_watermark\": 736,\r\n        \"evidence_start\": 0,\r\n        \"evidence_end\": null,\r\n        \"allow_model_assist\": true,\r\n        \"max_candidates\": 64,\r\n        \"lease_seconds\": 30.0,\r\n        \"idempotency_key\": \"curator-task-end:task_97b17fd22645:736:2026-09-09T10:25:17.132Z\",\r\n        \"created_at\": \"2026-09-09T10:26:06.053Z\",\r\n        \"metadata\": {\r\n          \"task_status\": \"failed\",\r\n          \"task_updated_at\": \"2026-09-09T10:25:17.132Z\",\r\n          \"event_count_at_schedule\": 736,\r\n          \"automatic\": true\r\n        }\r\n      },\r\n      \"job\": {\r\n        \"job_id\": \"curator_job_43de5450f644eca1b5b9d490\",\r\n        \"request\": {\r\n          \"protocol\": \"zyra.memory-curator.v1\",\r\n          \"request_id\": \"curator_request_29c0d66b689ce425bb84c934\",\r\n          \"run_id\": \"run_91914f566411\",\r\n          \"task_id\": \"task_97b17fd22645\",\r\n          \"trigger\": \"task_end\",\r\n          \"requested_by\": \"task-lifecycle\",\r\n          \"input_watermark\": 736,\r\n          \"evidence_start\": 0,\r\n          \"evidence_end\": null,\r\n          \"allow_model_assist\": true,\r\n          \"max_candidates\": 64,\r\n          \"lease_seconds\": 30.0,\r\n          \"idempotency_key\": \"curator-task-end:task_97b17fd22645:736:2026-09-09T10:25:17.132Z\",\r\n          \"created_at\": \"2026-09-09T10:26:06.053Z\",\r\n          \"metadata\": {\r\n            \"automatic\": true,\r\n            \"event_count_at_schedule\": 736,\r\n            \"task_status\": \"failed\",\r\n            \"task_updated_at\": \"2026-09-09T10:25:17.132Z\"\r\n          }\r\n        },\r\n        \"state\": \"queued\",\r\n        \"input_watermark\": 736,\r\n        \"last_success_watermark\": 0,\r\n        \"lease_owner\": \"\",\r\n        \"ownership_token\": \"\",\r\n        \"lease_epoch\": 0,\r\n        \"lease_expires_at\": null,\r\n        \"attempt\": 0,\r\n        \"retry_remaining\": 3,\r\n        \"retry_at\": null,\r\n        \"error_code\": \"\",\r\n        \"error_message\": \"\",\r\n        \"created_at\": 1788949566.0535035,\r\n        \"updated_at\": 1788949566.0535035,\r\n        \"started_at\": null,\r\n        \"finished_at\": null,\r\n        \"candidate_count\": 0,\r\n        \"committed_count\": 0,\r\n        \"dirty\": true,\r\n        \"terminal\": false\r\n      },\r\n      \"created\": true,\r\n      \"event_id\": \"event_07ab508e99d82c8a41c65176\"\r\n    },\r\n    \"result\": null,\r\n    \"data\": {},\r\n    \"integration\": null\r\n  }\r\n}"
+  },
+  "official_evaluator": {
+    "path": "paper\\experiments\\evidence\\formal\\zyra\\swebench\\matplotlib__matplotlib-13989\\postfix-matplotlib13989-cal3\\official-swebench-report\\ZYRA-deepseek-v4-flash-postfix-matplotlib13989-cal3.zyra-postfix-matplotlib13989-cal3-official2.json",
+    "raw": {
+      "total_instances": 1,
+      "submitted_instances": 1,
+      "completed_instances": 1,
+      "resolved_instances": 1,
+      "unresolved_instances": 0,
+      "empty_patch_instances": 0,
+      "error_instances": 0,
+      "unstopped_instances": 0,
+      "completed_ids": [
+        "matplotlib__matplotlib-13989"
+      ],
+      "incomplete_ids": [],
+      "empty_patch_ids": [],
+      "submitted_ids": [
+        "matplotlib__matplotlib-13989"
+      ],
+      "resolved_ids": [
+        "matplotlib__matplotlib-13989"
+      ],
+      "unresolved_ids": [],
+      "error_ids": [],
+      "unstopped_containers": [],
+      "unremoved_images": [
+        "sweb.eval.x86_64.matplotlib__matplotlib-13989:latest"
+      ],
+      "schema_version": 2
+    }
+  },
+  "strict_success": false
+}

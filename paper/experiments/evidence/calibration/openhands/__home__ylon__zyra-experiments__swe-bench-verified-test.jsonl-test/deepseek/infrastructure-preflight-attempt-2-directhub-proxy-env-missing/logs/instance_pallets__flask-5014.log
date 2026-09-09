@@ -1,0 +1,843 @@
+2026-09-07 21:41:28,923 - INFO - root - === Evaluation Started (instance pallets__flask-5014) ===
+    View live output:
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-provisioned/logs/instance_pallets__flask-5014.log          (logger)
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-provisioned/logs/instance_pallets__flask-5014.output.log   (stdout/stderr)
+    ===============================================
+2026-09-07 21:41:28,923 - INFO - benchmarks.utils.evaluation - [worker] start id=pallets__flask-5014
+2026-09-07 21:41:28,943 - INFO - benchmarks.utils.build_utils - Building image from docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest...
+2026-09-07 21:41:28,949 - INFO - openhands.agent_server.docker.build - $ git rev-parse --verify HEAD (cwd=/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk)
+2026-09-07 21:41:28,952 - INFO - openhands.agent_server.docker.build - $ git symbolic-ref -q --short HEAD (cwd=/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk)
+2026-09-07 21:41:28,963 - INFO - benchmarks.utils.build_utils - SDK submodule info: ref=unknown, sha=43376f1, version=1.27.0
+2026-09-07 21:41:32,071 - INFO - openhands.agent_server.docker.build - $ uv build --sdist --out-dir /tmp/agent-sdist-nrb5nugr (cwd=/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk)
+2026-09-07 21:41:33,795 - INFO - openhands.agent_server.docker.build - [build] Built 1 sdists for clean context: /tmp/agent-sdist-nrb5nugr/unknown-0.0.0.tar.gz
+2026-09-07 21:41:33,919 - INFO - openhands.agent_server.docker.build - [build] Clean build context: /tmp/agent-build-q5qetzvr/unknown-0.0.0
+2026-09-07 21:41:33,920 - INFO - openhands.agent_server.docker.build - $ docker buildx inspect --bootstrap (cwd=None)
+2026-09-07 21:41:34,134 - WARNING - openhands.agent_server.docker.build - [build] WARNING: Active buildx driver is 'docker', which does not support local dir caching. Fallback to INLINE CACHE
+ Consider running the following commands to set up a compatible buildx environment:
+  1. docker buildx create --name openhands-builder --driver docker-container --use
+  2. docker buildx inspect --bootstrap
+
+2026-09-07 21:41:34,135 - INFO - openhands.agent_server.docker.build - [build] Cache: inline only (driver=docker)
+2026-09-07 21:41:34,136 - INFO - openhands.agent_server.docker.build - [build] Building target='source-minimal' image='ghcr.io/openhands/eval-agent-server' custom_tags='sweb.eval.x86_64.pallets_1776_flask-5014' from base='docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest' for platforms='local-arch'
+2026-09-07 21:41:34,136 - INFO - openhands.agent_server.docker.build - [build] Git ref='unknown' sha='43376f1868ffd702746080714a59c16d3f69ec12' package_version='1.27.0'
+2026-09-07 21:41:34,137 - INFO - openhands.agent_server.docker.build - [build] Cache tag: buildcache-source-minimal-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b
+2026-09-07 21:41:34,137 - INFO - openhands.agent_server.docker.build - $ docker buildx build --file /home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile --target source-minimal --build-arg BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest --build-arg OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12 --build-arg OPENHANDS_BUILD_GIT_REF=unknown --load --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal --build-arg BUILDKIT_INLINE_CACHE=1 /tmp/agent-build-q5qetzvr/unknown-0.0.0 (cwd=/tmp/agent-build-q5qetzvr/unknown-0.0.0)
+2026-09-07 21:59:39,769 - ERROR - openhands.agent_server.docker.build - [build] ERROR: Build failed with exit code 1
+2026-09-07 21:59:39,770 - ERROR - openhands.agent_server.docker.build - [build] Command: docker buildx build --file /home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile --target source-minimal --build-arg BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest --build-arg OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12 --build-arg OPENHANDS_BUILD_GIT_REF=unknown --load --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal --build-arg BUILDKIT_INLINE_CACHE=1 /tmp/agent-build-q5qetzvr/unknown-0.0.0
+2026-09-07 21:59:39,771 - ERROR - openhands.agent_server.docker.build - [build] Full stdout:
+
+2026-09-07 21:59:39,771 - ERROR - openhands.agent_server.docker.build - [build] Full stderr:
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 17.75kB done
+#1 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#2 DONE 0.3s
+
+#3 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#3 resolve docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e 0.0s done
+#3 CACHED
+
+#4 [internal] load metadata for ghcr.io/astral-sh/uv:0.11.6
+#4 DONE 1.3s
+
+#5 [internal] load metadata for docker.io/library/python:3.13-bookworm
+#5 DONE 1.6s
+
+#6 [internal] load metadata for docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest
+#6 DONE 2.6s
+
+#7 [internal] load .dockerignore
+#7 transferring context: 2B done
+#7 DONE 0.0s
+
+#8 [internal] load build context
+#8 DONE 0.0s
+
+#9 [internal] settings cache mount permissions
+#9 DONE 0.0s
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 resolve docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72 0.1s done
+#10 ...
+
+#11 FROM ghcr.io/astral-sh/uv:0.11.6@sha256:b1e699368d24c57cda93c338a57a8c5a119009ba809305cc8e86986d4a006754
+#11 resolve ghcr.io/astral-sh/uv:0.11.6@sha256:b1e699368d24c57cda93c338a57a8c5a119009ba809305cc8e86986d4a006754 0.1s done
+#11 CACHED
+
+#9 [internal] settings cache mount permissions
+#9 CACHED
+
+#8 [internal] load build context
+#8 transferring context: 37.57kB 0.0s done
+#8 DONE 0.1s
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 134.22MB / 420.17MB 0.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 134.22MB / 420.17MB 5.3s
+#10 ...
+
+#12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+#12 resolve docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c 0.1s done
+#12 sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 211.66MB / 211.66MB 8.4s done
+#12 extracting sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e
+#12 ...
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 134.22MB / 420.17MB 10.4s
+#10 ...
+
+#12 [builder  1/10] FROM docker.io/library/python:3.13-bookworm@sha256:933b46a028fd786c9c3d426ebabc237e29a15912231ea8de576e95f0e4f41a4c
+#12 extracting sha256:01a6a9ffe665b63ea18491fedb646423413ae3fdefcf7776ee25a2eaff8a673e 4.4s done
+#12 extracting sha256:d3d41deec81954be79a2442a587b0dbecb08709045480459d8e26e305fa5253b 0.2s done
+#12 extracting sha256:a9968771b0ec814cb450eb0ff0339337fcecdbc84e535dc1b104ad984e009f02 0.7s done
+#12 extracting sha256:c696b6a84063ac75f9a13fe12c0952e505d3a72ce273f071ab0fa2772366a182 0.0s done
+#12 DONE 14.1s
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 ...
+
+#13 [builder  2/10] COPY --from=ghcr.io/astral-sh/uv:0.11.6 /uv /uvx /bin/
+#13 DONE 0.5s
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 ...
+
+#14 [builder  3/10] RUN groupadd -g 10001 openhands  && useradd -m -u 10001 -g 10001 -s /usr/sbin/nologin openhands  && mkdir -p /agent-server/uv-managed-python  && chown -R openhands:openhands /agent-server
+#14 DONE 0.5s
+
+#15 [builder  4/10] WORKDIR /agent-server
+#15 DONE 0.1s
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 ...
+
+#16 [builder  5/10] COPY --chown=openhands:openhands pyproject.toml uv.lock README.md LICENSE ./
+#16 DONE 0.2s
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 ...
+
+#17 [builder  6/10] COPY --chown=openhands:openhands openhands-sdk ./openhands-sdk
+#17 DONE 0.2s
+
+#18 [builder  7/10] COPY --chown=openhands:openhands openhands-tools ./openhands-tools
+#18 DONE 0.2s
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 ...
+
+#19 [builder  8/10] COPY --chown=openhands:openhands openhands-workspace ./openhands-workspace
+#19 DONE 0.1s
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 134.22MB / 420.17MB 15.5s
+#10 ...
+
+#20 [builder  9/10] COPY --chown=openhands:openhands openhands-agent-server ./openhands-agent-server
+#20 DONE 0.2s
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 134.22MB / 420.17MB 20.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 25.7s
+#10 ...
+
+#21 [builder 10/10] RUN --mount=type=cache,target=/home/openhands/.cache,uid=10001,gid=10001     uv python install 3.13 &&     uv venv --python-preference only-managed --python 3.13 .venv &&     uv sync --frozen --no-editable --managed-python --extra boto3 &&     readlink -f .venv/bin/python | grep -q '^/agent-server/uv-managed-python/'
+#21 0.776 Downloading cpython-3.13.13-linux-x86_64-gnu (download) (33.7MiB)
+#21 3.954  Downloaded cpython-3.13.13-linux-x86_64-gnu (download)
+#21 3.966 Installed Python 3.13.13 in 3.59s
+#21 3.966  + cpython-3.13.13-linux-x86_64-gnu (python3.13)
+#21 3.966 warning: `/home/openhands/.local/bin` is not on your PATH. To use installed Python executables, add the directory to your PATH.
+#21 4.127 Using CPython 3.13.13
+#21 4.127 Creating virtual environment at: .venv
+#21 4.313    Building openhands-tools @ file:///agent-server/openhands-tools
+#21 4.313    Building openhands-workspace @ file:///agent-server/openhands-workspace
+#21 4.314    Building openhands-agent-server @ file:///agent-server/openhands-agent-server
+#21 4.314    Building openhands-sdk @ file:///agent-server/openhands-sdk
+#21 4.622 Downloading pygments (1.2MiB)
+#21 4.622 Downloading setuptools (1.1MiB)
+#21 4.623 Downloading beartype (1.3MiB)
+#21 4.657 Downloading litellm (16.0MiB)
+#21 4.657 Downloading pyarrow (40.8MiB)
+#21 4.658 Downloading aiohttp (1.7MiB)
+#21 4.658 Downloading openai (1.1MiB)
+#21 4.658 Downloading reportlab (1.9MiB)
+#21 4.659 Downloading virtualenv (5.7MiB)
+#21 4.660 Downloading streamlit (8.7MiB)
+#21 4.662 Downloading grpcio (5.6MiB)
+#21 4.663 Downloading lxml (5.0MiB)
+#21 4.698 Downloading pydantic-core (2.0MiB)
+#21 4.698 Downloading numpy (15.9MiB)
+#21 4.699 Downloading sqlalchemy (3.1MiB)
+#21 4.705 Downloading pip (1.7MiB)
+#21 4.706 Downloading pyright (5.7MiB)
+#21 4.706 Downloading botocore (13.4MiB)
+#21 4.707 Downloading google-api-python-client (13.6MiB)
+#21 4.707 Downloading lupa (2.2MiB)
+#21 4.708 Downloading hf-xet (3.0MiB)
+#21 4.709 Downloading pydeck (6.6MiB)
+#21 4.710 Downloading tiktoken (1.1MiB)
+#21 4.711 Downloading ruff (12.6MiB)
+#21 4.711 Downloading pillow (6.8MiB)
+#21 4.712 Downloading pandas (11.5MiB)
+#21 4.713 Downloading tokenizers (3.2MiB)
+#21 4.714 Downloading cryptography (4.3MiB)
+#21 4.912 Downloading nodejs-wheel-binaries (55.7MiB)
+#21 4.912 Downloading lmnr-claude-code-proxy (1.4MiB)
+#21 8.807  Downloaded openai
+#21 8.931  Downloaded tiktoken
+#21 9.003  Downloaded setuptools
+#21 9.061  Downloaded pygments
+#21 9.453  Downloaded beartype
+#21 9.920  Downloaded lmnr-claude-code-proxy
+#21 ...
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 30.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 35.9s
+#10 ...
+
+#21 [builder 10/10] RUN --mount=type=cache,target=/home/openhands/.cache,uid=10001,gid=10001     uv python install 3.13 &&     uv venv --python-preference only-managed --python 3.13 .venv &&     uv sync --frozen --no-editable --managed-python --extra boto3 &&     readlink -f .venv/bin/python | grep -q '^/agent-server/uv-managed-python/'
+#21 10.38  Downloaded aiohttp
+#21 10.48  Downloaded pip
+#21 10.70  Downloaded reportlab
+#21 10.95  Downloaded pydantic-core
+#21 11.58  Downloaded lupa
+#21 11.81    Building func-timeout==4.3.5
+#21 12.79  Downloaded hf-xet
+#21 12.93  Downloaded tokenizers
+#21 12.97  Downloaded sqlalchemy
+#21 14.24  Downloaded cryptography
+#21 15.02  Downloaded lxml
+#21 15.52       Built func-timeout==4.3.5
+#21 15.68       Built openhands-agent-server @ file:///agent-server/openhands-agent-server
+#21 15.70       Built openhands-workspace @ file:///agent-server/openhands-workspace
+#21 15.74       Built openhands-tools @ file:///agent-server/openhands-tools
+#21 15.78  Downloaded grpcio
+#21 15.86  Downloaded pyright
+#21 15.95  Downloaded virtualenv
+#21 15.97       Built openhands-sdk @ file:///agent-server/openhands-sdk
+#21 16.81  Downloaded pydeck
+#21 16.90  Downloaded pillow
+#21 18.32  Downloaded streamlit
+#21 20.01  Downloaded pandas
+#21 ...
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 40.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 46.1s
+#10 ...
+
+#21 [builder 10/10] RUN --mount=type=cache,target=/home/openhands/.cache,uid=10001,gid=10001     uv python install 3.13 &&     uv venv --python-preference only-managed --python 3.13 .venv &&     uv sync --frozen --no-editable --managed-python --extra boto3 &&     readlink -f .venv/bin/python | grep -q '^/agent-server/uv-managed-python/'
+#21 20.63  Downloaded ruff
+#21 20.95  Downloaded botocore
+#21 21.00  Downloaded google-api-python-client
+#21 21.68  Downloaded litellm
+#21 21.75  Downloaded numpy
+#21 25.44  Downloaded pyarrow
+#21 27.72  Downloaded nodejs-wheel-binaries
+#21 27.73 Prepared 239 packages in 23.44s
+#21 27.73 warning: Failed to hardlink files; falling back to full copy. This may lead to degraded performance.
+#21 27.73          If the cache and target directories are on different filesystems, hardlinking may not be supported.
+#21 27.73          If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.
+#21 ...
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 ...
+
+#21 [builder 10/10] RUN --mount=type=cache,target=/home/openhands/.cache,uid=10001,gid=10001     uv python install 3.13 &&     uv venv --python-preference only-managed --python 3.13 .venv &&     uv sync --frozen --no-editable --managed-python --extra boto3 &&     readlink -f .venv/bin/python | grep -q '^/agent-server/uv-managed-python/'
+#21 32.95 Installed 239 packages in 5.22s
+#21 32.95  + agent-client-protocol==0.8.1
+#21 32.95  + aiofile==3.9.0
+#21 32.95  + aiofiles==25.1.0
+#21 32.95  + aiohappyeyeballs==2.6.1
+#21 32.95  + aiohttp==3.13.4
+#21 32.95  + aiosignal==1.4.0
+#21 32.95  + aiosqlite==0.21.0
+#21 32.95  + alembic==1.17.0
+#21 32.95  + altair==5.5.0
+#21 32.95  + altgraph==0.17.4
+#21 32.95  + annotated-doc==0.0.4
+#21 32.95  + annotated-types==0.7.0
+#21 32.95  + anthropic==0.75.0
+#21 32.95  + anyio==4.11.0
+#21 32.95  + attrs==25.3.0
+#21 32.95  + authlib==1.6.12
+#21 32.95  + backoff==2.2.1
+#21 32.95  + beartype==0.22.9
+#21 32.95  + beautifulsoup4==4.14.2
+#21 32.95  + binaryornot==0.4.4
+#21 32.95  + blinker==1.9.0
+#21 32.95  + boto3==1.40.52
+#21 32.95  + botocore==1.40.52
+#21 32.95  + browser-use==0.11.9
+#21 32.95  + browser-use-sdk==2.0.15
+#21 32.95  + bubus==1.5.6
+#21 32.95  + cachetools==5.5.2
+#21 32.95  + caio==0.9.25
+#21 32.95  + cdp-use==1.4.4
+#21 32.95  + certifi==2025.8.3
+#21 32.95  + cffi==2.0.0
+#21 32.95  + cfgv==3.4.0
+#21 32.95  + chardet==5.2.0
+#21 32.95  + charset-normalizer==3.4.3
+#21 32.95  + click==8.1.8
+#21 32.95  + cloudpickle==3.1.2
+#21 32.95  + colorama==0.4.6
+#21 32.95  + coverage==7.10.6
+#21 32.95  + cryptography==46.0.7
+#21 32.95  + cyclopts==4.6.0
+#21 32.95  + deprecation==2.1.0
+#21 32.95  + distlib==0.4.0
+#21 32.95  + distro==1.9.0
+#21 32.95  + dnspython==2.8.0
+#21 32.95  + docker==7.1.0
+#21 32.95  + docstring-parser==0.17.0
+#21 32.95  + docutils==0.22.2
+#21 32.95  + email-validator==2.3.0
+#21 32.95  + exceptiongroup==1.3.0
+#21 32.95  + execnet==2.1.2
+#21 32.95  + fakeredis==2.34.1
+#21 32.95  + fastapi==0.129.0
+#21 32.95  + fastmcp==3.2.0
+#21 32.95  + fastuuid==0.14.0
+#21 32.95  + filelock==3.20.3
+#21 32.95  + frozenlist==1.8.0
+#21 32.95  + fsspec==2025.9.0
+#21 32.95  + func-timeout==4.3.5
+#21 32.95  + gitdb==4.0.12
+#21 32.95  + gitpython==3.1.50
+#21 32.95  + google-api-core==2.26.0
+#21 32.95  + google-api-python-client==2.184.0
+#21 32.95  + google-auth==2.41.1
+#21 32.95  + google-auth-httplib2==0.2.0
+#21 32.95  + google-auth-oauthlib==1.2.2
+#21 32.95  + google-genai==1.52.0
+#21 32.95  + googleapis-common-protos==1.70.0
+#21 32.95  + greenlet==3.2.4
+#21 32.95  + griffe==2.0.0
+#21 32.95  + griffecli==2.0.0
+#21 32.95  + griffelib==2.0.0
+#21 32.95  + groq==0.32.0
+#21 32.95  + grpcio==1.67.1
+#21 32.95  + h11==0.16.0
+#21 32.95  + hf-xet==1.1.10
+#21 32.95  + httpcore==1.0.9
+#21 32.95  + httplib2==0.31.0
+#21 32.95  + httpx==0.28.1
+#21 32.95  + httpx-sse==0.4.3
+#21 32.95  + huggingface-hub==0.35.3
+#21 32.95  + identify==2.6.14
+#21 32.95  + idna==3.15
+#21 32.95  + importlib-metadata==8.5.0
+#21 32.95  + iniconfig==2.1.0
+#21 32.95  + inquirerpy==0.3.4
+#21 32.95  + jaraco-classes==3.4.0
+#21 32.95  + jaraco-context==6.1.0
+#21 32.95  + jaraco-functools==4.4.0
+#21 32.95  + jeepney==0.9.0
+#21 32.95  + jinja2==3.1.6
+#21 32.95  + jiter==0.11.0
+#21 32.95  + jmespath==1.0.1
+#21 32.95  + joserfc==1.6.4
+#21 32.95  + json-repair==0.54.2
+#21 32.95  + jsonref==1.1.0
+#21 32.95  + jsonschema==4.23.0
+#21 32.95  + jsonschema-path==0.3.4
+#21 32.95  + jsonschema-specifications==2025.9.1
+#21 32.95  + keyring==25.7.0
+#21 32.95  + libtmux==0.53.0
+#21 32.95  + litellm==1.84.1
+#21 32.95  + lmnr==0.7.47
+#21 32.95  + lmnr-claude-code-proxy==0.1.18
+#21 32.95  + lupa==2.8
+#21 32.95  + lxml==6.1.0
+#21 32.95  + mako==1.3.12
+#21 32.95  + markdown-it-py==4.0.0
+#21 32.95  + markdownify==1.2.0
+#21 32.95  + markupsafe==3.0.2
+#21 32.95  + mcp==1.26.0
+#21 32.95  + mdurl==0.1.2
+#21 32.95  + more-itertools==10.8.0
+#21 32.95  + multidict==6.7.0
+#21 32.95  + narwhals==2.5.0
+#21 32.95  + nodeenv==1.9.1
+#21 32.95  + nodejs-wheel-binaries==22.19.0
+#21 32.95  + numpy==2.3.3
+#21 32.95  + oauthlib==3.3.1
+#21 32.95  + ollama==0.6.0
+#21 32.95  + openai==2.33.0
+#21 32.95  + openapi-pydantic==0.5.1
+#21 32.95  + openhands-agent-server==1.27.0 (from file:///agent-server/openhands-agent-server)
+#21 32.95  + openhands-sdk==1.27.0 (from file:///agent-server/openhands-sdk)
+#21 32.95  + openhands-tools==1.27.0 (from file:///agent-server/openhands-tools)
+#21 32.95  + openhands-workspace==1.27.0 (from file:///agent-server/openhands-workspace)
+#21 32.95  + opentelemetry-api==1.39.1
+#21 32.95  + opentelemetry-exporter-otlp-proto-common==1.39.1
+#21 32.95  + opentelemetry-exporter-otlp-proto-grpc==1.39.1
+#21 32.95  + opentelemetry-exporter-otlp-proto-http==1.39.1
+#21 32.95  + opentelemetry-instrumentation==0.60b1
+#21 32.95  + opentelemetry-instrumentation-threading==0.60b1
+#21 32.95  + opentelemetry-proto==1.39.1
+#21 32.95  + opentelemetry-sdk==1.39.1
+#21 32.95  + opentelemetry-semantic-conventions==0.60b1
+#21 32.95  + opentelemetry-semantic-conventions-ai==0.4.13
+#21 32.95  + orjson==3.11.7
+#21 32.95  + packaging==25.0
+#21 32.95  + pandas==2.3.2
+#21 32.95  + pathable==0.4.4
+#21 32.95  + pfzy==0.3.4
+#21 32.95  + pillow==12.2.0
+#21 32.95  + pip==26.1
+#21 32.95  + platformdirs==4.4.0
+#21 32.95  + pluggy==1.6.0
+#21 32.95  + portalocker==2.10.1
+#21 32.95  + posthog==6.7.7
+#21 32.95  + pre-commit==4.3.0
+#21 32.95  + prompt-toolkit==3.0.52
+#21 32.95  + propcache==0.4.1
+#21 32.95  + proto-plus==1.26.1
+#21 32.95  + protobuf==6.33.5
+#21 32.95  + psutil==7.1.0
+#21 32.95  + py==1.11.0
+#21 32.95  + py-key-value-aio==0.4.4
+#21 32.95  + pyarrow==21.0.0
+#21 32.95  + pyasn1==0.6.3
+#21 32.95  + pyasn1-modules==0.4.2
+#21 32.95  + pycodestyle==2.14.0
+#21 32.95  + pycparser==2.23
+#21 32.95  + pydantic==2.12.5
+#21 32.95  + pydantic-core==2.41.5
+#21 32.95  + pydantic-settings==2.11.0
+#21 32.95  + pydeck==0.9.1
+#21 32.95  + pygments==2.20.0
+#21 32.95  + pyinstaller==6.16.0
+#21 32.95  + pyinstaller-hooks-contrib==2025.8
+#21 32.95  + pyjwt==2.12.0
+#21 32.95  + pyotp==2.9.0
+#21 32.95  + pyparsing==3.2.5
+#21 32.95  + pypdf==6.10.2
+#21 32.95  + pyperclip==1.11.0
+#21 32.95  + pyright==1.1.407
+#21 32.95  + pytest==9.0.3
+#21 32.95  + pytest-asyncio==1.3.0
+#21 32.95  + pytest-cov==7.0.0
+#21 32.95  + pytest-forked==1.6.0
+#21 32.95  + pytest-timeout==2.4.0
+#21 32.95  + pytest-xdist==3.8.0
+#21 32.95  + python-dateutil==2.9.0.post0
+#21 32.95  + python-docx==1.2.0
+#21 32.95  + python-dotenv==1.2.2
+#21 32.95  + python-frontmatter==1.1.0
+#21 32.95  + python-json-logger==4.0.0
+#21 32.95  + python-multipart==0.0.27
+#21 32.95  + pytz==2025.2
+#21 32.95  + pyyaml==6.0.2
+#21 32.95  + redis==7.2.1
+#21 32.95  + referencing==0.36.2
+#21 32.95  + regex==2025.9.18
+#21 32.95  + reportlab==4.4.4
+#21 32.95  + requests==2.33.0
+#21 32.95  + requests-oauthlib==2.0.0
+#21 32.95  + rich==14.3.3
+#21 32.95  + rich-rst==1.3.2
+#21 32.95  + rpds-py==0.27.1
+#21 32.95  + rsa==4.9.1
+#21 32.95  + ruff==0.13.1
+#21 32.95  + s3transfer==0.14.0
+#21 32.95  + screeninfo==0.8.1
+#21 32.95  + secretstorage==3.5.0
+#21 32.95  + setuptools==80.9.0
+#21 32.95  + six==1.17.0
+#21 32.95  + smmap==5.0.2
+#21 32.95  + sniffio==1.3.1
+#21 32.95  + socksio==1.0.0
+#21 32.95  + sortedcontainers==2.4.0
+#21 32.95  + soupsieve==2.8
+#21 32.95  + sqlalchemy==2.0.44
+#21 32.95  + sse-starlette==3.0.2
+#21 32.95  + starlette==0.52.1
+#21 32.95  + streamlit==1.54.0
+#21 32.95  + tabulate==0.9.0
+#21 32.95  + tenacity==9.1.2
+#21 32.95  + tiktoken==0.12.0
+#21 32.95  + tokenizers==0.23.1
+#21 32.95  + tom-swe==1.0.3
+#21 32.95  + toml==0.10.2
+#21 32.95  + tornado==6.5.5
+#21 32.95  + tqdm==4.67.1
+#21 32.95  + tree-sitter==0.25.2
+#21 32.95  + tree-sitter-bash==0.25.1
+#21 32.95  + typing-extensions==4.15.0
+#21 32.95  + typing-inspection==0.4.2
+#21 32.95  + tzdata==2025.2
+#21 32.95  + uncalled-for==0.2.0
+#21 32.95  + uritemplate==4.2.0
+#21 32.95  + urllib3==2.7.0
+#21 32.95  + uuid7==0.1.0
+#21 32.95  + uvicorn==0.37.0
+#21 32.95  + virtualenv==20.36.1
+#21 32.95  + watchdog==6.0.0
+#21 32.95  + watchfiles==1.1.1
+#21 32.95  + wcwidth==0.2.14
+#21 32.95  + websockets==15.0.1
+#21 32.95  + wheel==0.46.3
+#21 32.95  + wrapt==1.17.3
+#21 32.95  + wsproto==1.2.0
+#21 32.96  + yarl==1.22.0
+#21 32.96  + zipp==3.23.0
+#21 DONE 33.6s
+
+#10 [base-image-minimal 1/6] FROM docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest@sha256:bde4fbdafa36141d4396944da88ec37aabdef612ed36920090675bccd0ca5d72
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 51.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 56.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 61.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 66.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 71.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 76.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 81.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 86.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 91.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 135.27MB / 420.17MB 97.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 136.31MB / 420.17MB 102.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 136.31MB / 420.17MB 107.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 136.31MB / 420.17MB 112.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 136.31MB / 420.17MB 117.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 136.31MB / 420.17MB 122.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 136.31MB / 420.17MB 127.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 136.31MB / 420.17MB 132.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 136.31MB / 420.17MB 137.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 137.36MB / 420.17MB 142.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 137.36MB / 420.17MB 148.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 137.36MB / 420.17MB 153.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 137.36MB / 420.17MB 158.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 137.36MB / 420.17MB 163.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 138.41MB / 420.17MB 168.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 138.41MB / 420.17MB 173.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 138.41MB / 420.17MB 178.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 138.41MB / 420.17MB 183.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 138.41MB / 420.17MB 188.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 138.41MB / 420.17MB 193.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 138.41MB / 420.17MB 199.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 139.46MB / 420.17MB 204.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 139.46MB / 420.17MB 209.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 139.46MB / 420.17MB 214.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 139.46MB / 420.17MB 219.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 139.46MB / 420.17MB 224.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 139.46MB / 420.17MB 229.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 139.46MB / 420.17MB 234.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 139.46MB / 420.17MB 239.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 140.51MB / 420.17MB 244.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 140.51MB / 420.17MB 250.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 140.51MB / 420.17MB 255.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 140.51MB / 420.17MB 260.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 140.51MB / 420.17MB 265.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 140.51MB / 420.17MB 270.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 140.51MB / 420.17MB 275.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 140.51MB / 420.17MB 280.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 141.56MB / 420.17MB 285.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 141.56MB / 420.17MB 290.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 141.56MB / 420.17MB 295.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 141.56MB / 420.17MB 301.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 141.56MB / 420.17MB 306.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 141.56MB / 420.17MB 311.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 157.29MB / 420.17MB 316.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 164.63MB / 420.17MB 321.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 168.82MB / 420.17MB 326.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 170.92MB / 420.17MB 331.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 171.97MB / 420.17MB 336.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 174.06MB / 420.17MB 341.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 175.11MB / 420.17MB 346.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 177.21MB / 420.17MB 352.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 178.26MB / 420.17MB 357.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 180.36MB / 420.17MB 362.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 181.40MB / 420.17MB 367.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 181.40MB / 420.17MB 372.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 181.40MB / 420.17MB 377.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 181.40MB / 420.17MB 382.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 181.40MB / 420.17MB 387.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 181.40MB / 420.17MB 392.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 181.40MB / 420.17MB 397.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 182.45MB / 420.17MB 403.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 182.45MB / 420.17MB 408.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 182.45MB / 420.17MB 413.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 182.45MB / 420.17MB 418.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 182.45MB / 420.17MB 423.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 182.45MB / 420.17MB 428.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 182.45MB / 420.17MB 433.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 438.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 443.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 448.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 454.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 459.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 464.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 469.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 474.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 479.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 484.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 489.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 494.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 499.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 505.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 510.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 183.50MB / 420.17MB 515.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 184.55MB / 420.17MB 520.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 184.55MB / 420.17MB 525.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 184.55MB / 420.17MB 530.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 184.55MB / 420.17MB 535.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 184.55MB / 420.17MB 540.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 184.55MB / 420.17MB 545.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 184.55MB / 420.17MB 550.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 184.55MB / 420.17MB 556.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 184.55MB / 420.17MB 561.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 184.55MB / 420.17MB 566.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 184.55MB / 420.17MB 571.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 184.55MB / 420.17MB 576.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 184.55MB / 420.17MB 581.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 185.60MB / 420.17MB 586.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 185.60MB / 420.17MB 591.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 185.60MB / 420.17MB 596.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 185.60MB / 420.17MB 601.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 185.60MB / 420.17MB 607.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 185.60MB / 420.17MB 612.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 185.60MB / 420.17MB 617.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 185.60MB / 420.17MB 622.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 185.60MB / 420.17MB 627.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 185.60MB / 420.17MB 632.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 637.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 642.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 647.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 652.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 658.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 663.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 668.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 673.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 678.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 683.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 688.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 693.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 698.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 703.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 709.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 714.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 719.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 724.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 729.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 734.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 739.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 744.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 749.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 754.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 760.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 765.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 770.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 775.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 780.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 785.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 790.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 795.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 800.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 805.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 811.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 816.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 821.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 826.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 831.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 836.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 186.65MB / 420.17MB 841.6s
+#10 842.4 error: failed to copy: read tcp 172.21.213.125:38116->104.16.220.194:443: read: connection timed out
+#10 842.4 retrying in 1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 187.38MB / 420.17MB 3.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 187.38MB / 420.17MB 8.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 187.38MB / 420.17MB 13.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 187.38MB / 420.17MB 18.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 188.43MB / 420.17MB 23.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 189.48MB / 420.17MB 28.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 189.48MB / 420.17MB 33.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 190.53MB / 420.17MB 38.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 192.62MB / 420.17MB 44.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 192.62MB / 420.17MB 49.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 192.62MB / 420.17MB 54.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 192.62MB / 420.17MB 59.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 193.67MB / 420.17MB 64.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 193.67MB / 420.17MB 69.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 194.72MB / 420.17MB 74.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 194.72MB / 420.17MB 79.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 195.77MB / 420.17MB 84.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 195.77MB / 420.17MB 89.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 196.82MB / 420.17MB 94.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 196.82MB / 420.17MB 100.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 197.87MB / 420.17MB 105.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 197.87MB / 420.17MB 110.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 197.87MB / 420.17MB 115.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 198.92MB / 420.17MB 120.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 198.92MB / 420.17MB 125.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 198.92MB / 420.17MB 130.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 199.96MB / 420.17MB 135.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 201.01MB / 420.17MB 140.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 202.06MB / 420.17MB 145.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 203.11MB / 420.17MB 151.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 206.26MB / 420.17MB 156.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 207.30MB / 420.17MB 161.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 208.35MB / 420.17MB 166.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 209.40MB / 420.17MB 171.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 209.40MB / 420.17MB 176.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 210.45MB / 420.17MB 181.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 210.45MB / 420.17MB 186.7s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 211.50MB / 420.17MB 191.8s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 212.55MB / 420.17MB 196.9s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 213.60MB / 420.17MB 202.0s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 214.64MB / 420.17MB 207.1s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 214.64MB / 420.17MB 212.2s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 215.69MB / 420.17MB 217.3s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 215.69MB / 420.17MB 222.4s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 216.74MB / 420.17MB 227.5s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 216.74MB / 420.17MB 232.6s
+#10 sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266 217.79MB / 420.17MB 237.7s
+ERROR: failed to receive status: rpc error: code = Unavailable desc = error reading from server: EOF
+
+2026-09-07 21:59:39,772 - INFO - openhands.agent_server.docker.build - [build] Cleaning /tmp/agent-build-q5qetzvr/unknown-0.0.0
+2026-09-07 21:59:39,778 - INFO - benchmarks.utils.build_utils - Image build output: time='2026-09-07T13:59:39.778446+00:00' base_image='docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest' tags=[] error="BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-q5qetzvr/unknown-0.0.0'])" log_path=None status='failed' skip_reason=None attempt_count=1 started_at=None finished_at=None duration_seconds=None remote_check_seconds=3.103 build_seconds=1087.751 post_build_seconds=None sdk_build_context_seconds=1.848 sdk_buildx_wall_clock_seconds=1085.674 sdk_cleanup_seconds=0.005 sdk_cache_import_seconds=0.0 sdk_cache_import_miss_count=0 sdk_cache_export_seconds=0.0 sdk_image_export_seconds=0.0 sdk_push_layers_seconds=0.0 sdk_export_manifest_seconds=0.0 sdk_cached_step_count=3
+2026-09-07 21:59:39,779 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=1
+2026-09-07 21:59:39,780 - ERROR - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed after 1 attempts. Last error: Image build failed: BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-q5qetzvr/unknown-0.0.0'])
+Traceback (most recent call last):
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/evaluation.py", line 1084, in _execute_single_attempt
+    workspace = self.prepare_workspace(
+                ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/swebench/run_infer.py", line 274, in prepare_workspace
+    built = ensure_local_image(
+            ^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/build_utils.py", line 515, in ensure_local_image
+    raise RuntimeError(f"Image build failed: {output.error}")
+RuntimeError: Image build failed: BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-q5qetzvr/unknown-0.0.0'])
+2026-09-07 21:59:39,868 - INFO - root - === Evaluation Started (instance pallets__flask-5014) ===
+    View live output:
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-provisioned/logs/instance_pallets__flask-5014.log          (logger)
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-provisioned/logs/instance_pallets__flask-5014.output.log   (stdout/stderr)
+    ===============================================
+2026-09-07 21:59:39,868 - INFO - benchmarks.utils.evaluation - [worker] start id=pallets__flask-5014
+2026-09-07 21:59:39,890 - INFO - benchmarks.utils.build_utils - Building image from docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest...
+2026-09-07 21:59:39,896 - INFO - benchmarks.utils.build_utils - SDK submodule info: ref=unknown, sha=43376f1, version=1.27.0
+2026-09-07 21:59:51,785 - INFO - openhands.agent_server.docker.build - $ uv build --sdist --out-dir /tmp/agent-sdist-8qn3t19f (cwd=/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk)
+2026-09-07 21:59:53,361 - INFO - openhands.agent_server.docker.build - [build] Built 1 sdists for clean context: /tmp/agent-sdist-8qn3t19f/unknown-0.0.0.tar.gz
+2026-09-07 21:59:53,450 - INFO - openhands.agent_server.docker.build - [build] Clean build context: /tmp/agent-build-vlntg9df/unknown-0.0.0
+2026-09-07 21:59:53,451 - INFO - openhands.agent_server.docker.build - $ docker buildx inspect --bootstrap (cwd=None)
+2026-09-07 21:59:53,605 - WARNING - openhands.agent_server.docker.build - [build] WARNING: Active buildx driver is 'docker', which does not support local dir caching. Fallback to INLINE CACHE
+ Consider running the following commands to set up a compatible buildx environment:
+  1. docker buildx create --name openhands-builder --driver docker-container --use
+  2. docker buildx inspect --bootstrap
+
+2026-09-07 21:59:53,606 - INFO - openhands.agent_server.docker.build - [build] Cache: inline only (driver=docker)
+2026-09-07 21:59:53,606 - INFO - openhands.agent_server.docker.build - [build] Building target='source-minimal' image='ghcr.io/openhands/eval-agent-server' custom_tags='sweb.eval.x86_64.pallets_1776_flask-5014' from base='docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest' for platforms='local-arch'
+2026-09-07 21:59:53,607 - INFO - openhands.agent_server.docker.build - [build] Git ref='unknown' sha='43376f1868ffd702746080714a59c16d3f69ec12' package_version='1.27.0'
+2026-09-07 21:59:53,607 - INFO - openhands.agent_server.docker.build - [build] Cache tag: buildcache-source-minimal-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b
+2026-09-07 21:59:53,607 - INFO - openhands.agent_server.docker.build - $ docker buildx build --file /home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile --target source-minimal --build-arg BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest --build-arg OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12 --build-arg OPENHANDS_BUILD_GIT_REF=unknown --load --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal --build-arg BUILDKIT_INLINE_CACHE=1 /tmp/agent-build-vlntg9df/unknown-0.0.0 (cwd=/tmp/agent-build-vlntg9df/unknown-0.0.0)
+2026-09-07 22:00:26,669 - ERROR - openhands.agent_server.docker.build - [build] ERROR: Build failed with exit code 1
+2026-09-07 22:00:26,669 - ERROR - openhands.agent_server.docker.build - [build] Command: docker buildx build --file /home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile --target source-minimal --build-arg BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest --build-arg OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12 --build-arg OPENHANDS_BUILD_GIT_REF=unknown --load --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal --build-arg BUILDKIT_INLINE_CACHE=1 /tmp/agent-build-vlntg9df/unknown-0.0.0
+2026-09-07 22:00:26,669 - ERROR - openhands.agent_server.docker.build - [build] Full stdout:
+
+2026-09-07 22:00:26,670 - ERROR - openhands.agent_server.docker.build - [build] Full stderr:
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 17.75kB done
+#1 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#2 ...
+
+#3 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#2 ERROR: failed to authorize: DeadlineExceeded: failed to fetch oauth token: Post "https://auth.docker.io/token": dial tcp 128.242.245.212:443: i/o timeout
+------
+ > resolve image config for docker-image://docker.io/docker/dockerfile:1.7:
+------
+Dockerfile:1
+--------------------
+   1 | >>> # syntax=docker/dockerfile:1.7
+   2 |     
+   3 |     # NOTE: LC_ALL/LANG must be set to C.UTF-8 for libtmux to work correctly with
+--------------------
+ERROR: failed to solve: DeadlineExceeded: failed to fetch oauth token: Post "https://auth.docker.io/token": dial tcp 128.242.245.212:443: i/o timeout
+
+2026-09-07 22:00:26,670 - INFO - openhands.agent_server.docker.build - [build] Cleaning /tmp/agent-build-vlntg9df/unknown-0.0.0
+2026-09-07 22:00:26,675 - INFO - benchmarks.utils.build_utils - Image build output: time='2026-09-07T14:00:26.675167+00:00' base_image='docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest' tags=[] error="BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-vlntg9df/unknown-0.0.0'])" log_path=None status='failed' skip_reason=None attempt_count=1 started_at=None finished_at=None duration_seconds=None remote_check_seconds=11.886 build_seconds=34.891 post_build_seconds=None sdk_build_context_seconds=1.665 sdk_buildx_wall_clock_seconds=33.062 sdk_cleanup_seconds=0.004 sdk_cache_import_seconds=0.0 sdk_cache_import_miss_count=0 sdk_cache_export_seconds=0.0 sdk_image_export_seconds=0.0 sdk_push_layers_seconds=0.0 sdk_export_manifest_seconds=0.0 sdk_cached_step_count=0
+2026-09-07 22:00:26,675 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=1
+2026-09-07 22:00:26,676 - ERROR - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed after 1 attempts. Last error: Image build failed: BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-vlntg9df/unknown-0.0.0'])
+Traceback (most recent call last):
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/evaluation.py", line 1084, in _execute_single_attempt
+    workspace = self.prepare_workspace(
+                ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/swebench/run_infer.py", line 274, in prepare_workspace
+    built = ensure_local_image(
+            ^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/build_utils.py", line 515, in ensure_local_image
+    raise RuntimeError(f"Image build failed: {output.error}")
+RuntimeError: Image build failed: BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-vlntg9df/unknown-0.0.0'])
+2026-09-07 22:00:26,774 - INFO - root - === Evaluation Started (instance pallets__flask-5014) ===
+    View live output:
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-provisioned/logs/instance_pallets__flask-5014.log          (logger)
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-provisioned/logs/instance_pallets__flask-5014.output.log   (stdout/stderr)
+    ===============================================
+2026-09-07 22:00:26,774 - INFO - benchmarks.utils.evaluation - [worker] start id=pallets__flask-5014
+2026-09-07 22:00:26,792 - INFO - benchmarks.utils.build_utils - Building image from docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest...
+2026-09-07 22:00:26,796 - INFO - benchmarks.utils.build_utils - SDK submodule info: ref=unknown, sha=43376f1, version=1.27.0
+2026-09-07 22:00:32,332 - INFO - openhands.agent_server.docker.build - $ uv build --sdist --out-dir /tmp/agent-sdist-ce2iop5v (cwd=/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk)
+2026-09-07 22:00:33,205 - INFO - openhands.agent_server.docker.build - [build] Built 1 sdists for clean context: /tmp/agent-sdist-ce2iop5v/unknown-0.0.0.tar.gz
+2026-09-07 22:00:33,294 - INFO - openhands.agent_server.docker.build - [build] Clean build context: /tmp/agent-build-gqbw401y/unknown-0.0.0
+2026-09-07 22:00:33,295 - INFO - openhands.agent_server.docker.build - $ docker buildx inspect --bootstrap (cwd=None)
+2026-09-07 22:00:33,448 - WARNING - openhands.agent_server.docker.build - [build] WARNING: Active buildx driver is 'docker', which does not support local dir caching. Fallback to INLINE CACHE
+ Consider running the following commands to set up a compatible buildx environment:
+  1. docker buildx create --name openhands-builder --driver docker-container --use
+  2. docker buildx inspect --bootstrap
+
+2026-09-07 22:00:33,449 - INFO - openhands.agent_server.docker.build - [build] Cache: inline only (driver=docker)
+2026-09-07 22:00:33,449 - INFO - openhands.agent_server.docker.build - [build] Building target='source-minimal' image='ghcr.io/openhands/eval-agent-server' custom_tags='sweb.eval.x86_64.pallets_1776_flask-5014' from base='docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest' for platforms='local-arch'
+2026-09-07 22:00:33,449 - INFO - openhands.agent_server.docker.build - [build] Git ref='unknown' sha='43376f1868ffd702746080714a59c16d3f69ec12' package_version='1.27.0'
+2026-09-07 22:00:33,450 - INFO - openhands.agent_server.docker.build - [build] Cache tag: buildcache-source-minimal-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b
+2026-09-07 22:00:33,450 - INFO - openhands.agent_server.docker.build - $ docker buildx build --file /home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile --target source-minimal --build-arg BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest --build-arg OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12 --build-arg OPENHANDS_BUILD_GIT_REF=unknown --load --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal --build-arg BUILDKIT_INLINE_CACHE=1 /tmp/agent-build-gqbw401y/unknown-0.0.0 (cwd=/tmp/agent-build-gqbw401y/unknown-0.0.0)
+2026-09-07 22:01:04,000 - ERROR - openhands.agent_server.docker.build - [build] ERROR: Build failed with exit code 1
+2026-09-07 22:01:04,001 - ERROR - openhands.agent_server.docker.build - [build] Command: docker buildx build --file /home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile --target source-minimal --build-arg BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest --build-arg OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12 --build-arg OPENHANDS_BUILD_GIT_REF=unknown --load --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal --tag ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal --build-arg BUILDKIT_INLINE_CACHE=1 /tmp/agent-build-gqbw401y/unknown-0.0.0
+2026-09-07 22:01:04,001 - ERROR - openhands.agent_server.docker.build - [build] Full stdout:
+
+2026-09-07 22:01:04,002 - ERROR - openhands.agent_server.docker.build - [build] Full stderr:
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 17.75kB done
+#1 DONE 0.0s
+
+#2 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#2 DONE 0.0s
+
+#3 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#3 ERROR: failed to authorize: DeadlineExceeded: failed to fetch oauth token: Post "https://auth.docker.io/token": dial tcp 128.242.245.212:443: i/o timeout
+------
+ > resolve image config for docker-image://docker.io/docker/dockerfile:1.7:
+------
+Dockerfile:1
+--------------------
+   1 | >>> # syntax=docker/dockerfile:1.7
+   2 |     
+   3 |     # NOTE: LC_ALL/LANG must be set to C.UTF-8 for libtmux to work correctly with
+--------------------
+ERROR: failed to solve: DeadlineExceeded: failed to fetch oauth token: Post "https://auth.docker.io/token": dial tcp 128.242.245.212:443: i/o timeout
+
+2026-09-07 22:01:04,002 - INFO - openhands.agent_server.docker.build - [build] Cleaning /tmp/agent-build-gqbw401y/unknown-0.0.0
+2026-09-07 22:01:04,006 - INFO - benchmarks.utils.build_utils - Image build output: time='2026-09-07T14:01:04.006217+00:00' base_image='docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest' tags=[] error="BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-gqbw401y/unknown-0.0.0'])" log_path=None status='failed' skip_reason=None attempt_count=1 started_at=None finished_at=None duration_seconds=None remote_check_seconds=5.533 build_seconds=31.675 post_build_seconds=None sdk_build_context_seconds=0.962 sdk_buildx_wall_clock_seconds=30.551 sdk_cleanup_seconds=0.004 sdk_cache_import_seconds=0.0 sdk_cache_import_miss_count=0 sdk_cache_export_seconds=0.0 sdk_image_export_seconds=0.0 sdk_push_layers_seconds=0.0 sdk_export_manifest_seconds=0.0 sdk_cached_step_count=0
+2026-09-07 22:01:04,007 - WARNING - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014: failure_category=resource, escalate_resources=True, runtime_failure_count=1
+2026-09-07 22:01:04,007 - ERROR - benchmarks.utils.evaluation - [worker] Instance pallets__flask-5014 failed after 1 attempts. Last error: Image build failed: BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-gqbw401y/unknown-0.0.0'])
+Traceback (most recent call last):
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/evaluation.py", line 1084, in _execute_single_attempt
+    workspace = self.prepare_workspace(
+                ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/swebench/run_infer.py", line 274, in prepare_workspace
+    built = ensure_local_image(
+            ^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/build_utils.py", line 515, in ensure_local_image
+    raise RuntimeError(f"Image build failed: {output.error}")
+RuntimeError: Image build failed: BuildCommandError(1, ['docker', 'buildx', 'build', '--file', '/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-agent-server/openhands/agent_server/docker/Dockerfile', '--target', 'source-minimal', '--build-arg', 'BASE_IMAGE=docker.io/swebench/sweb.eval.x86_64.pallets_1776_flask-5014:latest', '--build-arg', 'OPENHANDS_BUILD_GIT_SHA=43376f1868ffd702746080714a59c16d3f69ec12', '--build-arg', 'OPENHANDS_BUILD_GIT_REF=unknown', '--load', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1868ffd702746080714a59c16d3f69ec12-sweb.eval.x86_64.pallets_1776_flask-5014-source-minimal', '--tag', 'ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pallets_1776_flask-5014_tag_latest-a68bc9bdbd8b-source-minimal', '--build-arg', 'BUILDKIT_INLINE_CACHE=1', '/tmp/agent-build-gqbw401y/unknown-0.0.0'])

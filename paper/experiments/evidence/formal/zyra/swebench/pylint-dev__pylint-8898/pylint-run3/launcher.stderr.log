@@ -1,0 +1,100 @@
+Invoke-RestMethod: C:\Users\Ylon\Desktop\ÃÙ’Ω±≠2026\zyra\scripts\run_zyra_swebench_flask5014.ps1:150
+Line |
+ 150 |  °≠ completed = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:800 °≠
+     |                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     |  {   "schema": "zyra.task-execution-http-error/v1",   "error":
+     | "task_execution_failed",   "message":
+     | "worker.code-worker.typescript-provider-tool-loop preserved an
+     | incomplete physical layer 1 for recovery.",   "task_id":
+     | "task_96c1b9ed0690",   "run_id": "run_2061de45612e",   "task_status":
+     | "failed",   "execution_error": {     "schema":
+     | "zyra.task-execution-error/v1",     "error": "RuntimeError",    
+     | "message": "worker.code-worker.typescript-provider-tool-loop preserved
+     | an incomplete physical layer 1 for recovery.",     "retryable": false,  
+     | "fallback": false   },   "event_count": 691,   "event_refs": [     {    
+     | "event_id": "event_464312c0efd0",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_650cb90faee0",
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_b1621c9902b9",       "event_type": "resource_decision"     },    
+     | {       "event_id": "event_00031d7ffb98",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_f48c2ddf0379",
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_328485859880",       "event_type": "resource_decision"     },    
+     | {       "event_id": "event_88beb92a8dc1",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_d6802cb589c6",
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_247c5d083611",       "event_type": "resource_decision"     },    
+     | {       "event_id": "event_8bef2633014b",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_904f1d2b06a6",
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_bf628f948d00",       "event_type": "resource_decision"     },    
+     | {       "event_id": "event_de09d493c1f5",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_23c9e8d541cf",
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_6cf391562114",       "event_type": "resource_decision"     },    
+     | {       "event_id": "event_6a88275663a2",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_0dae35b9b2c9",
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_b48f763435e8",       "event_type": "resource_decision"     },    
+     | {       "event_id": "event_3ccb39c14727",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_06c6f6276721",
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_5456e5565c61",       "event_type": "resource_decision"     },    
+     | {       "event_id": "event_0ac443f913e2",       "event_type":
+     | "system_notice"     },     {       "event_id": "event_3b64b23ffa14",    
+     | "event_type": "system_notice"     },     {       "event_id":
+     | "event_c524036bb398",       "event_type": "artifact_written"     },    
+     | {       "event_id": "event_0d9246222612",       "event_type":
+     | "system_notice"     },     {       "event_id": "event_03944459d129",    
+     | "event_type": "resource_decision"     },     {       "event_id":
+     | "event_1e13faceaeb2",       "event_type": "system_notice"     },     {  
+     | "event_id": "event_353f2f8a3919",       "event_type": "system_notice"   
+     | },     {       "event_id": "event_7d667eac91e7",       "event_type":
+     | "resource_decision"     },     {       "event_id": "event_035a89e8a03e",
+     | "event_type": "system_notice"     },     {       "event_id":
+     | "event_22d5ffabcd98",       "event_type": "system_notice"     },     {  
+     | "event_id": "event_b73074966709",       "event_type": "artifact_written"
+     | }   ],   "task_ref": "/tasks/task_96c1b9ed0690",   "event_stream_ref":
+     | "/tasks/task_96c1b9ed0690/events",   "retryable": false,   "fallback":
+     | false,   "terminal_reconciliation": {},   "memory_curator": {    
+     | "operation": "schedule_task_end",     "status": "scheduled",    
+     | "scheduled": {       "request": {         "protocol":
+     | "zyra.memory-curator.v1",         "request_id":
+     | "curator_request_544999cf96ce38da8a8cdd73",         "run_id":
+     | "run_2061de45612e",         "task_id": "task_96c1b9ed0690",        
+     | "trigger": "task_end",         "requested_by": "task-lifecycle",        
+     | "input_watermark": 791,         "evidence_start": 0,        
+     | "evidence_end": null,         "allow_model_assist": true,        
+     | "max_candidates": 64,         "lease_seconds": 30.0,        
+     | "idempotency_key":
+     | "curator-task-end:task_96c1b9ed0690:791:2026-09-09T00:17:08.380Z",      
+     | "created_at": "2026-09-09T00:17:51.119Z",         "metadata": {         
+     | "task_status": "failed",           "task_updated_at":
+     | "2026-09-09T00:17:08.380Z",           "event_count_at_schedule": 791,   
+     | "automatic": true         }       },       "job": {         "job_id":
+     | "curator_job_bc16a1b60600bc622385a2c2",         "request": {          
+     | "protocol": "zyra.memory-curator.v1",           "request_id":
+     | "curator_request_544999cf96ce38da8a8cdd73",           "run_id":
+     | "run_2061de45612e",           "task_id": "task_96c1b9ed0690",          
+     | "trigger": "task_end",           "requested_by": "task-lifecycle",      
+     | "input_watermark": 791,           "evidence_start": 0,          
+     | "evidence_end": null,           "allow_model_assist": true,          
+     | "max_candidates": 64,           "lease_seconds": 30.0,          
+     | "idempotency_key":
+     | "curator-task-end:task_96c1b9ed0690:791:2026-09-09T00:17:08.380Z",      
+     | "created_at": "2026-09-09T00:17:51.119Z",           "metadata": {       
+     | "automatic": true,             "event_count_at_schedule": 791,          
+     | "task_status": "failed",             "task_updated_at":
+     | "2026-09-09T00:17:08.380Z"           }         },         "state":
+     | "queued",         "input_watermark": 791,        
+     | "last_success_watermark": 0,         "lease_owner": "",        
+     | "ownership_token": "",         "lease_epoch": 0,        
+     | "lease_expires_at": null,         "attempt": 0,        
+     | "retry_remaining": 3,         "retry_at": null,         "error_code":
+     | "",         "error_message": "",         "created_at":
+     | 1788913071.1190844,         "updated_at": 1788913071.1190844,        
+     | "started_at": null,         "finished_at": null,        
+     | "candidate_count": 0,         "committed_count": 0,         "dirty":
+     | true,         "terminal": false       },       "created": true,      
+     | "event_id": "event_7706c47e56e15eb7ae550ce4"     },     "result": null, 
+     | "data": {},     "integration": null   } }

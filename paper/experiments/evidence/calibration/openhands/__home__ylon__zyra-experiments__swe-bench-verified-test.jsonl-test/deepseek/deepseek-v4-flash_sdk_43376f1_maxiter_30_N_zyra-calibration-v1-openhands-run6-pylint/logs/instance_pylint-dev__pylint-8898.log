@@ -1,0 +1,420 @@
+2026-09-08 00:54:36,627 - INFO - root - === Evaluation Started (instance pylint-dev__pylint-8898) ===
+    View live output:
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/logs/instance_pylint-dev__pylint-8898.log          (logger)
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/logs/instance_pylint-dev__pylint-8898.output.log   (stdout/stderr)
+    ===============================================
+2026-09-08 00:54:36,628 - INFO - benchmarks.utils.evaluation - [worker] start id=pylint-dev__pylint-8898
+2026-09-08 00:54:36,699 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal
+2026-09-08 00:54:36,709 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-08 00:54:36,745 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-39e3cc56-16f9-4160-9d6b-605955dee803 -e LMNR_SPAN_CONTEXT=null -p 39200:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal --host 0.0.0.0 --port 8000
+2026-09-08 00:54:37,089 - INFO - openhands.workspace.docker.workspace - Started container: 3ac3589430911bc57ebcb92598683a5095f8790f1ddf58b1723c1d5fbdc747fb
+2026-09-08 00:54:37,092 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 3ac3589430911bc57ebcb92598683a5095f8790f1ddf58b1723c1d5fbdc747fb
+2026-09-08 00:54:38,107 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 3ac3589430911bc57ebcb92598683a5095f8790f1ddf58b1723c1d5fbdc747fb
+2026-09-08 00:54:39,124 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 3ac3589430911bc57ebcb92598683a5095f8790f1ddf58b1723c1d5fbdc747fb
+2026-09-08 00:54:40,138 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 3ac3589430911bc57ebcb92598683a5095f8790f1ddf58b1723c1d5fbdc747fb
+2026-09-08 00:54:41,154 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 3ac3589430911bc57ebcb92598683a5095f8790f1ddf58b1723c1d5fbdc747fb
+2026-09-08 00:54:42,173 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 3ac3589430911bc57ebcb92598683a5095f8790f1ddf58b1723c1d5fbdc747fb
+2026-09-08 00:54:43,187 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 3ac3589430911bc57ebcb92598683a5095f8790f1ddf58b1723c1d5fbdc747fb
+2026-09-08 00:54:44,200 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 3ac3589430911bc57ebcb92598683a5095f8790f1ddf58b1723c1d5fbdc747fb
+2026-09-08 00:54:45,215 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 3ac3589430911bc57ebcb92598683a5095f8790f1ddf58b1723c1d5fbdc747fb
+2026-09-08 00:54:46,231 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:39200
+2026-09-08 00:55:46,417 - ERROR - openhands.sdk.git.utils - Git command timed out: git fetch origin
+2026-09-08 00:55:46,418 - WARNING - openhands.sdk.git.cached_repo - Failed to fetch updates: Git command timed out: git fetch origin. Using cached version.
+2026-09-08 00:55:46,592 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-08 00:55:46,621 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-08 00:55:46,751 - INFO - __main__ - repo_path: /workspace/pylint/
+2026-09-08 00:55:48,287 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-08 00:57:06,457 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: failure_category=resource, escalate_resources=True, runtime_failure_count=1
+2026-09-08 00:57:06,457 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898 failed (attempt 1/4): Conversation run failed for id=58e8fb3b-ca01-40c8-a998-ada0ac713f39: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-08 00:57:06,593 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pylint-dev__pylint-8898 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/conversations/pylint-dev__pylint-8898.tar.gz
+2026-09-08 00:57:08,593 - INFO - openhands.workspace.docker.workspace - Stopping container: 3ac3589430911bc57ebcb92598683a5095f8790f1ddf58b1723c1d5fbdc747fb
+2026-09-08 00:57:08,594 - INFO - openhands.sdk.utils.command - $ docker stop 3ac3589430911bc57ebcb92598683a5095f8790f1ddf58b1723c1d5fbdc747fb
+2026-09-08 00:57:09,127 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: attempt 2/4, runtime_failure_count=1, resource_factor=2
+2026-09-08 00:57:09,169 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal
+2026-09-08 00:57:09,178 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-08 00:57:09,205 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-3b42ce1a-1db3-4e58-8bb3-81dc2e61714f -e LMNR_SPAN_CONTEXT=null -p 36154:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal --host 0.0.0.0 --port 8000
+2026-09-08 00:57:09,504 - INFO - openhands.workspace.docker.workspace - Started container: a3606187c06870f850c38bbfd21e3095569254167aa31a52510951303b00fb88
+2026-09-08 00:57:09,506 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a3606187c06870f850c38bbfd21e3095569254167aa31a52510951303b00fb88
+2026-09-08 00:57:10,518 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a3606187c06870f850c38bbfd21e3095569254167aa31a52510951303b00fb88
+2026-09-08 00:57:11,535 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a3606187c06870f850c38bbfd21e3095569254167aa31a52510951303b00fb88
+2026-09-08 00:57:12,551 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a3606187c06870f850c38bbfd21e3095569254167aa31a52510951303b00fb88
+2026-09-08 00:57:13,567 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a3606187c06870f850c38bbfd21e3095569254167aa31a52510951303b00fb88
+2026-09-08 00:57:14,581 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a3606187c06870f850c38bbfd21e3095569254167aa31a52510951303b00fb88
+2026-09-08 00:57:15,596 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a3606187c06870f850c38bbfd21e3095569254167aa31a52510951303b00fb88
+2026-09-08 00:57:16,609 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' a3606187c06870f850c38bbfd21e3095569254167aa31a52510951303b00fb88
+2026-09-08 00:57:17,624 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:36154
+2026-09-08 00:58:17,801 - ERROR - openhands.sdk.git.utils - Git command timed out: git fetch origin
+2026-09-08 00:58:17,802 - WARNING - openhands.sdk.git.cached_repo - Failed to fetch updates: Git command timed out: git fetch origin. Using cached version.
+2026-09-08 00:58:17,915 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-08 00:58:17,928 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-08 00:58:18,007 - INFO - __main__ - repo_path: /workspace/pylint/
+2026-09-08 00:58:18,813 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-08 01:00:08,782 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: failure_category=resource, escalate_resources=True, runtime_failure_count=2
+2026-09-08 01:00:08,783 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898 failed (attempt 2/4): Conversation run failed for id=df371010-a043-4242-8b34-f4ccbe3ace77: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-08 01:00:08,913 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pylint-dev__pylint-8898 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/conversations/pylint-dev__pylint-8898.tar.gz
+2026-09-08 01:00:10,914 - INFO - openhands.workspace.docker.workspace - Stopping container: a3606187c06870f850c38bbfd21e3095569254167aa31a52510951303b00fb88
+2026-09-08 01:00:10,915 - INFO - openhands.sdk.utils.command - $ docker stop a3606187c06870f850c38bbfd21e3095569254167aa31a52510951303b00fb88
+2026-09-08 01:00:11,481 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: attempt 3/4, runtime_failure_count=2, resource_factor=4
+2026-09-08 01:00:11,518 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal
+2026-09-08 01:00:11,526 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-08 01:00:11,553 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-f565ae44-cdcd-4854-bb1e-bb188e9e8398 -e LMNR_SPAN_CONTEXT=null -p 37159:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal --host 0.0.0.0 --port 8000
+2026-09-08 01:00:11,852 - INFO - openhands.workspace.docker.workspace - Started container: 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:00:11,854 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:00:12,868 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:00:13,883 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:00:14,898 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:00:15,911 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:00:16,925 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:00:17,939 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:00:18,953 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:00:19,966 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:00:20,979 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:00:21,994 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:00:23,008 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:00:24,029 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:37159
+2026-09-08 01:01:24,172 - ERROR - openhands.sdk.git.utils - Git command timed out: git fetch origin
+2026-09-08 01:01:24,173 - WARNING - openhands.sdk.git.cached_repo - Failed to fetch updates: Git command timed out: git fetch origin. Using cached version.
+2026-09-08 01:01:24,279 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-08 01:01:24,292 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-08 01:01:24,376 - INFO - __main__ - repo_path: /workspace/pylint/
+2026-09-08 01:01:25,281 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-08 01:03:39,784 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: failure_category=resource, escalate_resources=True, runtime_failure_count=3
+2026-09-08 01:03:39,785 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898 failed (attempt 3/4): Conversation run failed for id=d16dae6e-cbaf-47d0-bdd6-7b2ee6db2175: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-08 01:03:39,916 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pylint-dev__pylint-8898 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/conversations/pylint-dev__pylint-8898.tar.gz
+2026-09-08 01:03:41,916 - INFO - openhands.workspace.docker.workspace - Stopping container: 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:03:41,917 - INFO - openhands.sdk.utils.command - $ docker stop 7090ecf21e29960579066fc6c5561eb34c188ca2f1f376b287058eb4009d653b
+2026-09-08 01:03:42,429 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: attempt 4/4, runtime_failure_count=3, resource_factor=8
+2026-09-08 01:03:42,471 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal
+2026-09-08 01:03:42,480 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-08 01:03:42,505 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-82885b18-8c13-4908-9014-72c225a890f5 -e LMNR_SPAN_CONTEXT=null -p 39906:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal --host 0.0.0.0 --port 8000
+2026-09-08 01:03:42,781 - INFO - openhands.workspace.docker.workspace - Started container: 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:42,783 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:43,797 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:44,811 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:45,825 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:46,838 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:47,852 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:48,865 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:49,879 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:50,893 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:51,907 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:52,920 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:53,933 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:54,947 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:03:55,964 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:39906
+2026-09-08 01:04:39,092 - ERROR - openhands.sdk.git.utils - Git command failed: git fetch origin. Exit code: 128. Stderr: fatal: unable to access 'https://github.com/OpenHands/extensions/': Error in the HTTP2 framing layer
+
+2026-09-08 01:04:39,093 - WARNING - openhands.sdk.git.cached_repo - Failed to fetch updates: Git command failed: git fetch origin. Using cached version.
+2026-09-08 01:04:39,236 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-08 01:04:39,265 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-08 01:04:39,355 - INFO - __main__ - repo_path: /workspace/pylint/
+2026-09-08 01:04:40,676 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-08 01:06:24,299 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: failure_category=resource, escalate_resources=True, runtime_failure_count=4
+2026-09-08 01:06:24,299 - ERROR - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898 failed after 4 attempts. Last error: Conversation run failed for id=bfddfacf-8716-4157-8dc5-d9d24809058f: MaxIterationsReached: Agent reached maximum iterations limit (30).
+Traceback (most recent call last):
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/evaluation.py", line 1113, in _execute_single_attempt
+    out = self.evaluate_instance(instance, workspace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/swebench/run_infer.py", line 485, in evaluate_instance
+    run_conversation_with_fake_user_response(conversation)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/fake_user_response.py", line 148, in run_conversation_with_fake_user_response
+    conversation.run(timeout=run_timeout)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/observability/laminar.py", line 187, in sync_wrapper
+    return func(*args, **fkwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1092, in run
+    self._wait_for_run_completion(poll_interval, timeout)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1154, in _wait_for_run_completion
+    self._handle_conversation_status(ws_status)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1254, in _handle_conversation_status
+    raise ConversationRunError(
+openhands.sdk.conversation.exceptions.ConversationRunError: Conversation run failed for id=bfddfacf-8716-4157-8dc5-d9d24809058f: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-08 01:06:24,527 - INFO - __main__ - Collected failure patch for pylint-dev__pylint-8898: 0 chars
+2026-09-08 01:06:24,641 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pylint-dev__pylint-8898 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/conversations/pylint-dev__pylint-8898.tar.gz
+2026-09-08 01:06:26,656 - INFO - openhands.workspace.docker.workspace - Stopping container: 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:06:26,657 - INFO - openhands.sdk.utils.command - $ docker stop 178a215af0794c21138fd357371f2dfad67c6776820c1577a695b94eb7ff6d60
+2026-09-08 01:06:27,269 - INFO - root - === Evaluation Started (instance pylint-dev__pylint-8898) ===
+    View live output:
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/logs/instance_pylint-dev__pylint-8898.log          (logger)
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/logs/instance_pylint-dev__pylint-8898.output.log   (stdout/stderr)
+    ===============================================
+2026-09-08 01:06:27,269 - INFO - benchmarks.utils.evaluation - [worker] start id=pylint-dev__pylint-8898
+2026-09-08 01:06:27,310 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal
+2026-09-08 01:06:27,318 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-08 01:06:27,343 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-af6a5b21-6d9e-455b-999e-5da5c92e5c6d -e LMNR_SPAN_CONTEXT=null -p 34959:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal --host 0.0.0.0 --port 8000
+2026-09-08 01:06:27,622 - INFO - openhands.workspace.docker.workspace - Started container: 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:27,624 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:28,637 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:29,651 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:30,664 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:31,678 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:32,692 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:33,705 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:34,719 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:35,734 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:36,747 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:37,760 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:38,773 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:39,788 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:06:40,804 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:34959
+2026-09-08 01:07:40,993 - ERROR - openhands.sdk.git.utils - Git command timed out: git fetch origin
+2026-09-08 01:07:40,993 - WARNING - openhands.sdk.git.cached_repo - Failed to fetch updates: Git command timed out: git fetch origin. Using cached version.
+2026-09-08 01:07:41,144 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-08 01:07:41,172 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-08 01:07:41,264 - INFO - __main__ - repo_path: /workspace/pylint/
+2026-09-08 01:07:42,687 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-08 01:08:22,132 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: failure_category=resource, escalate_resources=True, runtime_failure_count=1
+2026-09-08 01:08:22,134 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898 failed (attempt 1/4): Conversation run failed for id=122a99b1-d241-4ea4-a9ab-88c575d79b5b: LLMBadRequestError: litellm.BadRequestError: DeepseekException - {"error":{"message":"The `reasoning_content` in the thinking mode must be passed back to the API.","type":"invalid_request_error","param":null,"code":"invalid_request_error"}}
+2026-09-08 01:08:22,266 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pylint-dev__pylint-8898 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/conversations/pylint-dev__pylint-8898.tar.gz
+2026-09-08 01:08:24,267 - INFO - openhands.workspace.docker.workspace - Stopping container: 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:08:24,267 - INFO - openhands.sdk.utils.command - $ docker stop 34b76892b906d30676a7fc5e5a712d7c99876543fe403e7e9b60c301efc27c3b
+2026-09-08 01:08:24,845 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: attempt 2/4, runtime_failure_count=1, resource_factor=2
+2026-09-08 01:08:24,885 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal
+2026-09-08 01:08:24,893 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-08 01:08:24,919 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-09c1309d-4f8a-476f-9c98-59dc024f63ca -e LMNR_SPAN_CONTEXT=null -p 33195:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal --host 0.0.0.0 --port 8000
+2026-09-08 01:08:25,187 - INFO - openhands.workspace.docker.workspace - Started container: e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:25,188 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:26,202 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:27,215 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:28,230 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:29,244 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:30,257 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:31,270 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:32,283 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:33,296 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:34,309 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:35,323 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:36,335 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:37,350 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:08:38,365 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:33195
+2026-09-08 01:08:38,563 - INFO - __main__ - repo_path: /workspace/pylint/
+2026-09-08 01:08:39,264 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-08 01:10:34,341 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: failure_category=resource, escalate_resources=True, runtime_failure_count=2
+2026-09-08 01:10:34,342 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898 failed (attempt 2/4): Conversation run failed for id=56bc433e-4b3b-48fc-a9e7-bc8fd791d912: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-08 01:10:34,473 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pylint-dev__pylint-8898 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/conversations/pylint-dev__pylint-8898.tar.gz
+2026-09-08 01:10:36,472 - INFO - openhands.workspace.docker.workspace - Stopping container: e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:10:36,473 - INFO - openhands.sdk.utils.command - $ docker stop e3c44813c3b2b120e10262c9f794373ad9c58f8811d931a090e3d699c08c3c4c
+2026-09-08 01:10:37,031 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: attempt 3/4, runtime_failure_count=2, resource_factor=4
+2026-09-08 01:10:37,073 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal
+2026-09-08 01:10:37,081 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-08 01:10:37,107 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-edb21798-1701-4dfe-afa9-d2b188d22f0b -e LMNR_SPAN_CONTEXT=null -p 33763:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal --host 0.0.0.0 --port 8000
+2026-09-08 01:10:37,404 - INFO - openhands.workspace.docker.workspace - Started container: 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:37,406 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:38,421 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:39,434 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:40,447 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:41,461 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:42,473 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:43,487 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:44,500 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:45,514 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:46,527 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:47,541 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:48,556 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:49,570 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:10:50,585 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:33763
+2026-09-08 01:10:51,759 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-08 01:10:51,786 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-08 01:10:51,871 - INFO - __main__ - repo_path: /workspace/pylint/
+2026-09-08 01:10:53,298 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-08 01:12:39,429 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: failure_category=resource, escalate_resources=True, runtime_failure_count=3
+2026-09-08 01:12:39,429 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898 failed (attempt 3/4): Conversation run failed for id=0ba618eb-4989-4405-b197-85d1b19fff15: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-08 01:12:39,560 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pylint-dev__pylint-8898 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/conversations/pylint-dev__pylint-8898.tar.gz
+2026-09-08 01:12:41,561 - INFO - openhands.workspace.docker.workspace - Stopping container: 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:12:41,562 - INFO - openhands.sdk.utils.command - $ docker stop 5f3378689a7ce5ac2df721c984b45984ed08a90bac16054c6d6dc6046cddd768
+2026-09-08 01:12:42,103 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: attempt 4/4, runtime_failure_count=3, resource_factor=8
+2026-09-08 01:12:42,140 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal
+2026-09-08 01:12:42,149 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-08 01:12:42,176 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-dd18f032-f1ef-4658-96c4-c70cb7d9a857 -e LMNR_SPAN_CONTEXT=null -p 35375:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal --host 0.0.0.0 --port 8000
+2026-09-08 01:12:42,466 - INFO - openhands.workspace.docker.workspace - Started container: b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:42,467 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:43,482 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:44,495 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:45,511 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:46,525 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:47,539 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:48,552 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:49,567 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:50,580 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:51,597 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:52,610 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:53,623 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:54,636 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:55,650 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:56,664 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:57,677 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:58,690 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:12:59,704 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:13:00,723 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:35375
+2026-09-08 01:13:01,780 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-08 01:13:01,806 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-08 01:13:01,885 - INFO - __main__ - repo_path: /workspace/pylint/
+2026-09-08 01:13:03,206 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-08 01:14:56,418 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: failure_category=resource, escalate_resources=True, runtime_failure_count=4
+2026-09-08 01:14:56,418 - ERROR - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898 failed after 4 attempts. Last error: Conversation run failed for id=b1dca77e-9a46-4783-85f4-9ae7c3aae9ea: MaxIterationsReached: Agent reached maximum iterations limit (30).
+Traceback (most recent call last):
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/evaluation.py", line 1113, in _execute_single_attempt
+    out = self.evaluate_instance(instance, workspace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/swebench/run_infer.py", line 485, in evaluate_instance
+    run_conversation_with_fake_user_response(conversation)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/fake_user_response.py", line 148, in run_conversation_with_fake_user_response
+    conversation.run(timeout=run_timeout)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/observability/laminar.py", line 187, in sync_wrapper
+    return func(*args, **fkwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1092, in run
+    self._wait_for_run_completion(poll_interval, timeout)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1154, in _wait_for_run_completion
+    self._handle_conversation_status(ws_status)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1254, in _handle_conversation_status
+    raise ConversationRunError(
+openhands.sdk.conversation.exceptions.ConversationRunError: Conversation run failed for id=b1dca77e-9a46-4783-85f4-9ae7c3aae9ea: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-08 01:14:56,648 - INFO - __main__ - Collected failure patch for pylint-dev__pylint-8898: 0 chars
+2026-09-08 01:14:56,763 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pylint-dev__pylint-8898 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/conversations/pylint-dev__pylint-8898.tar.gz
+2026-09-08 01:14:58,779 - INFO - openhands.workspace.docker.workspace - Stopping container: b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:14:58,780 - INFO - openhands.sdk.utils.command - $ docker stop b37057e381a17799b22298988716c995a75c3a450ed17d6bbe024dd5fca8040b
+2026-09-08 01:14:59,367 - INFO - root - === Evaluation Started (instance pylint-dev__pylint-8898) ===
+    View live output:
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/logs/instance_pylint-dev__pylint-8898.log          (logger)
+    • tail -f /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/logs/instance_pylint-dev__pylint-8898.output.log   (stdout/stderr)
+    ===============================================
+2026-09-08 01:14:59,368 - INFO - benchmarks.utils.evaluation - [worker] start id=pylint-dev__pylint-8898
+2026-09-08 01:14:59,415 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal
+2026-09-08 01:14:59,423 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-08 01:14:59,448 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-ac543016-1406-4c25-8e4d-44851f6e5581 -e LMNR_SPAN_CONTEXT=null -p 35831:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal --host 0.0.0.0 --port 8000
+2026-09-08 01:14:59,726 - INFO - openhands.workspace.docker.workspace - Started container: f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:14:59,729 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:15:00,743 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:15:01,756 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:15:02,771 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:15:03,785 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:15:04,799 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:15:05,811 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:15:06,824 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:15:07,839 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:15:08,851 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:15:09,864 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:15:10,878 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:15:11,891 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:15:12,907 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:35831
+2026-09-08 01:16:13,099 - ERROR - openhands.sdk.git.utils - Git command timed out: git fetch origin
+2026-09-08 01:16:13,101 - WARNING - openhands.sdk.git.cached_repo - Failed to fetch updates: Git command timed out: git fetch origin. Using cached version.
+2026-09-08 01:16:13,250 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-08 01:16:13,276 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-08 01:16:13,370 - INFO - __main__ - repo_path: /workspace/pylint/
+2026-09-08 01:16:14,802 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-08 01:17:43,495 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: failure_category=resource, escalate_resources=True, runtime_failure_count=1
+2026-09-08 01:17:43,496 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898 failed (attempt 1/4): Conversation run failed for id=bb6e31d7-31dd-4493-a79d-e6ce77ac5d81: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-08 01:17:43,627 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pylint-dev__pylint-8898 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/conversations/pylint-dev__pylint-8898.tar.gz
+2026-09-08 01:17:45,627 - INFO - openhands.workspace.docker.workspace - Stopping container: f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:17:45,628 - INFO - openhands.sdk.utils.command - $ docker stop f33d6b6dcc67c6421ef444958e503835acd4053d775dd23de84eb09bcfec9590
+2026-09-08 01:17:46,178 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: attempt 2/4, runtime_failure_count=1, resource_factor=2
+2026-09-08 01:17:46,214 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal
+2026-09-08 01:17:46,223 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-08 01:17:46,247 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-24574460-ff37-4fd6-8e8f-1bae44c032c4 -e LMNR_SPAN_CONTEXT=null -p 38994:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal --host 0.0.0.0 --port 8000
+2026-09-08 01:17:46,533 - INFO - openhands.workspace.docker.workspace - Started container: fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:46,535 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:47,549 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:48,563 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:49,575 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:50,588 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:51,601 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:52,614 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:53,628 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:54,643 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:55,657 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:56,671 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:57,684 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:58,697 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:17:59,709 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:18:00,724 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:38994
+2026-09-08 01:19:00,906 - ERROR - openhands.sdk.git.utils - Git command timed out: git fetch origin
+2026-09-08 01:19:00,907 - WARNING - openhands.sdk.git.cached_repo - Failed to fetch updates: Git command timed out: git fetch origin. Using cached version.
+2026-09-08 01:19:01,019 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-08 01:19:01,031 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-08 01:19:01,103 - INFO - __main__ - repo_path: /workspace/pylint/
+2026-09-08 01:19:01,908 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-08 01:20:18,838 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: failure_category=non_resource, escalate_resources=False, runtime_failure_count=1
+2026-09-08 01:20:18,839 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898 failed (attempt 2/4): Conversation run failed for id=cde55312-3dc5-4e3c-b5af-89110eafc03d: Remote conversation ended with error
+2026-09-08 01:20:18,972 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pylint-dev__pylint-8898 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/conversations/pylint-dev__pylint-8898.tar.gz
+2026-09-08 01:20:20,973 - INFO - openhands.workspace.docker.workspace - Stopping container: fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:20:20,973 - INFO - openhands.sdk.utils.command - $ docker stop fdbbec51011acebcf3ab62cf64f7bf265e385b796e64f20c240779b1095c22c6
+2026-09-08 01:20:21,512 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: attempt 3/4, runtime_failure_count=1, resource_factor=2
+2026-09-08 01:20:21,548 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal
+2026-09-08 01:20:21,557 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-08 01:20:21,586 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-c62e1ab5-f122-4923-97dc-070db9761a04 -e LMNR_SPAN_CONTEXT=null -p 37557:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal --host 0.0.0.0 --port 8000
+2026-09-08 01:20:21,878 - INFO - openhands.workspace.docker.workspace - Started container: 1eff152579b290c2bf898a13ba4d7de8bb78703f8d4322355acc94bc1d823c93
+2026-09-08 01:20:21,880 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 1eff152579b290c2bf898a13ba4d7de8bb78703f8d4322355acc94bc1d823c93
+2026-09-08 01:20:22,893 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 1eff152579b290c2bf898a13ba4d7de8bb78703f8d4322355acc94bc1d823c93
+2026-09-08 01:20:23,906 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 1eff152579b290c2bf898a13ba4d7de8bb78703f8d4322355acc94bc1d823c93
+2026-09-08 01:20:24,920 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 1eff152579b290c2bf898a13ba4d7de8bb78703f8d4322355acc94bc1d823c93
+2026-09-08 01:20:25,933 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 1eff152579b290c2bf898a13ba4d7de8bb78703f8d4322355acc94bc1d823c93
+2026-09-08 01:20:26,948 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 1eff152579b290c2bf898a13ba4d7de8bb78703f8d4322355acc94bc1d823c93
+2026-09-08 01:20:27,962 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 1eff152579b290c2bf898a13ba4d7de8bb78703f8d4322355acc94bc1d823c93
+2026-09-08 01:20:28,978 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:37557
+2026-09-08 01:21:29,100 - ERROR - openhands.sdk.git.utils - Git command timed out: git fetch origin
+2026-09-08 01:21:29,110 - WARNING - openhands.sdk.git.cached_repo - Failed to fetch updates: Git command timed out: git fetch origin. Using cached version.
+2026-09-08 01:21:29,256 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-08 01:21:29,283 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-08 01:21:29,374 - INFO - __main__ - repo_path: /workspace/pylint/
+2026-09-08 01:21:30,690 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-08 01:23:51,297 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: failure_category=resource, escalate_resources=True, runtime_failure_count=2
+2026-09-08 01:23:51,297 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898 failed (attempt 3/4): Conversation run failed for id=70708711-6bc6-416f-a9e9-9d5b2be75f1b: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-08 01:23:51,429 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pylint-dev__pylint-8898 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/conversations/pylint-dev__pylint-8898.tar.gz
+2026-09-08 01:23:53,430 - INFO - openhands.workspace.docker.workspace - Stopping container: 1eff152579b290c2bf898a13ba4d7de8bb78703f8d4322355acc94bc1d823c93
+2026-09-08 01:23:53,431 - INFO - openhands.sdk.utils.command - $ docker stop 1eff152579b290c2bf898a13ba4d7de8bb78703f8d4322355acc94bc1d823c93
+2026-09-08 01:23:53,871 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: attempt 4/4, runtime_failure_count=2, resource_factor=4
+2026-09-08 01:23:53,910 - INFO - benchmarks.utils.build_utils - Using pre-built image ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal
+2026-09-08 01:23:53,919 - INFO - openhands.sdk.utils.command - $ docker version
+2026-09-08 01:23:53,944 - INFO - openhands.sdk.utils.command - $ docker run -d --platform linux/amd64 --rm --ulimit nofile=65536:65536 --name agent-server-5c6e9d30-f923-4adc-a11d-005f867b0ef1 -e LMNR_SPAN_CONTEXT=null -p 38232:8000 ghcr.io/openhands/eval-agent-server:43376f1-sweb.eval.x86_64.pylint-dev_1776_pylint-8898-source-minimal --host 0.0.0.0 --port 8000
+2026-09-08 01:23:54,232 - INFO - openhands.workspace.docker.workspace - Started container: 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:23:54,233 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:23:55,246 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:23:56,260 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:23:57,273 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:23:58,287 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:23:59,301 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:24:00,314 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:24:01,327 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:24:02,340 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:24:03,354 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:24:04,366 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:24:05,379 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:24:06,390 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:24:07,404 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:24:08,417 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:24:09,431 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:24:10,445 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:24:11,459 - INFO - openhands.sdk.utils.command - $ docker inspect -f '{{.State.Running}}' 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:24:12,474 - INFO - openhands.workspace.docker.workspace - Docker workspace is ready at http://127.0.0.1:38232
+2026-09-08 01:25:12,665 - ERROR - openhands.sdk.git.utils - Git command timed out: git fetch origin
+2026-09-08 01:25:12,666 - WARNING - openhands.sdk.git.cached_repo - Failed to fetch updates: Git command timed out: git fetch origin. Using cached version.
+2026-09-08 01:25:12,828 - INFO - openhands.sdk.skills.skill - Found 60 skill files in public skills repository
+2026-09-08 01:25:12,856 - INFO - openhands.sdk.skills.skill - Loaded 60 public skills
+2026-09-08 01:25:12,946 - INFO - __main__ - repo_path: /workspace/pylint/
+2026-09-08 01:25:14,269 - INFO - openhands.sdk.conversation.impl.remote_conversation - run() triggered successfully: <Response [200 OK]>
+2026-09-08 01:27:05,990 - WARNING - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898: failure_category=resource, escalate_resources=True, runtime_failure_count=3
+2026-09-08 01:27:05,990 - ERROR - benchmarks.utils.evaluation - [worker] Instance pylint-dev__pylint-8898 failed after 4 attempts. Last error: Conversation run failed for id=f2537fc7-584b-48b2-83ed-7ab275408490: MaxIterationsReached: Agent reached maximum iterations limit (30).
+Traceback (most recent call last):
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/evaluation.py", line 1113, in _execute_single_attempt
+    out = self.evaluate_instance(instance, workspace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/swebench/run_infer.py", line 485, in evaluate_instance
+    run_conversation_with_fake_user_response(conversation)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/benchmarks/utils/fake_user_response.py", line 148, in run_conversation_with_fake_user_response
+    conversation.run(timeout=run_timeout)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/observability/laminar.py", line 187, in sync_wrapper
+    return func(*args, **fkwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1092, in run
+    self._wait_for_run_completion(poll_interval, timeout)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1154, in _wait_for_run_completion
+    self._handle_conversation_status(ws_status)
+  File "/home/ylon/zyra-experiments/openhands-benchmarks/vendor/software-agent-sdk/openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py", line 1254, in _handle_conversation_status
+    raise ConversationRunError(
+openhands.sdk.conversation.exceptions.ConversationRunError: Conversation run failed for id=f2537fc7-584b-48b2-83ed-7ab275408490: MaxIterationsReached: Agent reached maximum iterations limit (30).
+2026-09-08 01:27:06,220 - INFO - __main__ - Collected failure patch for pylint-dev__pylint-8898: 0 chars
+2026-09-08 01:27:06,334 - INFO - benchmarks.utils.evaluation - [worker] Saved conversation archive for pylint-dev__pylint-8898 to /mnt/c/Users/Ylon/Desktop/挑战杯2026/zyra/paper/experiments/evidence/calibration/openhands/__home__ylon__zyra-experiments__swe-bench-verified-test.jsonl-test/deepseek/deepseek-v4-flash_sdk_43376f1_maxiter_30_N_zyra-calibration-v1-openhands-run6-pylint/conversations/pylint-dev__pylint-8898.tar.gz
+2026-09-08 01:27:08,350 - INFO - openhands.workspace.docker.workspace - Stopping container: 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
+2026-09-08 01:27:08,350 - INFO - openhands.sdk.utils.command - $ docker stop 18424d5ed5dc444dadb663249e93358dea2d5004173632c20322f141beea0b99
