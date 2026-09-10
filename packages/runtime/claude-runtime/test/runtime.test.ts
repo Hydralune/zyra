@@ -61,6 +61,7 @@ import {
   isEnvironmentRecoveryToolResult,
   budgetAdjustedCompactionThreshold,
   budgetForcesCompaction,
+  budgetDrivenDelegationSteer,
   modelCompactionPrompt,
   preDeliveryInspectionGuidance,
   runtimeLineageEventPayload,
@@ -8451,3 +8452,19 @@ test("budget forces compaction only past 90% of the provider cap", () => {
   assert.equal(budgetForcesCompaction(600_000, 600_000), true);
   assert.equal(budgetForcesCompaction(540_000, 0), false);
 });
+
+test("budget-driven delegation steer fires at half the provider cap", () => {
+  // Below half, no steer.
+  assert.equal(budgetDrivenDelegationSteer(0, 600_000), null);
+  assert.equal(budgetDrivenDelegationSteer(299_999, 600_000), null);
+  assert.equal(budgetDrivenDelegationSteer(100_000, 0), null);
+
+  // At and past half, a steer names the Agent tool and isolated context mode.
+  const steer = budgetDrivenDelegationSteer(300_000, 600_000);
+  assert.ok(steer !== null);
+  assert.match(steer!, /Agent tool/);
+  assert.match(steer!, /"isolated"/);
+  assert.match(steer!, /50%/);
+  assert.ok(budgetDrivenDelegationSteer(540_000, 600_000) !== null);
+});
+

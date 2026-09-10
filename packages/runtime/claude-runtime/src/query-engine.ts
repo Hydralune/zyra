@@ -177,6 +177,37 @@ export function budgetForcesCompaction(
   return maximum > 0 && consumed >= maximum * 0.9;
 }
 
+/**
+ * Budget-pressure delegation steer.  Compaction shrinks the *history* the parent
+ * already carries, but a long-horizon run also keeps appending *new* exploration
+ * to that same transcript, so the two mechanisms only buy back what is already
+ * spent.  Once the cumulative provider budget crosses half of its cap, steer the
+ * parent to delegate the next well-scoped subtask to an isolated sub-agent: the
+ * sub-agent burns its own exploration in a throwaway context and reports back
+ * only a summary, committed workspace delta, and verification receipt, so the
+ * parent's context grows with subtask count rather than tool-call count.
+ *
+ * Returns a one-shot steer message, or null when the cap is unknown or the budget
+ * is still below the delegation threshold.  The caller is responsible for firing
+ * it at most once per run.
+ */
+export function budgetDrivenDelegationSteer(
+  consumedTokens: number,
+  maximumTokens: number,
+): string | null {
+  const consumed = Math.max(0, Math.floor(consumedTokens));
+  const maximum = Math.max(0, Math.floor(maximumTokens));
+  if (maximum <= 0 || consumed <= 0) return null;
+  if (consumed < maximum * 0.5) return null;
+  const percent = Math.min(100, Math.round((consumed / maximum) * 100));
+  return [
+    `Your cumulative provider budget is at ${percent}% of its cap, and this transcript is replayed and billed on every round, so it grows as you keep exploring here.`,
+    "Delegate the next well-scoped subtask to an isolated sub-agent with the Agent tool, passing context_mode \"isolated\" and a prompt that names exactly one bounded goal (for example isolate-and-locate the defect, apply the minimal fix, or run the focused verification).",
+    "Instruct the sub-agent to return only a one-line conclusion plus its committed workspace delta and verification receipt; do not copy its full tool history back into this conversation.",
+    "Resume driving the remaining work yourself only after the delegated subtask reports its result.",
+  ].join(" ");
+}
+
 function compactionBlocks(value: unknown): CompactContentBlock[] {
   if (!Array.isArray(value)) {
     return [{ type: "text", text: boundedCompactionText(value, 8_000) }];
@@ -593,6 +624,7 @@ export class ClaudeRuntimeCore {
       boundaryId: string;
       messages: JsonObject[];
     } | null = null;
+    let delegationSteerEmitted = false;
     // Restored workspace bytes are fenced as untrusted and stripped of secrets
     // by the projector.  Count both so a trace can show the defense ran on this
     // run rather than only that the code exists.
@@ -3267,6 +3299,24 @@ export class ClaudeRuntimeCore {
             artifacts: nudgedProgress.artifactCount,
             post_tool: true,
           });
+        }
+        if (!delegationSteerEmitted) {
+          const delegationSteer = budgetDrivenDelegationSteer(
+            providerConsumedTotalTokens,
+            providerMaximumTotalTokens,
+          );
+          if (delegationSteer !== null) {
+            delegationSteerEmitted = true;
+            providerMessages = [
+              ...providerMessages,
+              { role: "user", content: [delegationSteer] },
+            ];
+            await emit("provider_delegation_steered", {
+              consumed_total_tokens: providerConsumedTotalTokens,
+              maximum_total_tokens: providerMaximumTotalTokens,
+              turn_index: turnIndex,
+            });
+          }
         }
         if (
           resourceBudget !== null
