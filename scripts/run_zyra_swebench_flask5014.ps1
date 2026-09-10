@@ -76,12 +76,28 @@ if ($LASTEXITCODE -ne 0) {
 $nonModeOnlyBaseDelta = @($rawBaseDelta | Where-Object {
     $_ -notmatch '^:\d{6} \d{6} ([0-9a-f]+) ([0-9a-f]+) M\t' -or $matches[1] -ne $matches[2]
 })
-if ($nonModeOnlyBaseDelta.Count -gt 0) {
+# A second, distinct official setup shape: images built from an older project
+# (e.g. Sphinx 4.1) pin dependency upper bounds and tune tox so the frozen
+# environment actually installs.  Those content-level edits live in a single
+# ``SWE-bench <setup@swebench.com>`` commit whose parent is exactly the declared
+# base.  They are pre-seeded environment material, not agent contamination, and
+# are auditable by the author/subject/parent triple below.
+$headAuthorEmail = (& "D:\Anaconda\python.exe" $dockerBridgeScript exec $container sh -lc "cd /testbed && git log -1 --format='%ae' HEAD").Trim()
+$headSubject = (& "D:\Anaconda\python.exe" $dockerBridgeScript exec $container sh -lc "cd /testbed && git log -1 --format='%s' HEAD").Trim()
+$headParent = (& "D:\Anaconda\python.exe" $dockerBridgeScript exec $container sh -lc "cd /testbed && git log -1 --format='%P' HEAD").Trim()
+$officialEnvSetupCommit = (
+    $headAuthorEmail -eq "setup@swebench.com" -and
+    $headSubject -eq "SWE-bench" -and
+    $headParent -eq $BaseCommit
+)
+if ($nonModeOnlyBaseDelta.Count -gt 0 -and -not $officialEnvSetupCommit) {
     throw "Benchmark container HEAD $containerHead has source-content changes relative to declared base $BaseCommit."
 }
 $baseTreeEquivalent = ($rawBaseDelta.Count -eq 0)
-$baseContentEquivalent = $true
-$modeOnlySetupDeltaCount = $rawBaseDelta.Count
+$baseContentEquivalent = ($nonModeOnlyBaseDelta.Count -eq 0)
+$modeOnlySetupDeltaCount = ($rawBaseDelta.Count - $nonModeOnlyBaseDelta.Count)
+$environmentSetupCommitObserved = $officialEnvSetupCommit
+$environmentSetupContentDeltaCount = if ($officialEnvSetupCommit) { $nonModeOnlyBaseDelta.Count } else { 0 }
 
 New-Item -ItemType Directory -Force -Path $stateRoot, $logRoot | Out-Null
 Get-Content (Join-Path $repo ".env.deepseek.local") | ForEach-Object {
@@ -152,6 +168,8 @@ $metadata = Join-Path $logRoot "run-metadata.json"
     base_tree_equivalent = $baseTreeEquivalent
     base_content_equivalent = $baseContentEquivalent
     mode_only_setup_delta_count = $modeOnlySetupDeltaCount
+    environment_setup_commit_observed = $environmentSetupCommitObserved
+    environment_setup_content_delta_count = $environmentSetupContentDeltaCount
     deadline_minutes = $DeadlineMinutes
     max_turns = $MaxTurns
     max_total_tokens = $MaxTotalTokens
