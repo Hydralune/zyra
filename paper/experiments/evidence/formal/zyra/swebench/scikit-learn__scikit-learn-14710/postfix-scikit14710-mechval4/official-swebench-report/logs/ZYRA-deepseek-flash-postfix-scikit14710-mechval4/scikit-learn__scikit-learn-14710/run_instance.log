@@ -1,0 +1,127 @@
+2026-09-10 22:58:27,570 - INFO - Creating container for scikit-learn__scikit-learn-14710...
+2026-09-10 22:58:27,713 - INFO - Container for scikit-learn__scikit-learn-14710 created: a119b7c36e1360442403f52958f3465a6008c24aa481925346bc22e9611f63c6
+2026-09-10 22:58:28,007 - INFO - Container for scikit-learn__scikit-learn-14710 started: a119b7c36e1360442403f52958f3465a6008c24aa481925346bc22e9611f63c6
+2026-09-10 22:58:28,008 - INFO - Intermediate patch for scikit-learn__scikit-learn-14710 written to logs/run_evaluation/zyra-postfix-scikit14710-mechval4-official/ZYRA-deepseek-flash-postfix-scikit14710-mechval4/scikit-learn__scikit-learn-14710/patch.diff, now applying to container...
+2026-09-10 22:58:28,108 - INFO - >>>>> Applied Patch:
+Checking patch sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py...
+Checking patch sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py...
+Applied patch sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py cleanly.
+Applied patch sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py cleanly.
+
+2026-09-10 22:58:28,552 - INFO - Git diff before:
+diff --git a/sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py b/sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py
+index ad6a5a8ca..12c8916c3 100644
+--- a/sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py
++++ b/sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py
+@@ -426,11 +426,20 @@ class BaseHistGradientBoosting(BaseEstimator, ABC):
+ 
+         Scores are computed on validation data or on training data.
+         """
++        if hasattr(self, 'classes_'):
++            # The scorer calls predict(), which returns the original
++            # (unencoded) classes. y_small_train and y_val are integer-encoded
++            # at this point, so we need to map them back to their original
++            # representation to avoid comparing e.g. strings with numbers.
++            y_small_train = self.classes_[y_small_train.astype(int)]
++
+         self.train_score_.append(
+             self.scorer_(self, X_binned_small_train, y_small_train)
+         )
+ 
+         if self._use_validation_data:
++            if hasattr(self, 'classes_'):
++                y_val = self.classes_[y_val.astype(int)]
+             self.validation_score_.append(
+                 self.scorer_(self, X_binned_val, y_val)
+             )
+@@ -438,6 +447,7 @@ class BaseHistGradientBoosting(BaseEstimator, ABC):
+         else:
+             return self._should_stop(self.train_score_)
+ 
++
+     def _check_early_stopping_loss(self,
+                                    raw_predictions,
+                                    y_train,
+diff --git a/sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py b/sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py
+index 1eebdefd5..abc2bde00 100644
+--- a/sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py
++++ b/sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py
+@@ -132,6 +132,34 @@ def test_early_stopping_classification(data, scoring, validation_fraction,
+         assert gb.n_iter_ == max_iter
+ 
+ 
++@pytest.mark.parametrize('data', (
++    make_classification(n_samples=30, random_state=0),
++    make_classification(n_samples=30, n_classes=3, n_clusters_per_class=1,
++                        random_state=0)
++))
++@pytest.mark.parametrize('validation_fraction', (.1, None))
++def test_early_stopping_classification_with_string_target(data,
++                                                           validation_fraction):
++    # Non-regression test: the early stopping scorer used to compare the
++    # integer-encoded y (passed to the scorer as y_true) with the string
++    # labels returned by predict(), which raised a TypeError.
++    # See issue #hgb-string-target-early-stopping.
++    X, y = data
++    y = np.asarray(y).astype(str)
++
++    gb = HistGradientBoostingClassifier(
++        min_samples_leaf=5,
++        validation_fraction=validation_fraction,
++        max_iter=50,
++        n_iter_no_change=5,
++        random_state=0,
++    )
++    gb.fit(X, y)
++
++    assert gb.n_classes_ == len(np.unique(y))
++    assert set(np.unique(gb.predict(X))).issubset(set(gb.classes_))
++
++
+ @pytest.mark.parametrize(
+     'scores, n_iter_no_change, tol, stopping',
+     [
+2026-09-10 22:58:28,552 - INFO - Eval script for scikit-learn__scikit-learn-14710 written to logs/run_evaluation/zyra-postfix-scikit14710-mechval4-official/ZYRA-deepseek-flash-postfix-scikit14710-mechval4/scikit-learn__scikit-learn-14710/eval.sh; copying to container...
+2026-09-10 22:58:41,650 - INFO - Test runtime: 13.06 seconds
+2026-09-10 22:58:41,650 - INFO - Test output for scikit-learn__scikit-learn-14710 written to logs/run_evaluation/zyra-postfix-scikit14710-mechval4-official/ZYRA-deepseek-flash-postfix-scikit14710-mechval4/scikit-learn__scikit-learn-14710/test_output.txt
+2026-09-10 22:58:41,686 - INFO - Git diff after:
+diff --git a/sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py b/sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py
+index ad6a5a8ca..12c8916c3 100644
+--- a/sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py
++++ b/sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py
+@@ -426,11 +426,20 @@ class BaseHistGradientBoosting(BaseEstimator, ABC):
+ 
+         Scores are computed on validation data or on training data.
+         """
++        if hasattr(self, 'classes_'):
++            # The scorer calls predict(), which returns the original
++            # (unencoded) classes. y_small_train and y_val are integer-encoded
++            # at this point, so we need to map them back to their original
++            # representation to avoid comparing e.g. strings with numbers.
++            y_small_train = self.classes_[y_small_train.astype(int)]
++
+         self.train_score_.append(
+             self.scorer_(self, X_binned_small_train, y_small_train)
+         )
+ 
+         if self._use_validation_data:
++            if hasattr(self, 'classes_'):
++                y_val = self.classes_[y_val.astype(int)]
+             self.validation_score_.append(
+                 self.scorer_(self, X_binned_val, y_val)
+             )
+@@ -438,6 +447,7 @@ class BaseHistGradientBoosting(BaseEstimator, ABC):
+         else:
+             return self._should_stop(self.train_score_)
+ 
++
+     def _check_early_stopping_loss(self,
+                                    raw_predictions,
+                                    y_train,
+2026-09-10 22:58:41,686 - INFO - Git diff changed after running eval script
+2026-09-10 22:58:41,686 - INFO - Grading answer for scikit-learn__scikit-learn-14710...
+2026-09-10 22:58:41,691 - INFO - report: {'scikit-learn__scikit-learn-14710': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_string_target_early_stopping[None]'], 'failure': []}, 'PASS_TO_PASS': {'success': ['sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params0-Loss', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params1-learning_rate=0', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params2-learning_rate=-1', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params3-max_iter=0', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params4-max_leaf_nodes=0', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params5-max_leaf_nodes=1', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params6-max_depth=0', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params7-max_depth=1', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params8-min_samples_leaf=0', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params9-l2_regularization=-1', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params10-max_bins=1', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params11-max_bins=256', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params12-n_iter_no_change=-1', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params13-validation_fraction=-1', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params14-validation_fraction=0', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_init_parameters_validation[params15-tol=-1', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_invalid_classification_loss', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_regression[neg_mean_squared_error-0.1-5-1e-07]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_regression[neg_mean_squared_error-None-5-0.1]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_regression[None-0.1-5-1e-07]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_regression[None-None-5-0.1]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_regression[loss-0.1-5-1e-07]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_regression[loss-None-5-0.1]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_regression[None-None-None-None]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[accuracy-0.1-5-1e-07-data0]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[accuracy-0.1-5-1e-07-data1]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[accuracy-None-5-0.1-data0]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[accuracy-None-5-0.1-data1]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[None-0.1-5-1e-07-data0]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[None-0.1-5-1e-07-data1]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[None-None-5-0.1-data0]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[None-None-5-0.1-data1]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[loss-0.1-5-1e-07-data0]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[loss-0.1-5-1e-07-data1]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[loss-None-5-0.1-data0]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[loss-None-5-0.1-data1]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[None-None-None-None-data0]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_early_stopping_classification[None-None-None-None-data1]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_should_stop[scores0-1-0.001-False]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_should_stop[scores1-5-0.001-False]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_should_stop[scores2-5-0.001-False]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_should_stop[scores3-5-0.001-False]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_should_stop[scores4-5-0.0-False]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_should_stop[scores5-5-0.999-False]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_should_stop[scores6-5-4.99999-False]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_should_stop[scores7-5-0.0-True]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_should_stop[scores8-5-0.001-True]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_should_stop[scores9-5-5-True]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_binning_train_validation_are_separated', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_missing_values_trivial', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_missing_values_resilience[0.1-0.97-0.89-classification]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_missing_values_resilience[0.1-0.97-0.89-regression]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_missing_values_resilience[0.2-0.93-0.81-classification]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_missing_values_resilience[0.2-0.93-0.81-regression]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_missing_values_resilience[0.5-0.79-0.52-classification]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_missing_values_resilience[0.5-0.79-0.52-regression]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_zero_division_hessians[binary_crossentropy]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_zero_division_hessians[categorical_crossentropy]', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_small_trainset', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_missing_values_minmax_imputation', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_infinite_values', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_infinite_values_missing_values', 'sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py::test_string_target_early_stopping[loss]'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for scikit-learn__scikit-learn-14710: resolved: True
+2026-09-10 22:58:41,691 - INFO - Attempting to stop container sweb.eval.scikit-learn__scikit-learn-14710.zyra-postfix-scikit14710-mechval4-official...
+2026-09-10 22:58:56,935 - INFO - Attempting to remove container sweb.eval.scikit-learn__scikit-learn-14710.zyra-postfix-scikit14710-mechval4-official...
+2026-09-10 22:58:56,976 - INFO - Container sweb.eval.scikit-learn__scikit-learn-14710.zyra-postfix-scikit14710-mechval4-official removed.
