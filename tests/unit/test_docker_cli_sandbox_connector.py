@@ -572,6 +572,7 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 "pre_delivery_observation_nudge_after": 2,
                 "pre_delivery_inspection_block_after_nudges": 2,
                 "targeted_repair_inspection_limit": 4,
+                "disable_budget_delegation_steer": True,
             },
         )
 
@@ -642,6 +643,7 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
                 "pre_delivery_observation_nudge_after": 2,
                 "pre_delivery_inspection_block_after_nudges": 2,
                 "targeted_repair_inspection_limit": 4,
+                "disable_budget_delegation_steer": True,
                 "benchmark_long_horizon": True,
                 "model_api_timeout_seconds": 300.0,
                 "model_api_timeout_milliseconds": 300_000,

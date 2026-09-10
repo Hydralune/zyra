@@ -178,6 +178,19 @@ export function budgetForcesCompaction(
 }
 
 /**
+ * Whether the budget-pressure delegation steer is enabled for a run.  A sealed
+ * single-bug benchmark task is one coupled locate/fix/verify loop the parent can
+ * close on its own, and routing it into an isolated child historically strands
+ * the run short of canonical closeout.  The caller can disable the steer via the
+ * ``disable_budget_delegation_steer`` runtime constraint.
+ */
+export function budgetDelegationSteerEnabled(
+  runtimeConstraints: JsonObject | undefined,
+): boolean {
+  return !asBoolean(asObject(runtimeConstraints).disable_budget_delegation_steer);
+}
+
+/**
  * Budget-pressure delegation steer.  Compaction shrinks the *history* the parent
  * already carries, but a long-horizon run also keeps appending *new* exploration
  * to that same transcript, so the two mechanisms only buy back what is already
@@ -3300,7 +3313,10 @@ export class ClaudeRuntimeCore {
             post_tool: true,
           });
         }
-        if (!delegationSteerEmitted) {
+        if (
+          !delegationSteerEmitted
+          && budgetDelegationSteerEnabled(config.runtimeConstraints)
+        ) {
           const delegationSteer = budgetDrivenDelegationSteer(
             providerConsumedTotalTokens,
             providerMaximumTotalTokens,

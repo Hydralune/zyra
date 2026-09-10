@@ -62,6 +62,7 @@ import {
   budgetAdjustedCompactionThreshold,
   budgetForcesCompaction,
   budgetDrivenDelegationSteer,
+  budgetDelegationSteerEnabled,
   modelCompactionPrompt,
   preDeliveryInspectionGuidance,
   runtimeLineageEventPayload,
@@ -8508,6 +8509,19 @@ test("budget-driven delegation steer fires at half the provider cap", () => {
   assert.match(steer!, /"isolated"/);
   assert.match(steer!, /50%/);
   assert.ok(budgetDrivenDelegationSteer(540_000, 600_000) !== null);
+});
+
+test("budget delegation steer is disabled for sealed single-bug benchmarks", () => {
+  assert.equal(budgetDelegationSteerEnabled(undefined), true);
+  assert.equal(budgetDelegationSteerEnabled({}), true);
+  assert.equal(
+    budgetDelegationSteerEnabled({ disable_budget_delegation_steer: false }),
+    true,
+  );
+  assert.equal(
+    budgetDelegationSteerEnabled({ disable_budget_delegation_steer: true }),
+    false,
+  );
 });
 
 test("provider control plane injects a delegation steer once past half the cumulative budget", async () => {

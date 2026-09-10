@@ -1484,6 +1484,14 @@ def _benchmark_runtime_constraints(context: Mapping[str, Any]) -> dict[str, Any]
         "pre_delivery_observation_nudge_after": 2,
         "pre_delivery_inspection_block_after_nudges": 2,
         "targeted_repair_inspection_limit": 4,
+        # A single-bug SWE-bench task is one coupled locate/fix/verify loop that
+        # the parent agent can close on its own.  Budget-pressure delegation
+        # routes a still-unverified patch into an isolated child whose durable
+        # state then has to be re-joined, which historically strands the run
+        # short of canonical closeout.  Keep the delegation steer off here so
+        # the agent concentrates on its own verification instead of offloading
+        # it; long-horizon multi-subtask scenarios remain the steer's target.
+        "disable_budget_delegation_steer": True,
     }
     resource_constraints = _physical_resource_runtime_constraints(context)
     constraints.update(resource_constraints)
