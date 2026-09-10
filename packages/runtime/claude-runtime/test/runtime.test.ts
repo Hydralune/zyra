@@ -8468,3 +8468,146 @@ test("budget-driven delegation steer fires at half the provider cap", () => {
   assert.ok(budgetDrivenDelegationSteer(540_000, 600_000) !== null);
 });
 
+test("provider control plane injects a delegation steer once past half the cumulative budget", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "zyra-delegation-steer-"));
+  const databasePath = join(directory, "provider.sqlite3");
+  const controlPlane = new ProviderControlPlane({ databasePath });
+  let route: ProviderRouteLease;
+  try {
+    installDeepSeekV4FlashProfile(controlPlane, {
+      ZYRA_DEEPSEEK_ENABLED: "true",
+      DEEPSEEK_API_KEY: "delegation-steer-test-secret",
+    });
+    route = controlPlane.acquireRoute({
+      runId: "run-delegation-steer",
+      taskId: "task-delegation-steer",
+      nodeId: "node-delegation-steer",
+      sessionId: "session-delegation-steer",
+      turnId: "turn-delegation-steer",
+      purpose: "reason",
+      preferredProviderId: DEEPSEEK_PROVIDER_ID,
+      preferredModelId: DEEPSEEK_V4_FLASH_MODEL_ID,
+      routeHint: `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+      constraints: {
+        providerIds: [DEEPSEEK_PROVIDER_ID],
+        modelIds: [DEEPSEEK_V4_FLASH_MODEL_ID],
+        requiredInput: ["text"],
+        requiredOutput: ["text"],
+        requireTools: true,
+        requireStreaming: true,
+        minimumContextWindow: 0,
+        maximumInputPricePerMillion: null,
+        maximumOutputPricePerMillion: null,
+        excludedCredentialIds: [],
+        requiredScopes: [],
+      },
+      metadata: {},
+    });
+  } finally {
+    controlPlane.close();
+  }
+
+  const originalFetch = globalThis.fetch;
+  const originalDeepSeekKey = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = "delegation-steer-test-secret";
+  const requestBodies: JsonObject[] = [];
+  globalThis.fetch = (async (
+    _resource: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    requestBodies.push(JSON.parse(String(init?.body ?? "{}")) as JsonObject);
+    const requestCount = requestBodies.length;
+    // Three read-only tool rounds, then a stop.  Each dispatch bills a small
+    // prompt (so per-request context never approaches the compaction threshold)
+    // but a large total (so the cumulative provider ledger crosses half the
+    // 300k cap after round 3 without ever crossing the 90% hard boundary).
+    const choice = requestCount <= 3
+      ? {
+        index: 0,
+        delta: {
+          tool_calls: [{
+            index: 0,
+            id: `call-delegation-read-${requestCount}`,
+            type: "function",
+            function: {
+              name: "read",
+              arguments: JSON.stringify({ path: ["a", "b", "c"][requestCount - 1] }),
+            },
+          }],
+        },
+        finish_reason: "tool_calls",
+      }
+      : {
+        index: 0,
+        delta: { content: "Delegation accepted; delivery complete." },
+        finish_reason: "stop",
+      };
+    const payload = {
+      id: `delegation-steer-provider-${requestCount}`,
+      object: "chat.completion.chunk",
+      model: DEEPSEEK_V4_FLASH_MODEL_ID,
+      choices: [choice],
+      usage: {
+        prompt_tokens: 1_000,
+        completion_tokens: 100,
+        total_tokens: 60_000,
+      },
+    };
+    return new Response(`data: ${JSON.stringify(payload)}\n\ndata: [DONE]\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      runId: route.runId,
+      taskId: route.taskId,
+      sessionId: route.sessionId,
+      config: {
+        maxTurns: 8,
+        modelName: DEEPSEEK_V4_FLASH_MODEL_ID,
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          provider_control_plane_required: true,
+          provider_control_plane_database_path: databasePath,
+          provider_route_id: route.routeId,
+          provider_route_checksum: route.checksum,
+          provider_catalog_revision: String(route.catalogRevision),
+          provider_credential_version: String(route.credentialVersion),
+          provider_credential_fingerprint: route.credentialFingerprint,
+          provider_transport_id: route.transportId,
+          provider_route_session_id: route.sessionId,
+          provider_route_turn_id: route.turnId,
+          maximum_total_tokens: 300_000,
+        },
+      },
+    }), host);
+
+    const failure = host.events
+      .filter((event) => event.phase === "error" || event.phase === "model_stream_report")
+      .map((event) => JSON.stringify(event))
+      .join("\n");
+    assert.equal(
+      result.ok,
+      true,
+      `stoppedReason=${result.stoppedReason}\nfailures=\n${failure}`,
+    );
+    assert.ok(host.events.some((event) =>
+      event.phase === "provider_delegation_steered"
+    ));
+    // The steer must have been appended to a provider request body so the model
+    // actually sees it, not only recorded as an event.
+    assert.ok(requestBodies.some((body) =>
+      (body.messages as JsonObject[]).some((message) =>
+        String(message.content ?? "").includes("Delegate the next well-scoped subtask")
+      )
+    ));
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalDeepSeekKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = originalDeepSeekKey;
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
