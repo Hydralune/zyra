@@ -201,10 +201,10 @@ export function budgetDrivenDelegationSteer(
   if (consumed < maximum * 0.5) return null;
   const percent = Math.min(100, Math.round((consumed / maximum) * 100));
   return [
-    `Your cumulative provider budget is at ${percent}% of its cap, and this transcript is replayed and billed on every round, so it grows as you keep exploring here.`,
-    "Delegate the next well-scoped subtask to an isolated sub-agent with the Agent tool, passing context_mode \"isolated\" and a prompt that names exactly one bounded goal (for example isolate-and-locate the defect, apply the minimal fix, or run the focused verification).",
+    `Your cumulative provider budget is at ${percent}% of its cap, and this transcript is replayed and billed on every round, so continuing to explore in your own context will exhaust the budget before you can finish.`,
+    `You must now offload the next well-scoped subtask to an isolated sub-agent instead of growing this context further: call the Agent tool with context_mode "isolated" and a prompt that names exactly one bounded goal (isolate-and-locate the defect, apply the minimal fix, or run the focused verification).`,
     "Instruct the sub-agent to return only a one-line conclusion plus its committed workspace delta and verification receipt; do not copy its full tool history back into this conversation.",
-    "Resume driving the remaining work yourself only after the delegated subtask reports its result.",
+    "Resume driving the remaining work yourself only after the delegated subtask reports its result. If you do not delegate, you risk running out of budget before any fix is committed.",
   ].join(" ");
 }
 

@@ -8600,7 +8600,7 @@ test("provider control plane injects a delegation steer once past half the cumul
     // actually sees it, not only recorded as an event.
     assert.ok(requestBodies.some((body) =>
       (body.messages as JsonObject[]).some((message) =>
-        String(message.content ?? "").includes("Delegate the next well-scoped subtask")
+        String(message.content ?? "").includes("offload the next well-scoped subtask")
       )
     ));
   } finally {
