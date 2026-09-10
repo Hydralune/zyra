@@ -1,0 +1,50 @@
+{
+  "schema": "zyra.experiment-run-summary/v1",
+  "instance_id": "psf__requests-2931",
+  "system": "ZYRA",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "invalidation_reason": "",
+  "task_id": "task_a1f45f65503f",
+  "run_id": "run_9fee24bf3306",
+  "task_status": "completed",
+  "started_at": "2026-09-10T08:54:39.5587560Z",
+  "ended_at": "2026-09-10T09:36:16.1280276Z",
+  "elapsed_seconds": 2496.569,
+  "budget": {
+    "max_total_tokens": 600000,
+    "max_turns": 80,
+    "deadline_minutes": 45
+  },
+  "usage": {
+    "input_tokens": 293269,
+    "output_tokens": 47187,
+    "total_tokens": 340456,
+    "cache_read_input_tokens": 120064,
+    "cache_creation_input_tokens": 0,
+    "cost_usd": 0.03779724,
+    "provider_calls": 26,
+    "tool_calls": 26,
+    "context_compactions": 0
+  },
+  "workspace_deltas": [
+    {
+      "schema": "zyra.physical-workspace-delta/v1",
+      "before_manifest_digest": "sha256:24113ef9e3d1a5b28892ab2f5afb03e2cf72d23754819f143a1ba5d03e2e8f31",
+      "after_manifest_digest": "sha256:24113ef9e3d1a5b28892ab2f5afb03e2cf72d23754819f143a1ba5d03e2e8f31",
+      "created": [],
+      "modified": [],
+      "deleted": [],
+      "changed": []
+    }
+  ],
+  "evidence_integrity": {
+    "task_run_present": true,
+    "canonical_task_record_observed": true,
+    "terminal_state_observed": true,
+    "run_transport_ok": true,
+    "run_transport_error": ""
+  },
+  "official_evaluator": null,
+  "strict_success": false
+}

@@ -366,17 +366,29 @@ def _workspace_change_requested(text: str) -> bool:
     return False
 
 
-def goal_delivery_contract(user_goal: str) -> GoalDeliveryContract:
+def goal_delivery_contract(
+    user_goal: str,
+    *,
+    require_workspace_mutation: bool = False,
+) -> GoalDeliveryContract:
     """Compile explicit delivery obligations without pretending to understand prose.
 
     Broad goals retain provider/final-response requirements.  Deterministic
     path/content checks are added only when the goal contains an explicit
     workspace-change verb and a safe relative file path.
+
+    ``require_workspace_mutation`` is a caller-supplied hard constraint for
+    environments whose whole purpose is a physical code change (sealed
+    benchmark containers).  It does not rely on the goal text happening to
+    contain a mutation verb, so an issue description phrased as pure prose can
+    never be silently graded as a read-only "answer" and pass an empty delivery.
     """
 
     goal = _normalized(user_goal)
     response = direct_response_contract(goal)
-    workspace_mutation_required = _workspace_change_requested(goal)
+    workspace_mutation_required = (
+        _workspace_change_requested(goal) or require_workspace_mutation
+    )
     paths: list[str] = []
     if workspace_mutation_required:
         directory_scopes: list[tuple[int, str]] = []
@@ -521,8 +533,12 @@ def validate_goal_delivery(
     workspace_delta: Mapping[str, Any] | None,
     final_response: str | None,
     provider_evidence: Mapping[str, Any] | None,
+    require_workspace_mutation: bool = False,
 ) -> dict[str, Any]:
-    contract = goal_delivery_contract(user_goal)
+    contract = goal_delivery_contract(
+        user_goal,
+        require_workspace_mutation=require_workspace_mutation,
+    )
     expected_projection = contract.to_dict()
     observed_projection = dict(projection or {})
     provider = dict(provider_evidence or {})

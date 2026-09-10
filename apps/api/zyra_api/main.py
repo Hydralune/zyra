@@ -2009,7 +2009,8 @@ def _prepare_task_for_explicit_resume(
     # Recompile them when a newer runtime fixes projection semantics so a
     # resumed task is not permanently fenced by a stale derived contract.
     current_delivery_contract = goal_delivery_contract(
-        state.user_goal
+        state.user_goal,
+        require_workspace_mutation=_task_is_sealed_control(state, {}),
     ).to_dict()
     if state.metadata.get("delivery_contract") != current_delivery_contract:
         state.metadata["delivery_contract"] = current_delivery_contract
@@ -6633,6 +6634,7 @@ class _CanonicalFinalVerifierOwner:
                 )
                 else None
             ),
+            require_workspace_mutation=_task_is_sealed_control(state, {}),
         )
         delivery_contract = (
             dict(state.metadata.get("delivery_contract") or {})
@@ -13322,6 +13324,14 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 state.metadata["sealed"] = True
                 state.metadata["sealed_autonomous"] = True
                 state.metadata["competition_mode"] = "sealed_autonomous"
+                # Sealed benchmark containers exist to produce a physical code
+                # change.  Recompile the delivery contract with that hard
+                # constraint so an issue phrased as pure prose cannot be graded
+                # as a read-only "answer" and pass an empty delivery.
+                state.metadata["delivery_contract"] = goal_delivery_contract(
+                    state.user_goal,
+                    require_workspace_mutation=True,
+                ).to_dict()
             if executor_environment:
                 state.metadata["executor_environment"] = executor_environment
             try:

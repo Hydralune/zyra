@@ -645,6 +645,57 @@ def test_delivery_contract_requires_mutation_for_implementation_goals() -> None:
         assert contract.workspace_mutation_required is True
 
 
+def test_sealed_container_forces_mutation_for_prose_issue() -> None:
+    # A SWE-bench issue statement has no imperative mutation verb ("fix",
+    # "implement", ...); it just describes a bug.  Without a hard constraint
+    # this is graded as an "answer" and an empty delivery passes.  Sealed
+    # benchmark containers must require a physical change.
+    goal = (
+        "Request with binary payload fails due to calling to_native_string. "
+        "requests.put(url, data=u'ööö'.encode('utf-8')) works "
+        "with 2.8.1 but not 2.9."
+    )
+    prose = goal_delivery_contract(goal)
+    assert prose.workspace_mutation_required is False
+
+    sealed = goal_delivery_contract(goal, require_workspace_mutation=True)
+    assert sealed.workspace_mutation_required is True
+    assert sealed.interaction_kind == "workspace_change"
+
+
+def test_sealed_container_rejects_empty_delivery(tmp_path) -> None:
+    goal = (
+        "Request with binary payload fails due to calling to_native_string. "
+        "requests.put(url, data=u'ööö'.encode('utf-8')) works "
+        "with 2.8.1 but not 2.9."
+    )
+    provider = {
+        "provider_called": True,
+        "task_execution_verified": True,
+        "prompt_goal_bound": True,
+        "synthetic_usage": False,
+        "calls": [{"request_id": "provider-request"}],
+    }
+    # No mutation, honest "not completed" final answer.
+    verification = validate_goal_delivery(
+        goal,
+        projection=goal_delivery_contract(
+            goal, require_workspace_mutation=True
+        ).to_dict(),
+        workspace_root=tmp_path,
+        workspace_delta={},
+        final_response=(
+            "Status: not completed — no edit has been applied; git diff is clean."
+        ),
+        provider_evidence=provider,
+        require_workspace_mutation=True,
+    )
+    assert verification["passed"] is False
+    assert verification["checks"]["workspace_mutation_observed"] is False
+    assert "workspace_mutation_observed" in verification["decision"]["decisive_failures"]
+
+
+
 def test_delivery_contract_compiles_explicit_runtime_obligations() -> None:
     contract = goal_delivery_contract(
         "先用 LoopX 建立目标、待办、claim、gate 和证据计划，并由不同角色独立复核。\n"
