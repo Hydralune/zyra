@@ -3998,6 +3998,14 @@ export function isAlternativeVerificationInspection(
   unresolvedScopes: readonly string[],
 ): boolean {
   if (!isClearlyVerificationDrivingTool(step)) return false;
+  // Locating the environment that can actually run the failing suite is not an
+  // attempt to substitute a different green score for the failed one.  Probing
+  // the interpreter, the test-runner availability, or the installed packages is
+  // a necessary prerequisite before the original scope can be rerun; it must
+  // never consume the alternate-verification inspection budget, otherwise a
+  // benchmark whose default python lacks the compiled extensions can never
+  // confirm the correct testbed interpreter.
+  if (isClearlyEnvironmentProbeTool(step)) return false;
   const scope = verificationScopeForTool(step);
   if (!scope || unresolvedScopes.includes(scope)) return false;
 
@@ -4011,6 +4019,23 @@ export function isAlternativeVerificationInspection(
   if (/\bpython(?:3)?\s+-m\s+(?:py_compile|compileall)\b/iu.test(command)) return false;
   if (/\b(?:cargo\s+(?:check|build)|go\s+build)\b/iu.test(command)) return false;
   return true;
+}
+
+export function isClearlyEnvironmentProbeTool(
+  step: { tool_name: string; arguments: JsonObject },
+): boolean {
+  if (step.tool_name !== "shell") return false;
+  const command = shellInvocationText(step.arguments).replace(/\s+/g, " ").trim();
+  // A command that only asks the environment about itself — interpreter path,
+  // version, or which test runner / package is importable — is a probe, not a
+  // verification run.  Keep it from discharging verification debt or counting
+  // against the alternate-verification inspection budget.
+  if (/\b(?:python(?:3)?|pytest|pip|conda|which|where|type)\b[^\r\n;|&]*(?:--version|-V\b|--help|-h\b)\b/iu.test(command)) return true;
+  if (/\b(?:conda)\s+(?:env\s+)?(?:list|info)\b/iu.test(command)) return true;
+  if (/\b(?:python(?:3)?)\s+-\s*(?:c|e)\b/iu.test(command) && !/\b(?:pytest|unittest)\b/iu.test(command)) return true;
+  if (/\b(?:pip(?:3)?)\s+(?:show|list|freeze)\b/iu.test(command)) return true;
+  if (/\b(?:which|where)\b[^\r\n;|&]*\b(?:python|pytest|pip)\b/iu.test(command)) return true;
+  return false;
 }
 
 export function verificationScopeForTool(

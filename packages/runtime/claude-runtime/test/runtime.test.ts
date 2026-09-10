@@ -7022,6 +7022,16 @@ test("missing selected verification runners are invocation failures but product 
     progressive.snapshot().unresolvedVerificationFailures[0]?.failureKind,
     "nonzero_exit",
   );
+
+  observe("missing-compiled-build-sentinel", {
+    stderr: "ModuleNotFoundError: No module named 'sklearn.__check_build._check_build'",
+    return_code: 1,
+  });
+  assert.deepEqual(
+    progressive.snapshot().unresolvedVerificationScopes,
+    ["shell:pytest:checks/"],
+    "a compiled-extension build-check sentinel is an environment diagnostic, not semantic debt",
+  );
 });
 
 test("structured shell executable duplication is pre-behavioral across path and case variants", () => {
@@ -7923,6 +7933,38 @@ test("alternate verification cannot substitute for an unresolved semantic scope"
   assert.equal(
     isAlternativeVerificationInspection(shell("npm run typecheck"), unresolved),
     false,
+  );
+});
+
+test("environment probes never consume the alternate-verification budget", () => {
+  const shell = (command: string) => ({ tool_name: "shell", arguments: { command } });
+  const unresolved = ["shell:pytest:all", "shell:pytest:sklearn/ensemble/_hist_gradient_boosting/tests/test_gradient_boosting.py"];
+  // Locating the testbed interpreter / confirming the test runner is a
+  // prerequisite, not a substitute green score.
+  assert.equal(
+    isAlternativeVerificationInspection(shell("/opt/miniconda3/envs/testbed/bin/python --version"), unresolved),
+    false,
+  );
+  assert.equal(
+    isAlternativeVerificationInspection(shell("python -m pytest --version"), unresolved),
+    false,
+  );
+  assert.equal(
+    isAlternativeVerificationInspection(shell("conda env list"), unresolved),
+    false,
+  );
+  assert.equal(
+    isAlternativeVerificationInspection(shell("pip show pytest"), unresolved),
+    false,
+  );
+  assert.equal(
+    isAlternativeVerificationInspection(shell("which python"), unresolved),
+    false,
+  );
+  // A real alternate test run on a different scope is still blocked.
+  assert.equal(
+    isAlternativeVerificationInspection(shell("python -m pytest sklearn/ensemble/_hist_gradient_boosting/tests/other_test.py"), unresolved),
+    true,
   );
 });
 

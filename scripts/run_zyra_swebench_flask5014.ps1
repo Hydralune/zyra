@@ -129,6 +129,16 @@ $env:ZYRA_DEPLOYMENT_PROFILE_BASE_PORT = "8420"
 $env:ZYRA_BENCHMARK_DOCKER_CONTAINER = $container
 $env:ZYRA_BENCHMARK_DOCKER_WORKDIR = "/testbed"
 $env:ZYRA_BENCHMARK_DOCKER_BRIDGE_SCRIPT = Join-Path $repo "scripts\docker_wsl_bridge.py"
+# SWE-bench images ship a compiled C-extension environment under a dedicated
+# conda env.  The container's default ``python`` is often not the test runner,
+# and running pytest on it fails with a missing ``__check_build`` module.  Probe
+# the canonical testbed interpreter once and hand it to the worker so the model
+# runs verification with the correct interpreter on its first attempt instead of
+# burning its inspection budget on environment discovery.
+$testInterpreter = (& "D:\Anaconda\python.exe" $dockerBridgeScript exec $container sh -lc 'if [ -x /opt/miniconda3/envs/testbed/bin/python ]; then echo /opt/miniconda3/envs/testbed/bin/python; elif [ -x /opt/miniconda3/bin/python ]; then echo /opt/miniconda3/bin/python; else echo python3; fi' 2>$null | Select-Object -First 1).Trim()
+if ($testInterpreter) {
+    $env:ZYRA_BENCHMARK_TEST_INTERPRETER = $testInterpreter
+}
 $env:ZYRA_BENCHMARK_LONG_HORIZON = "true"
 # This is an explicit harness limit, passed intact to the physical worker and
 # recorded below.  It prevents an otherwise correct patch from being stranded

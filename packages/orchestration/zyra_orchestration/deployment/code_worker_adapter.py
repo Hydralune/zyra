@@ -928,6 +928,15 @@ def execute_code_worker_operator(
         handoff=task_handoff,
     )
     if benchmark_binding is not None:
+        interpreter_guidance = ""
+        test_interpreter = str(benchmark_binding.get("test_interpreter") or "").strip()
+        if test_interpreter:
+            interpreter_guidance = (
+                f" The benchmark image ships its compiled test environment under a "
+                f"dedicated interpreter; run tests with {test_interpreter} (for example "
+                f"{test_interpreter} -m pytest <path>), not the container's default "
+                f"``python``, which lacks the compiled extensions."
+            )
         execution_prompt = (
             f"{execution_prompt}\n\n"
             "OFFICIAL BENCHMARK ENVIRONMENT: The shell tool is physically bound to "
@@ -938,6 +947,7 @@ def execute_code_worker_operator(
             f"path beneath {benchmark_binding['workdir']}; the runtime securely maps "
             "the latter to the managed mirror. Every shell call already starts in "
             f"{benchmark_binding['workdir']}; do not prefix it with cd. "
+            + interpreter_guidance +
             "Ordinary shell pipelines, redirects, command chaining, and command substitution "
             "are available inside this disposable task container after exact tool approval. "
             "Command strings run under POSIX sh; do not use Bash-only variables such as "
@@ -3300,6 +3310,9 @@ def _benchmark_docker_binding(
         "sync_root": sync_root,
         "mirror_excluded_prefixes": _BENCHMARK_MIRROR_EXCLUDED_PREFIXES,
         "canonical_host_workspace": canonical_host_workspace,
+        "test_interpreter": (
+            str(os.environ.get("ZYRA_BENCHMARK_TEST_INTERPRETER") or "").strip()
+        ),
     }
 
 

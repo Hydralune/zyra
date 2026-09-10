@@ -1550,7 +1550,15 @@ function isRetryableVerificationInvocationDiagnostic(
     // the diagnostic and creates a deterministic recovery deadlock.
     || /\b(?:manifest|submission|deliverables?|artifacts?|reports?)\b[^\n]{0,160}\bmissing\b[^\n]{0,240}\b(?:create|generate|produce|write|provide)\b[^\n]{0,160}\bbefore\b[^\n]{0,80}\b(?:verification|validation|acceptance)\b/iu.test(value)
     || missingDocumentationVerificationPrerequisite(value)
-    || scopedRunnerModuleUnavailable(value, verificationScope);
+    || scopedRunnerModuleUnavailable(value, verificationScope)
+    // A repository built with compiled extensions (Cython/C) fails to import
+    // under the container's default interpreter, which lacks those build
+    // artifacts.  ``No module named 'x.__check_build'`` means the wrong
+    // interpreter ran the suite, not that the delivered bytes are wrong; the
+    // correct testbed interpreter imports fine.  Keep this narrow to the
+    // explicit build-check sentinel so a genuine application import failure
+    // remains semantic debt.
+    || /\bNo module named\s+['"][^'"]*__(?:check_build|_check_build|check_build)['"]/iu.test(value);
 }
 
 function missingDocumentationVerificationPrerequisite(value: string): boolean {
