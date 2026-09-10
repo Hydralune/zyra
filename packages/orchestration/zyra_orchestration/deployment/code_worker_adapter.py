@@ -3352,7 +3352,32 @@ def _benchmark_permission_policy(
                     "container_ref_digest": container_ref_digest,
                     "gateway_hard_denies_remain_authoritative": True,
                 },
-            }
+            },
+            {
+                "rule_id": "managed-harbor-docker-agent-delegation",
+                "effect": "allow",
+                "source": "managed",
+                "kind": "tool",
+                "tool_pattern": "*",
+                "namespace_pattern": "agent",
+                "operation_pattern": "execute",
+                "workspace_pattern": str(resolved_workspace),
+                "session_pattern": session_id,
+                "argument_pattern": "*",
+                "priority": 1000,
+                "enabled": True,
+                "reason": (
+                    "budget-pressure delegation spawns an isolated sub-agent "
+                    "that works the same fenced benchmark workspace through the "
+                    "shared provider control-plane route; its child tool calls "
+                    "are still each permission-gated"
+                ),
+                "metadata": {
+                    "authority": "external-disposable-benchmark-container",
+                    "container_ref_digest": container_ref_digest,
+                    "gateway_hard_denies_remain_authoritative": True,
+                },
+            },
         ],
         "python_policy_fallback": False,
     }

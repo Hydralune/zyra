@@ -1504,21 +1504,31 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
         self.assertFalse(policy["interactive"])
         self.assertTrue(policy["headless"])
         self.assertFalse(policy["python_policy_fallback"])
-        self.assertEqual(len(policy["rules"]), 1)
-        rule = policy["rules"][0]
-        self.assertEqual(rule["effect"], "allow")
-        self.assertEqual(rule["source"], "managed")
-        self.assertEqual(rule["tool_pattern"], "shell")
-        self.assertEqual(rule["namespace_pattern"], "builtin")
-        self.assertEqual(rule["operation_pattern"], "execute")
+        self.assertEqual(len(policy["rules"]), 2)
+        shell_rule = policy["rules"][0]
+        self.assertEqual(shell_rule["effect"], "allow")
+        self.assertEqual(shell_rule["source"], "managed")
+        self.assertEqual(shell_rule["tool_pattern"], "shell")
+        self.assertEqual(shell_rule["namespace_pattern"], "builtin")
+        self.assertEqual(shell_rule["operation_pattern"], "execute")
         self.assertEqual(
-            rule["session_pattern"],
+            shell_rule["session_pattern"],
             "physical:task-1:layer:1:worker-1",
         )
-        self.assertEqual(rule["workspace_pattern"], str(workspace))
+        self.assertEqual(shell_rule["workspace_pattern"], str(workspace))
         self.assertTrue(
-            rule["metadata"]["gateway_hard_denies_remain_authoritative"]
+            shell_rule["metadata"]["gateway_hard_denies_remain_authoritative"]
         )
+        agent_rule = policy["rules"][1]
+        self.assertEqual(agent_rule["effect"], "allow")
+        self.assertEqual(agent_rule["tool_pattern"], "*")
+        self.assertEqual(agent_rule["namespace_pattern"], "agent")
+        self.assertEqual(agent_rule["operation_pattern"], "execute")
+        self.assertEqual(
+            agent_rule["session_pattern"],
+            "physical:task-1:layer:1:worker-1",
+        )
+        self.assertEqual(agent_rule["workspace_pattern"], str(workspace))
 
 
 if __name__ == "__main__":
