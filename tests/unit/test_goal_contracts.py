@@ -695,6 +695,48 @@ def test_sealed_container_rejects_empty_delivery(tmp_path) -> None:
     assert "workspace_mutation_observed" in verification["decision"]["decisive_failures"]
 
 
+def test_sealed_container_rejects_probe_only_delivery(tmp_path) -> None:
+    # A diagnostic scratch file (created, not a modified tracked source file)
+    # must not satisfy the sealed delivery mutation check.  Only a change to an
+    # already-tracked source file (modified/deleted) counts as a code delivery.
+    goal = (
+        "Nominal scale should be drawn the same way as categorical scales. "
+        "Three distinctive things happen on the categorical axis."
+    )
+    provider = {
+        "provider_called": True,
+        "task_execution_verified": True,
+        "prompt_goal_bound": True,
+        "synthetic_usage": False,
+        "calls": [{"request_id": "provider-request"}],
+    }
+    probe_only = validate_goal_delivery(
+        goal,
+        projection=goal_delivery_contract(
+            goal, require_workspace_mutation=True
+        ).to_dict(),
+        workspace_root=tmp_path,
+        workspace_delta={"created": ["_probe.py"]},
+        final_response="No patch was applied; the tree remains as delivered.",
+        provider_evidence=provider,
+        require_workspace_mutation=True,
+    )
+    assert probe_only["passed"] is False
+    assert probe_only["checks"]["workspace_mutation_observed"] is False
+
+    source_change = validate_goal_delivery(
+        goal,
+        projection=goal_delivery_contract(
+            goal, require_workspace_mutation=True
+        ).to_dict(),
+        workspace_root=tmp_path,
+        workspace_delta={"modified": ["seaborn/_core/scales.py"]},
+        final_response="Patched Nominal scale handling.",
+        provider_evidence=provider,
+        require_workspace_mutation=True,
+    )
+    assert source_change["checks"]["workspace_mutation_observed"] is True
+
 
 def test_delivery_contract_compiles_explicit_runtime_obligations() -> None:
     contract = goal_delivery_contract(

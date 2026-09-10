@@ -565,7 +565,11 @@ def validate_goal_delivery(
         ),
         "workspace_mutation_observed": bool(
             not contract.workspace_mutation_required
-            or any(delta.get(name) for name in ("created", "modified", "deleted"))
+            or (
+                any(delta.get(name) for name in ("created", "modified", "deleted"))
+                if not require_workspace_mutation
+                else any(delta.get(name) for name in ("modified", "deleted"))
+            )
         ),
         "required_paths_present": True,
         "expected_file_contents_match": True,

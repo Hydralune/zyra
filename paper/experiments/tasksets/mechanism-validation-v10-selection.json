@@ -1,0 +1,73 @@
+{
+  "schema": "zyra.mechanism-validation-selection/v1",
+  "frozen_at": "2026-09-10",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "purpose": "verify agent delegation executes (no permission_denied) on a budget-burning task; efficacy excluded",
+  "dataset": {
+    "source_path": "/home/ylon/zyra-experiments/swe-bench-verified-test.jsonl",
+    "sha256": "889bccf7ada1a43d211050ac666f3b31032997209afb10dccdc6ea52128a8435",
+    "total_records": 500
+  },
+  "selection_rule": {
+    "seed": "zyra-mechanism-validation-v10-20260910",
+    "filter": "difficulty == '15 min - 1 hour'",
+    "formal_instance_ids_excluded": [
+      "astropy__astropy-14508",
+      "django__django-13212",
+      "matplotlib__matplotlib-24026",
+      "mwaskom__seaborn-3187",
+      "pallets__flask-5014",
+      "psf__requests-6028",
+      "pydata__xarray-3993",
+      "pylint-dev__pylint-8898",
+      "pytest-dev__pytest-5631",
+      "scikit-learn__scikit-learn-11310",
+      "sphinx-doc__sphinx-7757",
+      "sympy__sympy-23534"
+    ],
+    "used_instance_ids_excluded": [
+      "django__django-15930",
+      "matplotlib__matplotlib-13989",
+      "pallets__flask-5014",
+      "pydata__xarray-4094",
+      "pylint-dev__pylint-8898",
+      "pytest-dev__pytest-6202",
+      "scikit-learn__scikit-learn-13439",
+      "scikit-learn__scikit-learn-11310",
+      "sphinx-doc__sphinx-9367",
+      "sympy__sympy-17655",
+      "psf__requests-2931",
+      "astropy__astropy-7606"
+    ],
+    "used_repos_excluded": [
+      "django/django",
+      "matplotlib/matplotlib",
+      "pallets/flask",
+      "pydata/xarray",
+      "pylint-dev/pylint",
+      "pytest-dev/pytest",
+      "scikit-learn/scikit-learn",
+      "sphinx-doc/sphinx",
+      "sympy/sympy",
+      "psf/requests",
+      "astropy/astropy"
+    ],
+    "eligible_records": 1,
+    "ranking": "ascending lowercase hex SHA-256(seed + '|' + instance_id)",
+    "selected_rank": 1
+  },
+  "selected": {
+    "instance_id": "mwaskom__seaborn-3069",
+    "repo": "mwaskom/seaborn",
+    "base_commit": "54cab15bdacfaa05a88fbc5502a5b322d99f148e",
+    "difficulty": "15 min - 1 hour",
+    "rank_digest": "4be5db41abe97788324a63d927be6a7b64b87111a37b4f2538164b3768ac5b26"
+  },
+  "leakage_controls": {
+    "gold_patch_supplied_to_agent": false,
+    "test_patch_supplied_to_agent": false,
+    "hidden_test_names_supplied_to_agent": false,
+    "result_observed_before_selection": false
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "schema": "zyra.experiment-run-summary/v1",
+  "instance_id": "mwaskom__seaborn-3069",
+  "system": "ZYRA",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "invalidation_reason": "",
+  "task_id": "task_3f02d0f149ad",
+  "run_id": "run_0427500b32c5",
+  "task_status": "completed",
+  "started_at": "2026-09-10T12:39:35.8204233Z",
+  "ended_at": "2026-09-10T13:22:36.4704330Z",
+  "elapsed_seconds": 2580.65,
+  "budget": {
+    "max_total_tokens": 600000,
+    "max_turns": 80,
+    "deadline_minutes": 45
+  },
+  "usage": {
+    "input_tokens": 255760,
+    "output_tokens": 47648,
+    "total_tokens": 303408,
+    "cache_read_input_tokens": 101376,
+    "cache_creation_input_tokens": 0,
+    "cost_usd": 0.03523905,
+    "provider_calls": 24,
+    "tool_calls": 26,
+    "context_compactions": 0
+  },
+  "workspace_deltas": [
+    {
+      "schema": "zyra.physical-workspace-delta/v1",
+      "before_manifest_digest": "sha256:6cbbaa2f916c0ed02f57f0187624a62d652680b054d523943ea94fd106d5368b",
+      "after_manifest_digest": "sha256:eacb3efb0fbb91fe2c9f8e4b47d01e70ea5719d43a589425765f49a72c101ced",
+      "created": [
+        "_probe.py"
+      ],
+      "modified": [],
+      "deleted": [],
+      "changed": [
+        "_probe.py"
+      ]
+    }
+  ],
+  "evidence_integrity": {
+    "task_run_present": true,
+    "canonical_task_record_observed": true,
+    "terminal_state_observed": true,
+    "run_transport_ok": true,
+    "run_transport_error": ""
+  },
+  "official_evaluator": null,
+  "strict_success": false
+}
