@@ -1,0 +1,57 @@
+{
+  "schema": "zyra.calibration-selection/v1",
+  "frozen_at": "2026-09-10",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "dataset": {
+    "source_path": "/home/ylon/zyra-experiments/swe-bench-verified-test.jsonl",
+    "sha256": "889bccf7ada1a43d211050ac666f3b31032997209afb10dccdc6ea52128a8435",
+    "total_records": 500
+  },
+  "selection_rule": {
+    "seed": "zyra-postfix-calibration-v7-20260910",
+    "filter": "difficulty == '<15 min fix'; exclude all frozen formal SWE instance_ids and repositories already used by SWE calibration runs",
+    "formal_instance_ids_excluded": [
+      "astropy__astropy-14508",
+      "django__django-13212",
+      "matplotlib__matplotlib-24026",
+      "mwaskom__seaborn-3187",
+      "pallets__flask-5014",
+      "psf__requests-6028",
+      "pydata__xarray-3993",
+      "pylint-dev__pylint-8898",
+      "pytest-dev__pytest-5631",
+      "scikit-learn__scikit-learn-11310",
+      "sphinx-doc__sphinx-7757",
+      "sympy__sympy-23534"
+    ],
+    "excluded_calibration_repositories": [
+      "pallets/flask",
+      "pylint-dev/pylint",
+      "scikit-learn/scikit-learn",
+      "sympy/sympy",
+      "matplotlib/matplotlib",
+      "django/django",
+      "pytest-dev/pytest",
+      "sphinx-doc/sphinx"
+    ],
+    "eligible_records": 15,
+    "ranking": "ascending lowercase hex SHA-256(seed + '|' + instance_id)",
+    "selected_rank": 1
+  },
+  "selected": {
+    "instance_id": "pydata__xarray-4094",
+    "repo": "pydata/xarray",
+    "base_commit": "a64cf2d5476e7bbda099b34c40b7be1880dbd39a",
+    "difficulty": "<15 min fix",
+    "rank_digest": "06f92e5ae40f62226f53824c6579790bd6803d012f156ba2c4acfce55ab42943",
+    "public_goal": "paper/experiments/tasksets/xarray-4094-public-goal.txt"
+  },
+  "leakage_controls": {
+    "gold_patch_supplied_to_agent": false,
+    "test_patch_supplied_to_agent": false,
+    "hidden_test_names_supplied_to_agent": false,
+    "result_observed_before_selection": false
+  },
+  "purpose": "End-to-end closed-loop validation of the cumulative-budget-driven compaction and recovery-resume fixes (seed v7). Excluded from efficacy claims."
+}

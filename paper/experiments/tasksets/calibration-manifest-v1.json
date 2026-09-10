@@ -3,8 +3,8 @@
   "status": "frozen-before-calibration-results",
   "seed": "zyra-calibration-v1-20260907",
   "purpose": "compatibility, observability, evaluator agreement and budget gate only; excluded from all efficacy analyses",
-  "selected_task_count": 12,
-  "planned_cell_count": 30,
+  "selected_task_count": 13,
+  "planned_cell_count": 31,
   "systems": {
     "openhands_official": "official OpenHands default Agent; only its native SWE-bench calibration tasks",
     "autogen_static_official": "official AutoGen AssistantAgent team with fixed RoundRobin scheduling",
@@ -23,7 +23,8 @@
     {"family": "swe_bench_verified", "task_id": "sympy__sympy-17655", "systems": ["zyra"], "purpose": "post-fix pipeline and live-progress calibration selected by SHA-256 rank from unused <15 minute tasks before observing any result; efficacy excluded"},
     {"family": "swe_bench_verified", "task_id": "scikit-learn__scikit-learn-13439", "systems": ["zyra"], "purpose": "fresh post-repair calibration selected before reading the gold patch by frozen SHA-256 rank over unused non-formal <15 minute tasks; pipeline, evidence-integrity and budget gate only; efficacy excluded", "selection_record": "paper/experiments/tasksets/scikit-learn-13439-calibration-selection-v1.json"},
     {"family": "swe_bench_verified", "task_id": "matplotlib__matplotlib-13989", "systems": ["zyra"], "purpose": "fresh cross-repository calibration after inline-probe and WSL path-stream repairs; selected before reading the gold patch; efficacy excluded", "selection_record": "paper/experiments/tasksets/matplotlib-13989-calibration-selection-v1.json"},
-    {"family": "swe_bench_verified", "task_id": "sphinx-doc__sphinx-9367", "systems": ["zyra"], "purpose": "fresh cross-repository calibration after verification-debt nudge and budget closeout repair; selected before reading the gold patch; efficacy excluded", "selection_record": "paper/experiments/tasksets/sphinx-9367-calibration-selection-v1.json"}
+    {"family": "swe_bench_verified", "task_id": "sphinx-doc__sphinx-9367", "systems": ["zyra"], "purpose": "fresh cross-repository calibration after verification-debt nudge and budget closeout repair; selected before reading the gold patch; efficacy excluded", "selection_record": "paper/experiments/tasksets/sphinx-9367-calibration-selection-v1.json"},
+    {"family": "swe_bench_verified", "task_id": "pydata__xarray-4094", "systems": ["zyra"], "purpose": "fresh cross-repository calibration after cumulative-budget-driven compaction and recovery-resume repair; selected before reading the gold patch; efficacy excluded", "selection_record": "paper/experiments/tasksets/xarray-4094-calibration-selection-v1.json"}
   ],
   "acceptance_gates": [
     "Each scheduled cell yields a unique run identifier, task-record hash, model identifier, start/end time, input/output/reasoning/cache token usage, tool-call count, terminal status and raw evaluator result.",

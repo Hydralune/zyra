@@ -1,0 +1,13 @@
+Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch.
+
+to_unstacked_dataset is broken for single-dimension variables.
+
+A `DataArray` with a single dimension, when stacked with `to_stacked_array` and then unstacked with `to_unstacked_dataset`, raises `MergeError: conflicting values for variable 'y' on objects to be combined` instead of producing a working roundtrip.
+
+Minimal reproduction:
+    arr = xr.DataArray(np.arange(3), coords=[("x", [0, 1, 2])])
+    data = xr.Dataset({"a": arr, "b": arr})
+    stacked = data.to_stacked_array("y", sample_dims=["x"])
+    unstacked = stacked.to_unstacked_dataset("y")
+
+Expected behavior: a working roundtrip for single-dimension variables, matching the already-working multi-dimension case. Preserve unrelated stacking/unstacking and combine behavior.
