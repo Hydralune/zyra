@@ -59,6 +59,8 @@ import {
   isClearlyVerificationDrivingTool,
   isVerificationDrivingToolResult,
   isEnvironmentRecoveryToolResult,
+  budgetAdjustedCompactionThreshold,
+  budgetForcesCompaction,
   modelCompactionPrompt,
   preDeliveryInspectionGuidance,
   runtimeLineageEventPayload,
@@ -8419,4 +8421,33 @@ test("verification debt forces closeout near the deadline", () => {
 
   assert.equal(decision.action, "closeout");
   assert.equal(decision.snapshot.phase, "closeout");
+});
+
+test("budget-adjusted compaction threshold tightens as cumulative tokens are spent", () => {
+  // Below 40% the nominal threshold is untouched.
+  assert.equal(budgetAdjustedCompactionThreshold(96_000, 0, 600_000), 96_000);
+  assert.equal(budgetAdjustedCompactionThreshold(96_000, 120_000, 600_000), 96_000);
+
+  // 40%-70% keeps 60%.
+  assert.equal(budgetAdjustedCompactionThreshold(96_000, 240_000, 600_000), 57_600);
+
+  // 70%-90% keeps 35%.
+  assert.equal(budgetAdjustedCompactionThreshold(96_000, 420_000, 600_000), 33_600);
+
+  // 90%+ keeps 20% and never collapses to zero.
+  assert.equal(budgetAdjustedCompactionThreshold(96_000, 540_000, 600_000), 19_200);
+  assert.equal(budgetAdjustedCompactionThreshold(96_000, 599_999, 600_000), 19_200);
+});
+
+test("budget-adjusted compaction threshold is inert without a provider cap", () => {
+  assert.equal(budgetAdjustedCompactionThreshold(96_000, 500_000, 0), 96_000);
+  assert.equal(budgetAdjustedCompactionThreshold(96_000, 0, 600_000), 96_000);
+});
+
+test("budget forces compaction only past 90% of the provider cap", () => {
+  assert.equal(budgetForcesCompaction(0, 600_000), false);
+  assert.equal(budgetForcesCompaction(539_999, 600_000), false);
+  assert.equal(budgetForcesCompaction(540_000, 600_000), true);
+  assert.equal(budgetForcesCompaction(600_000, 600_000), true);
+  assert.equal(budgetForcesCompaction(540_000, 0), false);
 });

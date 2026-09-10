@@ -352,6 +352,49 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             )
         )
 
+    def test_benchmark_closeout_falls_back_to_cross_attempt_executed_paths(self) -> None:
+        # A recovery attempt may add no new workspace effect, leaving an empty
+        # workspace_delta, but the handoff still carries the already-delivered
+        # source + test paths and a passing focused pytest receipt.  The
+        # closeout must recognize that as verified delivery instead of failing.
+        evidence = {
+            "obligation_evidence": {
+                "successful_executed_paths": [
+                    {"path": "src/flask/blueprints.py", "workspace_mutation_count": 1},
+                    {"path": "tests/test_blueprints.py", "workspace_mutation_count": 1},
+                ],
+                "verification_command_receipts": [
+                    {
+                        "status": "passed",
+                        "command": "python -m pytest tests/test_blueprints.py -q",
+                    }
+                ],
+            }
+        }
+        self.assertTrue(
+            code_worker_adapter._benchmark_delivery_evidence_satisfied(
+                evidence,
+                {"created": [], "modified": []},
+            )
+        )
+
+    def test_benchmark_closeout_still_requires_pytest_receipt_on_path_fallback(self) -> None:
+        evidence = {
+            "obligation_evidence": {
+                "successful_executed_paths": [
+                    {"path": "src/flask/blueprints.py", "workspace_mutation_count": 1},
+                    {"path": "tests/test_blueprints.py", "workspace_mutation_count": 1},
+                ],
+                "verification_command_receipts": [],
+            }
+        }
+        self.assertFalse(
+            code_worker_adapter._benchmark_delivery_evidence_satisfied(
+                evidence,
+                {"created": [], "modified": []},
+            )
+        )
+
     def test_delivery_completion_gate_blocks_partial_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)

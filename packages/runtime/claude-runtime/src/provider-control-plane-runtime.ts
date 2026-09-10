@@ -552,6 +552,15 @@ export async function resolveProviderControlPlaneTurns(
         provider_input_tokens: String(nonnegativeUsage(result.usage.input_tokens ?? result.usage.prompt_tokens)),
         provider_output_tokens: String(nonnegativeUsage(result.usage.output_tokens ?? result.usage.completion_tokens)),
         provider_total_tokens: String(providerTotalUsage(result.usage)),
+        // Cumulative billable budget accounting.  The compression decision in
+        // the QueryEngine loop only saw the single-request context size, which
+        // microcompaction keeps below the 96k threshold, so a long-horizon run
+        // never triggered a real compaction while cumulative replay billing
+        // raced to the hard cap.  Expose the post-dispatch cumulative total and
+        // the hard cap so the loop can tighten its threshold as the budget runs
+        // down instead of failing closed only at the very end.
+        provider_consumed_total_tokens: String(consumedProviderTokens + providerTotalUsage(result.usage)),
+        provider_maximum_total_tokens: String(maximumTotalTokens),
       },
       error: null,
       finalText: result.text,

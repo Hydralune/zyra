@@ -141,6 +141,42 @@ function boundedCompactionText(value: unknown, maximum = 2_000): string {
   return `${text.slice(0, head)}\n...[summary excerpt omitted]...\n${text.slice(-tail)}`;
 }
 
+/**
+ * Scale a context-window compaction threshold by cumulative provider budget
+ * progress.  A long-horizon run replays the growing transcript every round and
+ * bills cache reads, so the cumulative total races toward the hard cap while
+ * microcompaction keeps the per-request context under the nominal threshold and
+ * a real compaction never fires.  Tighten the threshold as the budget is spent
+ * so a semantic compaction happens while there is still budget to produce the
+ * summary and finish delivery, instead of failing closed only at the end.
+ */
+export function budgetAdjustedCompactionThreshold(
+  nominalThreshold: number,
+  consumedTokens: number,
+  maximumTokens: number,
+): number {
+  const threshold = Math.max(0, Math.floor(nominalThreshold));
+  const consumed = Math.max(0, Math.floor(consumedTokens));
+  const maximum = Math.max(0, Math.floor(maximumTokens));
+  if (maximum <= 0 || consumed <= 0) return threshold;
+  const fraction = Math.min(1, consumed / maximum);
+  const multiplier =
+    fraction < 0.4 ? 1 :
+    fraction < 0.7 ? 0.6 :
+    fraction < 0.9 ? 0.35 :
+    0.2;
+  return Math.max(1, Math.floor(threshold * multiplier));
+}
+
+export function budgetForcesCompaction(
+  consumedTokens: number,
+  maximumTokens: number,
+): boolean {
+  const consumed = Math.max(0, Math.floor(consumedTokens));
+  const maximum = Math.max(0, Math.floor(maximumTokens));
+  return maximum > 0 && consumed >= maximum * 0.9;
+}
+
 function compactionBlocks(value: unknown): CompactContentBlock[] {
   if (!Array.isArray(value)) {
     return [{ type: "text", text: boundedCompactionText(value, 8_000) }];
@@ -2581,10 +2617,36 @@ export class ClaudeRuntimeCore {
         configuredContextWindow,
         8_192,
       ) * 4;
+      // Cumulative budget pressure must tighten the compaction threshold even
+      // when microcompaction keeps the per-request context under the 96k char
+      // ceiling.  A long-horizon run replays the growing transcript every round
+      // and bills cache reads, so the cumulative total can race toward the hard
+      // cap while `contextChars()` never crosses the nominal threshold and a
+      // real compaction never fires.  Read the cumulative total (post-dispatch)
+      // and cap surfaced by the provider control plane and scale the threshold
+      // down as the budget is consumed, forcing an earlier semantic compaction
+      // while there is still budget to produce the summary and finish delivery.
+      const providerConsumedTotalTokens = Math.max(
+        0,
+        Math.floor(Number(modelMetadata.provider_consumed_total_tokens) || 0),
+      );
+      const providerMaximumTotalTokens = Math.max(
+        0,
+        Math.floor(Number(modelMetadata.provider_maximum_total_tokens) || 0),
+      );
+      const budgetAdjustedThreshold = budgetAdjustedCompactionThreshold(
+        Math.min(config.maxQueryContextChars, autoCompactCharacterThreshold),
+        providerConsumedTotalTokens,
+        providerMaximumTotalTokens,
+      );
       const contextDecision = e01.decideContext(
         measuredContextChars,
-        Math.min(config.maxQueryContextChars, autoCompactCharacterThreshold),
-        asBoolean(config.runtimeConstraints.force_compact_restore),
+        budgetAdjustedThreshold,
+        asBoolean(config.runtimeConstraints.force_compact_restore)
+          || budgetForcesCompaction(
+            providerConsumedTotalTokens,
+            providerMaximumTotalTokens,
+          ),
         session.compactionCount,
       );
       if (contextDecision.accepted) {

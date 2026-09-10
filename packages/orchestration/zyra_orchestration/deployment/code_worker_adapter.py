@@ -300,6 +300,17 @@ def _benchmark_delivery_evidence_satisfied(
         for group in ("created", "modified")
         for path in (workspace_delta.get(group) or {})
     }
+    # A recovery attempt may exhaust its budget before adding any new workspace
+    # effect.  Fall back to the cross-attempt executed-path receipts so an
+    # already-delivered source + test edit is not re-scored as "no delivery".
+    if not changed:
+        obligations = evidence.get("obligation_evidence")
+        if isinstance(obligations, Mapping):
+            for item in obligations.get("successful_executed_paths") or ():
+                if isinstance(item, Mapping):
+                    path = str(item.get("path") or "").replace("\\", "/")
+                    if path:
+                        changed.add(path)
     source_changed = any(path.endswith(".py") and not path.startswith("tests/") for path in changed)
     test_changed = any(path.startswith("tests/") and path.endswith(".py") for path in changed)
     obligations = evidence.get("obligation_evidence")
@@ -1220,6 +1231,37 @@ def execute_code_worker_operator(
         else _workspace_delta(before, after)
     )
     evidence = dict(run.execution_evidence)
+    # A recovery attempt may crash before its own tool-loop produces a focused
+    # pytest receipt, yet the previous attempt already did.  Merge the bounded
+    # cross-attempt obligation evidence carried in the handoff so the
+    # deterministic benchmark closeout can see that a source edit, a test edit,
+    # and a passing focused pytest all already exist even when this attempt
+    # added no new workspace effect.  This is what lets a budget-exhausted
+    # recovery settle as "completed" on real, already-verified delivery rather
+    # than degrading to "failed" and re-running the loop from scratch.
+    if task_handoff is not None:
+        handoff_obligations = task_handoff.get("obligation_evidence")
+        if isinstance(handoff_obligations, Mapping):
+            merged_obligations = dict(
+                (evidence.get("obligation_evidence") or {})
+                if isinstance(evidence.get("obligation_evidence"), Mapping)
+                else {}
+            )
+            for key in (
+                "verification_command_receipts",
+                "successful_executed_paths",
+                "successful_skill_invocations",
+            ):
+                incoming = handoff_obligations.get(key)
+                if isinstance(incoming, list) and incoming:
+                    existing = merged_obligations.get(key)
+                    merged = [
+                        *(existing if isinstance(existing, list) else ()),
+                        *incoming,
+                    ][-64:]
+                    merged_obligations[key] = merged
+            if merged_obligations:
+                evidence["obligation_evidence"] = merged_obligations
     if benchmark_binding is not None:
         evidence["benchmark_environment"] = {
             "schema": "zyra.benchmark-docker-binding/v1",
