@@ -196,7 +196,18 @@ Work on the repository in the supplied benchmark container. A Flask Blueprint wi
         if (-not (Test-Path -LiteralPath $GoalFile)) {
             throw "GoalFile does not exist: $GoalFile"
         }
-        $goal = Get-Content -Raw -LiteralPath $GoalFile
+        $issueText = (Get-Content -Raw -LiteralPath $GoalFile).Trim()
+        # A sealed benchmark container exists to produce a physical code change.
+        # The delivery directive must be part of the goal the model receives, not
+        # something the goal file happens to contain.  Some goal files already
+        # carry the standard preamble (legacy calibration tasks); detect it so we
+        # never double-inject, and add it when an issue is phrased as pure prose.
+        $deliveryPreamble = "Work on the repository in the supplied benchmark container. Diagnose and fix the following issue using the smallest correct production change. Add or adapt a focused regression test, run the relevant tests, and leave the completed code changes in the repository. Do not only describe a patch."
+        if ($issueText -match "leave the completed code changes|do not only describe a patch|deliver the code change") {
+            $goal = $issueText
+        } else {
+            $goal = "$deliveryPreamble`n`n$issueText"
+        }
     }
     # Sealed benchmark tasks own their Docker executor in the API.  Calling the
     # API directly avoids staging this development repository into the task

@@ -36,11 +36,19 @@ sealed benchmark 容器的语义本身就是「必须产生物理代码改动交
 | strict success | false |
 | 官方 evaluator | 无（空补丁，无法判分）|
 
-## 机制信号观察
+## 机制信号观察（runtime 事件为准）
 
-- `total_tokens = 340,456`，占比 56.7%，**首次真实跨越 50% 累计预算线**——`budgetDrivenDelegationSteer` 应在该阈值触发。但本运行没有产生补丁，无法通过本运行确认委派是否被模型执行。
-- 无崩溃循环（对比 sphinx 4 attempt），第一步恢复续跑机制持续生效。
+以 `artifacts/run_9fee24bf3306/task_a1f45f65503f/artifact_2aa74d06d7f1.jsonl` 的事件流为准：
+
+| 机制 | 状态 | 证据 |
+|---|---|---|
+| 累计预算压缩 | ✅ 真实生效 | `context_compacted` 事件 8 次（turn 4/5/7/9/11/13/14/15）|
+| 委派 steer | ✅ 真实触发 | `provider_delegation_steered` 在 turn 15、`consumed=319008`（53.2%）|
+| 委派执行 | ❌ 未落地 | 模型请求含 56 个工具（含 Agent），但 26 次 tool call 全是 `shell`，模型未调 Agent 工具 |
+| 完成门 | ❌ fail-open | 空交付放行 `completed`（已修 commit `fac26141`）|
+
+**注意**：`evidence-summary.json` 的 `context_compactions=0` 是记账缺陷——压缩走 microcompact 路径不计入该字段，真实压缩以 runtime 事件的 `context_compacted` 为准。
 
 ## 后续
 
-本运行不重跑（已暴露，且空补丁无判分价值）。修复 fail-open 缺陷后，需用新 seed 选新的未暴露中等题，验证：(1) 空交付不再被放行；(2) 委派 steer 在真实烧预算场景是否落地。
+本运行不重跑（已暴露，且空补丁无判分价值）。修复 fail-open 缺陷后，需用新 seed 选新的未暴露中等题，验证：(1) 空交付不再被放行；(2) 委派 steer 触发后模型是否委派（当前 deepseek-v4-flash 收到 steer 未调 Agent 工具，属遵循度问题，非工具缺失）。
