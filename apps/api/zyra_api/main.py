@@ -7660,7 +7660,7 @@ def _production_physical_dispatch_port(
         permission_ref=str(permission.get("decision_id") or ""),
         operation="phase2-operator-execution",
         provider_id=provider_id or "deepseek",
-        model_id=model_id or "deepseek-v4-flash",
+        model_id=model_id or "deepseek-flash",
         execution_budget_ms=execution_budget_ms,
     )
     runtime_ingress_lock = _runtime_event_threading.RLock()

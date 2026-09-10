@@ -4,7 +4,7 @@
   "frozenAt": "2026-09-07",
   "primaryModel": {
     "provider": "deepseek",
-    "model": "deepseek-v4-flash",
+    "model": "deepseek-flash",
     "temperature": 0,
     "thinking": "provider_default_enabled"
   },

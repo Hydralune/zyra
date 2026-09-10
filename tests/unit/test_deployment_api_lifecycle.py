@@ -175,7 +175,7 @@ def test_provider_env_loader_reads_only_the_exact_allowlisted_key(
     assert os.environ.get("IGNORED_SECRET") is None
     assert api._preferred_configured_provider() == (
         "deepseek",
-        "deepseek-v4-flash",
+        "deepseek-flash",
     )
 
     (tmp_path / ".env.deepseek.local").write_text("", encoding="utf-8")
@@ -291,5 +291,5 @@ def test_provider_switches_retain_credentials_but_admit_only_deepseek(
     )
     assert api._preferred_configured_provider() == (
         "deepseek",
-        "deepseek-v4-flash",
+        "deepseek-flash",
     )

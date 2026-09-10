@@ -436,7 +436,7 @@ def campaign_request(
         "current": {
             "tier_ids": ["device", "edge", "cloud"],
             "provider_ids": ["zhipu", "kimi-platform", "deepseek"],
-            "model_ids": ["glm-5.2", "deepseek-v4-flash", "kimi-k2.7-code"],
+            "model_ids": ["glm-5.2", "deepseek-flash", "kimi-k2.7-code"],
             "current_dispatch_required": True,
         },
         "protected_m1_bundle_digest": protected.bundle_digest,

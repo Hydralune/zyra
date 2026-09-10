@@ -429,8 +429,8 @@ describe("canonical provider model catalog", () => {
       state_owner: "typescript.ProviderControlPlaneStore",
       result: [{
         providerId: "deepseek",
-        modelId: "deepseek-v4-flash",
-        displayName: "DeepSeek V4 Flash",
+        modelId: "deepseek-flash",
+        displayName: "DeepSeek Flash",
         family: "deepseek",
         contextWindow: 131_072,
         maximumOutputTokens: 16_384,
@@ -440,7 +440,7 @@ describe("canonical provider model catalog", () => {
     })
     expect(models[0]).toMatchObject({
       providerId: "deepseek",
-      modelId: "deepseek-v4-flash",
+      modelId: "deepseek-flash",
       reasoning: true,
       defaultReasoningEffort: "high",
       thinkingEnabled: true,
@@ -466,8 +466,8 @@ describe("product commands and continuous session", () => {
       async providerModels() {
         return [{
           providerId: "deepseek",
-          modelId: "deepseek-v4-flash",
-          displayName: "DeepSeek V4 Flash",
+          modelId: "deepseek-flash",
+          displayName: "DeepSeek Flash",
           family: "deepseek",
           contextWindow: 131_072,
           maximumOutputTokens: 16_384,
@@ -856,8 +856,8 @@ describe("product commands and continuous session", () => {
         modelRequests += 1
         return [{
           providerId: "deepseek",
-          modelId: "deepseek-v4-flash",
-          displayName: "DeepSeek V4 Flash",
+          modelId: "deepseek-flash",
+          displayName: "DeepSeek Flash",
           family: "deepseek",
           contextWindow: 131_072,
           maximumOutputTokens: 16_384,
@@ -904,7 +904,7 @@ describe("product commands and continuous session", () => {
     await executing
     expect(calls[0]).toEqual({
       goal: "使用选择的模型执行",
-      execution: { providerId: "deepseek", modelId: "deepseek-v4-flash", reasoningEffort: "max" },
+      execution: { providerId: "deepseek", modelId: "deepseek-flash", reasoningEffort: "max" },
     })
     expect(stdout.text).toContain("推理强度 · max")
     expect(stdout.text).toContain("可选强度 · low/high/max")

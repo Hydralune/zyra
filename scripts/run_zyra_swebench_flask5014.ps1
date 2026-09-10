@@ -120,7 +120,7 @@ $env:ZYRA_CONTROL_STATE = Join-Path $stateRoot "control"
 $env:ZYRA_SUBAGENT_STATE = Join-Path $stateRoot "subagents"
 $env:ZYRA_DEEPSEEK_ENABLED = "true"
 $env:ZYRA_MODEL_PROVIDER = "deepseek"
-$env:ZYRA_MODEL = "deepseek-v4-flash"
+$env:ZYRA_MODEL = "deepseek-flash"
 $env:ZYRA_API_HOST = "127.0.0.1"
 $env:ZYRA_API_PORT = "8001"
 # Separate the per-run deployment workers from stale development workers that
@@ -158,7 +158,7 @@ $metadata = Join-Path $logRoot "run-metadata.json"
     analysis_class = $analysisClass
     efficacy_eligible = ($analysisClass -eq "formal")
     invalidation_reason = if ($analysisClass -eq "invalidated_development") { $InvalidationReason.Trim() } else { "" }
-    model = "deepseek-v4-flash"
+    model = "deepseek-flash"
     temperature = 0
     sealed = $true
     container = $container

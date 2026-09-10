@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 ENV_FILE = ROOT / ".env.deepseek.local"
-MODEL = "deepseek-v4-flash"
+MODEL = "deepseek-flash"
 BASE_URL = "https://api.deepseek.com"
 TASK = (
     "Return exactly one JSON object and no explanation. Records: "

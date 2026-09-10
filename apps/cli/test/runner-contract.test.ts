@@ -77,7 +77,7 @@ describe("FE-S01 run result and fail-closed contracts", () => {
       false,
       "submission-one",
       undefined,
-      { providerId: "deepseek", modelId: "deepseek-v4-flash" },
+      { providerId: "deepseek", modelId: "deepseek-flash" },
     )).not.toBe(first)
     expect(first.startsWith("task.create:global:")).toBe(true)
   })

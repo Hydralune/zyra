@@ -4,9 +4,9 @@ import { dirname, resolve } from "node:path";
 
 import {
   DEEPSEEK_PROVIDER_ID,
-  DEEPSEEK_V4_FLASH_MODEL_ID,
+  DEEPSEEK_FLASH_MODEL_ID,
   ProviderControlPlane,
-  installDeepSeekV4FlashProfile,
+  installDeepSeekFlashProfile,
 } from "../../packages/runtime/provider-control-plane/src/index.ts";
 import type {
   DispatchMessage,
@@ -345,7 +345,7 @@ class LiveModel {
         },
       },
     });
-    installDeepSeekV4FlashProfile(this.controlPlane);
+    installDeepSeekFlashProfile(this.controlPlane);
   }
 
   close(): void {
@@ -369,11 +369,11 @@ class LiveModel {
       turnId: callId,
       purpose: "execute",
       preferredProviderId: DEEPSEEK_PROVIDER_ID,
-      preferredModelId: DEEPSEEK_V4_FLASH_MODEL_ID,
-      routeHint: `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+      preferredModelId: DEEPSEEK_FLASH_MODEL_ID,
+      routeHint: `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_FLASH_MODEL_ID}`,
       constraints: {
         providerIds: [DEEPSEEK_PROVIDER_ID],
-        modelIds: [DEEPSEEK_V4_FLASH_MODEL_ID],
+        modelIds: [DEEPSEEK_FLASH_MODEL_ID],
         requiredInput: ["text"],
         requiredOutput: ["text"],
         requireTools: false,
@@ -828,7 +828,7 @@ async function main(): Promise<void> {
               generatedAt: new Date().toISOString(),
               configuration: {
                 modelProvider: DEEPSEEK_PROVIDER_ID,
-                modelId: DEEPSEEK_V4_FLASH_MODEL_ID,
+                modelId: DEEPSEEK_FLASH_MODEL_ID,
                 repetitions: options.repetitions,
                 taskCount: options.taskCount,
                 methods: options.methods,
@@ -852,7 +852,7 @@ async function main(): Promise<void> {
       generatedAt: new Date().toISOString(),
       configuration: {
         modelProvider: DEEPSEEK_PROVIDER_ID,
-        modelId: DEEPSEEK_V4_FLASH_MODEL_ID,
+        modelId: DEEPSEEK_FLASH_MODEL_ID,
         repetitions: options.repetitions,
         taskCount: options.taskCount,
         methods: options.methods,

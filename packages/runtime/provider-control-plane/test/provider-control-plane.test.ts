@@ -24,9 +24,9 @@ import {
   DEEPSEEK_CREDENTIAL_ID,
   DEEPSEEK_ENABLED_ENV,
   DEEPSEEK_PROVIDER_ID,
-  DEEPSEEK_V4_FLASH_MODEL_ID,
-  deepSeekV4FlashProfile,
-  installDeepSeekV4FlashProfile,
+  DEEPSEEK_FLASH_MODEL_ID,
+  deepSeekFlashProfile,
+  installDeepSeekFlashProfile,
 } from "../src/profiles/deepseek.ts";
 import {
   KIMI_API_KEY_ENV,
@@ -120,22 +120,22 @@ function makeControlPlane(
   return { controlPlane, secrets };
 }
 
-test("DeepSeek V4 Flash profile binds an environment reference without persisting secret bytes", (t) => {
+test("DeepSeek Flash profile binds an environment reference without persisting secret bytes", (t) => {
   const { controlPlane } = makeControlPlane(t);
   const secret = "deepseek-test-secret";
-  const installed = installDeepSeekV4FlashProfile(controlPlane, {
+  const installed = installDeepSeekFlashProfile(controlPlane, {
     [DEEPSEEK_API_KEY_ENV]: secret,
   });
-  const profile = deepSeekV4FlashProfile();
+  const profile = deepSeekFlashProfile();
 
   assert.equal(profile.provider.baseUrl, "https://api.deepseek.com");
   assert.equal(profile.provider.protocol, "openai_chat");
   assert.deepEqual(profile.provider.allowedHosts, ["api.deepseek.com"]);
   assert.equal(profile.provider.metadata.routing_priority, 300);
-  assert.equal(profile.model.modelId, "deepseek-v4-flash");
-  assert.equal(profile.model.displayName, "DeepSeek V4 Flash");
+  assert.equal(profile.model.modelId, "deepseek-flash");
+  assert.equal(profile.model.displayName, "DeepSeek Flash");
   assert.equal(profile.model.releasedAt, Date.UTC(2026, 3, 24));
-  assert.equal(profile.model.metadata.model_version, "DeepSeek-V4-Flash");
+  assert.equal(profile.model.metadata.model_version, "DeepSeek-Flash");
   assert.deepEqual(profile.model.pricing, [{
     inputPerMillion: 0.14,
     outputPerMillion: 0.28,
@@ -157,7 +157,7 @@ test("DeepSeek V4 Flash profile binds an environment reference without persistin
 test("configured profile reconciles a persisted credential after its model changes", (t) => {
   const { controlPlane } = makeControlPlane(t);
   const secret = "deepseek-test-secret";
-  const profile = deepSeekV4FlashProfile();
+  const profile = deepSeekFlashProfile();
   controlPlane.upsertIntegration(profile.integration);
   controlPlane.upsertProvider(profile.provider);
   controlPlane.upsertModel(profile.model);
@@ -169,7 +169,7 @@ test("configured profile reconciles a persisted credential after its model chang
     secretRef: `env://${DEEPSEEK_API_KEY_ENV}`,
     fingerprint: fingerprintSecret(secret),
     priority: 20,
-    allowedModels: ["deepseek-v4-pro"],
+    allowedModels: ["deepseek-pro"],
     scopes: ["chat.completions"],
     expiresAt: 9_999_999,
     refreshAfter: 8_888_888,
@@ -179,12 +179,12 @@ test("configured profile reconciles a persisted credential after its model chang
     },
   });
 
-  const migrated = installDeepSeekV4FlashProfile(controlPlane, {
+  const migrated = installDeepSeekFlashProfile(controlPlane, {
     [DEEPSEEK_API_KEY_ENV]: secret,
   }).credential;
   assert.equal(migrated.version, legacy.version + 1);
   assert.equal(migrated.priority, 100);
-  assert.deepEqual(migrated.allowedModels, [DEEPSEEK_V4_FLASH_MODEL_ID]);
+  assert.deepEqual(migrated.allowedModels, [DEEPSEEK_FLASH_MODEL_ID]);
   assert.deepEqual(migrated.scopes, ["chat.completions"]);
   assert.equal(migrated.expiresAt, null);
   assert.equal(migrated.refreshAfter, null);
@@ -192,7 +192,7 @@ test("configured profile reconciles a persisted credential after its model chang
   assert.equal(
     controlPlane.credentials.select({
       providerId: DEEPSEEK_PROVIDER_ID,
-      modelId: DEEPSEEK_V4_FLASH_MODEL_ID,
+      modelId: DEEPSEEK_FLASH_MODEL_ID,
       requiredScopes: ["chat.completions"],
     }).credentialId,
     DEEPSEEK_CREDENTIAL_ID,
@@ -200,22 +200,22 @@ test("configured profile reconciles a persisted credential after its model chang
   assert.throws(
     () => controlPlane.credentials.select({
       providerId: DEEPSEEK_PROVIDER_ID,
-      modelId: "deepseek-v4-pro",
+      modelId: "deepseek-pro",
       requiredScopes: ["chat.completions"],
     }),
     (error: unknown) => error instanceof ProviderControlPlaneError && error.kind === "credential_missing",
   );
 
-  const repeated = installDeepSeekV4FlashProfile(controlPlane, {
+  const repeated = installDeepSeekFlashProfile(controlPlane, {
     [DEEPSEEK_API_KEY_ENV]: secret,
   }).credential;
   assert.equal(repeated.version, migrated.version);
 });
 
-test("DeepSeek V4 Flash profile fails closed when its environment secret is absent", (t) => {
+test("DeepSeek Flash profile fails closed when its environment secret is absent", (t) => {
   const { controlPlane } = makeControlPlane(t);
   assert.throws(
-    () => installDeepSeekV4FlashProfile(controlPlane, {}),
+    () => installDeepSeekFlashProfile(controlPlane, {}),
     new RegExp(`${DEEPSEEK_API_KEY_ENV} is required`),
   );
   assert.deepEqual(controlPlane.catalog.providers(), []);
@@ -295,7 +295,7 @@ test("default provider routing prefers DeepSeek, then GLM, with Kimi last", (t) 
   const { controlPlane } = makeControlPlane(t);
   installGlm52Profile(controlPlane, { [ZAI_API_KEY_ENV]: "zhipu-secret" });
   installKimiK27CodeProfile(controlPlane, { [KIMI_API_KEY_ENV]: "kimi-secret" });
-  installDeepSeekV4FlashProfile(controlPlane, {
+  installDeepSeekFlashProfile(controlPlane, {
     [DEEPSEEK_API_KEY_ENV]: "deepseek-secret",
   });
 
@@ -307,7 +307,7 @@ test("default provider routing prefers DeepSeek, then GLM, with Kimi last", (t) 
   };
   const first = controlPlane.acquireRoute(unconstrained);
   assert.equal(first.providerId, DEEPSEEK_PROVIDER_ID);
-  assert.equal(first.modelId, DEEPSEEK_V4_FLASH_MODEL_ID);
+  assert.equal(first.modelId, DEEPSEEK_FLASH_MODEL_ID);
 
   const withoutDeepSeek: RouteRequest = {
     ...unconstrained,
@@ -388,13 +388,13 @@ test("RPC installs configured live profiles in the fixed preference order withou
   assert.deepEqual(
     result.installed.map((item) => `${item.providerId}/${item.modelId}`),
     [
-      `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+      `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_FLASH_MODEL_ID}`,
       `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
       `${KIMI_PLATFORM_PROVIDER_ID}/${KIMI_K27_CODE_MODEL_ID}`,
     ],
   );
   assert.deepEqual(result.preferenceOrder, [
-    `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+    `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_FLASH_MODEL_ID}`,
     `${ZHIPU_PROVIDER_ID}/${GLM_52_MODEL_ID}`,
     `${KIMI_PLATFORM_PROVIDER_ID}/${KIMI_K27_CODE_MODEL_ID}`,
   ]);
@@ -446,7 +446,7 @@ test("RPC disables retained GLM and Kimi profiles when their switches are off", 
   };
   assert.deepEqual(
     result.installed.map((item) => `${item.providerId}/${item.modelId}`),
-    [`${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`],
+    [`${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_FLASH_MODEL_ID}`],
   );
   assert.deepEqual(
     result.disabled.map((item) => `${item.providerId}/${item.modelId}`),
@@ -456,13 +456,13 @@ test("RPC disables retained GLM and Kimi profiles when their switches are off", 
     ],
   );
   assert.deepEqual(result.preferenceOrder, [
-    `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+    `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_FLASH_MODEL_ID}`,
   ]);
   assert.deepEqual(
     controlPlane.catalog.models({ availableOnly: true }).map(
       (model) => `${model.providerId}/${model.modelId}`,
     ),
-    [`${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`],
+    [`${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_FLASH_MODEL_ID}`],
   );
 });
 

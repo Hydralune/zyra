@@ -25,7 +25,7 @@ def test_product_execution_config_is_catalog_bound() -> None:
         return_value=_catalog(
             {
                 "providerId": "deepseek",
-                "modelId": "deepseek-v4-flash",
+                "modelId": "deepseek-flash",
                 "supportedReasoningEfforts": ["low", "high", "max"],
             }
         ),
@@ -34,7 +34,7 @@ def test_product_execution_config_is_catalog_bound() -> None:
             {
                 "execution_config": {
                     "provider_id": "deepseek",
-                    "model_id": "deepseek-v4-flash",
+                    "model_id": "deepseek-flash",
                     "reasoning_effort": "max",
                 }
             }
@@ -42,7 +42,7 @@ def test_product_execution_config_is_catalog_bound() -> None:
         assert selected == {
             "schema": "zyra.product-execution-config/v1",
             "provider_id": "deepseek",
-            "model_id": "deepseek-v4-flash",
+            "model_id": "deepseek-flash",
             "reasoning_effort": "max",
             "source": "product_cli",
         }
@@ -51,7 +51,7 @@ def test_product_execution_config_is_catalog_bound() -> None:
                 {
                     "execution_config": {
                         "provider_id": "deepseek",
-                        "model_id": "deepseek-v4-flash",
+                        "model_id": "deepseek-flash",
                         "reasoning_effort": "xhigh",
                     }
                 }
@@ -82,9 +82,9 @@ def test_physical_dispatch_prefers_task_bound_model_without_ui_only_state() -> N
     with patch.object(
         main,
         "_preferred_configured_provider",
-        return_value=("deepseek", "deepseek-v4-flash"),
+        return_value=("deepseek", "deepseek-flash"),
     ):
         assert main._task_preferred_provider(SimpleNamespace(metadata={})) == (
             "deepseek",
-            "deepseek-v4-flash",
+            "deepseek-flash",
         )

@@ -30,7 +30,7 @@
       },
       {
         "provider_id": "deepseek",
-        "model_id": "deepseek-v4-flash",
+        "model_id": "deepseek-flash",
         "credential_ref": "env://DEEPSEEK_API_KEY"
       },
       {

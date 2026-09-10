@@ -9,7 +9,7 @@ for /f "usebackq tokens=1,* delims==" %%a in (".env.deepseek.local") do (
 
 set ZYRA_DEEPSEEK_ENABLED=true
 set ZYRA_MODEL_PROVIDER=deepseek
-set ZYRA_MODEL=deepseek-v4-flash
+set ZYRA_MODEL=deepseek-flash
 set ZYRA_API_HOST=127.0.0.1
 set ZYRA_API_PORT=8000
 

@@ -23,9 +23,9 @@ import {
 import {
   DEEPSEEK_ENABLED_ENV,
   DEEPSEEK_PROVIDER_ID,
-  DEEPSEEK_V4_FLASH_MODEL_ID,
-  deepSeekV4FlashProfile,
-  installDeepSeekV4FlashProfile,
+  DEEPSEEK_FLASH_MODEL_ID,
+  deepSeekFlashProfile,
+  installDeepSeekFlashProfile,
 } from "./profiles/deepseek.ts";
 import {
   KIMI_ENABLED_ENV,
@@ -108,9 +108,9 @@ export class ProviderControlPlaneRpcServer {
             environmentName: "DEEPSEEK_API_KEY",
             enabledEnvironmentName: DEEPSEEK_ENABLED_ENV,
             providerId: DEEPSEEK_PROVIDER_ID,
-            modelId: DEEPSEEK_V4_FLASH_MODEL_ID,
-            definition: deepSeekV4FlashProfile,
-            install: () => installDeepSeekV4FlashProfile(this.controlPlane),
+            modelId: DEEPSEEK_FLASH_MODEL_ID,
+            definition: deepSeekFlashProfile,
+            install: () => installDeepSeekFlashProfile(this.controlPlane),
           },
           {
             environmentName: "ZAI_API_KEY",

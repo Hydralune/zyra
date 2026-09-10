@@ -30,8 +30,8 @@ import {
 import type { ProviderRouteLease } from "../../provider-control-plane/src/contracts.ts";
 import {
   DEEPSEEK_PROVIDER_ID,
-  DEEPSEEK_V4_FLASH_MODEL_ID,
-  installDeepSeekV4FlashProfile,
+  DEEPSEEK_FLASH_MODEL_ID,
+  installDeepSeekFlashProfile,
   ProviderControlPlane,
 } from "../../provider-control-plane/src/index.ts";
 import {
@@ -624,7 +624,7 @@ test("semantic stall tool guard canonicalizes arguments and restores its sequenc
 
 test("semantic stall tool guard exempts polling tools", () => {
   const supervisor = new SemanticStallRuntime({
-    modelName: "deepseek-v4-flash",
+    modelName: "deepseek-flash",
     constraints: { semantic_stall_tool_call_threshold: 2 },
   });
   for (let index = 0; index < 5; index += 1) {
@@ -683,7 +683,7 @@ test("runtime discards a DeepSeek reasoning loop and resumes with a concrete act
     const payload = {
       id: `semantic-reasoning-provider-${requestCount}`,
       object: "chat.completion.chunk",
-      model: "deepseek-v4-flash",
+      model: "deepseek-flash",
       choices: [choice],
       usage: { prompt_tokens: 8, completion_tokens: 5, total_tokens: 13 },
     };
@@ -698,7 +698,7 @@ test("runtime discards a DeepSeek reasoning loop and resumes with a concrete act
       turns: [],
       config: {
         maxTurns: 8,
-        modelName: "deepseek-v4-flash",
+        modelName: "deepseek-flash",
         runtimeConstraints: {
           model_transport: "http_sse",
           model_api_base_url: "https://provider.invalid/v1",
@@ -1021,7 +1021,7 @@ test("provider route renewal accepts a verified multi-hop pinned lineage", () =>
     purpose: "reason",
     catalogRevision: 7,
     providerId: "deepseek",
-    modelId: "deepseek-v4-flash",
+    modelId: "deepseek-flash",
     credentialId: "credential-route",
     credentialVersion: 3,
     credentialFingerprint: "sha256:credential",
@@ -1084,7 +1084,7 @@ test("provider control plane binds one reusable route to each child execution id
   const controlPlane = new ProviderControlPlane({ databasePath });
   let parentRoute: ProviderRouteLease;
   try {
-    installDeepSeekV4FlashProfile(controlPlane, {
+    installDeepSeekFlashProfile(controlPlane, {
       ZYRA_DEEPSEEK_ENABLED: "true",
       DEEPSEEK_API_KEY: "child-route-test-secret",
     });
@@ -1096,11 +1096,11 @@ test("provider control plane binds one reusable route to each child execution id
       turnId: "turn-parent-route",
       purpose: "reason",
       preferredProviderId: DEEPSEEK_PROVIDER_ID,
-      preferredModelId: DEEPSEEK_V4_FLASH_MODEL_ID,
-      routeHint: `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+      preferredModelId: DEEPSEEK_FLASH_MODEL_ID,
+      routeHint: `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_FLASH_MODEL_ID}`,
       constraints: {
         providerIds: [DEEPSEEK_PROVIDER_ID],
-        modelIds: [DEEPSEEK_V4_FLASH_MODEL_ID],
+        modelIds: [DEEPSEEK_FLASH_MODEL_ID],
         requiredInput: ["text"],
         requiredOutput: ["text"],
         requireTools: true,
@@ -8474,7 +8474,7 @@ test("provider control plane injects a delegation steer once past half the cumul
   const controlPlane = new ProviderControlPlane({ databasePath });
   let route: ProviderRouteLease;
   try {
-    installDeepSeekV4FlashProfile(controlPlane, {
+    installDeepSeekFlashProfile(controlPlane, {
       ZYRA_DEEPSEEK_ENABLED: "true",
       DEEPSEEK_API_KEY: "delegation-steer-test-secret",
     });
@@ -8486,11 +8486,11 @@ test("provider control plane injects a delegation steer once past half the cumul
       turnId: "turn-delegation-steer",
       purpose: "reason",
       preferredProviderId: DEEPSEEK_PROVIDER_ID,
-      preferredModelId: DEEPSEEK_V4_FLASH_MODEL_ID,
-      routeHint: `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_V4_FLASH_MODEL_ID}`,
+      preferredModelId: DEEPSEEK_FLASH_MODEL_ID,
+      routeHint: `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_FLASH_MODEL_ID}`,
       constraints: {
         providerIds: [DEEPSEEK_PROVIDER_ID],
-        modelIds: [DEEPSEEK_V4_FLASH_MODEL_ID],
+        modelIds: [DEEPSEEK_FLASH_MODEL_ID],
         requiredInput: ["text"],
         requiredOutput: ["text"],
         requireTools: true,
@@ -8545,7 +8545,7 @@ test("provider control plane injects a delegation steer once past half the cumul
     const payload = {
       id: `delegation-steer-provider-${requestCount}`,
       object: "chat.completion.chunk",
-      model: DEEPSEEK_V4_FLASH_MODEL_ID,
+      model: DEEPSEEK_FLASH_MODEL_ID,
       choices: [choice],
       usage: {
         prompt_tokens: 1_000,
@@ -8566,7 +8566,7 @@ test("provider control plane injects a delegation steer once past half the cumul
       sessionId: route.sessionId,
       config: {
         maxTurns: 8,
-        modelName: DEEPSEEK_V4_FLASH_MODEL_ID,
+        modelName: DEEPSEEK_FLASH_MODEL_ID,
         runtimeConstraints: {
           model_transport: "http_sse",
           provider_control_plane_required: true,
