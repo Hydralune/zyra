@@ -1,0 +1,104 @@
+{
+  "schema": "zyra.mechanism-batch-manifest/v1",
+  "frozen_at": "2026-09-11",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "purpose": "verify the pytest usage-error fix (8e8ccaac) improves the resolved rate; efficacy excluded",
+  "dataset": {
+    "source_path": "/home/ylon/zyra-experiments/swe-bench-verified-test.jsonl",
+    "sha256": "889bccf7ada1a43d211050ac666f3b31032997209afb10dccdc6ea52128a8435",
+    "total_records": 500
+  },
+  "selection_rule": {
+    "seed": "zyra-mechanism-batch2-20260911",
+    "filter": "difficulty == '15 min - 1 hour'",
+    "formal_instance_ids_excluded": [
+      "astropy__astropy-14508",
+      "django__django-13212",
+      "matplotlib__matplotlib-24026",
+      "mwaskom__seaborn-3187",
+      "pallets__flask-5014",
+      "psf__requests-6028",
+      "pydata__xarray-3993",
+      "pylint-dev__pylint-8898",
+      "pytest-dev__pytest-5631",
+      "scikit-learn__scikit-learn-11310",
+      "sphinx-doc__sphinx-7757",
+      "sympy__sympy-23534"
+    ],
+    "used_instance_ids_excluded": [
+      "django__django-15930",
+      "matplotlib__matplotlib-13989",
+      "pallets__flask-5014",
+      "pydata__xarray-4094",
+      "pylint-dev__pylint-8898",
+      "pytest-dev__pytest-6202",
+      "scikit-learn__scikit-learn-13439",
+      "scikit-learn__scikit-learn-11310",
+      "sphinx-doc__sphinx-9367",
+      "sympy__sympy-17655",
+      "psf__requests-2931",
+      "astropy__astropy-7606",
+      "mwaskom__seaborn-3069",
+      "scikit-learn__scikit-learn-14710",
+      "pydata__xarray-2905",
+      "astropy__astropy-14539",
+      "sympy__sympy-20590",
+      "sympy__sympy-23413",
+      "pydata__xarray-3677",
+      "django__django-15252",
+      "django__django-15278"
+    ],
+    "eligible_records": 244,
+    "ranking": "ascending lowercase hex SHA-256(seed + '|' + instance_id)",
+    "batch_size": 5
+  },
+  "selected": [
+    {
+      "instance_id": "astropy__astropy-14182",
+      "repo": "astropy/astropy",
+      "base_commit": "a5917978be39d13cd90b517e1de4e7a539ffaa48",
+      "difficulty": "15 min - 1 hour",
+      "rank_digest": "00da743f058f216ebdd18a36d207a9062ecab5a4eea2b86018115085e8ab8cb4",
+      "rank": 1
+    },
+    {
+      "instance_id": "pylint-dev__pylint-4661",
+      "repo": "pylint-dev/pylint",
+      "base_commit": "1d1619ef913b99b06647d2030bddff4800abdf63",
+      "difficulty": "15 min - 1 hour",
+      "rank_digest": "0117dce082151e419008b2c5b5cd9215498c9f3d79a33d69cceab3f473d21d75",
+      "rank": 2
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-11445",
+      "repo": "sphinx-doc/sphinx",
+      "base_commit": "71db08c05197545944949d5aa76cd340e7143627",
+      "difficulty": "15 min - 1 hour",
+      "rank_digest": "020a531c10dd20e4e719a17b01cde263152c84220b5a6f7889d56c6725721a89",
+      "rank": 3
+    },
+    {
+      "instance_id": "django__django-15375",
+      "repo": "django/django",
+      "base_commit": "beb7ddbcee03270e833b2f74927ccfc8027aa693",
+      "difficulty": "15 min - 1 hour",
+      "rank_digest": "02276acbe54943c32cd5e2dccb67ded16eb1cc8ad7afb67a5c1d20da2a3fdac0",
+      "rank": 4
+    },
+    {
+      "instance_id": "django__django-14559",
+      "repo": "django/django",
+      "base_commit": "d79be3ed39b76d3e34431873eec16f6dd354ab17",
+      "difficulty": "15 min - 1 hour",
+      "rank_digest": "03a2ae71b827c96c7bd4f7a833a8526a36d00481983d1b2a9a7a5c8ea2154cd4",
+      "rank": 5
+    }
+  ],
+  "leakage_controls": {
+    "gold_patch_supplied_to_agent": false,
+    "test_patch_supplied_to_agent": false,
+    "hidden_test_names_supplied_to_agent": false,
+    "result_observed_before_selection": false
+  }
+}

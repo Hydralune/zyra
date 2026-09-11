@@ -1,0 +1,78 @@
+2026-09-11 15:30:38,783 - INFO - Creating container for sphinx-doc__sphinx-11445...
+2026-09-11 15:30:38,875 - INFO - Container for sphinx-doc__sphinx-11445 created: d395166fb56379f8ef1fc3230bfa7db7506d6f7a40695972ad75785bc0d1156a
+2026-09-11 15:30:39,048 - INFO - Container for sphinx-doc__sphinx-11445 started: d395166fb56379f8ef1fc3230bfa7db7506d6f7a40695972ad75785bc0d1156a
+2026-09-11 15:30:39,049 - INFO - Intermediate patch for sphinx-doc__sphinx-11445 written to logs/run_evaluation/zyra-batch2-sphinx11445-official/ZYRA-deepseek-flash-batch2-sphinx11445/sphinx-doc__sphinx-11445/patch.diff, now applying to container...
+2026-09-11 15:30:39,120 - INFO - >>>>> Applied Patch:
+Checking patch sphinx/util/rst.py...
+Checking patch tests/test_util_rst.py...
+Applied patch sphinx/util/rst.py cleanly.
+Applied patch tests/test_util_rst.py cleanly.
+
+2026-09-11 15:30:39,593 - INFO - Git diff before:
+diff --git a/sphinx/util/rst.py b/sphinx/util/rst.py
+index 7a1538325..638337fcf 100755
+--- a/sphinx/util/rst.py
++++ b/sphinx/util/rst.py
+@@ -25,7 +25,7 @@ except ImportError:
+ 
+ logger = logging.getLogger(__name__)
+ 
+-docinfo_re = re.compile(':\\w+:.*?')
++docinfo_re = re.compile(r':\w+:(?:\s|$)')
+ symbols_re = re.compile(r'([!-\-/:-@\[-`{-~])')  # symbols without dot(0x2e)
+ SECTIONING_CHARS = ['=', '-', '~']
+ 
+diff --git a/tests/test_util_rst.py b/tests/test_util_rst.py
+index 40a2ee68b..616f6d562 100755
+--- a/tests/test_util_rst.py
++++ b/tests/test_util_rst.py
+@@ -78,6 +78,26 @@ def test_prepend_prolog_without_CR(app):
+                                       ('dummy.rst', 1, 'Sphinx is a document generator')]
+ 
+ 
++def test_prepend_prolog_with_domain_directive_title(app):
++    # a section title that looks like a domain role (e.g. ``:mod:`mypackage2` ``)
++    # must not be mistaken for a docinfo field; otherwise the prolog is injected
++    # between the title and its underline and the title is lost.
++    prolog = 'this is rst_prolog'
++    content = StringList([':mod:`mypackage2`',
++                          '=================',
++                          '',
++                          'Content'],
++                         'dummy.rst')
++    prepend_prolog(content, prolog)
++
++    assert list(content.xitems()) == [('<rst_prolog>', 0, 'this is rst_prolog'),
++                                      ('<generated>', 0, ''),
++                                      ('dummy.rst', 0, ':mod:`mypackage2`'),
++                                      ('dummy.rst', 1, '================='),
++                                      ('dummy.rst', 2, ''),
++                                      ('dummy.rst', 3, 'Content')]
++
++
+ def test_textwidth():
+     assert textwidth('Hello') == 5
+     assert textwidth('русский язык') == 12
+2026-09-11 15:30:39,594 - INFO - Eval script for sphinx-doc__sphinx-11445 written to logs/run_evaluation/zyra-batch2-sphinx11445-official/ZYRA-deepseek-flash-batch2-sphinx11445/sphinx-doc__sphinx-11445/eval.sh; copying to container...
+2026-09-11 15:30:44,779 - INFO - Test runtime: 5.16 seconds
+2026-09-11 15:30:44,779 - INFO - Test output for sphinx-doc__sphinx-11445 written to logs/run_evaluation/zyra-batch2-sphinx11445-official/ZYRA-deepseek-flash-batch2-sphinx11445/sphinx-doc__sphinx-11445/test_output.txt
+2026-09-11 15:30:44,810 - INFO - Git diff after:
+diff --git a/sphinx/util/rst.py b/sphinx/util/rst.py
+index 7a1538325..638337fcf 100755
+--- a/sphinx/util/rst.py
++++ b/sphinx/util/rst.py
+@@ -25,7 +25,7 @@ except ImportError:
+ 
+ logger = logging.getLogger(__name__)
+ 
+-docinfo_re = re.compile(':\\w+:.*?')
++docinfo_re = re.compile(r':\w+:(?:\s|$)')
+ symbols_re = re.compile(r'([!-\-/:-@\[-`{-~])')  # symbols without dot(0x2e)
+ SECTIONING_CHARS = ['=', '-', '~']
+2026-09-11 15:30:44,810 - INFO - Git diff changed after running eval script
+2026-09-11 15:30:44,810 - INFO - Grading answer for sphinx-doc__sphinx-11445...
+2026-09-11 15:30:44,812 - INFO - report: {'sphinx-doc__sphinx-11445': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['tests/test_util_rst.py::test_prepend_prolog_with_roles_in_sections_with_newline', 'tests/test_util_rst.py::test_prepend_prolog_with_roles_in_sections_without_newline'], 'failure': []}, 'PASS_TO_PASS': {'success': ['tests/test_util_rst.py::test_escape', 'tests/test_util_rst.py::test_append_epilog', 'tests/test_util_rst.py::test_prepend_prolog', 'tests/test_util_rst.py::test_prepend_prolog_with_CR', 'tests/test_util_rst.py::test_prepend_prolog_without_CR', 'tests/test_util_rst.py::test_prepend_prolog_with_roles_in_sections', 'tests/test_util_rst.py::test_textwidth', 'tests/test_util_rst.py::test_heading'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for sphinx-doc__sphinx-11445: resolved: True
+2026-09-11 15:30:44,812 - INFO - Attempting to stop container sweb.eval.sphinx-doc__sphinx-11445.zyra-batch2-sphinx11445-official...
+2026-09-11 15:31:00,061 - INFO - Attempting to remove container sweb.eval.sphinx-doc__sphinx-11445.zyra-batch2-sphinx11445-official...
+2026-09-11 15:31:00,104 - INFO - Container sweb.eval.sphinx-doc__sphinx-11445.zyra-batch2-sphinx11445-official removed.

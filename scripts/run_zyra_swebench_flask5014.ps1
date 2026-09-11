@@ -14,7 +14,11 @@ param(
     [int]$MaxOutputTokens = 16384,
     [ValidateSet("calibration", "integration_calibration", "formal", "invalidated_development")]
     [string]$RunClass = "calibration",
-    [string]$InvalidationReason = ""
+    [string]$InvalidationReason = "",
+    [ValidateRange(1024, 65535)]
+    [int]$ApiPort = 8001,
+    [ValidateRange(1024, 65535)]
+    [int]$DeploymentProfileBasePort = 8420
 )
 
 $ErrorActionPreference = "Stop"
@@ -122,10 +126,10 @@ $env:ZYRA_DEEPSEEK_ENABLED = "true"
 $env:ZYRA_MODEL_PROVIDER = "deepseek"
 $env:ZYRA_MODEL = "deepseek-flash"
 $env:ZYRA_API_HOST = "127.0.0.1"
-$env:ZYRA_API_PORT = "8001"
+$env:ZYRA_API_PORT = $ApiPort.ToString()
 # Separate the per-run deployment workers from stale development workers that
 # may occupy the default 8310--8312 profile block.
-$env:ZYRA_DEPLOYMENT_PROFILE_BASE_PORT = "8420"
+$env:ZYRA_DEPLOYMENT_PROFILE_BASE_PORT = $DeploymentProfileBasePort.ToString()
 $env:ZYRA_BENCHMARK_DOCKER_CONTAINER = $container
 $env:ZYRA_BENCHMARK_DOCKER_WORKDIR = "/testbed"
 $env:ZYRA_BENCHMARK_DOCKER_BRIDGE_SCRIPT = Join-Path $repo "scripts\docker_wsl_bridge.py"
@@ -195,7 +199,7 @@ try {
     $deadline = (Get-Date).AddMinutes(2)
     do {
         Start-Sleep -Milliseconds 500
-        try { $ready = Invoke-RestMethod -Uri "http://127.0.0.1:8001/health" -TimeoutSec 2 } catch { $ready = $null }
+        try { $ready = Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/health" -TimeoutSec 2 } catch { $ready = $null }
     } while (-not $ready -and (Get-Date) -lt $deadline)
     if (-not $ready) { throw "ZYRA API did not become ready within two minutes." }
 
@@ -229,12 +233,12 @@ Work on the repository in the supplied benchmark container. A Flask Blueprint wi
         sealed_autonomous = $true
         competition_mode = "sealed_autonomous"
     } | ConvertTo-Json
-    $created = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8001/tasks" -ContentType "application/json" -Body $createBody -TimeoutSec 120
+    $created = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$ApiPort/tasks" -ContentType "application/json" -Body $createBody -TimeoutSec 120
     $created | ConvertTo-Json -Depth 100 | Set-Content -Encoding utf8 $taskCreateLog
     $taskId = [string]$created.task.task_id
     if (-not $taskId) { throw "Task creation response did not include task.task_id." }
     $runBody = @{ requested_by = "zyra-swebench-formal-harness"; resume_invocation_id = "formal-$RunLabel" } | ConvertTo-Json
-    $runUri = "http://127.0.0.1:8001/tasks/$taskId/run"
+    $runUri = "http://127.0.0.1:$ApiPort/tasks/$taskId/run"
     $runJob = Start-Job -ScriptBlock {
         param($Uri, $Body)
         Invoke-RestMethod -Method Post -Uri $Uri -ContentType "application/json" -Body $Body -TimeoutSec 4500
@@ -279,7 +283,7 @@ Work on the repository in the supplied benchmark container. A Flask Blueprint wi
         $canonicalReadError = ""
         for ($attempt = 1; $attempt -le 3 -and -not $canonicalResponse; $attempt++) {
             try {
-                $canonicalResponse = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8001/tasks/$taskId" -TimeoutSec 30
+                $canonicalResponse = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$ApiPort/tasks/$taskId" -TimeoutSec 30
             }
             catch {
                 $canonicalReadError = [string]$_.Exception.Message

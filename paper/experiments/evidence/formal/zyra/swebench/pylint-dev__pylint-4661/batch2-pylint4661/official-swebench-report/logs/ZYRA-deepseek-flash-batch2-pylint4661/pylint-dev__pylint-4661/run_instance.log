@@ -1,0 +1,270 @@
+2026-09-11 15:21:45,909 - INFO - Creating container for pylint-dev__pylint-4661...
+2026-09-11 15:21:45,995 - INFO - Container for pylint-dev__pylint-4661 created: d705b09ef9097c34886d54e3ec848fcdd110a17ddb1d44e064e2d3455f430217
+2026-09-11 15:21:46,182 - INFO - Container for pylint-dev__pylint-4661 started: d705b09ef9097c34886d54e3ec848fcdd110a17ddb1d44e064e2d3455f430217
+2026-09-11 15:21:46,182 - INFO - Intermediate patch for pylint-dev__pylint-4661 written to logs/run_evaluation/zyra-batch2-pylint4661-official/ZYRA-deepseek-flash-batch2-pylint4661/pylint-dev__pylint-4661/patch.diff, now applying to container...
+2026-09-11 15:21:46,259 - INFO - >>>>> Applied Patch:
+Checking patch ChangeLog...
+Checking patch doc/faq.rst...
+Checking patch doc/whatsnew/2.10.rst...
+Checking patch pylint/config/__init__.py...
+Checking patch tests/lint/unittest_lint.py...
+Applied patch ChangeLog cleanly.
+Applied patch doc/faq.rst cleanly.
+Applied patch doc/whatsnew/2.10.rst cleanly.
+Applied patch pylint/config/__init__.py cleanly.
+Applied patch tests/lint/unittest_lint.py cleanly.
+
+2026-09-11 15:21:46,573 - INFO - Git diff before:
+diff --git a/ChangeLog b/ChangeLog
+index 047ee370..9ef5a7c4 100644
+--- a/ChangeLog
++++ b/ChangeLog
+@@ -21,6 +21,14 @@ Release date: TBA
+ 
+   Close #4120
+ 
++* Pylint is now compliant with the XDG Base Directory Specification: the
++  persistent data directory defaults to ``$XDG_DATA_HOME/pylint`` (or
++  ``~/.local/share/pylint`` when ``XDG_DATA_HOME`` is not set) instead of
++  ``~/.pylint.d``. The ``PYLINTHOME`` environment variable still takes
++  precedence.
++
++  Close #2980
++
+ 
+ What's New in Pylint 2.9.6?
+ ===========================
+diff --git a/doc/faq.rst b/doc/faq.rst
+index c817855f..decd681d 100644
+--- a/doc/faq.rst
++++ b/doc/faq.rst
+@@ -93,10 +93,12 @@ localized using the following rules:
+ 
+ * value of the PYLINTHOME environment variable if set
+ 
+-* ".pylint.d" subdirectory of the user's home directory if it is found
+-	(not always findable on Windows platforms)
++* "pylint" subdirectory of the XDG data directory, i.e. "$XDG_DATA_HOME/pylint"
++	(or "~/.local/share/pylint" when XDG_DATA_HOME is not set), as described by
++	the XDG Base Directory Specification
+ 
+-* ".pylint.d" directory in the current directory
++* ".pylint.d" directory in the current directory when the user's home directory
++	is not findable (not always findable on Windows platforms)
+ 
+ 3.3 How do I find the option name (for pylintrc) corresponding to a specific command line option?
+ --------------------------------------------------------------------------------------------------------
+diff --git a/doc/whatsnew/2.10.rst b/doc/whatsnew/2.10.rst
+index e94530bf..2f1e0ebe 100644
+--- a/doc/whatsnew/2.10.rst
++++ b/doc/whatsnew/2.10.rst
+@@ -24,3 +24,9 @@ Other Changes
+ * Performance of the Similarity checker has been improved.
+ 
+ * Added ``time.clock`` to deprecated functions/methods for python 3.3
++
++* Pylint is now compliant with the XDG Base Directory Specification: the
++  persistent data directory defaults to ``$XDG_DATA_HOME/pylint`` (or
++  ``~/.local/share/pylint`` when ``XDG_DATA_HOME`` is not set) instead of
++  ``~/.pylint.d``. The ``PYLINTHOME`` environment variable still takes
++  precedence.
+diff --git a/pylint/config/__init__.py b/pylint/config/__init__.py
+index 84774d0e..24119f15 100644
+--- a/pylint/config/__init__.py
++++ b/pylint/config/__init__.py
+@@ -60,10 +60,14 @@ if "PYLINTHOME" in os.environ:
+     PYLINT_HOME = os.environ["PYLINTHOME"]
+     if USER_HOME == "~":
+         USER_HOME = os.path.dirname(PYLINT_HOME)
++elif "XDG_DATA_HOME" in os.environ:
++    # The XDG Base Directory Specification takes precedence over the legacy
++    # ``~/.pylint.d`` location when it is configured.
++    PYLINT_HOME = os.path.join(os.environ["XDG_DATA_HOME"], "pylint")
+ elif USER_HOME == "~":
+     PYLINT_HOME = ".pylint.d"
+ else:
+-    PYLINT_HOME = os.path.join(USER_HOME, ".pylint.d")
++    PYLINT_HOME = os.path.join(USER_HOME, ".local", "share", "pylint")
+ 
+ 
+ def _get_pdata_path(base_name, recurs):
+@@ -83,7 +87,7 @@ def load_results(base):
+ def save_results(results, base):
+     if not os.path.exists(PYLINT_HOME):
+         try:
+-            os.mkdir(PYLINT_HOME)
++            os.makedirs(PYLINT_HOME, exist_ok=True)
+         except OSError:
+             print("Unable to create directory %s" % PYLINT_HOME, file=sys.stderr)
+     data_file = _get_pdata_path(base, 1)
+@@ -110,8 +114,9 @@ ENV_HELP = (
+ The following environment variables are used:
+     * PYLINTHOME
+     Path to the directory where persistent data for the run will be stored. If
+-not found, it defaults to ~/.pylint.d/ or .pylint.d (in the current working
+-directory).
++not found, it defaults to the XDG data directory, i.e. $XDG_DATA_HOME/pylint
++(or ~/.local/share/pylint when XDG_DATA_HOME is not set), or .pylint.d (in the
++current working directory) when the home directory cannot be determined.
+     * PYLINTRC
+     Path to the configuration file. See the documentation for the method used
+ to search for configuration file.
+diff --git a/tests/lint/unittest_lint.py b/tests/lint/unittest_lint.py
+index 004c2928..b391be5b 100644
+--- a/tests/lint/unittest_lint.py
++++ b/tests/lint/unittest_lint.py
+@@ -631,8 +631,24 @@ def test_pylint_home():
+     if uhome == "~":
+         expected = ".pylint.d"
+     else:
+-        expected = os.path.join(uhome, ".pylint.d")
+-    assert config.PYLINT_HOME == expected
++        expected = os.path.join(uhome, ".local", "share", "pylint")
++
++    old_xdg_data_home = os.environ.pop("XDG_DATA_HOME", None)
++    try:
++        # Without XDG_DATA_HOME the default is $HOME/.local/share/pylint
++        reload(config)
++        assert config.PYLINT_HOME == expected
++
++        # XDG_DATA_HOME takes precedence over the $HOME fallback
++        xdg_data_home = join(tempfile.gettempdir(), "xdg-data-home")
++        os.environ["XDG_DATA_HOME"] = xdg_data_home
++        reload(config)
++        assert config.PYLINT_HOME == join(xdg_data_home, "pylint")
++    finally:
++        if old_xdg_data_home is None:
++            os.environ.pop("XDG_DATA_HOME", None)
++        else:
++            os.environ["XDG_DATA_HOME"] = old_xdg_data_home
+ 
+     try:
+         pylintd = join(tempfile.gettempdir(), ".pylint.d")
+@@ -647,6 +663,22 @@ def test_pylint_home():
+                 pass
+     finally:
+         del os.environ["PYLINTHOME"]
++        reload(config)
++
++
++@pytest.mark.usefixtures("pop_pylintrc")
++def test_persistent_data_dir_is_created():
++    """Persistent stats must be writable in a nested XDG data directory."""
++    tmpdir = tempfile.mkdtemp()
++    old_pylint_home = config.PYLINT_HOME
++    try:
++        nested = join(tmpdir, ".local", "share", "pylint")
++        config.PYLINT_HOME = nested
++        config.save_results({"test": [1.0, 1, 0, 0]}, "persistent-test")
++        assert os.path.exists(config._get_pdata_path("persistent-test", 1))
++    finally:
++        config.PYLINT_HOME = old_pylint_home
++        rmtree(tmpdir, ignore_errors=True)
+ 
+ 
+ @pytest.mark.usefixtures("pop_pylintrc")
+2026-09-11 15:21:46,573 - INFO - Eval script for pylint-dev__pylint-4661 written to logs/run_evaluation/zyra-batch2-pylint4661-official/ZYRA-deepseek-flash-batch2-pylint4661/pylint-dev__pylint-4661/eval.sh; copying to container...
+2026-09-11 15:21:49,493 - INFO - Test runtime: 2.89 seconds
+2026-09-11 15:21:49,493 - INFO - Test output for pylint-dev__pylint-4661 written to logs/run_evaluation/zyra-batch2-pylint4661-official/ZYRA-deepseek-flash-batch2-pylint4661/pylint-dev__pylint-4661/test_output.txt
+2026-09-11 15:21:49,525 - INFO - Git diff after:
+diff --git a/ChangeLog b/ChangeLog
+index 047ee370..9ef5a7c4 100644
+--- a/ChangeLog
++++ b/ChangeLog
+@@ -21,6 +21,14 @@ Release date: TBA
+ 
+   Close #4120
+ 
++* Pylint is now compliant with the XDG Base Directory Specification: the
++  persistent data directory defaults to ``$XDG_DATA_HOME/pylint`` (or
++  ``~/.local/share/pylint`` when ``XDG_DATA_HOME`` is not set) instead of
++  ``~/.pylint.d``. The ``PYLINTHOME`` environment variable still takes
++  precedence.
++
++  Close #2980
++
+ 
+ What's New in Pylint 2.9.6?
+ ===========================
+diff --git a/doc/faq.rst b/doc/faq.rst
+index c817855f..decd681d 100644
+--- a/doc/faq.rst
++++ b/doc/faq.rst
+@@ -93,10 +93,12 @@ localized using the following rules:
+ 
+ * value of the PYLINTHOME environment variable if set
+ 
+-* ".pylint.d" subdirectory of the user's home directory if it is found
+-	(not always findable on Windows platforms)
++* "pylint" subdirectory of the XDG data directory, i.e. "$XDG_DATA_HOME/pylint"
++	(or "~/.local/share/pylint" when XDG_DATA_HOME is not set), as described by
++	the XDG Base Directory Specification
+ 
+-* ".pylint.d" directory in the current directory
++* ".pylint.d" directory in the current directory when the user's home directory
++	is not findable (not always findable on Windows platforms)
+ 
+ 3.3 How do I find the option name (for pylintrc) corresponding to a specific command line option?
+ --------------------------------------------------------------------------------------------------------
+diff --git a/doc/whatsnew/2.10.rst b/doc/whatsnew/2.10.rst
+index e94530bf..2f1e0ebe 100644
+--- a/doc/whatsnew/2.10.rst
++++ b/doc/whatsnew/2.10.rst
+@@ -24,3 +24,9 @@ Other Changes
+ * Performance of the Similarity checker has been improved.
+ 
+ * Added ``time.clock`` to deprecated functions/methods for python 3.3
++
++* Pylint is now compliant with the XDG Base Directory Specification: the
++  persistent data directory defaults to ``$XDG_DATA_HOME/pylint`` (or
++  ``~/.local/share/pylint`` when ``XDG_DATA_HOME`` is not set) instead of
++  ``~/.pylint.d``. The ``PYLINTHOME`` environment variable still takes
++  precedence.
+diff --git a/pylint/config/__init__.py b/pylint/config/__init__.py
+index 84774d0e..24119f15 100644
+--- a/pylint/config/__init__.py
++++ b/pylint/config/__init__.py
+@@ -60,10 +60,14 @@ if "PYLINTHOME" in os.environ:
+     PYLINT_HOME = os.environ["PYLINTHOME"]
+     if USER_HOME == "~":
+         USER_HOME = os.path.dirname(PYLINT_HOME)
++elif "XDG_DATA_HOME" in os.environ:
++    # The XDG Base Directory Specification takes precedence over the legacy
++    # ``~/.pylint.d`` location when it is configured.
++    PYLINT_HOME = os.path.join(os.environ["XDG_DATA_HOME"], "pylint")
+ elif USER_HOME == "~":
+     PYLINT_HOME = ".pylint.d"
+ else:
+-    PYLINT_HOME = os.path.join(USER_HOME, ".pylint.d")
++    PYLINT_HOME = os.path.join(USER_HOME, ".local", "share", "pylint")
+ 
+ 
+ def _get_pdata_path(base_name, recurs):
+@@ -83,7 +87,7 @@ def load_results(base):
+ def save_results(results, base):
+     if not os.path.exists(PYLINT_HOME):
+         try:
+-            os.mkdir(PYLINT_HOME)
++            os.makedirs(PYLINT_HOME, exist_ok=True)
+         except OSError:
+             print("Unable to create directory %s" % PYLINT_HOME, file=sys.stderr)
+     data_file = _get_pdata_path(base, 1)
+@@ -110,8 +114,9 @@ ENV_HELP = (
+ The following environment variables are used:
+     * PYLINTHOME
+     Path to the directory where persistent data for the run will be stored. If
+-not found, it defaults to ~/.pylint.d/ or .pylint.d (in the current working
+-directory).
++not found, it defaults to the XDG data directory, i.e. $XDG_DATA_HOME/pylint
++(or ~/.local/share/pylint when XDG_DATA_HOME is not set), or .pylint.d (in the
++current working directory) when the home directory cannot be determined.
+     * PYLINTRC
+     Path to the configuration file. See the documentation for the method used
+ to search for configuration file.
+2026-09-11 15:21:49,525 - INFO - Git diff changed after running eval script
+2026-09-11 15:21:49,525 - INFO - Grading answer for pylint-dev__pylint-4661...
+2026-09-11 15:21:49,525 - INFO - report: {'pylint-dev__pylint-4661': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['tests/lint/unittest_lint.py::test_pylint_home']}, 'PASS_TO_PASS': {'success': [], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for pylint-dev__pylint-4661: resolved: False
+2026-09-11 15:21:49,526 - INFO - Attempting to stop container sweb.eval.pylint-dev__pylint-4661.zyra-batch2-pylint4661-official...
+2026-09-11 15:22:04,753 - INFO - Attempting to remove container sweb.eval.pylint-dev__pylint-4661.zyra-batch2-pylint4661-official...
+2026-09-11 15:22:04,796 - INFO - Container sweb.eval.pylint-dev__pylint-4661.zyra-batch2-pylint4661-official removed.
