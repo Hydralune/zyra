@@ -1,0 +1,99 @@
+{
+  "schema": "zyra.mechanism-batch-manifest/v1",
+  "frozen_at": "2026-09-11",
+  "analysis_class": "calibration",
+  "efficacy_eligible": false,
+  "purpose": "measure resolved rate under deepseek-flash after seven mechanism fixes; efficacy excluded",
+  "dataset": {
+    "source_path": "/home/ylon/zyra-experiments/swe-bench-verified-test.jsonl",
+    "sha256": "889bccf7ada1a43d211050ac666f3b31032997209afb10dccdc6ea52128a8435",
+    "total_records": 500
+  },
+  "selection_rule": {
+    "seed": "zyra-mechanism-batch1-20260911",
+    "filter": "difficulty == '15 min - 1 hour'",
+    "formal_instance_ids_excluded": [
+      "astropy__astropy-14508",
+      "django__django-13212",
+      "matplotlib__matplotlib-24026",
+      "mwaskom__seaborn-3187",
+      "pallets__flask-5014",
+      "psf__requests-6028",
+      "pydata__xarray-3993",
+      "pylint-dev__pylint-8898",
+      "pytest-dev__pytest-5631",
+      "scikit-learn__scikit-learn-11310",
+      "sphinx-doc__sphinx-7757",
+      "sympy__sympy-23534"
+    ],
+    "used_instance_ids_excluded": [
+      "django__django-15930",
+      "matplotlib__matplotlib-13989",
+      "pallets__flask-5014",
+      "pydata__xarray-4094",
+      "pylint-dev__pylint-8898",
+      "pytest-dev__pytest-6202",
+      "scikit-learn__scikit-learn-13439",
+      "scikit-learn__scikit-learn-11310",
+      "sphinx-doc__sphinx-9367",
+      "sympy__sympy-17655",
+      "psf__requests-2931",
+      "astropy__astropy-7606",
+      "mwaskom__seaborn-3069",
+      "scikit-learn__scikit-learn-14710",
+      "pydata__xarray-2905",
+      "astropy__astropy-14539"
+    ],
+    "eligible_records": 249,
+    "ranking": "ascending lowercase hex SHA-256(seed + '|' + instance_id)",
+    "batch_size": 5
+  },
+  "selected": [
+    {
+      "instance_id": "sympy__sympy-20590",
+      "repo": "sympy/sympy",
+      "base_commit": "cffd4e0f86fefd4802349a9f9b19ed70934ea354",
+      "difficulty": "15 min - 1 hour",
+      "rank_digest": "004cd765852572cffb78841ceab7315a7697f9a5169ae6982bfc2eead801771a",
+      "rank": 1
+    },
+    {
+      "instance_id": "sympy__sympy-23413",
+      "repo": "sympy/sympy",
+      "base_commit": "10de1a18a0efac0b19b611e40c928250dda688bf",
+      "difficulty": "15 min - 1 hour",
+      "rank_digest": "045cffa4ecdf9e8621944131e9194c11ac2848b1ad381b8ec0cad1ebcf8bb754",
+      "rank": 2
+    },
+    {
+      "instance_id": "pydata__xarray-3677",
+      "repo": "pydata/xarray",
+      "base_commit": "ef6e6a7b86f8479b9a1fecf15ad5b88a2326b31e",
+      "difficulty": "15 min - 1 hour",
+      "rank_digest": "04a39d229e320170ef38f1431e4f171a2ae9cddbd4f0fae12c4b5a412790d920",
+      "rank": 3
+    },
+    {
+      "instance_id": "django__django-15252",
+      "repo": "django/django",
+      "base_commit": "361bb8f786f112ee275be136795c0b1ecefff928",
+      "difficulty": "15 min - 1 hour",
+      "rank_digest": "04b138000778ae7180dd522ea81e57e08f0a7c2127cc0f3c2b08ddebbb2e0f26",
+      "rank": 4
+    },
+    {
+      "instance_id": "django__django-15278",
+      "repo": "django/django",
+      "base_commit": "0ab58c120939093fea90822f376e1866fc714d1f",
+      "difficulty": "15 min - 1 hour",
+      "rank_digest": "051986c665cb32f92fd2a9f8930e26dd9b4d3bebfce7beddecce2a75956b41e8",
+      "rank": 5
+    }
+  ],
+  "leakage_controls": {
+    "gold_patch_supplied_to_agent": false,
+    "test_patch_supplied_to_agent": false,
+    "hidden_test_names_supplied_to_agent": false,
+    "result_observed_before_selection": false
+  }
+}

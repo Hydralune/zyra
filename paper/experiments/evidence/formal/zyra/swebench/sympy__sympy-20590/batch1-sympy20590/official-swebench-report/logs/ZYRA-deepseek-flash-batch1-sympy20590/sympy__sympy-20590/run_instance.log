@@ -1,0 +1,91 @@
+2026-09-11 10:33:26,775 - INFO - Creating container for sympy__sympy-20590...
+2026-09-11 10:33:26,887 - INFO - Container for sympy__sympy-20590 created: 69f968312332156f2103e124f61f2c00cb7e80a640bff0d947f7829d311fa923
+2026-09-11 10:33:27,170 - INFO - Container for sympy__sympy-20590 started: 69f968312332156f2103e124f61f2c00cb7e80a640bff0d947f7829d311fa923
+2026-09-11 10:33:27,170 - INFO - Intermediate patch for sympy__sympy-20590 written to logs/run_evaluation/zyra-batch1-sympy20590-official/ZYRA-deepseek-flash-batch1-sympy20590/sympy__sympy-20590/patch.diff, now applying to container...
+2026-09-11 10:33:27,271 - INFO - >>>>> Applied Patch:
+Checking patch sympy/core/_print_helpers.py...
+Checking patch sympy/core/tests/test_symbol.py...
+Applied patch sympy/core/_print_helpers.py cleanly.
+Applied patch sympy/core/tests/test_symbol.py cleanly.
+
+2026-09-11 10:33:28,221 - INFO - Git diff before:
+diff --git a/sympy/core/_print_helpers.py b/sympy/core/_print_helpers.py
+index 96d7e72676..abe53beb3e 100755
+--- a/sympy/core/_print_helpers.py
++++ b/sympy/core/_print_helpers.py
+@@ -17,6 +17,12 @@ class Printable:
+     This also adds support for LaTeX printing in jupyter notebooks.
+     """
+ 
++    # This class has no instance state, so it must not declare __dict__.
++    # Without __slots__ here, every subclass in the SymPy object hierarchy
++    # (which inherits from this class) regains a __dict__, silently undoing
++    # the memory savings of their own __slots__ declarations.  See issue 20244.
++    __slots__ = ()
++
+     # Note, we always use the default ordering (lex) in __str__ and __repr__,
+     # regardless of the global setting. See issue 5487.
+     def __str__(self):
+diff --git a/sympy/core/tests/test_symbol.py b/sympy/core/tests/test_symbol.py
+index a07a1d2f36..d062124687 100755
+--- a/sympy/core/tests/test_symbol.py
++++ b/sympy/core/tests/test_symbol.py
+@@ -387,3 +387,13 @@ def test_disambiguate():
+     assert disambiguate(*t7) == (y*y_1, y_1)
+     assert disambiguate(Dummy('x_1'), Dummy('x_1')
+         ) == (x_1, Symbol('x_1_1'))
++
++
++def test_issue_20244_no_dict():
++    # Since the __slots__ declaration on the `Printable` mixin was dropped, a
++    # `Symbol` silently regained a ``__dict__`` (and lost the memory savings of
++    # its own ``__slots__ = ('name',)``).  Guard against that regression.
++    s = Symbol('s')
++    assert not hasattr(s, '__dict__')
++    assert Symbol.__slots__ == ('name',)
++    assert '__dict__' not in dir(s)
+2026-09-11 10:33:28,221 - INFO - Eval script for sympy__sympy-20590 written to logs/run_evaluation/zyra-batch1-sympy20590-official/ZYRA-deepseek-flash-batch1-sympy20590/sympy__sympy-20590/eval.sh; copying to container...
+2026-09-11 10:33:32,036 - INFO - Test runtime: 3.78 seconds
+2026-09-11 10:33:32,037 - INFO - Test output for sympy__sympy-20590 written to logs/run_evaluation/zyra-batch1-sympy20590-official/ZYRA-deepseek-flash-batch1-sympy20590/sympy__sympy-20590/test_output.txt
+2026-09-11 10:33:32,073 - INFO - Git diff after:
+diff --git a/sympy/core/_print_helpers.py b/sympy/core/_print_helpers.py
+index 96d7e72676..abe53beb3e 100755
+--- a/sympy/core/_print_helpers.py
++++ b/sympy/core/_print_helpers.py
+@@ -17,6 +17,12 @@ class Printable:
+     This also adds support for LaTeX printing in jupyter notebooks.
+     """
+ 
++    # This class has no instance state, so it must not declare __dict__.
++    # Without __slots__ here, every subclass in the SymPy object hierarchy
++    # (which inherits from this class) regains a __dict__, silently undoing
++    # the memory savings of their own __slots__ declarations.  See issue 20244.
++    __slots__ = ()
++
+     # Note, we always use the default ordering (lex) in __str__ and __repr__,
+     # regardless of the global setting. See issue 5487.
+     def __str__(self):
+diff --git a/sympy/core/tests/test_symbol.py b/sympy/core/tests/test_symbol.py
+index a07a1d2f36..d062124687 100755
+--- a/sympy/core/tests/test_symbol.py
++++ b/sympy/core/tests/test_symbol.py
+@@ -387,3 +387,13 @@ def test_disambiguate():
+     assert disambiguate(*t7) == (y*y_1, y_1)
+     assert disambiguate(Dummy('x_1'), Dummy('x_1')
+         ) == (x_1, Symbol('x_1_1'))
++
++
++def test_issue_20244_no_dict():
++    # Since the __slots__ declaration on the `Printable` mixin was dropped, a
++    # `Symbol` silently regained a ``__dict__`` (and lost the memory savings of
++    # its own ``__slots__ = ('name',)``).  Guard against that regression.
++    s = Symbol('s')
++    assert not hasattr(s, '__dict__')
++    assert Symbol.__slots__ == ('name',)
++    assert '__dict__' not in dir(s)
+2026-09-11 10:33:32,073 - INFO - Grading answer for sympy__sympy-20590...
+2026-09-11 10:33:32,074 - INFO - report: {'sympy__sympy-20590': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_immutable'], 'failure': []}, 'PASS_TO_PASS': {'success': ['test__aresame', 'test_structure', 'test_equality', 'test_matches_basic', 'test_has', 'test_subs', 'test_subs_with_unicode_symbols', 'test_atoms', 'test_free_symbols_empty', 'test_doit', 'test_S', 'test_xreplace', 'test_preorder_traversal', 'test_sorted_args', 'test_call', 'test_rewrite', 'test_literal_evalf_is_number_is_zero_is_comparable', 'test_as_Basic', 'test_atomic', 'test_as_dummy', 'test_canonical_variables'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for sympy__sympy-20590: resolved: True
+2026-09-11 10:33:32,075 - INFO - Attempting to stop container sweb.eval.sympy__sympy-20590.zyra-batch1-sympy20590-official...
+2026-09-11 10:33:47,368 - INFO - Attempting to remove container sweb.eval.sympy__sympy-20590.zyra-batch1-sympy20590-official...
+2026-09-11 10:33:47,423 - INFO - Container sweb.eval.sympy__sympy-20590.zyra-batch1-sympy20590-official removed.

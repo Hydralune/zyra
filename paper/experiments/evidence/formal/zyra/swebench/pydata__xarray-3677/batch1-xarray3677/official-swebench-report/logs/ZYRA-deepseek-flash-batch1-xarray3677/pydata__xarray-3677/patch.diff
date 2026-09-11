@@ -1,0 +1,38 @@
+diff --git a/xarray/core/merge.py b/xarray/core/merge.py
+index 10c7804d..41ee4103 100644
+--- a/xarray/core/merge.py
++++ b/xarray/core/merge.py
+@@ -808,6 +808,10 @@ def dataset_merge_method(
+     # we are locked into supporting overwrite_vars for the Dataset.merge
+     # method due for backwards compatibility
+     # TODO: consider deprecating it?
++    from .dataarray import DataArray
++
++    if isinstance(other, DataArray):
++        other = other.to_dataset()
+ 
+     if isinstance(overwrite_vars, Iterable) and not isinstance(overwrite_vars, str):
+         overwrite_vars = set(overwrite_vars)
+diff --git a/xarray/tests/test_merge.py b/xarray/tests/test_merge.py
+index c1e6c7a5..2cad8494 100644
+--- a/xarray/tests/test_merge.py
++++ b/xarray/tests/test_merge.py
+@@ -159,6 +159,18 @@ class TestMergeMethod:
+         with raises_regex(ValueError, "should be coordinates or not"):
+             data.merge(data.reset_coords())
+ 
++    def test_merge_dataarray(self):
++        ds = xr.Dataset({"a": 0})
++        da = xr.DataArray(1, name="b")
++        actual = ds.merge(da)
++        expected = xr.merge([ds, da])
++        assert expected.identical(actual)
++
++        # the Dataset.merge(Dataset) path must be unaffected
++        assert ds.merge(xr.Dataset({"c": 2})).identical(
++            xr.merge([ds, xr.Dataset({"c": 2})])
++        )
++
+     def test_merge_broadcast_equals(self):
+         ds1 = xr.Dataset({"x": 0})
+         ds2 = xr.Dataset({"x": ("y", [0, 0])})

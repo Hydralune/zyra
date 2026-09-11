@@ -1,0 +1,75 @@
+2026-09-11 10:40:05,478 - INFO - Creating container for pydata__xarray-3677...
+2026-09-11 10:40:05,579 - INFO - Container for pydata__xarray-3677 created: 73b79713979280446e13af348b1e6db66714a44a8b44e041398e393cc6e59232
+2026-09-11 10:40:05,803 - INFO - Container for pydata__xarray-3677 started: 73b79713979280446e13af348b1e6db66714a44a8b44e041398e393cc6e59232
+2026-09-11 10:40:05,803 - INFO - Intermediate patch for pydata__xarray-3677 written to logs/run_evaluation/zyra-batch1-xarray3677-official/ZYRA-deepseek-flash-batch1-xarray3677/pydata__xarray-3677/patch.diff, now applying to container...
+2026-09-11 10:40:05,914 - INFO - >>>>> Applied Patch:
+Checking patch xarray/core/merge.py...
+Checking patch xarray/tests/test_merge.py...
+Applied patch xarray/core/merge.py cleanly.
+Applied patch xarray/tests/test_merge.py cleanly.
+
+2026-09-11 10:40:06,078 - INFO - Git diff before:
+diff --git a/xarray/core/merge.py b/xarray/core/merge.py
+index 10c7804d..41ee4103 100644
+--- a/xarray/core/merge.py
++++ b/xarray/core/merge.py
+@@ -808,6 +808,10 @@ def dataset_merge_method(
+     # we are locked into supporting overwrite_vars for the Dataset.merge
+     # method due for backwards compatibility
+     # TODO: consider deprecating it?
++    from .dataarray import DataArray
++
++    if isinstance(other, DataArray):
++        other = other.to_dataset()
+ 
+     if isinstance(overwrite_vars, Iterable) and not isinstance(overwrite_vars, str):
+         overwrite_vars = set(overwrite_vars)
+diff --git a/xarray/tests/test_merge.py b/xarray/tests/test_merge.py
+index c1e6c7a5..2cad8494 100644
+--- a/xarray/tests/test_merge.py
++++ b/xarray/tests/test_merge.py
+@@ -159,6 +159,18 @@ class TestMergeMethod:
+         with raises_regex(ValueError, "should be coordinates or not"):
+             data.merge(data.reset_coords())
+ 
++    def test_merge_dataarray(self):
++        ds = xr.Dataset({"a": 0})
++        da = xr.DataArray(1, name="b")
++        actual = ds.merge(da)
++        expected = xr.merge([ds, da])
++        assert expected.identical(actual)
++
++        # the Dataset.merge(Dataset) path must be unaffected
++        assert ds.merge(xr.Dataset({"c": 2})).identical(
++            xr.merge([ds, xr.Dataset({"c": 2})])
++        )
++
+     def test_merge_broadcast_equals(self):
+         ds1 = xr.Dataset({"x": 0})
+         ds2 = xr.Dataset({"x": ("y", [0, 0])})
+2026-09-11 10:40:06,078 - INFO - Eval script for pydata__xarray-3677 written to logs/run_evaluation/zyra-batch1-xarray3677-official/ZYRA-deepseek-flash-batch1-xarray3677/pydata__xarray-3677/eval.sh; copying to container...
+2026-09-11 10:40:14,871 - INFO - Test runtime: 8.75 seconds
+2026-09-11 10:40:14,872 - INFO - Test output for pydata__xarray-3677 written to logs/run_evaluation/zyra-batch1-xarray3677-official/ZYRA-deepseek-flash-batch1-xarray3677/pydata__xarray-3677/test_output.txt
+2026-09-11 10:40:14,917 - INFO - Git diff after:
+diff --git a/xarray/core/merge.py b/xarray/core/merge.py
+index 10c7804d..41ee4103 100644
+--- a/xarray/core/merge.py
++++ b/xarray/core/merge.py
+@@ -808,6 +808,10 @@ def dataset_merge_method(
+     # we are locked into supporting overwrite_vars for the Dataset.merge
+     # method due for backwards compatibility
+     # TODO: consider deprecating it?
++    from .dataarray import DataArray
++
++    if isinstance(other, DataArray):
++        other = other.to_dataset()
+ 
+     if isinstance(overwrite_vars, Iterable) and not isinstance(overwrite_vars, str):
+         overwrite_vars = set(overwrite_vars)
+2026-09-11 10:40:14,918 - INFO - Git diff changed after running eval script
+2026-09-11 10:40:14,918 - INFO - Grading answer for pydata__xarray-3677...
+2026-09-11 10:40:14,918 - INFO - report: {'pydata__xarray-3677': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['xarray/tests/test_merge.py::TestMergeMethod::test_merge_dataarray'], 'failure': []}, 'PASS_TO_PASS': {'success': ['xarray/tests/test_merge.py::TestMergeInternals::test_broadcast_dimension_size', 'xarray/tests/test_merge.py::TestMergeFunction::test_merge_arrays', 'xarray/tests/test_merge.py::TestMergeFunction::test_merge_datasets', 'xarray/tests/test_merge.py::TestMergeFunction::test_merge_dataarray_unnamed', 'xarray/tests/test_merge.py::TestMergeFunction::test_merge_dicts_simple', 'xarray/tests/test_merge.py::TestMergeFunction::test_merge_dicts_dims', 'xarray/tests/test_merge.py::TestMergeFunction::test_merge_error', 'xarray/tests/test_merge.py::TestMergeFunction::test_merge_alignment_error', 'xarray/tests/test_merge.py::TestMergeFunction::test_merge_wrong_input_error', 'xarray/tests/test_merge.py::TestMergeFunction::test_merge_no_conflicts_single_var', 'xarray/tests/test_merge.py::TestMergeFunction::test_merge_no_conflicts_multi_var', 'xarray/tests/test_merge.py::TestMergeFunction::test_merge_no_conflicts_preserve_attrs', 'xarray/tests/test_merge.py::TestMergeFunction::test_merge_no_conflicts_broadcast', 'xarray/tests/test_merge.py::TestMergeMethod::test_merge', 'xarray/tests/test_merge.py::TestMergeMethod::test_merge_broadcast_equals', 'xarray/tests/test_merge.py::TestMergeMethod::test_merge_compat', 'xarray/tests/test_merge.py::TestMergeMethod::test_merge_auto_align', 'xarray/tests/test_merge.py::TestMergeMethod::test_merge_fill_value[fill_value0]', 'xarray/tests/test_merge.py::TestMergeMethod::test_merge_fill_value[2]', 'xarray/tests/test_merge.py::TestMergeMethod::test_merge_fill_value[2.0]', 'xarray/tests/test_merge.py::TestMergeMethod::test_merge_no_conflicts'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for pydata__xarray-3677: resolved: True
+2026-09-11 10:40:14,918 - INFO - Attempting to stop container sweb.eval.pydata__xarray-3677.zyra-batch1-xarray3677-official...
+2026-09-11 10:40:30,186 - INFO - Attempting to remove container sweb.eval.pydata__xarray-3677.zyra-batch1-xarray3677-official...
+2026-09-11 10:40:30,233 - INFO - Container sweb.eval.pydata__xarray-3677.zyra-batch1-xarray3677-official removed.
