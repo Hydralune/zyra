@@ -339,10 +339,15 @@ export async function resolveProviderControlPlaneTurns(
     // This is the real provider dispatch path for benchmark runs.  Account
     // against durable dispatch results before admitting another request; E01
     // telemetry alone is not authoritative when the control plane owns I/O.
-    const maximumTotalTokens = boundedPositiveInteger(
-      constraints.maximum_total_tokens,
-      0,
-    );
+    // `maximum_total_tokens` is an opt-in ceiling: absent/0/negative means
+    // "unbounded" (see the `remainingProviderTokens` computation below).
+    // `boundedPositiveInteger` coerces 0 up to 1, which would turn an unset
+    // budget into a 1-token ceiling and fail every request closed, so read the
+    // raw value here and only clamp a genuinely positive limit.
+    const configuredMaximumTotalTokens = numberValue(constraints.maximum_total_tokens);
+    const maximumTotalTokens = configuredMaximumTotalTokens > 0
+      ? Math.min(Math.floor(configuredMaximumTotalTokens), 1_000_000)
+      : 0;
     const completedDispatches = controlPlane.dispatches.list()
       .filter((item) => item.result !== null);
     const consumedProviderTokens = completedDispatches.reduce(

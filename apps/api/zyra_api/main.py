@@ -13428,6 +13428,15 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                             state,
                             causation_id=created_event.event_id,
                         )
+                    # The graph projector persists `node_updated` events at each
+                    # stage boundary *during* execution.  Those events require a
+                    # causation chain into the runtime event spine, so the task
+                    # bootstrap events must be canonical there first.  Without
+                    # this, `run_task_graph`'s first `node_updated` becomes the
+                    # aggregate's first event and the TypeScript spine fails it
+                    # closed (`event requires causation id`).
+                    persist_events(store, events)
+                    events.clear()
                     events.extend(
                         run_task_graph(
                             state,
