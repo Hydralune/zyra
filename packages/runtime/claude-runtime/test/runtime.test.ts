@@ -7033,6 +7033,26 @@ test("missing selected verification runners are invocation failures but product 
     ["shell:pytest:checks/"],
     "a compiled-extension build-check sentinel is an environment diagnostic, not semantic debt",
   );
+
+  observe("pytest-node-not-found", {
+    stderr: "ERROR: not found: /testbed/xarray/tests/test_merge.py::TestMerge::test_merge_dataarray_unnamed (no name in any of [<Module test_merge.py>])",
+    return_code: 4,
+  });
+  assert.deepEqual(
+    progressive.snapshot().unresolvedVerificationScopes,
+    ["shell:pytest:checks/"],
+    "a pytest node-id usage error is an invocation failure, not semantic debt",
+  );
+
+  observe("pytest-collected-zero", {
+    stderr: "collected 0 items",
+    return_code: 5,
+  });
+  assert.deepEqual(
+    progressive.snapshot().unresolvedVerificationScopes,
+    ["shell:pytest:checks/"],
+    "collected 0 items is an invocation failure, not semantic debt",
+  );
 });
 
 test("structured shell executable duplication is pre-behavioral across path and case variants", () => {

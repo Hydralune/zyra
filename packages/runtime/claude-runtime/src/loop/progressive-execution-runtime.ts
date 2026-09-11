@@ -1558,7 +1558,16 @@ function isRetryableVerificationInvocationDiagnostic(
     // correct testbed interpreter imports fine.  Keep this narrow to the
     // explicit build-check sentinel so a genuine application import failure
     // remains semantic debt.
-    || /\bNo module named\s+['"][^'"]*__(?:check_build|_check_build|check_build)['"]/iu.test(value);
+    || /\bNo module named\s+['"][^'"]*__(?:check_build|_check_build|check_build)['"]/iu.test(value)
+    // A pytest usage/collection error (`ERROR: not found`, `ERROR: file or
+    // directory not found`, `collected 0 items`) means the selected node id or
+    // path does not exist, so no test ran.  It is a command-usage mistake, not
+    // evidence that the delivered bytes are wrong; recording it as a semantic
+    // scope leaves a debt keyed to a node id that can never be satisfied by the
+    // corrected run.  Narrow to pytest's explicit not-found diagnostic so a
+    // genuine application error still stays semantic debt.
+    || /\bERROR:\s+(?:not found|file or directory not found):\s*/iu.test(value)
+    || /\bcollected\s+0\s+items\b/iu.test(value);
 }
 
 function missingDocumentationVerificationPrerequisite(value: string): boolean {
