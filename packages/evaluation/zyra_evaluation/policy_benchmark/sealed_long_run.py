@@ -1514,28 +1514,23 @@ class SealedLongRunRunner:
         if (
             cloud_models
             != (
-                ("zhipu", "glm-5.2"),
                 ("deepseek", "deepseek-flash"),
-                ("kimi-platform", "kimi-k2.7-code"),
+                ("deepseek", "deepseek-v4-pro"),
             )
             or int(
                 provider_profile.get("multiple_model_capabilities_required")
                 or 0
             )
-            != 3
+            != 2
             or provider_profile.get("live_external_request_required") is not True
         ):
             raise SealedLongRunError(
-                "sealed provider profile must freeze three ordered live external models"
+                "sealed provider profile must freeze two ordered DeepSeek live models"
             )
         credential_files = tuple(
             str(item) for item in _sequence(value.get("credential_env_files"))
         )
-        if credential_files != (
-            ".env.glm.local",
-            ".env.deepseek.local",
-            ".env.kimi.local",
-        ):
+        if credential_files != (".env.deepseek.local",):
             raise SealedLongRunError(
                 "sealed credential references must follow the fixed provider order"
             )

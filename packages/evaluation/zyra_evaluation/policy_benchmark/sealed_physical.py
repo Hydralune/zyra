@@ -61,9 +61,8 @@ _BACKEND = {
     "cloud": WorkerBackendKind.CLOUD_MODEL,
 }
 _DEFAULT_CLOUD_MODELS = (
-    ("zhipu", "glm-5.2"),
     ("deepseek", "deepseek-flash"),
-    ("kimi-platform", "kimi-k2.7-code"),
+    ("deepseek", "deepseek-v4-pro"),
 )
 _PROVIDER_CREDENTIAL = {
     "zhipu": "ZAI_API_KEY",
@@ -218,7 +217,7 @@ class SealedPhysicalDispatchRuntime:
             or self.cloud_models[:1] != _DEFAULT_CLOUD_MODELS[:1]
         ):
             raise SealedPhysicalDispatchError(
-                "sealed model capabilities must be distinct and start with zhipu/glm-5.2"
+                "sealed model capabilities must be distinct and start with deepseek/deepseek-flash"
             )
 
     def execute(
