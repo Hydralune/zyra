@@ -906,7 +906,7 @@ def campaign_events(
         )
         event_id = (
             f"fault-event-{sequence:06d}-"
-            f"{digest((event_type, injection_id, receipt))[:12]}"
+            f"{digest((run_id, task_id, event_type, injection_id, receipt, sequence))[:12]}"
         )
         event = {
             "event_id": event_id,

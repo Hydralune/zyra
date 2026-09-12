@@ -803,7 +803,13 @@ def placement_events(
     ) -> None:
         nonlocal sequence, parent
         sequence += 1
-        event_id = f"placement-event-{sequence:06d}-{digest(mutation)[:12]}"
+        # Bind run/task identity into the id.  Placement mutations repeat
+        # verbatim across runs, so a content-and-sequence id collides in the
+        # shared runtime event spine (EVENT_ID_CONFLICT).
+        event_id = (
+            f"placement-event-{sequence:06d}-"
+            f"{digest((run_id, task_id, event_type, mutation, sequence))[:12]}"
+        )
         output.append(
             {
                 "event_id": event_id,

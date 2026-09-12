@@ -376,7 +376,19 @@ class WorkerPoolApiService:
         replace_generation: bool = False,
     ):
         existing = self.pool.store.get_worker(worker_id)
-        if existing is not None and existing.accepting_leases:
+        # A durable registration can outlive the API process that created it.
+        # Its process_identity still names the old PID, so the settlement-time
+        # ownership check (`refresh_owned_local_worker_heartbeat`) rejects it as
+        # a non-owned identity.  Re-register when the identity is not this
+        # process rather than reviving another process's worker generation.
+        existing_owned = bool(
+            existing is not None
+            and existing.location.value == "local"
+            and existing.metadata.get("default_api_worker") is True
+            and existing.process_identity == f"local-pid-{os.getpid()}"
+            and existing.endpoint == f"local://pid/{os.getpid()}/{worker_id}"
+        )
+        if existing is not None and existing.accepting_leases and existing_owned:
             manifest = self.pool.store.latest_manifest(worker_id)
             from zyra_scheduler.worker_pool.application import LocalWorkerRegistration
 
@@ -386,6 +398,8 @@ class WorkerPoolApiService:
                 manifest=manifest,
                 process_identity=existing.process_identity,
             )
+        if existing is not None and existing.accepting_leases and not existing_owned:
+            replace_generation = True
         backend = BackendCapability(
             backend_id="local-sandbox-gateway",
             backend_kind="sandbox_gateway",
@@ -438,12 +452,27 @@ class WorkerPoolApiService:
 
         worker = self.pool.store.require_worker(worker_id)
         expected_identity = f"local-pid-{os.getpid()}"
-        if (
-            worker.location.value != "local"
-            or worker.metadata.get("default_api_worker") is not True
-            or worker.process_identity != expected_identity
-            or worker.endpoint != f"local://pid/{os.getpid()}/{worker_id}"
-        ):
+        owned = (
+            worker.location.value == "local"
+            and worker.metadata.get("default_api_worker") is True
+            and worker.process_identity == expected_identity
+            and worker.endpoint == f"local://pid/{os.getpid()}/{worker_id}"
+        )
+        if not owned:
+            # A durable registration can outlive the API process that created
+            # it, leaving a stale process identity.  This process is the
+            # legitimate owner of an API-local worker, so take ownership by
+            # re-registering rather than reviving the old generation or failing
+            # the settlement that depends on this heartbeat.
+            if (
+                worker.location.value == "local"
+                and worker.metadata.get("default_api_worker") is True
+            ):
+                self.ensure_default_local_worker(
+                    worker_id=worker_id,
+                    replace_generation=True,
+                )
+                return
             raise RuntimeError(
                 "local worker heartbeat refresh rejected a non-owned process "
                 f"identity: {worker_id}"

@@ -19,6 +19,7 @@ from .contracts import (
     InjectionPhase,
     ObservationCategory,
     ObservationProvenance,
+    ObserverLifecycle,
     ObserverMaturity,
     ProjectionReceipt,
     RecoveryHandoff,
@@ -109,7 +110,23 @@ class SameRunFaultInjector:
         self._lock = threading.RLock()
         self._revision = 0
         self.registry.register(self.callback)
-        self.registry.start(self.descriptor.observer_id)
+        # The injection observer is INJECTION_ONLY, so the lifecycle supervisor
+        # deliberately leaves its ownership here.  A previous process can leave
+        # the durable lifecycle at RUNNING while its process-local callback is
+        # gone; a plain start() then returns early without attaching, and every
+        # trigger fails with "injection observer is not running".  Recover the
+        # stale RUNNING state so this process's callback is attached and running.
+        current = self.registry.store.require_observer(self.descriptor.observer_id)
+        if current.lifecycle is ObserverLifecycle.RUNNING and not (
+            bool(self.callback.snapshot().get("attached"))
+            and bool(self.callback.snapshot().get("running"))
+        ):
+            self.registry.recover_stale_running(
+                self.descriptor.observer_id,
+                process_epoch=runtime_id("injection-epoch"),
+            )
+        else:
+            self.registry.start(self.descriptor.observer_id)
 
     def build(self, request: FaultInjectionRequest) -> StructuredObservation:
         spec = INJECTION_SPECS[request.kind]

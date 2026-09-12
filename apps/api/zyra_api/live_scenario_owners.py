@@ -477,7 +477,12 @@ class CanonicalLiveScenarioOwners:
                 "stage": stage,
             }
             content_digest = digest(content)
-            memory_id = f"analysis-unit:{content_digest}"
+            # Bind the record identity to the run.  Content-only ids collide
+            # when two runs analyse identical source bytes: the upsert would
+            # keep the first run's run_id/task_id, and the second run's readback
+            # (which filters by its own task_id) would find nothing and fail
+            # commit/readback verification.
+            memory_id = f"analysis-unit:{state.run_id}:{content_digest}"
             records.append(
                 MemoryRecord(
                     memory_id=memory_id,
@@ -554,8 +559,29 @@ class CanonicalLiveScenarioOwners:
         if len(receipts) != len(values) or not all(
             item["committed"] and item["readback_verified"] for item in receipts
         ):
+            failed = [
+                {
+                    "work_unit_id": item["work_unit_id"],
+                    "memory_id": item["memory_id"],
+                    "committed": item["committed"],
+                    "readback_verified": item["readback_verified"],
+                    "content_digest": item["content_digest"],
+                }
+                for item in receipts
+                if not (item["committed"] and item["readback_verified"])
+            ]
             raise LiveOwnerIntegrationError(
-                "analysis-unit owner failed commit/readback verification"
+                "analysis-unit owner failed commit/readback verification: "
+                + json.dumps(
+                    {
+                        "value_count": len(values),
+                        "receipt_count": len(receipts),
+                        "failed_count": len(failed),
+                        "failed_sample": failed[:5],
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
             )
         return tuple(receipts)
 

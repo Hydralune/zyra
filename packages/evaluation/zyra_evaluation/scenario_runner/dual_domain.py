@@ -309,9 +309,15 @@ class CanonicalEventBuilder:
         event_id: str = "",
     ) -> dict[str, Any]:
         self._sequence += 1
+        # Event identity must be unique per run, not just per (content, index).
+        # Several live events carry a fixed mutation payload (for example the
+        # topology_mutation that always advertises the same node/edge set), so
+        # deriving the id from content and sequence alone lets two runs emit
+        # the same id into the shared runtime event spine and fail the append
+        # with EVENT_ID_CONFLICT.  Bind the run identity into the digest.
         selected_event_id = event_id or (
             f"live-event-{self._sequence:06d}-"
-            f"{digest((event_type, stage, mutation, self._sequence))[:16]}"
+            f"{digest((self.run_id, self.task_id, event_type, stage, mutation, self._sequence))[:16]}"
         )
         event = {
             "event_id": selected_event_id,
