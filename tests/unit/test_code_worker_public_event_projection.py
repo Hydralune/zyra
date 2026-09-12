@@ -66,6 +66,54 @@ def test_public_projection_rejects_private_or_malformed_stream_frames() -> None:
     assert malformed_counter["segment_index"] == 0
 
 
+def test_public_projection_admits_reasoning_under_the_same_custody() -> None:
+    """The reasoning branch binds its own `content`; it must not read the
+    assistant branch's local, which never runs for a reasoning phase."""
+
+    projected = _public_session_projection(
+        {
+            "schema": "zyra.provider-assistant-presentation/v1",
+            "phase": "reasoning_delta",
+            "delta_kind": "reasoning",
+            "stream_id": "provider:dispatch-1:reasoning",
+            "assistant_message_id": "message:assistant:provider:dispatch-1",
+            "provider_sequence": 2,
+            "segment_index": 3,
+            "content": "weighing api_key=sk-private-provider-key",
+        }
+    )
+
+    assert projected is not None
+    assert projected["phase"] == "reasoning_delta"
+    assert projected["delta_kind"] == "reasoning"
+    assert projected["presentation_text"] == "weighing api_key=<redacted>"
+    assert projected["content_persisted"] is False
+    assert "content" not in projected
+    assert "sk-private-provider-key" not in str(projected)
+
+
+def test_public_projection_rejects_malformed_reasoning_frames() -> None:
+    base = {
+        "schema": "zyra.provider-assistant-presentation/v1",
+        "phase": "reasoning_delta",
+        "delta_kind": "reasoning",
+        "stream_id": "provider:dispatch-1:reasoning",
+        "assistant_message_id": "message:assistant:provider:dispatch-1",
+    }
+    # An empty delta, an over-long chunk, a missing stream and a foreign
+    # delta_kind are each refused rather than coerced.
+    assert _public_session_projection({**base, "content": ""}) is None
+    assert _public_session_projection({**base, "content": "x" * 1_025}) is None
+    assert _public_session_projection({**base, "content": "ok", "stream_id": ""}) is None
+    assert _public_session_projection(
+        {**base, "delta_kind": "assistant_text", "content": "ok"}
+    ) is None
+    # A non-delta reasoning phase must not carry chunk content.
+    assert _public_session_projection(
+        {**base, "phase": "reasoning_started", "content": "leaked"}
+    ) is None
+
+
 def test_public_event_projection_drops_live_delta_from_durable_worker_result() -> None:
     projected = _public_runtime_events(
         [

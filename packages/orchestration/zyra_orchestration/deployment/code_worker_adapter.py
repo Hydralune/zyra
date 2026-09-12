@@ -1921,6 +1921,10 @@ def _public_session_projection(
             or public_session.get("delta_kind") != "reasoning"
         ):
             return None
+        # `content` is bound per branch, not once for the whole function: the
+        # assistant path above never runs for a reasoning phase, so reading it
+        # without this assignment raises UnboundLocalError.
+        content = str(public_session.get("content") or "")
         stream_id = str(public_session.get("stream_id") or "")[:256]
         assistant_message_id = str(
             public_session.get("assistant_message_id") or ""
