@@ -269,6 +269,25 @@ async function main(): Promise<number> {
       2_000,
     )
 
+    // The console polls on a fixed interval; wait for the card to show the
+    // terminal phase so the screenshot reflects the finished run.
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const shown = await evaluate(
+        cdp,
+        `(() => { const c=document.querySelectorAll(".long-run-demo-card")[${taskIndex}]; return c?c.getAttribute("data-phase"):null })()`,
+      )
+      if (shown === phase) break
+      await sleep(1_000)
+    }
+
+    // Let the console settle so the connection tag reflects a completed poll
+    // rather than a refresh that was still in flight at the terminal phase.
+    await sleep(6_000)
+    const connectionAfter = await evaluate(
+      cdp,
+      `(() => { const t = document.querySelector(".long-run-demo .tag"); return t ? t.textContent : ""; })()`,
+    )
+
     const cardState = await evaluate(
       cdp,
       `(() => {
@@ -293,15 +312,39 @@ async function main(): Promise<number> {
     const screenshot = resolve(outDir, `${options.task}.png`)
     writeFileSync(screenshot, Buffer.from(String(shot.data), "base64"))
 
+    // Focused screenshot of the demo panel so the run id and phase are legible.
+    const panel = await evaluate(
+      cdp,
+      `(() => {
+         const el = document.querySelector(".long-run-demo");
+         if (!el) return null;
+         el.scrollIntoView({ block: "start" });
+         const r = el.getBoundingClientRect();
+         return { x: Math.max(0, r.x), y: Math.max(0, r.y), width: r.width, height: r.height };
+       })()`,
+    )
+    let panelScreenshot = ""
+    if (panel && panel.width > 0 && panel.height > 0) {
+      const panelShot = await cdp.send("Page.captureScreenshot", {
+        format: "png",
+        captureBeyondViewport: true,
+        clip: { x: panel.x, y: panel.y, width: panel.width, height: panel.height, scale: 1 },
+      })
+      panelScreenshot = resolve(outDir, `${options.task}-panel.png`)
+      writeFileSync(panelScreenshot, Buffer.from(String(panelShot.data), "base64"))
+    }
+
     const summary = {
       ok: phase === "succeeded",
       task: options.task,
       url: options.url,
       connectionBefore,
+      connectionAfter,
       runId,
       phase,
       cardState,
       screenshot,
+      panelScreenshot,
     }
     writeFileSync(
       resolve(outDir, `${options.task}.json`),
