@@ -511,6 +511,130 @@ class LoopXOutbox:
                 },
             )
 
+    def _rebind_relocated_workspace(
+        self,
+        connection: sqlite3.Connection,
+        mismatched: Mapping[str, Mapping[str, Any]],
+        meta: Mapping[str, Any],
+    ) -> None:
+        """Adopt an outbox that was created under a different workspace path.
+
+        ``workspace_id`` is a digest of the workspace's absolute path, so moving
+        or copying the repository changes it.  Because the outbox lives *inside*
+        the tree it belongs to, that digest is the only record of the old path:
+        a checkout relocated from ``G:\\agent-zoo\\zyra`` to another directory
+        still carries ``tmp/workspace/.zyra/loopx/state/bridge/outbox.sqlite3``,
+        and every task then dies constructing the control runtime before it can
+        start.
+
+        Only the path-derived identity is adopted.  A schema or version
+        mismatch is a genuine incompatibility and still fails closed, and a
+        non-empty backlog (``pending``/``inflight``/``dead_letter``) is refused
+        rather than rewritten, because those records were signed against the old
+        identity and quietly re-labelling them would launder another workspace's
+        undelivered work.  An outbox whose deliveries are all ``acked`` holds no
+        live state, so it is adopted in place.
+        """
+
+        unadoptable = {
+            key: value for key, value in mismatched.items() if key != "workspace_id"
+        }
+        if unadoptable:
+            raise OutboxConflictError(
+                "LoopX outbox metadata belongs to another schema or workspace.",
+                code="loopx_outbox_schema_mismatch",
+                details={"expected": dict(meta), "mismatched": unadoptable},
+            )
+        live = {
+            str(row["state"]): int(row["count"])
+            for row in connection.execute(
+                """
+                SELECT state, COUNT(*) AS count FROM loopx_outbox
+                WHERE state != ?
+                GROUP BY state
+                """,
+                (OutboxState.ACKED.value,),
+            ).fetchall()
+        }
+        if live:
+            raise OutboxConflictError(
+                "LoopX outbox holds undelivered work from another workspace "
+                "path; it cannot be adopted.",
+                code="loopx_outbox_schema_mismatch",
+                details={
+                    "previous_workspace_id": meta.get("workspace_id"),
+                    "workspace_id": self.workspace_id,
+                    "backlog": live,
+                },
+            )
+        # ``command_json`` still carries the relocated identity, and every later
+        # read cross-checks it against ``workspace_id``.  Physically rewriting
+        # the stored command in the same transaction keeps the row
+        # self-consistent; leaving it would surface as a different, later
+        # failure the moment a new command is enqueued or claimed.
+        previous = str(meta.get("workspace_id") or "")
+        rows_seen = [
+            (int(row["sequence"]), str(row["command_json"]))
+            for row in connection.execute(
+                "SELECT sequence, command_json FROM loopx_outbox"
+            ).fetchall()
+        ]
+        connection.execute("SAVEPOINT relocate_workspace")
+        try:
+            for sequence, command_json in rows_seen:
+                payload = json.loads(command_json)
+                payload["workspace_id"] = self.workspace_id
+                # ``content_digest`` signs ``to_dict()``, so it moves with the
+                # rewritten command.  It is an integrity witness for the stored
+                # bytes, not a cross-workspace identifier; leaving it stale would
+                # make every adopted record read as tampered.
+                connection.execute(
+                    """
+                    UPDATE loopx_outbox
+                    SET workspace_id = ?, command_json = ?, content_digest = ?
+                    WHERE sequence = ?
+                    """,
+                    (
+                        self.workspace_id,
+                        json.dumps(
+                            payload,
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ),
+                        BridgeCommand.from_dict(payload).content_digest,
+                        sequence,
+                    ),
+                )
+            connection.execute(
+                "UPDATE loopx_outbox_meta SET value = ? WHERE key = 'workspace_id'",
+                (self.workspace_id,),
+            )
+        except BaseException as error:
+            connection.execute("ROLLBACK TO relocate_workspace")
+            connection.execute("RELEASE relocate_workspace")
+            # A rolled-back adoption must leave the outbox exactly as it was.
+            # Verify the restoration instead of assuming it, so a savepoint that
+            # silently kept the rewrite fails closed here rather than later.
+            restored = connection.execute(
+                "SELECT COUNT(*) FROM loopx_outbox WHERE workspace_id = ?",
+                (previous,),
+            ).fetchone()
+            bound = connection.execute(
+                "SELECT value FROM loopx_outbox_meta WHERE key = 'workspace_id'"
+            ).fetchone()
+            if (restored and int(restored[0]) != len(rows_seen)) or (
+                bound and str(bound[0]) != previous
+            ):
+                raise OutboxConflictError(
+                    "LoopX outbox relocation rollback did not restore durable rows.",
+                    code="loopx_outbox_relocation_rollback_failed",
+                    details={"previous_workspace_id": previous},
+                ) from error
+            raise
+        else:
+            connection.execute("RELEASE relocate_workspace")
+
     def _initialize(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._transaction() as connection:
@@ -580,12 +704,13 @@ class LoopXOutbox:
                 "version": str(OUTBOX_DB_VERSION),
                 "workspace_id": self.workspace_id,
             }
-            if any(meta.get(key) != value for key, value in expected.items()):
-                raise OutboxConflictError(
-                    "LoopX outbox metadata belongs to another schema or workspace.",
-                    code="loopx_outbox_schema_mismatch",
-                    details={"expected": expected, "actual": meta},
-                )
+            mismatched = {
+                key: {"expected": value, "actual": meta.get(key)}
+                for key, value in expected.items()
+                if meta.get(key) != value
+            }
+            if mismatched:
+                self._rebind_relocated_workspace(connection, mismatched, meta)
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:

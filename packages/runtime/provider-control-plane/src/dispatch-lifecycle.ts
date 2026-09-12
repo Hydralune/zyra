@@ -27,6 +27,11 @@ export type DispatchLifecycleState =
 export interface DispatchLifecycleSnapshot {
   readonly dispatchId: string;
   readonly routeId: string;
+  // The run/task that issued the dispatch.  The ledger is shared by every run
+  // that has used this database, so a run-scoped token ceiling has to be able
+  // to tell its own dispatches from everyone else's.
+  readonly runId: string;
+  readonly taskId: string;
   readonly idempotencyKey: string;
   readonly requestDigest: string;
   readonly state: DispatchLifecycleState;
@@ -100,6 +105,8 @@ export class ProviderDispatchLifecycle {
         const created: DispatchLifecycleSnapshot = {
           dispatchId: request.dispatchId,
           routeId: request.routeId,
+          runId: request.runId,
+          taskId: request.taskId,
           idempotencyKey: request.idempotencyKey,
           requestDigest,
           state: "running",
@@ -514,6 +521,10 @@ export class ProviderDispatchLifecycle {
     const value = JSON.parse(json) as DispatchLifecycleSnapshot;
     return deepClone({
       ...value,
+      // Rows written before the ledger recorded run identity default to the
+      // empty run, so they count toward no run's budget instead of every run's.
+      runId: value.runId ?? "",
+      taskId: value.taskId ?? "",
       streamAttempt: value.streamAttempt ?? 0,
       recoveryCount: value.recoveryCount ?? 0,
       attemptFrameIds: value.attemptFrameIds ?? [],

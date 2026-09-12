@@ -7,6 +7,8 @@ import pytest
 
 from zyra_integrations.loopx.bridge import (
     LoopXBridgeObservability,
+    LoopXOutbox,
+    OutboxConflictError,
     OutboxLeaseError,
     OutboxState,
     SingleWriterFenceLostError,
@@ -284,3 +286,108 @@ def test_workspace_isolation_validation_before_spend_and_disabled_route(
         state_b["todo_projection"]["agent_todos"]["items"][0]["claimed_by"]
         == "workspace-b-controller"
     )
+
+
+def _relocate_workspace(source: Path, destination: Path) -> None:
+    """Copy a workspace the way a checkout is moved or cloned to a new path."""
+
+    import shutil
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, destination)
+
+
+def test_outbox_adopts_a_workspace_relocated_to_a_new_path(
+    tmp_path: Path,
+) -> None:
+    """A moved repository must not be bricked by its own durable state.
+
+    ``workspace_id`` digests the absolute workspace path, so relocating the
+    checkout changes it while the outbox inside the tree still records the old
+    one.  Every task failed at control-runtime construction until an outbox
+    whose deliveries are all acknowledged was adopted in place.
+    """
+
+    original = tmp_path / "original" / "workspace"
+    outbox, writer, _, dispatcher = bridge_runtime(original, install_loopx(original))
+    custody, committed = committed_graph_mutation(tmp_path / "canonical")
+    outbox.enqueue_after_commit(
+        run_id="run-loopx-bridge",
+        task_id="task-loopx-bridge",
+        canonical_commit=committed,
+        update=valid_update(),
+    )
+    assert dispatcher.dispatch()[0].status is SyncStatus.APPLIED
+    assert outbox.checkpoint()["counts"]["acked"] == 1
+
+    relocated = tmp_path / "relocated" / "workspace"
+    _relocate_workspace(original, relocated)
+
+    adopted = LoopXOutbox(workspace_root=relocated)
+    assert adopted.workspace_id != outbox.workspace_id
+    assert adopted.checkpoint()["counts"]["acked"] == 1
+    assert {
+        record.command.workspace_id for record in adopted.list_records()
+    } == {adopted.workspace_id}
+
+    # The relocated outbox is usable, not merely constructible.
+    relocated_custody, relocated_commit = committed_graph_mutation(
+        tmp_path / "canonical-relocated"
+    )
+    adopted.enqueue_after_commit(
+        run_id="run-loopx-bridge",
+        task_id="task-loopx-bridge",
+        canonical_commit=relocated_commit,
+        update=valid_update(goal_id="goal-relocated"),
+    )
+    assert adopted.checkpoint()["counts"]["pending"] == 1
+    assert custody.current("graph-loopx-bridge").revision == 1
+    assert relocated_custody.current("graph-loopx-bridge").revision == 1
+
+
+def test_outbox_refuses_to_adopt_another_workspaces_undelivered_work(
+    tmp_path: Path,
+) -> None:
+    """A non-empty backlog still fails closed after a relocation."""
+
+    original = tmp_path / "original" / "workspace"
+    outbox, _, _, _ = bridge_runtime(original, install_loopx(original))
+    _, committed = committed_graph_mutation(tmp_path / "canonical")
+    outbox.enqueue_after_commit(
+        run_id="run-loopx-bridge",
+        task_id="task-loopx-bridge",
+        canonical_commit=committed,
+        update=valid_update(),
+    )
+    assert outbox.checkpoint()["counts"]["pending"] == 1
+
+    relocated = tmp_path / "relocated" / "workspace"
+    _relocate_workspace(original, relocated)
+
+    with pytest.raises(OutboxConflictError) as refused:
+        LoopXOutbox(workspace_root=relocated)
+    assert refused.value.code == "loopx_outbox_schema_mismatch"
+    assert refused.value.details["backlog"] == {"pending": 1}
+
+
+def test_outbox_refuses_a_schema_or_version_mismatch(tmp_path: Path) -> None:
+    """Only the path-derived identity is adoptable; the format is not."""
+
+    import sqlite3
+
+    workspace = tmp_path / "workspace"
+    outbox = LoopXOutbox(workspace_root=workspace)
+    connection = sqlite3.connect(outbox.path)
+    try:
+        connection.execute(
+            "UPDATE loopx_outbox_meta SET value = 'zyra.loopx-outbox/v0' "
+            "WHERE key = 'schema'"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    with pytest.raises(OutboxConflictError) as refused:
+        LoopXOutbox(workspace_root=workspace)
+    assert refused.value.code == "loopx_outbox_schema_mismatch"
+    assert "schema" in refused.value.details["mismatched"]

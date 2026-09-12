@@ -348,8 +348,23 @@ export async function resolveProviderControlPlaneTurns(
     const maximumTotalTokens = configuredMaximumTotalTokens > 0
       ? Math.min(Math.floor(configuredMaximumTotalTokens), 1_000_000)
       : 0;
-    const completedDispatches = controlPlane.dispatches.list()
-      .filter((item) => item.result !== null);
+    // ``maximum_total_tokens`` bounds *this run*, but the control plane's
+    // dispatch ledger is shared by every run that has ever used this database
+    // (it is keyed by route and idempotency key, not by run).  Summing the whole
+    // table made the ceiling cumulative-per-database: a fresh run inherited the
+    // tokens of every earlier one and refused its very first request, which is
+    // how a long-horizon benchmark died at round 0 with
+    // `provider_total_token_budget_exhausted` and an empty dispatch list.
+    //
+    // Dispatches carry their run identity, so scope the sum to this run.  The
+    // route is pinned to the run, so its ledger rows are exactly this run's.
+    const completedDispatches = controlPlane.dispatches
+      .list()
+      .filter((item) =>
+        item.result !== null
+        && item.runId === input.runId
+        && item.taskId === input.taskId
+      );
     const consumedProviderTokens = completedDispatches.reduce(
       (total, item) => total + providerTotalUsage(item.result!.usage),
       0,

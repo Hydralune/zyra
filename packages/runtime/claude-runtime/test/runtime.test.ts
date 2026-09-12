@@ -8687,3 +8687,176 @@ test("provider control plane injects a delegation steer once past half the cumul
   }
 });
 
+
+test("a run's token ceiling ignores dispatches from earlier runs", async () => {
+  // The provider ledger is shared by every run that has used the database, so
+  // a run-scoped ceiling must not count another run's tokens.  Summing the
+  // whole table made every new run inherit all prior consumption and refuse
+  // its first request with `provider_total_token_budget_exhausted`, which is
+  // how a long-horizon benchmark failed at round 0 with an empty ledger.
+  const directory = mkdtempSync(join(tmpdir(), "zyra-run-scoped-budget-"));
+  const databasePath = join(directory, "provider.sqlite3");
+  const controlPlane = new ProviderControlPlane({ databasePath });
+  let previousRoute: ProviderRouteLease;
+  let route: ProviderRouteLease;
+  try {
+    installDeepSeekFlashProfile(controlPlane, {
+      ZYRA_DEEPSEEK_ENABLED: "true",
+      DEEPSEEK_API_KEY: "run-scoped-budget-test-secret",
+    });
+    previousRoute = controlPlane.acquireRoute({
+      runId: "run-previous",
+      taskId: "task-previous",
+      nodeId: "node-previous",
+      sessionId: "session-previous",
+      turnId: "turn-previous",
+      purpose: "reason",
+      preferredProviderId: DEEPSEEK_PROVIDER_ID,
+      preferredModelId: DEEPSEEK_FLASH_MODEL_ID,
+      routeHint: `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_FLASH_MODEL_ID}`,
+      constraints: {
+        providerIds: [DEEPSEEK_PROVIDER_ID],
+        modelIds: [DEEPSEEK_FLASH_MODEL_ID],
+        requiredInput: ["text"],
+        requiredOutput: ["text"],
+        requireTools: true,
+        requireStreaming: true,
+        minimumContextWindow: 0,
+        maximumInputPricePerMillion: null,
+        maximumOutputPricePerMillion: null,
+        excludedCredentialIds: [],
+        requiredScopes: [],
+      },
+      metadata: {},
+    });
+    route = controlPlane.acquireRoute({
+      runId: "run-current",
+      taskId: "task-current",
+      nodeId: "node-current",
+      sessionId: "session-current",
+      turnId: "turn-current",
+      purpose: "reason",
+      preferredProviderId: DEEPSEEK_PROVIDER_ID,
+      preferredModelId: DEEPSEEK_FLASH_MODEL_ID,
+      routeHint: `${DEEPSEEK_PROVIDER_ID}/${DEEPSEEK_FLASH_MODEL_ID}`,
+      constraints: {
+        providerIds: [DEEPSEEK_PROVIDER_ID],
+        modelIds: [DEEPSEEK_FLASH_MODEL_ID],
+        requiredInput: ["text"],
+        requiredOutput: ["text"],
+        requireTools: true,
+        requireStreaming: true,
+        minimumContextWindow: 0,
+        maximumInputPricePerMillion: null,
+        maximumOutputPricePerMillion: null,
+        excludedCredentialIds: [],
+        requiredScopes: [],
+      },
+      metadata: {},
+    });
+
+    // Spend far more than the ceiling below, entirely under the earlier run.
+    const claim = controlPlane.dispatches.claim({
+      dispatchId: "provider_dispatch_previous_round1",
+      routeId: previousRoute.routeId,
+      runId: previousRoute.runId,
+      taskId: previousRoute.taskId,
+      nodeId: "node-previous",
+      sessionId: "session-previous",
+      turnId: "turn-previous",
+      idempotencyKey: "previous-run:provider:0:1",
+      messages: [{ role: "user", content: "previous run" }],
+      tools: [],
+      maximumOutputTokens: 1_024,
+      temperature: 0,
+      stream: true,
+      timeoutMilliseconds: 30_000,
+      chunkTimeoutMilliseconds: 30_000,
+      routeFallbackPolicy: "pin_initial_route",
+      extraBody: {},
+      metadata: {},
+    });
+    controlPlane.dispatches.succeed(
+      "provider_dispatch_previous_round1",
+      claim.snapshot.ownerToken,
+      {
+        dispatchId: "provider_dispatch_previous_round1",
+        routeId: previousRoute.routeId,
+        providerId: DEEPSEEK_PROVIDER_ID,
+        modelId: DEEPSEEK_FLASH_MODEL_ID,
+        protocol: "openai_chat",
+        frames: [],
+        text: "done",
+        stopReason: "stop",
+        usage: { prompt_tokens: 900_000, completion_tokens: 1_000, total_tokens: 901_000 },
+        attempts: [],
+        metadata: {},
+        completedAt: Date.now(),
+      } as never,
+    );
+  } finally {
+    controlPlane.close();
+  }
+
+  const originalFetch = globalThis.fetch;
+  const originalDeepSeekKey = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = "run-scoped-budget-test-secret";
+  globalThis.fetch = (async () =>
+    new Response(
+      `data: ${JSON.stringify({
+        id: "run-scoped-budget-provider",
+        object: "chat.completion.chunk",
+        model: DEEPSEEK_FLASH_MODEL_ID,
+        choices: [
+          { index: 0, delta: { content: "Budget accepted." }, finish_reason: "stop" },
+        ],
+        usage: { prompt_tokens: 1_000, completion_tokens: 10, total_tokens: 1_010 },
+      })}\n\ndata: [DONE]\n\n`,
+      { status: 200, headers: { "content-type": "text/event-stream" } },
+    )) as unknown as typeof fetch;
+  try {
+    const host = new MemoryHost();
+    const result = await new ClaudeRuntimeCore().run(input({
+      runId: route.runId,
+      taskId: route.taskId,
+      sessionId: route.sessionId,
+      config: {
+        maxTurns: 2,
+        modelName: DEEPSEEK_FLASH_MODEL_ID,
+        runtimeConstraints: {
+          model_transport: "http_sse",
+          provider_control_plane_required: true,
+          provider_control_plane_database_path: databasePath,
+          provider_route_id: route.routeId,
+          provider_route_checksum: route.checksum,
+          provider_catalog_revision: String(route.catalogRevision),
+          provider_credential_version: String(route.credentialVersion),
+          provider_credential_fingerprint: route.credentialFingerprint,
+          provider_transport_id: route.transportId,
+          provider_route_session_id: route.sessionId,
+          provider_route_turn_id: route.turnId,
+          maximum_total_tokens: 600_000,
+        },
+      },
+    }), host);
+
+    const failure = host.events
+      .filter((event) => event.phase === "error" || event.phase === "model_stream_report")
+      .map((event) => JSON.stringify(event))
+      .join("\n");
+    assert.ok(
+      !failure.includes("provider_total_token_budget_exhausted"),
+      `the new run inherited the previous run's spend:\n${failure}`,
+    );
+    assert.equal(
+      result.ok,
+      true,
+      `stoppedReason=${result.stoppedReason}\nfailures=\n${failure}`,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalDeepSeekKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = originalDeepSeekKey;
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
