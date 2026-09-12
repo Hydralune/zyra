@@ -176,12 +176,29 @@ export function projectExecutionStream(
         })
       }
     } else if (type.startsWith("recovery.") || type === "backend.failover") {
+      // A run that keeps recovering emits one identical row per attempt -- a
+      // real one produced 25 in a row.  Repeated identical recoveries collapse
+      // into a single row that counts them, so the stream shows "this kept
+      // happening" instead of repeating the same line.
+      const summary = isBookkeeping(event.summary) ? undefined : event.summary
+      const previous = entries[entries.length - 1]
+      if (
+        previous
+        && previous.kind === "recovery"
+        && previous.title === "故障恢复"
+        && previous.detail === summary
+        && previous.status === (type.endsWith("failed") || type.endsWith("requested") ? "running" : "completed")
+      ) {
+        previous.eventCount += 1
+        previous.at = event.createdAt
+        continue
+      }
       entries.push({
         key: `recovery:${event.eventId}`,
         kind: "recovery",
         status: type.endsWith("failed") || type.endsWith("requested") ? "running" : "completed",
         title: "故障恢复",
-        detail: isBookkeeping(event.summary) ? undefined : event.summary,
+        detail: summary,
         at: event.createdAt,
         sequence: event.sequence,
         nodeId: event.nodeId,
