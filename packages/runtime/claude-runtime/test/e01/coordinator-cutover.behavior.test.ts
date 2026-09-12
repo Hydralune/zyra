@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   E01_COORDINATOR_SNAPSHOT_VERSION,
   E01RuntimeCoordinator,
+  MAX_CONTEXT_MESSAGES,
   type E01CoordinatorSnapshot,
 } from "../../src/e01/coordinator.js";
 import { digest, type TransitionReceipt } from "../../src/e01/kernel.js";
@@ -736,5 +737,24 @@ describe("E01 coordinator default TypeScript cutover", () => {
 
     expect(() => target.restore(snapshot)).toThrow("session_mismatch");
     expect(target.journal.revision).toBe(0);
+  });
+
+  test("compacts on transcript length, not only on character pressure", async () => {
+    // A run whose per-request context stays under the ceiling still grows its
+    // replayed transcript every round, and that transcript is serialised into
+    // every durable checkpoint.  Without a length trigger the save cost grows
+    // until the loop stalls: a real run reached 17,757 messages and a 203 MB
+    // checkpoint on its ninth round, with the character thresholds never firing.
+    const { coordinator } = await boot();
+    const maxChars = 400_000;
+
+    const belowByChars = coordinator.decideContext(maxChars - 1, maxChars, false, 0, 10);
+    expect(belowByChars.accepted).toBe(false);
+
+    const atLimit = coordinator.decideContext(maxChars - 1, maxChars, false, 0, MAX_CONTEXT_MESSAGES);
+    expect(atLimit.accepted).toBe(false);
+
+    const overLimit = coordinator.decideContext(maxChars - 1, maxChars, false, 0, MAX_CONTEXT_MESSAGES + 1);
+    expect(overLimit.accepted).toBe(true);
   });
 });

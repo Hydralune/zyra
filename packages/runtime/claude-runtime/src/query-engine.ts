@@ -2693,6 +2693,7 @@ export class ClaudeRuntimeCore {
             providerMaximumTotalTokens,
           ),
         session.compactionCount,
+        session.messages.length,
       );
       if (contextDecision.accepted) {
         const fallbackCompact = session.compactCandidates();

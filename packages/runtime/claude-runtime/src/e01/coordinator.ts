@@ -83,6 +83,16 @@ import {
 
 export const E01_COORDINATOR_SNAPSHOT_VERSION = "zyra.e01-runtime/v6";
 
+/**
+ * Transcript length at which a session compacts regardless of character count.
+ *
+ * The per-request context can stay under the character ceiling while the
+ * replayed transcript grows without bound, and the transcript is serialised
+ * into every durable checkpoint.  Without this independent trigger the save
+ * cost grows each round until the loop stops advancing.
+ */
+export const MAX_CONTEXT_MESSAGES = 400;
+
 type RuntimeDomain = "query" | "provider" | "context" | "tool" | "session" | "protocol";
 
 const DOMAIN_BY_PHASE: Array<[RegExp, RuntimeDomain]> = [
@@ -569,15 +579,33 @@ export class E01RuntimeCoordinator {
     maxContextChars: number,
     forceCompact: boolean,
     compactionCount: number,
+    messageCount = 0,
   ): RuntimeDecision {
     const estimate = this.tokens.estimate("x".repeat(Math.max(0, Math.min(contextChars, 2_000_000))));
     const configuredWindow = Math.max(8_192, Math.ceil(maxContextChars / 4));
     const activeModel = this.provider.snapshot().activeModel;
     const effectiveWindow = this.compact.getEffectiveContextWindowSize(activeModel, configuredWindow);
     const warning = this.compact.calculateTokenWarningState([], effectiveWindow, 8_192);
-    const accepted = forceCompact || contextChars > maxContextChars || warning.shouldAutoCompact;
+    // Message count is an independent trigger.  The transcript replayed each
+    // round grows linearly with the turn count even when the per-request
+    // character count stays under the ceiling, and the session's durable
+    // checkpoint serialises that transcript on every save -- so an unbounded
+    // message list makes each save slower until the loop stalls, with the
+    // character-based thresholds never firing.  A real run reached 17,757
+    // messages and a 203 MB checkpoint on the ninth round this way.
+    const messageThresholdExceeded = messageCount > MAX_CONTEXT_MESSAGES;
+    const accepted = forceCompact
+      || contextChars > maxContextChars
+      || warning.shouldAutoCompact
+      || messageThresholdExceeded;
     const reason = accepted
-      ? forceCompact ? "forced_compact" : contextChars > maxContextChars ? "context_threshold_exceeded" : "token_threshold_exceeded"
+      ? forceCompact
+        ? "forced_compact"
+        : messageThresholdExceeded && contextChars <= maxContextChars
+          ? "message_count_exceeded"
+          : contextChars > maxContextChars
+            ? "context_threshold_exceeded"
+            : "token_threshold_exceeded"
       : "within_context_budget";
     if (accepted) this.query.requestCompaction(`context:${this.journal.revision + 1}`);
     const receipt = this.record("context", "compact_decision", {
