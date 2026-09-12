@@ -117,6 +117,7 @@ function cloneSnapshot(snapshot: WorkbenchSnapshot): WorkbenchSnapshot {
         ? {
             ...snapshot.runtime.health,
             capabilities: [...snapshot.runtime.health.capabilities],
+            benchmark: { ...snapshot.runtime.health.benchmark },
             raw: { ...snapshot.runtime.health.raw },
           }
         : undefined,
@@ -288,25 +289,47 @@ export class WorkbenchController {
       },
     })
     try {
-      const [health, readiness] = await Promise.all([
+      // Health and readiness answer different questions and must not share a
+      // failure.  Health is a cheap liveness plus configuration report; a
+      // readiness probe walks every runtime owner and takes ~24s cold.  Awaiting
+      // them together meant a slow readiness probe discarded a health response
+      // that had already succeeded, so the client could not tell "the runtime is
+      // unhealthy" from "the readiness probe was slow" -- and every fact carried
+      // only by health (such as the benchmark binding) read as unknown.
+      const [healthResult, readinessResult] = await Promise.allSettled([
         this.#tasks.health({ signal: controller.signal, timeoutMs: 10_000 }),
         // Readiness probes all runtime owners and can take longer than a
         // simple health request after restart. Wait for its actual verdict.
         this.#tasks.readiness({ signal: controller.signal, timeoutMs: 30_000 }),
       ])
       if (!this.#isCurrent("runtime", controller, generation)) return this.#snapshot.runtime
+      // Only a failed health request leaves the runtime's identity unknown; a
+      // failed readiness probe still yields a usable runtime with a stated
+      // blocker, which is what the reconnect banner is for.
+      if (healthResult.status === "rejected") throw healthResult.reason
+      const health = healthResult.value
+      const readiness =
+        readinessResult.status === "fulfilled" ? readinessResult.value : undefined
+      const readinessFailure =
+        readinessResult.status === "rejected" ? readinessResult.reason : undefined
+      const ready = readiness ? readiness.ready : false
       this.#replace({
         runtime: {
-          phase: readiness.ready ? "ready" : "error",
+          phase: ready ? "ready" : "error",
           health,
           readiness,
           generation,
           checkedAt: this.#clock.now(),
-          failure: readiness.ready
+          failure: ready
             ? undefined
             : {
-                name: "RuntimeNotReady",
-                message: readiness.blockers.join("; ") || "Runtime readiness is blocked.",
+                name: readiness ? "RuntimeNotReady" : "RuntimeReadinessUnavailable",
+                message:
+                  (readiness ? readiness.blockers.join("; ") : "")
+                  || (readinessFailure instanceof Error
+                    ? readinessFailure.message
+                    : String(readinessFailure ?? ""))
+                  || "Runtime readiness is blocked.",
                 retryable: true,
                 occurredAt: this.#clock.now(),
                 attempt: this.#snapshot.runtime.reconnectAttempt,
@@ -315,7 +338,7 @@ export class WorkbenchController {
         },
       })
       this.#retry.success("runtime", this.#clock.now())
-      if (!readiness.ready) this.#scheduleReconnect()
+      if (!ready) this.#scheduleReconnect()
       return this.#snapshot.runtime
     } catch (error) {
       if (!this.#isCurrent("runtime", controller, generation)) return this.#snapshot.runtime

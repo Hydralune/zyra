@@ -22,6 +22,17 @@ import {
   type NormalizerRegistry,
 } from "./response.ts"
 
+export interface BenchmarkBindingStatus {
+  /**
+   * Whether this API can dispatch a sealed task into a benchmark container.
+   * With no container bound, starting such a task fails closed, so the UI must
+   * be able to disable the launch affordance instead of offering a button that
+   * appears broken when clicked.
+   */
+  bound: boolean
+  longHorizon: boolean
+}
+
 export interface ApiHealth {
   status: string
   phase: string
@@ -29,6 +40,7 @@ export interface ApiHealth {
   apiVersion: string
   now?: string
   capabilities: string[]
+  benchmark: BenchmarkBindingStatus
   raw: Record<string, unknown>
 }
 
@@ -437,6 +449,14 @@ export function normalizeHealth(value: unknown): ApiHealth {
           .map(([name]) => name)
           .sort()
       : []
+  // Absent on an older API that predates the binding report, and a missing
+  // container must read as "not bound" rather than "unknown" so the caller
+  // fails closed on the launch affordance.
+  const benchmarkReport = unknownRecord(body.benchmark)
+  const benchmark: BenchmarkBindingStatus = {
+    bound: benchmarkReport.bound === true,
+    longHorizon: benchmarkReport.long_horizon === true,
+  }
   return {
     status,
     phase: responseString(body.phase ?? body.stage ?? "runtime", "health.phase"),
@@ -444,6 +464,7 @@ export function normalizeHealth(value: unknown): ApiHealth {
     apiVersion: responseString(body.api_version ?? body.apiVersion ?? "1.0", "health.api_version"),
     now: optionalTimestamp(body.now ?? body.timestamp, "health.now"),
     capabilities,
+    benchmark,
     raw: { ...body },
   }
 }

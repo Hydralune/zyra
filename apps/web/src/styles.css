@@ -7619,6 +7619,65 @@ kbd {
   font-size: 11.5px;
 }
 
+/* Launch surface for a real long-horizon run.  Sits above the run list so the
+   action comes before the history of that action. */
+.long-horizon-launch {
+  margin-top: 34px;
+  padding-top: 26px;
+  border-top: 1px solid #ededed;
+  text-align: left;
+}
+
+.long-horizon-launch-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.long-horizon-launch-heading h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  color: #3d3d3d;
+}
+
+.long-horizon-launch-copy {
+  margin: 10px 0 14px;
+  color: #8a8a8a;
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+.long-horizon-launch-hint {
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--warning-border, #fde68a);
+  border-radius: 10px;
+  color: var(--warning, #a16207);
+  background: var(--warning-bg, #fffbeb);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.long-horizon-launch-hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+}
+
+.long-horizon-launch-progress {
+  margin: 12px 0 0;
+  color: #767676;
+  font-size: 12px;
+}
+
+.long-horizon-launch .button[disabled] {
+  color: #9a9a9a;
+  border-color: #dcdcdc;
+  background: #f4f4f4;
+  cursor: not-allowed;
+}
+
 .product-route-state {
   display: grid;
   height: 100%;

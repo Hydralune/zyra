@@ -8082,6 +8082,35 @@ def _provider_configuration_status() -> dict[str, Any]:
     }
 
 
+def _benchmark_binding_status() -> dict[str, Any]:
+    """Report whether this API can dispatch into a benchmark container.
+
+    A sealed SWE-bench task runs its tools inside a container bound at launch.
+    With no container bound, ``POST /tasks/{id}/run`` fails closed, so the
+    workbench must be able to say "unavailable" up front rather than render a
+    launch button that appears broken when clicked.
+
+    Only the binding's *shape* is exposed.  The container name and workdir are
+    operator configuration, but they are also the kind of detail that invites a
+    client to depend on a specific container, so the status stops at booleans.
+    """
+
+    container = str(
+        os.environ.get("ZYRA_BENCHMARK_DOCKER_CONTAINER") or ""
+    ).strip()
+    workdir = str(os.environ.get("ZYRA_BENCHMARK_DOCKER_WORKDIR") or "").strip()
+    bound = bool(container and workdir)
+    return {
+        "schema": "zyra.benchmark-binding-status/v1",
+        "bound": bound,
+        "long_horizon": bound
+        and str(os.environ.get("ZYRA_BENCHMARK_LONG_HORIZON") or "")
+        .strip()
+        .casefold()
+        in {"1", "true", "yes"},
+    }
+
+
 _PRODUCT_EXECUTION_IDENTITY = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$"
 )
@@ -10928,6 +10957,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                         "request_correlation",
                         "opaque_task_cursor",
                     ],
+                    "benchmark": _benchmark_binding_status(),
                     "event_log": str(event_log_path()),
                     "sqlite": str(sqlite_path()),
                     "tool_workspace": str(tool_workspace_path()),

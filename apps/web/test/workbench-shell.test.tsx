@@ -104,6 +104,7 @@ function health(): ApiHealth {
     service: "zyra-api",
     apiVersion: "1.0",
     capabilities: ["tasks"],
+    benchmark: { bound: true, longHorizon: true },
     raw: {},
   }
 }
