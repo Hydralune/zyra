@@ -1373,7 +1373,7 @@ def execute_code_worker_operator(
     public_runtime_events = _public_runtime_events(
         runtime_events,
         persist_presentation_text=(
-            payload.get(_PERSIST_PRESENTATION_TEXT_METADATA_KEY) is True
+            payload.get(_PERSIST_PRESENTATION_TEXT_METADATA_KEY) is not False
         ),
     )
     return {
@@ -1688,7 +1688,7 @@ def _bounded_public_counter(value: Any) -> int:
 def _public_runtime_events(
     runtime_events: list[Mapping[str, Any]],
     *,
-    persist_presentation_text: bool = False,
+    persist_presentation_text: bool = True,
 ) -> list[dict[str, Any]]:
     """Project private model-loop events into low-entropy public evidence.
 
@@ -1861,7 +1861,7 @@ def _public_session_projection(
     session: Mapping[str, Any],
     *,
     allow_live_assistant_delta: bool = True,
-    persist_presentation_text: bool = False,
+    persist_presentation_text: bool = True,
 ) -> dict[str, Any] | None:
     public_session = dict(session)
     phase = str(public_session.get("phase") or "")
@@ -1872,9 +1872,11 @@ def _public_session_projection(
         "assistant_text_delta",
         "assistant_text_ended",
     }:
-        # Answer deltas are live-only by default.  A task that explicitly opted
-        # into presentation persistence keeps them, so a refresh replays the
-        # answer instead of showing only that one was produced.
+        # Presentation text is retained so the surface can show what the agent
+        # said, per round, the way a normal agent transcript does.  A caller may
+        # still opt out for a task whose text must not be stored; the earlier
+        # low-entropy default left every multi-round run looking empty, because
+        # the narration existed but was never kept.
         if phase == "assistant_text_delta" and not (
             allow_live_assistant_delta or persist_presentation_text
         ):

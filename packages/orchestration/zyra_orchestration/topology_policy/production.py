@@ -2107,11 +2107,11 @@ class Phase2StrongestProductionBridge:
             "delivery_contract": dict(
                 state.metadata.get("delivery_contract") or {}
             ),
-            # Explicit, task-scoped opt-in for durable presentation text.  It
-            # travels with the contract so the physical CodeWorker boundary
-            # resolves it from the same task state that created the task.
+            # Presentation text is retained by default so the surface can show
+            # what the agent said, per round.  A task may set the flag to False
+            # in its metadata to keep its narration out of durable storage.
             "persist_presentation_text": (
-                state.metadata.get("persist_presentation_text") is True
+                state.metadata.get("persist_presentation_text") is not False
             ),
             "requirement_revision": policy_input.requirement_revision,
             "operator_ref": selected_ref,

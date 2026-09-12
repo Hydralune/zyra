@@ -201,7 +201,14 @@ def test_assistant_text_host_path_is_unchanged_by_the_reasoning_fix() -> None:
     assert "schema" not in projected[0]["payload"]["typescript_runtime"]
 
 
-def test_public_event_projection_drops_live_delta_from_durable_worker_result() -> None:
+def test_public_event_projection_never_carries_host_custody_extras() -> None:
+    """The `typescript_runtime` sibling is reduced to custody keys.
+
+    It is host-generated metadata, not a second content envelope: its arbitrary
+    keys must never cross into the public event, and it must not be mistaken for
+    the payload that carries the presentation text.
+    """
+
     projected = _public_runtime_events(
         [
             {
@@ -229,11 +236,21 @@ def test_public_event_projection_drops_live_delta_from_durable_worker_result() -
         ]
     )
 
-    assert projected == []
+    assert len(projected) == 1
+    sibling = projected[0]["payload"]["typescript_runtime"]
+    assert "untrusted_extra" not in sibling
+    assert "schema" not in sibling
+    # The text comes from the query_session envelope, not the sibling.
+    assert projected[0]["payload"]["query_session"]["presentation_text"] == "bounded answer"
 
 
-def test_public_event_projection_keeps_bounded_text_only_for_opted_in_tasks() -> None:
-    """A demo task that opts in keeps its answer text; every other task does not."""
+def test_public_event_projection_keeps_bounded_text_by_default_and_can_opt_out() -> None:
+    """Presentation text is retained by default; a task may still opt out.
+
+    The low-entropy default made every multi-round run look empty: the
+    narration existed but was never kept, so a reader saw tool calls and an
+    answer and nothing the agent actually said.
+    """
 
     events = [
         {
@@ -250,18 +267,17 @@ def test_public_event_projection_keeps_bounded_text_only_for_opted_in_tasks() ->
         }
     ]
 
-    # Default: low-entropy.  The same event that produces nothing above still
-    # produces nothing without the explicit opt-in.
-    assert _public_runtime_events(events) == []
-
-    projected = _public_runtime_events(events, persist_presentation_text=True)
-
+    # Default: the narration is kept.
+    projected = _public_runtime_events(events)
     assert len(projected) == 1
     session = projected[0]["payload"]["query_session"]
     assert session["presentation_text"] == "bounded answer"
-    # The digest custody is untouched and the raw content never crosses.
+    # Digest custody is untouched and the raw content never crosses.
     assert session["content_persisted"] is False
     assert "content" not in session
+
+    # An explicit opt-out still produces nothing.
+    assert _public_runtime_events(events, persist_presentation_text=False) == []
 
 
 def test_public_event_projection_bounds_persisted_text_per_stream() -> None:
