@@ -20,6 +20,7 @@ import { NotificationTray } from "../components/status/notification-tray.tsx"
 import { ProductSettings } from "../components/settings/product-settings.tsx"
 import { EvidenceWorkbench } from "../features/evidence/index.ts"
 import { LongRunDemoPanel } from "../features/scenarios/index.ts"
+import { LongHorizonRunsPanel } from "../features/long-horizon/runs/view.tsx"
 
 const STARTER_PROMPTS = [
   {
@@ -493,6 +494,7 @@ function ProductHome({
           <span>可追溯交付</span>
         </div>
         <LongRunDemoPanel runtime={runtime.scenarioConsole} />
+        <LongHorizonRunsPanel runtime={runtime} />
       </div>
     </section>
   )

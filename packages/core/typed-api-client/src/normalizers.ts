@@ -70,6 +70,13 @@ export interface TaskProjection {
   taskId: string
   runId: string
   sessionId?: string
+  /**
+   * The delivery contract's interaction kind (e.g. `workspace_change`), when
+   * the endpoint reports it.  The list projection omits `metadata`, so this is
+   * the only way to tell a real repository run from a scenario replay without
+   * fetching every task's detail record.
+   */
+  interactionKind?: string
   rootNodeId: string
   userGoal: string
   status: string
@@ -346,11 +353,26 @@ export function normalizeTask(value: unknown, index = 0): TaskProjection {
     })
   }
   const artifacts = responseArray(item.artifacts ?? [], `task[${index}].artifacts`, normalizeArtifact)
+  // The list projection omits `metadata`, so the delivery contract's
+  // interaction kind is carried as its own field.  Detail responses nest it
+  // under metadata; accept both so a caller does not have to know which
+  // endpoint produced the record.
+  const contract = unknownRecord(metadata.delivery_contract)
+  const rawInteractionKind =
+    item.interaction_kind ?? item.interactionKind ?? contract.interaction_kind
+  const interactionKind =
+    typeof rawInteractionKind === "string" && rawInteractionKind.trim()
+      ? rawInteractionKind.trim().slice(0, 64)
+      : undefined
+  // `interactionKind` is always present on the projection (undefined when the
+  // endpoint does not report one), so JSON round-trips keep the key and no
+  // consumer has to distinguish "absent" from "unknown".
   const binding = validateBinding({ taskId, runId, sessionId })
   return {
     taskId,
     runId,
     sessionId,
+    interactionKind,
     rootNodeId,
     userGoal: responseString(item.user_goal ?? item.userGoal ?? "", `task[${index}].user_goal`, { allowEmpty: true }),
     status,

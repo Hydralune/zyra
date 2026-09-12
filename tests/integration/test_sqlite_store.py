@@ -166,5 +166,51 @@ class SQLiteStoreTests(unittest.TestCase):
             )
 
 
+    def test_task_list_reports_the_delivery_interaction_kind(self) -> None:
+        """A list must classify a real repository run without a detail read.
+
+        The list projection deliberately omits `metadata`, so the delivery
+        contract's interaction kind travels as its own field.  Without it a
+        client cannot tell a workspace-change run from a scenario replay, which
+        is exactly what a long-horizon view needs to filter on.
+        """
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = SQLiteStore(Path(tmpdir) / "zyra.sqlite3")
+            workspace_task = create_task_state("Fix a real repository.")
+            workspace_task.metadata["delivery_contract"] = {
+                "schema": "zyra.goal-delivery-contract/v2",
+                "interaction_kind": "workspace_change",
+                "workspace_mutation_required": True,
+            }
+            store.save_checkpoint(workspace_task)
+
+            replay_task = create_task_state("Replay a frozen scenario.")
+            replay_task.metadata["delivery_contract"] = {
+                "schema": "zyra.goal-delivery-contract/v2",
+                "interaction_kind": "direct_response",
+            }
+            store.save_checkpoint(replay_task)
+
+            kinds = {
+                row["task_id"]: row.get("interaction_kind")
+                for row in store.list_tasks()
+            }
+            self.assertEqual(kinds[workspace_task.task_id], "workspace_change")
+            self.assertEqual(kinds[replay_task.task_id], "direct_response")
+
+    def test_task_list_omits_the_interaction_kind_when_absent(self) -> None:
+        """The list carries no full metadata blob, only the classification."""
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = SQLiteStore(Path(tmpdir) / "zyra.sqlite3")
+            state = create_task_state("No delivery contract yet.")
+            store.save_checkpoint(state)
+            rows = {row["task_id"]: row for row in store.list_tasks()}
+            self.assertNotIn("interaction_kind", rows[state.task_id])
+            self.assertNotIn("delivery_contract", rows[state.task_id])
+            self.assertNotIn("metadata", rows[state.task_id])
+
+
 if __name__ == "__main__":
     unittest.main()

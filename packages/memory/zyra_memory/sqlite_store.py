@@ -254,6 +254,19 @@ class SQLiteStore:
                     session_title = str(metadata.get("session_title") or "").strip()
                     if session_title:
                         value["session_title"] = session_title
+                    # The full metadata blob is deliberately excluded from the list
+                    # projection, but the delivery contract's interaction kind is
+                    # what separates a real repository run (workspace_change) from
+                    # a frozen scenario replay.  Carrying just that one bounded
+                    # field lets a list classify itself instead of forcing a
+                    # one-by-one detail read of every task.
+                    delivery_contract = metadata.get("delivery_contract")
+                    if isinstance(delivery_contract, dict):
+                        interaction_kind = str(
+                            delivery_contract.get("interaction_kind") or ""
+                        ).strip()
+                        if interaction_kind:
+                            value["interaction_kind"] = interaction_kind
             values.append(value)
         return values
 
