@@ -1013,6 +1013,11 @@ function ProductDetailContent({
                 entries={streamEntries}
                 goal={task.userGoal}
                 status={task.status}
+                liveThinking={
+                  live.taskId === task.taskId && live.reasoning && !live.reasoning.settling
+                    ? live.reasoning.text
+                    : undefined
+                }
                 liveText={
                   live.taskId === task.taskId && live.assistant && !live.assistant.settling
                     ? live.assistant.text

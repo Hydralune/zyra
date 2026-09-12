@@ -34,12 +34,19 @@ export function ExecutionStream({
   goal,
   status,
   liveText,
+  liveThinking,
 }: {
   entries: readonly StreamEntry[]
   goal: string
   status: string
   /** Transient assistant text for the turn still in flight, if any. */
   liveText?: string
+  /**
+   * Transient model deliberation for the round still in flight.  It rides its
+   * own stream and is rendered separately from `liveText` so the two texts are
+   * never concatenated.
+   */
+  liveThinking?: string
 }) {
   const rows = useMemo(() => entries, [entries])
 
@@ -81,6 +88,19 @@ export function ExecutionStream({
         </article>
       ))}
 
+      {liveThinking ? (
+        <article className="stream-entry" data-kind="thinking" data-status="running">
+          <span className="stream-entry-glyph" aria-hidden="true">◆</span>
+          <div className="stream-entry-body">
+            <div className="stream-entry-head">
+              <span className="stream-entry-kind">思考</span>
+              <span className="stream-entry-title">正在推理…</span>
+            </div>
+            <p className="stream-entry-detail stream-entry-live">{liveThinking}</p>
+          </div>
+        </article>
+      ) : null}
+
       {liveText ? (
         <article className="stream-entry" data-kind="message" data-status="running">
           <span className="stream-entry-glyph" aria-hidden="true">▸</span>
@@ -94,7 +114,7 @@ export function ExecutionStream({
         </article>
       ) : null}
 
-      {!rows.length && !liveText ? (
+      {!rows.length && !liveText && !liveThinking ? (
         <p className="stream-empty" role="status">等待执行输出…</p>
       ) : null}
     </div>

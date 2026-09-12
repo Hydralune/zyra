@@ -83,6 +83,9 @@ _NODE_RUNTIME_EVENT_PHASES = frozenset(
         "assistant_text_started",
         "assistant_text_delta",
         "assistant_text_ended",
+        "reasoning_started",
+        "reasoning_delta",
+        "reasoning_ended",
         "tool_call_started",
         "tool_call_completed",
     }
@@ -734,13 +737,22 @@ class DeploymentNodeRuntime:
             or payload.get("delta_kind") != "assistant_text"
         ):
             raise ValueError("node runtime assistant event binding is invalid")
+        if phase.startswith("reasoning_") and (
+            payload.get("schema") != "zyra.provider-assistant-presentation/v1"
+            or payload.get("delta_kind") != "reasoning"
+        ):
+            raise ValueError("node runtime reasoning event binding is invalid")
         # Redact and detach nested structures before hashing. HTTP must never
         # mutate a signed event's payload after this digest is constructed.
         normalized = redact(dict(payload))
         if phase.startswith("tool_call_"):
             normalized["schema"] = "zyra.product-tool-event/v1"
         encoded = canonical_json(normalized)
-        if len(encoded) > (8 * 1024 if phase.startswith("assistant_text_") else 1024 * 1024):
+        if len(encoded) > (
+            8 * 1024
+            if phase.startswith(("assistant_text_", "reasoning_"))
+            else 1024 * 1024
+        ):
             raise ValueError("node runtime assistant event exceeds 8 KiB")
         with self._lock:
             queue = self._runtime_event_queues.setdefault(

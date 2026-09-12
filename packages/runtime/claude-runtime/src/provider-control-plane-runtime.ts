@@ -39,6 +39,13 @@ type EmitRuntimeEvent = (phase: string, payload?: JsonObject) => Promise<void>;
 interface ProviderAssistantPresentationState {
   readonly startedStreamIds: Set<string>;
   readonly endedStreamIds: Set<string>;
+  /**
+   * Reasoning rides its own stream lifecycle.  A round can emit reasoning
+   * without ever emitting assistant text, so the reasoning stream must be able
+   * to open and close on its own rather than inheriting the answer's boundary.
+   */
+  readonly startedReasoningStreamIds: Set<string>;
+  readonly endedReasoningStreamIds: Set<string>;
 }
 
 interface ProviderRouteRefProjection {
@@ -91,6 +98,8 @@ export async function emitProviderAssistantPresentationFrames(
   state: ProviderAssistantPresentationState = {
     startedStreamIds: new Set<string>(),
     endedStreamIds: new Set<string>(),
+    startedReasoningStreamIds: new Set<string>(),
+    endedReasoningStreamIds: new Set<string>(),
   },
 ): Promise<void> {
   for (const frame of frames) {
@@ -109,6 +118,33 @@ export async function emitProviderAssistantPresentationFrames(
       state.startedStreamIds.add(streamId);
       await emit("assistant_text_started", { ...base, segment_index: 0 });
     };
+    if (frame.kind === "thinking_delta" && frame.text) {
+      // Reasoning is published as its own stream so the product surface can
+      // distinguish deliberation from the answer.  It is bounded and redacted
+      // exactly like assistant text: the same 1024-byte chunk ceiling and the
+      // same `_content` scrubber apply downstream.
+      const reasoningStreamId = `${streamId}:reasoning`;
+      if (!state.startedReasoningStreamIds.has(reasoningStreamId)) {
+        state.startedReasoningStreamIds.add(reasoningStreamId);
+        await emit("reasoning_started", {
+          ...base,
+          stream_id: reasoningStreamId,
+          delta_kind: "reasoning",
+          segment_index: 0,
+        });
+      }
+      const chunks = boundedUtf8Chunks(frame.text);
+      for (const [index, content] of chunks.entries()) {
+        await emit("reasoning_delta", {
+          ...base,
+          stream_id: reasoningStreamId,
+          delta_kind: "reasoning",
+          segment_index: frame.sequence * 1_000 + index,
+          content,
+        });
+      }
+      continue;
+    }
     if (frame.kind === "response_start") {
       await start();
       continue;
@@ -130,6 +166,20 @@ export async function emitProviderAssistantPresentationFrames(
     }
     if (frame.kind === "response_end") {
       await start();
+      // Close deliberation before the answer: reasoning precedes text within a
+      // round, so its lifecycle must settle first.  A round that never emitted
+      // reasoning opens no reasoning stream and closes none.
+      const reasoningStreamId = `${streamId}:reasoning`;
+      if (state.startedReasoningStreamIds.has(reasoningStreamId)
+        && !state.endedReasoningStreamIds.has(reasoningStreamId)) {
+        state.endedReasoningStreamIds.add(reasoningStreamId);
+        await emit("reasoning_ended", {
+          ...base,
+          stream_id: reasoningStreamId,
+          delta_kind: "reasoning",
+          segment_index: frame.sequence * 1_000,
+        });
+      }
       if (state.endedStreamIds.has(streamId)) continue;
       state.endedStreamIds.add(streamId);
       await emit("assistant_text_ended", {
@@ -253,6 +303,8 @@ export async function resolveProviderControlPlaneTurns(
   const presentationState: ProviderAssistantPresentationState = {
     startedStreamIds: new Set<string>(),
     endedStreamIds: new Set<string>(),
+    startedReasoningStreamIds: new Set<string>(),
+    endedReasoningStreamIds: new Set<string>(),
   };
   const controlPlane = new ProviderControlPlane({
     databasePath,

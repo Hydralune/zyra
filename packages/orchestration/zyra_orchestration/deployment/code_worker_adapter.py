@@ -1663,8 +1663,12 @@ def _public_runtime_events(
     before this projection.  Public task/event storage retains lifecycle,
     request commitments, aggregate stream reports, tool custody and result
     commitments and the explicitly versioned, bounded assistant presentation
-    stream, but never provider-native token frames, model thinking, prompts,
-    continuation messages or raw tool output.
+    stream, but never provider-native token frames, prompts, continuation
+    messages or raw tool output.
+
+    Model reasoning is admitted only through the bounded, redacted
+    ``reasoning_*`` presentation branch -- the source digest is persisted, the
+    text survives solely as a scrubbed, length-capped presentation string.
     """
 
     projected: list[dict[str, Any]] = []
@@ -1832,6 +1836,56 @@ def _public_session_projection(
             "content_persisted": False,
         }
         if phase == "assistant_text_delta" and content:
+            presentation["presentation_text"] = str(redact(content))
+        return presentation
+    if phase in {
+        "reasoning_started",
+        "reasoning_delta",
+        "reasoning_ended",
+    }:
+        # Deliberation is published under the same custody as the answer: the
+        # same schema, the same lifecycle, the same redaction and the same
+        # 1024-byte ceiling.  Reasoning is *not* realtime-only -- a reader who
+        # refreshes should still see how the agent thought -- so unlike the
+        # assistant delta gate above, this branch does not consult
+        # `allow_live_assistant_delta`.  The branch is written explicitly
+        # rather than left to the generic tail below, because that tail
+        # redacts only user_content/messages/tool_result and would let raw
+        # reasoning `content` through unscrubbed.
+        if (
+            public_session.get("schema")
+            != "zyra.provider-assistant-presentation/v1"
+            or public_session.get("delta_kind") != "reasoning"
+        ):
+            return None
+        stream_id = str(public_session.get("stream_id") or "")[:256]
+        assistant_message_id = str(
+            public_session.get("assistant_message_id") or ""
+        )[:256]
+        if not stream_id or not assistant_message_id:
+            return None
+        if phase == "reasoning_delta" and not content:
+            return None
+        if phase != "reasoning_delta" and content:
+            return None
+        if len(content.encode("utf-8")) > 1_024:
+            return None
+        presentation = {
+            "schema": "zyra.provider-assistant-presentation/v1",
+            "phase": phase,
+            "delta_kind": "reasoning",
+            "stream_id": stream_id,
+            "assistant_message_id": assistant_message_id,
+            "segment_index": _bounded_public_counter(
+                public_session.get("segment_index")
+            ),
+            "provider_sequence": _bounded_public_counter(
+                public_session.get("provider_sequence")
+            ),
+            "created_at": str(public_session.get("created_at") or "")[:64],
+            "content_persisted": False,
+        }
+        if phase == "reasoning_delta" and content:
             presentation["presentation_text"] = str(redact(content))
         return presentation
     _commit_private_field(

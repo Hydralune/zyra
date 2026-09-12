@@ -901,15 +901,26 @@ test("provider assistant presentation emits only bounded text deltas", async () 
 
   assert.equal(emitted[0]?.phase, "assistant_text_started");
   assert.equal(emitted.at(-1)?.phase, "assistant_text_ended");
+  // Reasoning opens and settles on its own stream, strictly before the answer
+  // closes, so deliberation is never concatenated into the reply.
+  const phases = emitted.map((event) => event.phase);
+  assert.ok(phases.indexOf("reasoning_started") > phases.indexOf("assistant_text_started"));
+  assert.ok(phases.indexOf("reasoning_delta") < phases.indexOf("assistant_text_delta"));
+  assert.ok(phases.indexOf("reasoning_ended") < phases.indexOf("assistant_text_ended"));
+  const reasoningDeltas = emitted.filter((event) => event.phase === "reasoning_delta");
+  assert.equal(reasoningDeltas.length, 1);
+  assert.equal(reasoningDeltas[0]?.payload.content, "private reasoning");
+  assert.equal(reasoningDeltas[0]?.payload.delta_kind, "reasoning");
+  assert.ok(String(reasoningDeltas[0]?.payload.stream_id).endsWith(":reasoning"));
   const deltas = emitted.filter((event) => event.phase === "assistant_text_delta");
   assert.ok(deltas.length > 1);
   assert.equal(deltas.map((event) => String(event.payload.content ?? "")).join(""), text);
   assert.ok(deltas.every((event) =>
     Buffer.byteLength(String(event.payload.content ?? ""), "utf8") <= 1_024
   ));
-  const serialized = JSON.stringify(emitted);
-  assert.doesNotMatch(serialized, /private reasoning/u);
-  assert.doesNotMatch(serialized, /private tool arguments/u);
+  // Reasoning is redacted like text, but tool arguments stay private: they are
+  // never published on any presentation stream.
+  assert.doesNotMatch(JSON.stringify(emitted), /private tool arguments/u);
   assert.ok(emitted.every((event) =>
     event.payload.assistant_message_id
       === "message:assistant:provider:dispatch-presentation"
@@ -940,6 +951,8 @@ test("provider assistant presentation synthesizes one start for delta-first stre
   const state = {
     startedStreamIds: new Set<string>(),
     endedStreamIds: new Set<string>(),
+    startedReasoningStreamIds: new Set<string>(),
+    endedReasoningStreamIds: new Set<string>(),
   };
 
   await emitProviderAssistantPresentationFrames([
@@ -956,6 +969,60 @@ test("provider assistant presentation synthesizes one start for delta-first stre
     "assistant_text_delta",
     "assistant_text_ended",
   ]);
+});
+
+test("reasoning presentation opens and settles without any assistant answer", async () => {
+  // A round can deliberate and then act without ever emitting answer text
+  // (tool-only rounds).  The reasoning stream must still have a well-formed
+  // lifecycle in that case rather than an orphaned start, and the synthesized
+  // assistant start must not swallow the reasoning text.
+  type Frame = Parameters<typeof emitProviderAssistantPresentationFrames>[0][number];
+  const frame = (kind: Frame["kind"], sequence: number, text: string | null = null): Frame => ({
+    frameId: `reasoning-only-${sequence}`,
+    dispatchId: "dispatch-reasoning-only",
+    routeId: "route-reasoning-only",
+    sequence,
+    kind,
+    text,
+    toolCallId: null,
+    toolName: null,
+    jsonDelta: null,
+    usage: {},
+    providerEvent: null,
+    createdAt: sequence,
+    metadata: {},
+  });
+  const emitted: Array<{ phase: string; payload: JsonObject }> = [];
+
+  await emitProviderAssistantPresentationFrames([
+    frame("response_start", 1),
+    frame("thinking_delta", 2, "weighing two reads "),
+    frame("thinking_delta", 3, "before touching the file"),
+    frame("response_end", 4),
+  ], async (phase, payload = {}) => {
+    emitted.push({ phase, payload });
+  });
+
+  const phases = emitted.map((event) => event.phase);
+  assert.ok(phases.includes("reasoning_started"));
+  assert.deepEqual(
+    emitted.filter((event) => event.phase === "reasoning_delta")
+      .map((event) => String(event.payload.content ?? "")),
+    ["weighing two reads ", "before touching the file"],
+  );
+  // The reasoning stream closes exactly once, and never carries answer text.
+  assert.equal(phases.filter((phase) => phase === "reasoning_ended").length, 1);
+  assert.equal(
+    emitted.filter((event) => event.phase !== "reasoning_delta")
+      .every((event) => event.payload.content === undefined),
+    true,
+  );
+  // Two provider frames collapse into the two bounded chunks above; the
+  // synthesized assistant lifecycle adds no reasoning content of its own.
+  assert.equal(
+    emitted.filter((event) => event.phase === "assistant_text_delta").length,
+    0,
+  );
 });
 
 test("provider evidence bounds fragmented tool arguments to one structural frame per call", () => {

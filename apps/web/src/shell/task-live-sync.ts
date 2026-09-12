@@ -42,6 +42,12 @@ export interface TaskLiveSyncSnapshot {
   consecutiveFailures: number
   /** Bounded transient text; canonical task metadata remains final owner. */
   assistant?: ProductAssistantStreamSnapshot
+  /**
+   * Bounded transient model deliberation, on its own stream.  It is kept
+   * separate from `assistant` because a round may reason without answering and
+   * the two texts must never be concatenated.
+   */
+  reasoning?: ProductAssistantStreamSnapshot
   ingressPhase?: ConnectionPhaseValue
   ingressGeneration?: number
   ingressTransport?: TransportKindValue
@@ -252,6 +258,7 @@ export class TaskLiveSync {
       nextSyncAt: undefined,
       lastSyncedAt: undefined,
       assistant: undefined,
+      reasoning: undefined,
       ingressPhase: undefined,
       ingressGeneration: undefined,
       ingressTransport: undefined,
@@ -271,16 +278,21 @@ export class TaskLiveSync {
     if (this.#closed || frame.taskId !== this.#taskId) return
     if (!this.#acceptIngressGeneration(frame.generation)) return
     const presentation = frame.presentation
+    const expectedKind = frame.eventType === "runtime.reasoning.delta"
+      ? "thinking"
+      : "assistant"
     if (
       presentation.schema !== "zyra.product-presentation/v1"
-      || presentation.kind !== "assistant"
+      || presentation.kind !== expectedKind
       || presentation.phase !== "delta"
     ) return
     const messageId = presentationText(presentation, "identity")
     const streamId = presentationText(presentation, "streamId")
     const delta = presentationText(presentation, "text")
     if (!messageId || !streamId || delta === undefined || !delta.length) return
-    const current = this.#snapshot.assistant
+    const current = expectedKind === "assistant"
+      ? this.#snapshot.assistant
+      : this.#snapshot.reasoning
     if (
       current
       && current.generation === frame.generation
@@ -300,24 +312,23 @@ export class TaskLiveSync {
     const combined = `${sameStream ? current?.text ?? "" : ""}${delta}`
     const bounded = boundedUtf8Tail(combined, this.#assistantTextBytes)
     const now = this.#environment.now()
-    this.#publish({
-      assistant: Object.freeze({
-        messageId,
-        streamId,
-        text: bounded.text,
-        generation: frame.generation,
-        firstLiveSequence: sameStream
-          ? current?.firstLiveSequence ?? frame.liveSequence
-          : frame.liveSequence,
-        lastLiveSequence: frame.liveSequence,
-        // A durable started frame removes the mid-stream ambiguity.
-        partial: sameStream ? current?.partial ?? true : true,
-        truncated: bounded.truncated || (sameStream && current?.truncated === true),
-        settling: false,
-        startedAt: sameStream ? current?.startedAt ?? now : now,
-        updatedAt: now,
-      }),
+    const stream = Object.freeze({
+      messageId,
+      streamId,
+      text: bounded.text,
+      generation: frame.generation,
+      firstLiveSequence: sameStream
+        ? current?.firstLiveSequence ?? frame.liveSequence
+        : frame.liveSequence,
+      lastLiveSequence: frame.liveSequence,
+      // A durable started frame removes the mid-stream ambiguity.
+      partial: sameStream ? current?.partial ?? true : true,
+      truncated: bounded.truncated || (sameStream && current?.truncated === true),
+      settling: false,
+      startedAt: sameStream ? current?.startedAt ?? now : now,
+      updatedAt: now,
     })
+    this.#publish(expectedKind === "assistant" ? { assistant: stream } : { reasoning: stream })
   }
 
   /** Reconciles durable presentation lifecycle and schedules a canonical read. */
@@ -328,15 +339,16 @@ export class TaskLiveSync {
     if (!canonical?.terminal) {
       for (const item of batch.presentations ?? []) {
         const presentation = item.presentation
-        if (
-          presentation.schema !== "zyra.product-presentation/v1"
-          || presentation.kind !== "assistant"
-        ) continue
+        if (presentation.schema !== "zyra.product-presentation/v1") continue
+        const kind = presentation.kind
+        if (kind !== "assistant" && kind !== "thinking") continue
         const phase = presentation.phase
         const messageId = presentationText(presentation, "identity")
         const streamId = presentationText(presentation, "streamId")
         if (!messageId || !streamId) continue
-        const current = this.#snapshot.assistant
+        const current = kind === "assistant"
+          ? this.#snapshot.assistant
+          : this.#snapshot.reasoning
         const sameStream = Boolean(
           current
           && current.generation === batch.generation
@@ -344,26 +356,27 @@ export class TaskLiveSync {
           && current.streamId === streamId,
         )
         const now = this.#environment.now()
+        const publish = (stream: ProductAssistantStreamSnapshot): void => {
+          this.#publish(kind === "assistant" ? { assistant: stream } : { reasoning: stream })
+        }
         if (phase === "started") {
           if (sameStream && current?.settling) continue
           // Tool-only provider rounds have an empty assistant lifecycle. Keep
           // the last useful progress text until the next round emits text.
           if (!sameStream && current?.text) continue
-          this.#publish({
-            assistant: Object.freeze({
-              messageId,
-              streamId,
-              text: sameStream ? current?.text ?? "" : "",
-              generation: batch.generation,
-              firstLiveSequence: sameStream ? current?.firstLiveSequence : undefined,
-              lastLiveSequence: sameStream ? current?.lastLiveSequence : undefined,
-              partial: false,
-              truncated: sameStream && current?.truncated === true,
-              settling: false,
-              startedAt: sameStream ? current?.startedAt ?? now : now,
-              updatedAt: now,
-            }),
-          })
+          publish(Object.freeze({
+            messageId,
+            streamId,
+            text: sameStream ? current?.text ?? "" : "",
+            generation: batch.generation,
+            firstLiveSequence: sameStream ? current?.firstLiveSequence : undefined,
+            lastLiveSequence: sameStream ? current?.lastLiveSequence : undefined,
+            partial: false,
+            truncated: sameStream && current?.truncated === true,
+            settling: false,
+            startedAt: sameStream ? current?.startedAt ?? now : now,
+            updatedAt: now,
+          }))
         } else if (phase === "completed") {
           const completed = presentationText(presentation, "text")
           if (!completed && !sameStream && current?.text) continue
@@ -371,21 +384,19 @@ export class TaskLiveSync {
             completed ?? (sameStream ? current?.text ?? "" : ""),
             this.#assistantTextBytes,
           )
-          this.#publish({
-            assistant: Object.freeze({
-              messageId,
-              streamId,
-              text: bounded.text,
-              generation: batch.generation,
-              firstLiveSequence: sameStream ? current?.firstLiveSequence : undefined,
-              lastLiveSequence: sameStream ? current?.lastLiveSequence : undefined,
-              partial: false,
-              truncated: bounded.truncated || (sameStream && current?.truncated === true),
-              settling: true,
-              startedAt: sameStream ? current?.startedAt ?? now : now,
-              updatedAt: now,
-            }),
-          })
+          publish(Object.freeze({
+            messageId,
+            streamId,
+            text: bounded.text,
+            generation: batch.generation,
+            firstLiveSequence: sameStream ? current?.firstLiveSequence : undefined,
+            lastLiveSequence: sameStream ? current?.lastLiveSequence : undefined,
+            partial: false,
+            truncated: bounded.truncated || (sameStream && current?.truncated === true),
+            settling: true,
+            startedAt: sameStream ? current?.startedAt ?? now : now,
+            updatedAt: now,
+          }))
         }
       }
     }
@@ -523,6 +534,7 @@ export class TaskLiveSync {
     this.#ingressGeneration = generation
     this.#publish({
       assistant: undefined,
+      reasoning: undefined,
       ingressGeneration: generation,
     })
     return true
@@ -540,11 +552,11 @@ export class TaskLiveSync {
 
   #reconcileCanonicalTask(): void {
     const taskId = this.#taskId
-    if (!taskId || !this.#snapshot.assistant) return
+    if (!taskId || (!this.#snapshot.assistant && !this.#snapshot.reasoning)) return
     const detail = this.#workbench.getSnapshot().detail
     if (detail.taskId !== taskId || detail.task?.taskId !== taskId) return
     if (!detail.task.terminal) return
-    this.#publish({ assistant: undefined })
+    this.#publish({ assistant: undefined, reasoning: undefined })
   }
 
   #clearTimer(): void {

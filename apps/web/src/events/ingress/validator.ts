@@ -923,6 +923,16 @@ const PRODUCT_PRESENTATION_KINDS = new Set([
   "worker",
   "tool",
   "issue",
+  "thinking",
+])
+/**
+ * Live-only presentation deltas the ingress admits.  Assistant text and model
+ * reasoning share one live channel; every other runtime event reaches the
+ * client through the durable batch path instead.
+ */
+const LIVE_EVENT_TYPES = new Set([
+  "runtime.text.delta",
+  "runtime.reasoning.delta",
 ])
 const PRODUCT_PRESENTATION_SEVERITIES = new Set(["info", "warning", "error"])
 const PRODUCT_PRESENTATION_IMPACTS = new Set(["local", "task"])
@@ -1217,10 +1227,10 @@ export function normalizeAnyFrame(
   const base = baseControlFrame(body, expectedTaskId, expectedGeneration)
   if (body.kind === FrameKind.LIVE) {
     const eventType = requiredString(body.eventType, "frame.eventType", MAX_IDENTIFIER_BYTES)
-    if (eventType !== "runtime.text.delta") {
+    if (!LIVE_EVENT_TYPES.has(eventType)) {
       throw new EventIngressError(
         IngressErrorCode.INVALID_FRAME,
-        "Live ingress admits only assistant text deltas.",
+        "Live ingress admits only assistant and reasoning presentation deltas.",
         { context: { taskId: expectedTaskId, generation: expectedGeneration } },
       )
     }
@@ -1228,14 +1238,19 @@ export function normalizeAnyFrame(
       body.presentation,
       "frame.presentation",
     )
+    // The presentation kind must agree with the event type it arrived on: a
+    // `runtime.reasoning.delta` frame may only carry a `thinking` presentation
+    // and a text delta may only carry an `assistant` one, so the two channels
+    // cannot be spoofed into each other.
+    const expectedKind = eventType === "runtime.reasoning.delta" ? "thinking" : "assistant"
     if (
       presentation.schema !== "zyra.product-presentation/v1"
-      || presentation.kind !== "assistant"
+      || presentation.kind !== expectedKind
       || presentation.phase !== "delta"
     ) {
       throw new EventIngressError(
         IngressErrorCode.INVALID_FRAME,
-        "Live assistant frame lacks the product presentation contract.",
+        "Live presentation frame lacks its product presentation contract.",
         { context: { taskId: expectedTaskId, generation: expectedGeneration } },
       )
     }
@@ -1248,13 +1263,13 @@ export function normalizeAnyFrame(
     if (!text.length) {
       throw new EventIngressError(
         IngressErrorCode.INVALID_FRAME,
-        "Live assistant presentation text must not be empty.",
+        "Live presentation text must not be empty.",
       )
     }
     if (new TextEncoder().encode(text).byteLength > 1_024) {
       throw new EventIngressError(
         IngressErrorCode.INVALID_FRAME,
-        "Live assistant presentation exceeds the 1024-byte boundary.",
+        "Live presentation exceeds the 1024-byte boundary.",
         { context: { taskId: expectedTaskId, generation: expectedGeneration } },
       )
     }
@@ -1267,11 +1282,11 @@ export function normalizeAnyFrame(
       sequence: base.sequence,
       liveSequence: integer(body.liveSequence, "frame.liveSequence", 1),
       eventId: identifier(body.eventId, "frame.eventId"),
-      eventType: "runtime.text.delta" as const,
+      eventType,
       observedAtMs: base.observedAtMs,
       presentation: Object.freeze({
         schema: "zyra.product-presentation/v1",
-        kind: "assistant",
+        kind: expectedKind,
         phase: "delta",
         identity: identifier(presentation.identity, "frame.presentation.identity"),
         label: requiredString(presentation.label, "frame.presentation.label", 256),

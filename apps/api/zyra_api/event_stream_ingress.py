@@ -54,6 +54,11 @@ MAX_QUERY_TEXT_BYTES = 8192
 MAX_FILTER_VALUES = 128
 _PROCESS_CURSOR_SECRET = secrets.token_bytes(32)
 _PRODUCT_LIVE_SUBSCRIPTION_ID = "product-live-ingress"
+# One subscription covers both live presentation streams: assistant text and
+# model reasoning.  They share a lifecycle shape, a size ceiling and a
+# projection contract, so they share a bus subscription rather than forking a
+# second one.
+_PRODUCT_LIVE_EVENT_TYPES = ("runtime.text.delta", "runtime.reasoning.delta")
 _MAX_LIVE_EVENTS_PER_TASK = 4_096
 _MAX_LIVE_EVENT_IDENTITIES = 32_768
 
@@ -701,7 +706,7 @@ class EventIngressApiFacade:
                         "id": _PRODUCT_LIVE_SUBSCRIPTION_ID,
                         "requiredCapabilities": [],
                     },
-                    "eventTypes": ["runtime.text.delta"],
+                    "eventTypes": list(_PRODUCT_LIVE_EVENT_TYPES),
                     "intents": ["observation"],
                     "aggregatePrefixes": [],
                     "taskIds": [],
@@ -1164,7 +1169,7 @@ class EventIngressApiFacade:
                 if not isinstance(event_value, Mapping):
                     continue
                 event = dict(event_value)
-                if event.get("eventType") != "runtime.text.delta":
+                if event.get("eventType") not in _PRODUCT_LIVE_EVENT_TYPES:
                     continue
                 identity = event.get("identity")
                 if not isinstance(identity, Mapping):
@@ -1212,7 +1217,8 @@ class EventIngressApiFacade:
     ) -> dict[str, JsonValue] | None:
         canonical = dict(event)
         presentation = project_product_presentation(canonical)
-        if presentation is None or presentation.get("kind") != "assistant":
+        kind = presentation.get("kind") if presentation is not None else None
+        if kind not in {"assistant", "thinking"}:
             return None
         return {
             "schema": FRAME_SCHEMA,
@@ -1223,7 +1229,7 @@ class EventIngressApiFacade:
             "sequence": sequence,
             "liveSequence": ordinal,
             "eventId": str(canonical.get("eventId") or "")[:256],
-            "eventType": "runtime.text.delta",
+            "eventType": str(canonical.get("eventType") or ""),
             "observedAtMs": self._now_ms(),
             "event": canonical,
             "presentation": presentation,

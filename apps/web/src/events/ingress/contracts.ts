@@ -202,7 +202,13 @@ export interface IngressLiveFrame {
   sequence: number
   liveSequence: number
   eventId: string
-  eventType: "runtime.text.delta"
+  /**
+   * The canonical runtime event type the API stamped on this frame.  It is
+   * carried through rather than assumed, because the live channel serves both
+   * the assistant answer (`runtime.text.delta`) and model deliberation
+   * (`runtime.reasoning.delta`).
+   */
+  eventType: string
   observedAtMs: number
   presentation: Readonly<JsonObject>
 }

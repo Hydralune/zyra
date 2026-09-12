@@ -65,6 +65,7 @@ function fakeRuntime(options: {
   queued?: readonly Record<string, unknown>[]
   live?: boolean
   assistant?: Record<string, unknown>
+  reasoning?: Record<string, unknown>
   /** Canonical spine events the execution stream projects over. */
   events?: readonly Record<string, unknown>[]
 } = {}): WorkbenchRuntime {
@@ -105,6 +106,7 @@ function fakeRuntime(options: {
       consecutiveFailures: 0,
       taskId: "task_render_001",
       assistant: options.assistant,
+      reasoning: options.reasoning,
       revision: 1,
     }),
     overlays: { open: () => {} },
@@ -294,6 +296,41 @@ describe("product conversation rendering", () => {
     expect(markup).toContain("正在检查 blueprints.py 的注册路径")
     expect(markup).toContain("正在生成…")
     expect(markup).toContain("stream-entry-live")
+  })
+
+  test("renders live reasoning on its own stream, separate from the answer", () => {
+    const stream = (messageId: string, text: string) => ({
+      messageId,
+      streamId: `${messageId}:stream`,
+      text,
+      generation: 1,
+      firstLiveSequence: 1,
+      lastLiveSequence: 4,
+      partial: false,
+      truncated: false,
+      settling: false,
+      startedAt: 1,
+      updatedAt: 2,
+    })
+    const markup = renderToStaticMarkup(
+      <ProductTaskDetail
+        runtime={fakeRuntime({
+          reasoning: stream("reasoning_render_001", "先确认 blueprints.py 的注册顺序"),
+          assistant: stream("answer_render_001", "正在检查注册路径"),
+        })}
+        state={detailState()}
+        tasks={[task()]}
+      />,
+    )
+    // Deliberation renders as its own typed row...
+    expect(markup).toContain('data-kind="thinking"')
+    expect(markup).toContain("先确认 blueprints.py 的注册顺序")
+    expect(markup).toContain("正在推理…")
+    // ...and the answer keeps its own row, so the two are never merged.
+    expect(markup).toContain('data-kind="message"')
+    expect(markup).toContain("正在检查注册路径")
+    expect(markup.indexOf("先确认 blueprints.py 的注册顺序"))
+      .toBeLessThan(markup.indexOf("正在检查注册路径"))
   })
 
   test("renders empty, missing, and failed states without a task projection", () => {

@@ -153,7 +153,12 @@ const safeStatusInline = (record: SourceRecord): Readonly<Record<string, JsonVal
 const PRODUCT_TEXT_CHUNK_LIMIT_BYTES = 1_024;
 
 const productTextChunk = (record: SourceRecord): string | undefined => {
-  if (record.kind !== SourceRecordKind.TEXT_DELTA && record.kind !== SourceRecordKind.TEXT_ENDED) return undefined;
+  if (
+    record.kind !== SourceRecordKind.TEXT_DELTA
+    && record.kind !== SourceRecordKind.TEXT_ENDED
+    && record.kind !== SourceRecordKind.REASONING_DELTA
+    && record.kind !== SourceRecordKind.REASONING_ENDED
+  ) return undefined;
   for (const key of ["presentation_text", "content", "delta", "text", "final_text", "message"] as const) {
     const value = record.payload[key];
     if (typeof value === "string" && value.length > 0 && Buffer.byteLength(value, "utf8") <= PRODUCT_TEXT_CHUNK_LIMIT_BYTES) {
@@ -171,7 +176,8 @@ const streamInline = (record: SourceRecord): Readonly<Record<string, JsonValue>>
     stream_id: streamId,
     assistant_message_id: compactId(record, "assistant_message_id", "message_id", "stream_id"),
     segment_index: integer(record.payload, "segment_index", 0),
-    delta_bytes: declaredDeltaBytes || (record.kind === SourceRecordKind.TEXT_DELTA && presentationText !== undefined
+    delta_bytes: declaredDeltaBytes || ((record.kind === SourceRecordKind.TEXT_DELTA
+      || record.kind === SourceRecordKind.REASONING_DELTA) && presentationText !== undefined
       ? Buffer.byteLength(presentationText, "utf8")
       : 0),
     content_digest: optionalText(record.payload, "content_digest") ?? digestJson(record.payload),

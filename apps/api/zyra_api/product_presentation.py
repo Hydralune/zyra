@@ -151,6 +151,36 @@ def project_product_presentation(canonical: Mapping[str, Any]) -> dict[str, Any]
         return result
 
     if event_type in {
+        "runtime.reasoning.started",
+        "runtime.reasoning.delta",
+        "runtime.reasoning.ended",
+    }:
+        # Deliberation is projected as its own kind so the product surface can
+        # render it distinctly from the answer.  `_content` applies the same
+        # ANSI/control/Bearer/assignment/Windows-path scrubber and the same
+        # 2048-character ceiling used for assistant text.
+        phase = {
+            "runtime.reasoning.started": "started",
+            "runtime.reasoning.delta": "delta",
+            "runtime.reasoning.ended": "completed",
+        }[event_type]
+        stream_id = _identity(inline.get("stream_id"))
+        message_id = _identity(inline.get("assistant_message_id")) or stream_id
+        if not stream_id or not message_id:
+            return None
+        result = _base(
+            kind="thinking",
+            phase=phase,
+            identity=message_id,
+            label="Reasoning",
+        )
+        result["streamId"] = stream_id
+        thinking_text = _content(inline.get("presentation_text"))
+        if thinking_text:
+            result["text"] = thinking_text
+        return result
+
+    if event_type in {
         "runtime.backend.dispatch.requested",
         "runtime.backend.dispatch.accepted",
         "runtime.backend.dispatch.failed",

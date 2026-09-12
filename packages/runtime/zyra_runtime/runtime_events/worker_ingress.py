@@ -137,6 +137,11 @@ _DIRECT_RULES: Mapping[str, _Rule] = {
         "text_delta", effective=False, live_only=True, requires_cause=True
     ),
     "assistant_text_ended": _Rule("text_ended", effective=False, requires_cause=True),
+    "reasoning_started": _Rule("reasoning_started", effective=False),
+    "reasoning_delta": _Rule(
+        "reasoning_delta", effective=False, live_only=True, requires_cause=True
+    ),
+    "reasoning_ended": _Rule("reasoning_ended", effective=False, requires_cause=True),
     "tool_call_started": _Rule("tool_called"),
     "tool_call_completed": _Rule("tool_succeeded", requires_cause=True),
     "context_compacted": _Rule("compact_completed", domain="compact", requires_cause=True),
@@ -237,6 +242,14 @@ class CodeWorkerRuntimeEventIngress:
             } and _text(data.get("delta_kind")) != "assistant_text":
                 raise RuntimeEventContractError(
                     "assistant presentation frame lacks assistant_text custody"
+                )
+            if phase in {
+                "reasoning_started",
+                "reasoning_delta",
+                "reasoning_ended",
+            } and _text(data.get("delta_kind")) != "reasoning":
+                raise RuntimeEventContractError(
+                    "reasoning presentation frame lacks reasoning custody"
                 )
             if phase == "tool_call_completed":
                 return (self._emit_tool_terminal(data, sequence),)
@@ -434,7 +447,7 @@ class CodeWorkerRuntimeEventIngress:
             return None
         if rule.kind in {"turn_completed", "turn_failed"}:
             return self._turn_event_id or self._last_event_id
-        if rule.kind in {"text_delta", "text_ended"}:
+        if rule.kind in {"text_delta", "text_ended", "reasoning_delta", "reasoning_ended"}:
             stream_id = _text(payload.get("stream_id"))
             return self._stream_event_ids.get(stream_id) or self._stream_event_id
         if rule.kind == "control_completed":
@@ -517,6 +530,41 @@ class CodeWorkerRuntimeEventIngress:
                     }
                 )
             return base
+        if rule.kind.startswith("reasoning_"):
+            # Reasoning mirrors the assistant presentation boundary exactly:
+            # the same 1024-byte chunk ceiling, the same digest custody.  It is
+            # a separate stream so a round that thinks without answering still
+            # has a well-formed lifecycle.
+            content = payload.get(
+                "presentation_text",
+                payload.get("delta", payload.get("content", "")),
+            )
+            if len(str(content).encode("utf-8")) > 1_024:
+                raise RuntimeEventContractError(
+                    "reasoning presentation chunk exceeds 1024 bytes"
+                )
+            stream_id = _text(
+                payload.get("stream_id"), self.identity.worker_request_id
+            )
+            return {
+                "stream_id": stream_id,
+                "assistant_message_id": _text(
+                    payload.get("assistant_message_id"),
+                    stream_id,
+                ),
+                "segment_index": _integer(
+                    payload.get("segment_index"),
+                    _integer(payload.get("sequence")),
+                ),
+                "delta_bytes": len(str(content).encode("utf-8")),
+                "content_digest": _digest(content),
+                "content": coerce_json(content),
+                **(
+                    {"presentation_text": coerce_json(content)}
+                    if rule.kind == "reasoning_delta" and content
+                    else {}
+                ),
+            }
         if rule.kind == "tool_called":
             tool_call_id = _text(payload.get("tool_call_id"))
             if not tool_call_id:
@@ -669,7 +717,7 @@ class CodeWorkerRuntimeEventIngress:
             return
         if phase in {"turn_start", "turn_started", "turn_resumed"}:
             self._turn_event_id = receipt.event_id
-        elif phase in {"stream_request_start", "assistant_text_started"}:
+        elif phase in {"stream_request_start", "assistant_text_started", "reasoning_started"}:
             self._stream_event_id = receipt.event_id
             self._stream_event_ids[stream_id] = receipt.event_id
         elif phase == "tool_call_started":
