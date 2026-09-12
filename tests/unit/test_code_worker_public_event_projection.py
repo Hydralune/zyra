@@ -114,6 +114,93 @@ def test_public_projection_rejects_malformed_reasoning_frames() -> None:
     ) is None
 
 
+def _host_event(phase: str, *, delta_kind: str, **values: object) -> dict[str, object]:
+    """Reproduce one host EventRecord for a provider presentation frame.
+
+    The host records the provider frame on the `query_session` envelope and adds
+    a `typescript_runtime` sibling that carries no `schema` -- only custody
+    metadata.  That sibling is what used to take reasoning frames down with it.
+    """
+
+    return {
+        "run_id": "run-1",
+        "task_id": "task-1",
+        "node_id": "node-1",
+        "event_type": "agent_message",
+        "payload": {
+            "query_session": {
+                "schema": "zyra.provider-assistant-presentation/v1",
+                "phase": phase,
+                "delta_kind": delta_kind,
+                "stream_id": "provider:dispatch-1",
+                "assistant_message_id": "message:assistant:provider:dispatch-1",
+                "sequence": 7,
+                **values,
+            },
+            "typescript_runtime": {
+                "phase": phase,
+                "canonical_owner": "typescript",
+                "runtime_id": "zyra-typescript-claude-runtime",
+            },
+        },
+    }
+
+
+def test_reasoning_frames_survive_the_host_custody_sibling() -> None:
+    """A reasoning frame must not be dropped by its own custody envelope.
+
+    The `typescript_runtime` sibling has no `schema`, so projecting it yields
+    None; the loop treated that as "drop the whole event" and discarded the
+    valid `query_session` copy beside it.  Only phases listed as custody-only
+    are reduced instead, and reasoning was missing from that list.
+    """
+
+    # Only a delta carries chunk content; a started/ended frame that carries
+    # content is correctly refused.
+    frames = [
+        ("reasoning_started", {}),
+        ("reasoning_delta", {"content": "why"}),
+        ("reasoning_ended", {}),
+    ]
+    for phase, extra in frames:
+        projected = _public_runtime_events(
+            [_host_event(phase, delta_kind="reasoning", **extra)],
+        )
+        assert len(projected) == 1, phase
+        session = projected[0]["payload"]["query_session"]
+        assert session["phase"] == phase
+        assert session["delta_kind"] == "reasoning"
+        # The sibling is reduced to custody metadata, never a second envelope.
+        sibling = projected[0]["payload"]["typescript_runtime"]
+        assert "schema" not in sibling
+
+
+def test_reasoning_delta_carries_its_text_through_the_host_path() -> None:
+    projected = _public_runtime_events(
+        [_host_event("reasoning_delta", delta_kind="reasoning", content="6*15+4*7=118")],
+        persist_presentation_text=True,
+    )
+
+    assert len(projected) == 1
+    assert projected[0]["payload"]["query_session"]["presentation_text"] == "6*15+4*7=118"
+
+
+def test_assistant_text_host_path_is_unchanged_by_the_reasoning_fix() -> None:
+    """The assistant path already worked; widening the custody set must not
+    change it, and must not let the sibling become a second content envelope."""
+
+    projected = _public_runtime_events(
+        [_host_event("assistant_text_delta", delta_kind="assistant_text", content="118")],
+        persist_presentation_text=True,
+    )
+
+    assert len(projected) == 1
+    session = projected[0]["payload"]["query_session"]
+    assert session["phase"] == "assistant_text_delta"
+    assert session["presentation_text"] == "118"
+    assert "schema" not in projected[0]["payload"]["typescript_runtime"]
+
+
 def test_public_event_projection_drops_live_delta_from_durable_worker_result() -> None:
     projected = _public_runtime_events(
         [

@@ -1649,6 +1649,25 @@ _DROPPED_PUBLIC_EVENT_PHASES = frozenset(
         "model_stream_frame",
     }
 )
+# Phases whose real payload arrives on the `query_session` envelope, leaving the
+# `typescript_runtime` sibling as pure host-generated custody metadata that must
+# be reduced rather than projected.
+#
+# This set has to list every presentation phase.  The sibling carries no
+# `schema`, so projecting it returns None and the surrounding loop treats that
+# as a reason to drop the whole event -- including the valid `query_session`
+# copy beside it.  Reasoning phases were missing here, which dropped every
+# reasoning frame while assistant text (already listed) survived.
+_CUSTODY_ONLY_TYPESCRIPT_PHASES = frozenset(
+    {
+        "assistant_text_started",
+        "assistant_text_delta",
+        "assistant_text_ended",
+        "reasoning_started",
+        "reasoning_delta",
+        "reasoning_ended",
+    }
+)
 # Total presentation text retained per stream when a task opts into it.  The
 # per-chunk ceiling stays 1024 bytes; this bounds the whole stream.
 _PERSISTED_PRESENTATION_STREAM_BYTES = 64 * 1024
@@ -1706,11 +1725,7 @@ def _public_runtime_events(
             if (
                 session_key == "typescript_runtime"
                 and str(session.get("phase") or "")
-                in {
-                    "assistant_text_started",
-                    "assistant_text_delta",
-                    "assistant_text_ended",
-                }
+                in _CUSTODY_ONLY_TYPESCRIPT_PHASES
             ):
                 # The sibling query_session owns the versioned presentation
                 # payload.  typescript_runtime is only host-generated custody
