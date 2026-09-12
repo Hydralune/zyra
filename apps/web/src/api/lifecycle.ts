@@ -68,6 +68,9 @@ export class TaskLifecycleCoordinator {
       session_id: input.sessionId,
       worker_pool: input.workerPool,
       execution_config: input.executionConfig,
+      ...(input.persistPresentationText === true
+        ? { persist_presentation_text: true }
+        : {}),
     }
     const idempotencyKey =
       input.idempotencyKey ??

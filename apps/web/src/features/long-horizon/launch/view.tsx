@@ -65,6 +65,10 @@ export function LongHorizonLaunchPanel({
       const created = await runtime.api.lifecycle.create({
         goal: `${DEMO_GOAL} Delivery run marker: ${nonce}.`,
         autoRun: false,
+        // A demo is meant to be reviewed and replayed, so this task opts into
+        // retaining its bounded presentation text.  Every other task keeps the
+        // low-entropy default.
+        persistPresentationText: true,
         idempotencyKey: `long-horizon:${nonce}:create`,
       })
       const task = created.mutation.task

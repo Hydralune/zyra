@@ -13374,6 +13374,11 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 state.metadata["product_execution_config"] = product_execution_config
                 state.metadata["provider"] = product_execution_config["provider_id"]
                 state.metadata["model"] = product_execution_config["model_id"]
+            if payload.get("persist_presentation_text") is True:
+                # Explicit, task-scoped opt-in: keep the bounded presentation
+                # text in durable storage so a refresh can replay the run.
+                # Absent or non-True leaves the low-entropy default untouched.
+                state.metadata["persist_presentation_text"] = True
             external_deadline = _external_deadline_epoch_ms()
             if external_deadline is not None:
                 runtime_remaining_seconds = max(

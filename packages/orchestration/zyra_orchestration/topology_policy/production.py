@@ -2107,6 +2107,12 @@ class Phase2StrongestProductionBridge:
             "delivery_contract": dict(
                 state.metadata.get("delivery_contract") or {}
             ),
+            # Explicit, task-scoped opt-in for durable presentation text.  It
+            # travels with the contract so the physical CodeWorker boundary
+            # resolves it from the same task state that created the task.
+            "persist_presentation_text": (
+                state.metadata.get("persist_presentation_text") is True
+            ),
             "requirement_revision": policy_input.requirement_revision,
             "operator_ref": selected_ref,
             "operator": selected_candidate.to_dict(),

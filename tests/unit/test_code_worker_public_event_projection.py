@@ -71,6 +71,8 @@ def test_public_event_projection_drops_live_delta_from_durable_worker_result() -
         [
             {
                 "event_id": "event-assistant-1",
+                "task_id": "task-1",
+                "run_id": "run-1",
                 "payload": {
                     "query_session": _assistant_event(
                         "assistant_text_delta",
@@ -93,3 +95,83 @@ def test_public_event_projection_drops_live_delta_from_durable_worker_result() -
     )
 
     assert projected == []
+
+
+def test_public_event_projection_keeps_bounded_text_only_for_opted_in_tasks() -> None:
+    """A demo task that opts in keeps its answer text; every other task does not."""
+
+    events = [
+        {
+            "event_id": "event-assistant-1",
+            "task_id": "task-1",
+            "run_id": "run-1",
+            "payload": {
+                "query_session": _assistant_event(
+                    "assistant_text_delta",
+                    content="bounded answer",
+                    segment_index=7,
+                ),
+            },
+        }
+    ]
+
+    # Default: low-entropy.  The same event that produces nothing above still
+    # produces nothing without the explicit opt-in.
+    assert _public_runtime_events(events) == []
+
+    projected = _public_runtime_events(events, persist_presentation_text=True)
+
+    assert len(projected) == 1
+    session = projected[0]["payload"]["query_session"]
+    assert session["presentation_text"] == "bounded answer"
+    # The digest custody is untouched and the raw content never crosses.
+    assert session["content_persisted"] is False
+    assert "content" not in session
+
+
+def test_public_event_projection_bounds_persisted_text_per_stream() -> None:
+    """An over-long answer keeps a bounded prefix and says what was elided."""
+
+    chunk = _assistant_event(
+        "assistant_text_delta",
+        content="x" * 1_024,
+        segment_index=1,
+    )
+    # 100 KiB of chunks against a 64 KiB per-stream allowance.
+    events = [
+        {
+            "event_id": f"event-assistant-{index}",
+            "task_id": "task-1",
+            "run_id": "run-1",
+            "payload": {"query_session": {**chunk, "assistant_message_id": f"m-{index}"}},
+        }
+        for index in range(100)
+    ]
+
+    projected = _public_runtime_events(events, persist_presentation_text=True)
+
+    retained = [
+        event["payload"]["query_session"]
+        for event in projected
+        if event.get("schema") != "zyra.presentation-retention-summary/v1"
+    ]
+    kept = [session for session in retained if "presentation_text" in session]
+    elided = [session for session in retained if "presentation_text" not in session]
+    summaries = [
+        event
+        for event in projected
+        if event.get("schema") == "zyra.presentation-retention-summary/v1"
+    ]
+    kept_bytes = sum(
+        len(session["presentation_text"].encode("utf-8")) for session in kept
+    )
+    assert kept_bytes == 64 * 1_024
+    assert len(elided) == 36
+    # Every elided frame still keeps its lifecycle and custody fields, so only
+    # the redundant text copy was dropped, not the record of what happened.
+    assert all(session["content_persisted"] is False for session in elided)
+    assert all(session["stream_id"] == "provider:dispatch-1" for session in elided)
+    # The elision is reported rather than silently swallowed.
+    assert len(summaries) == 1
+    assert summaries[0]["dropped_presentation_bytes"] == 36 * 1_024
+    assert summaries[0]["per_stream_limit_bytes"] == 64 * 1_024

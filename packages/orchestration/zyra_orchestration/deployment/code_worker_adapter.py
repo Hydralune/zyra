@@ -1370,7 +1370,12 @@ def execute_code_worker_operator(
         ),
     )
     evidence["final_response_projection"] = final_response_projection
-    public_runtime_events = _public_runtime_events(runtime_events)
+    public_runtime_events = _public_runtime_events(
+        runtime_events,
+        persist_presentation_text=(
+            payload.get(_PERSIST_PRESENTATION_TEXT_METADATA_KEY) is True
+        ),
+    )
     return {
         "schema": "zyra.physical-code-worker-execution/v1",
         "runtime_worker": "CodeWorkerRuntime",
@@ -1644,6 +1649,13 @@ _DROPPED_PUBLIC_EVENT_PHASES = frozenset(
         "model_stream_frame",
     }
 )
+# Total presentation text retained per stream when a task opts into it.  The
+# per-chunk ceiling stays 1024 bytes; this bounds the whole stream.
+_PERSISTED_PRESENTATION_STREAM_BYTES = 64 * 1024
+# Explicit, task-scoped opt-in for retaining presentation text in durable
+# storage.  Low-entropy is the default; only a task that asks for it keeps the
+# text, and only a bounded prefix of it.
+_PERSIST_PRESENTATION_TEXT_METADATA_KEY = "persist_presentation_text"
 
 
 def _bounded_public_counter(value: Any) -> int:
@@ -1656,6 +1668,8 @@ def _bounded_public_counter(value: Any) -> int:
 
 def _public_runtime_events(
     runtime_events: list[Mapping[str, Any]],
+    *,
+    persist_presentation_text: bool = False,
 ) -> list[dict[str, Any]]:
     """Project private model-loop events into low-entropy public evidence.
 
@@ -1672,6 +1686,11 @@ def _public_runtime_events(
     """
 
     projected: list[dict[str, Any]] = []
+    # A per-stream total bound for persisted presentation text.  Chunk size is
+    # already capped at 1024 bytes; without a total bound a long run could
+    # persist an unbounded answer, so the retained prefix stops here.
+    persisted_stream_bytes: dict[str, int] = {}
+    dropped_persisted_bytes = 0
     for raw_event in runtime_events:
         event = dict(to_jsonable(raw_event))
         payload = dict(event.get("payload") or {})
@@ -1714,6 +1733,7 @@ def _public_runtime_events(
             public_session = _public_session_projection(
                 session,
                 allow_live_assistant_delta=False,
+                persist_presentation_text=persist_presentation_text,
             )
             if public_session is None:
                 drop_event = True
@@ -1721,6 +1741,29 @@ def _public_runtime_events(
             payload[session_key] = public_session
         if drop_event:
             continue
+        # Bound persisted presentation text per stream.  The digest custody is
+        # unaffected: only the redundant `presentation_text` copy is dropped
+        # once a stream has already retained its allowance, so an over-long
+        # answer keeps a complete, verifiable record without an unbounded text
+        # blob in storage.
+        for session_key, session in list(payload.items()):
+            if not isinstance(session, Mapping):
+                continue
+            if session.get("schema") != "zyra.provider-assistant-presentation/v1":
+                continue
+            stream_id = str(session.get("stream_id") or "")
+            text = session.get("presentation_text")
+            if not stream_id or not isinstance(text, str) or not text:
+                continue
+            retained = persisted_stream_bytes.get(stream_id, 0)
+            encoded_bytes = len(text.encode("utf-8"))
+            if retained + encoded_bytes > _PERSISTED_PRESENTATION_STREAM_BYTES:
+                scrubbed = dict(session)
+                scrubbed.pop("presentation_text", None)
+                payload[session_key] = scrubbed
+                dropped_persisted_bytes += encoded_bytes
+                continue
+            persisted_stream_bytes[stream_id] = retained + encoded_bytes
         worker_result = payload.pop("worker_result", None)
         if worker_result is not None:
             worker_mapping = (
@@ -1742,6 +1785,20 @@ def _public_runtime_events(
             }
         event["payload"] = payload
         projected.append(event)
+    if dropped_persisted_bytes:
+        # Never let truncation read as a complete record: say how much text was
+        # elided so a reader can tell the retained prefix is partial.
+        projected.append(
+            {
+                "schema": "zyra.presentation-retention-summary/v1",
+                "runtime_id": "zyra-typescript-claude-runtime",
+                "task_id": str(projected[0].get("task_id") or "") if projected else "",
+                "run_id": str(projected[0].get("run_id") or "") if projected else "",
+                "dropped_presentation_bytes": dropped_persisted_bytes,
+                "per_stream_limit_bytes": _PERSISTED_PRESENTATION_STREAM_BYTES,
+                "content_persisted": False,
+            }
+        )
     return projected
 
 
@@ -1789,6 +1846,7 @@ def _public_session_projection(
     session: Mapping[str, Any],
     *,
     allow_live_assistant_delta: bool = True,
+    persist_presentation_text: bool = False,
 ) -> dict[str, Any] | None:
     public_session = dict(session)
     phase = str(public_session.get("phase") or "")
@@ -1799,7 +1857,12 @@ def _public_session_projection(
         "assistant_text_delta",
         "assistant_text_ended",
     }:
-        if phase == "assistant_text_delta" and not allow_live_assistant_delta:
+        # Answer deltas are live-only by default.  A task that explicitly opted
+        # into presentation persistence keeps them, so a refresh replays the
+        # answer instead of showing only that one was produced.
+        if phase == "assistant_text_delta" and not (
+            allow_live_assistant_delta or persist_presentation_text
+        ):
             return None
         if (
             public_session.get("schema")

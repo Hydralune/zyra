@@ -44,6 +44,12 @@ export interface CreateTaskInput {
   sessionId?: string
   workerPool?: Record<string, unknown>
   executionConfig?: ProductExecutionConfig
+  /**
+   * Opt-in for retaining bounded presentation text in durable storage.  The
+   * demo launcher sets it so a page refresh replays what the agent did; every
+   * other task leaves the low-entropy default (text is not persisted).
+   */
+  persistPresentationText?: boolean
   idempotencyKey?: string
   signal?: AbortSignal
   timeoutMs?: number
