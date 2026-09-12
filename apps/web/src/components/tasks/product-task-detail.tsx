@@ -1026,10 +1026,17 @@ function ProductDetailContent({
                 entries={visibleEntries}
                 goal={task.userGoal}
                 status={task.status}
-                result={resultSummary(task)}
+                result={
+                  resultSummary(task)
+                  // A run can settle before its durable answer lands in the
+                  // task projection, and the live loop stops once the task is
+                  // terminal.  Without this fallback the answer a reader just
+                  // watched arrive would disappear until a manual refresh.
+                  ?? (live.taskId === task.taskId ? live.assistant?.text : undefined)
+                }
                 evidenceArtifactCount={evidenceArtifactCount}
                 liveThinking={
-                  live.taskId === task.taskId && live.reasoning && !live.reasoning.settling
+                  live.taskId === task.taskId && live.reasoning
                     ? live.reasoning.text
                     : undefined
                 }

@@ -197,12 +197,14 @@ export function projectExecutionStream(
       continue
     } else if (type === "agent.message" && !isBookkeeping(event.summary)
       && !isNoiseNotice(event.summary)) {
+      // A coordination note is narration, not a categorised object: showing it
+      // as "记录 / 协作记录 / <text>" buries the one line that matters under two
+      // labels.  The text is the row.
       entries.push({
         key: `notice:${event.eventId}`,
         kind: "notice",
         status: "completed",
-        title: "协作记录",
-        detail: event.summary,
+        title: event.summary,
         at: event.createdAt,
         sequence: event.sequence,
         nodeId: event.nodeId,

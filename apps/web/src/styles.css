@@ -7758,32 +7758,30 @@ kbd {
   gap: 8px;
 }
 
-.stream-entry-kind {
-  color: var(--state-ink, #555);
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-}
-
+/* Rows read as compact log lines, not tagged objects: the text carries the
+   row, and the duration sits quietly at the end of it. */
 .stream-entry-title {
   color: var(--text, #202020);
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 400;
+  line-height: 1.55;
   word-break: break-word;
 }
 
 .stream-entry-duration,
 .stream-entry-count {
-  color: var(--subtle, #767676);
+  color: var(--subtle, #8a8a8a);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
+/* Supporting detail is a quieter continuation of the row above, not a second
+   block of content. */
 .stream-entry-detail {
-  margin: 3px 0 0;
-  color: var(--muted, #606060);
+  margin: 1px 0 0;
+  color: var(--muted, #6a6a6a);
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.55;
   word-break: break-word;
 }
 

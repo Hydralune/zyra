@@ -29,15 +29,6 @@ const KIND_ICON: Record<StreamEntryKind, string> = {
   notice: "M8 8h.01",
 }
 
-const KIND_LABEL: Record<StreamEntryKind, string> = {
-  thinking: "思考",
-  message: "回答",
-  tool: "工具",
-  artifact: "产物",
-  recovery: "恢复",
-  notice: "记录",
-}
-
 function KindIcon({ kind }: { kind: StreamEntryKind }) {
   return (
     <svg
@@ -131,7 +122,6 @@ export function ExecutionStream({
           </span>
           <div className="stream-entry-body">
             <div className="stream-entry-head">
-              <span className="stream-entry-kind">{KIND_LABEL[entry.kind]}</span>
               <span className="stream-entry-title">{entry.title}</span>
               {entry.durationMs !== undefined ? (
                 <span className="stream-entry-duration">{formatDuration(entry.durationMs)}</span>
@@ -152,7 +142,6 @@ export function ExecutionStream({
           <span className="stream-entry-glyph"><KindIcon kind="notice" /></span>
           <div className="stream-entry-body">
             <div className="stream-entry-head">
-              <span className="stream-entry-kind">记录</span>
               <span className="stream-entry-title">运行证据已归档</span>
               <span className="stream-entry-count">{evidenceArtifactCount} 项</span>
             </div>
@@ -164,12 +153,13 @@ export function ExecutionStream({
       ) : null}
 
       {liveThinking ? (
-        <article className="stream-entry" data-kind="thinking" data-status="running">
+        <article className="stream-entry" data-kind="thinking" data-status={status === "running" ? "running" : "completed"}>
           <span className="stream-entry-glyph"><KindIcon kind="thinking" /></span>
           <div className="stream-entry-body">
             <div className="stream-entry-head">
-              <span className="stream-entry-kind">思考</span>
-              <span className="stream-entry-title">正在推理…</span>
+              <span className="stream-entry-title">
+                {status === "running" ? "正在推理…" : "思考"}
+              </span>
             </div>
             <p className="stream-entry-detail stream-entry-live">{liveThinking}</p>
           </div>
@@ -181,7 +171,6 @@ export function ExecutionStream({
           <span className="stream-entry-glyph"><KindIcon kind="message" /></span>
           <div className="stream-entry-body">
             <div className="stream-entry-head">
-              <span className="stream-entry-kind">回答</span>
               <span className="stream-entry-title">正在生成…</span>
             </div>
             <p className="stream-entry-detail stream-entry-live">{liveText}</p>
@@ -193,9 +182,6 @@ export function ExecutionStream({
         <article className="stream-entry stream-entry-result" data-kind="result">
           <span className="stream-entry-glyph"><ResultIcon /></span>
           <div className="stream-entry-body">
-            <div className="stream-entry-head">
-              <span className="stream-entry-kind">结果</span>
-            </div>
             <p className="stream-entry-result-text">{result}</p>
           </div>
         </article>

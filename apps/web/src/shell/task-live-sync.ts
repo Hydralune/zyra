@@ -556,7 +556,16 @@ export class TaskLiveSync {
     const detail = this.#workbench.getSnapshot().detail
     if (detail.taskId !== taskId || detail.task?.taskId !== taskId) return
     if (!detail.task.terminal) return
-    this.#publish({ assistant: undefined, reasoning: undefined })
+    const task = detail.task
+    // The answer only becomes redundant once the task itself carries it.  A run
+    // can settle a beat before that lands, so clearing unconditionally would
+    // blank the very text the reader just watched arrive.  Deliberation has no
+    // durable counterpart at all -- the spine keeps only a digest -- so it is
+    // never cleared here.
+    const durableAnswer = task.metadata?.final_answer ?? task.metadata?.finalAnswer
+    if (typeof durableAnswer === "string" && durableAnswer.trim()) {
+      this.#publish({ assistant: undefined })
+    }
   }
 
   #clearTimer(): void {
