@@ -458,8 +458,22 @@ class ScenarioRun:
             updated_at=utc_now(),
         )
 
-    def to_dict(self, *, include_input: bool = False) -> dict[str, Any]:
-        return {
+    def to_dict(
+        self,
+        *,
+        include_input: bool = False,
+        include_evidence: bool = True,
+    ) -> dict[str, Any]:
+        """Project the run.
+
+        ``include_evidence`` must be False for list projections: the evidence
+        manifest embeds every canonical event and artifact and can exceed tens
+        of megabytes, so carrying it on a page of runs overflows the client's
+        response-size limit and no run ever becomes visible.  Callers that need
+        the manifest read it from the per-run evidence endpoint.
+        """
+
+        value = {
             "schema": "zyra.scenario-run/v1",
             "scenario_run_id": self.scenario_run_id,
             "configuration": self.configuration.to_dict(include_input=include_input),
@@ -479,9 +493,12 @@ class ScenarioRun:
                 1 for item in self.interventions if item.get("counted_as_human") is True
             ),
             "operator_intervention_attempt_count": len(self.interventions),
-            "evidence_manifest": canonicalize(self.evidence_manifest),
+            "evidence_manifest": (
+                canonicalize(self.evidence_manifest) if include_evidence else None
+            ),
             "verification_receipt": canonicalize(self.verification_receipt),
             "failure": canonicalize(self.failure),
             "cancel_requested": self.cancel_requested,
             "archive_reason": self.archive_reason,
         }
+        return value

@@ -165,8 +165,18 @@ export class ScenarioWorkbenchRuntime {
 
   async open(): Promise<ScenarioProjection> {
     this.#assertAvailable()
+    const wasDetached = this.#detached
     this.#detached = false
     this.#auditUpdate({ detached: false })
+    if (wasDetached) {
+      // A refresh that detached mid-flight bails out before promoting the
+      // connection back to online, and refresh() would then just piggyback on
+      // that same doomed promise.  Supersede it so a re-open starts a fresh
+      // generation and the console can reach "online" again.
+      this.#generation += 1
+      this.#abort?.abort("Scenario console reopened.")
+      this.#refresh = undefined
+    }
     return this.refresh("open")
   }
 

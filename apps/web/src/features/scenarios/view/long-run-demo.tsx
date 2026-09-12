@@ -110,6 +110,12 @@ export function LongRunDemoPanel({
       setBusy(task.key)
       setError("")
       try {
+        // The console may still be on its first load.  Establishing the
+        // connection here means the buttons stay usable even if the initial
+        // probe was slow, instead of being disabled by a transient state.
+        if (runtime.getSnapshot().connection !== "online") {
+          await runtime.open()
+        }
         const run = await runtime.create({
           scenarioId: task.scenarioId,
           mode: "sealed",
@@ -132,10 +138,13 @@ export function LongRunDemoPanel({
   const runFor = useCallback(
     (task: DemoTask) => {
       const launchedId = launched[task.key]
-      const rows = snapshot.rows
-      const row =
-        (launchedId ? rows.find((item) => item.run.scenario_run_id === launchedId) : undefined)
-        ?? rows.find((item) => item.run.configuration.scenario_id === task.scenarioId)
+      // Only show a run this panel launched.  Falling back to "the newest run
+      // of this scenario type" would display a previous run's id and status,
+      // which reads as though the click did nothing.
+      if (!launchedId) return undefined
+      const row = snapshot.rows.find(
+        (item) => item.run.scenario_run_id === launchedId,
+      )
       return row?.run
     },
     [launched, snapshot.rows],
@@ -147,6 +156,7 @@ export function LongRunDemoPanel({
         <h2 id="long-run-demo-heading">长程任务演示</h2>
         <span className="tag" data-phase={snapshot.connection}>
           {phaseLabel(snapshot.connection)}
+          {snapshot.connectionReason ? ` · ${snapshot.connectionReason}` : ""}
         </span>
       </div>
       <p className="long-run-demo-copy">
@@ -176,7 +186,7 @@ export function LongRunDemoPanel({
               <button
                 type="button"
                 className="button button-primary"
-                disabled={Boolean(busy) || snapshot.connection !== "online"}
+                disabled={Boolean(busy)}
                 onClick={() => void launch(task)}
               >
                 {busy === task.key ? "正在启动…" : run ? "重新运行" : "运行此任务"}

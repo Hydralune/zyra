@@ -233,16 +233,20 @@ class ScenarioRunnerService:
         with self._lock:
             future = self._futures.get(scenario_run_id)
             worker_active = bool(future and not future.done())
+        # Strip the evidence manifest here too: it can exceed the client
+        # response-size limit, and the workbench reads it from the dedicated
+        # per-run evidence endpoint.  Project once and reuse for the digest.
+        run_value = run.to_dict(include_evidence=False)
         return {
             "schema": "zyra.scenario-status/v1",
-            "run": run.to_dict(),
+            "run": run_value,
             "transitions": list(transitions),
             "receipts": list(receipts),
             "worker_active": worker_active,
             "browser_connection_required": False,
             "status_digest": digest(
                 {
-                    "run": run.to_dict(),
+                    "run": run_value,
                     "transitions": transitions,
                     "receipts": receipts,
                     "worker_active": worker_active,
@@ -266,7 +270,9 @@ class ScenarioRunnerService:
             "schema": "zyra.scenario-run-page/v1",
             "offset": max(0, offset),
             "limit": max(1, min(10_000, limit)),
-            "runs": [item.to_dict() for item in runs],
+            # List projections must stay small: the evidence manifest can exceed
+            # tens of megabytes and would overflow the client response limit.
+            "runs": [item.to_dict(include_evidence=False) for item in runs],
             "store": self.store.summary(),
         }
 
