@@ -420,8 +420,50 @@ test("typed text source exposes only a bounded assistant presentation chunk", ()
     sequence: 2,
     payload: { stream_id: "answer-1", content: "x".repeat(1_025) },
   }));
+  // A delta is one chunk of a block, so the 1 KiB chunk ceiling still applies:
+  // an over-long chunk is refused outright rather than truncated, because the
+  // neighbouring chunks carry the rest of the same block.
   assert.equal(large.draft.inline?.presentation_text, undefined);
   assert.equal(large.draft.inline?.delta_bytes, 0);
+});
+
+test("a block-ending text source keeps a bounded prefix of a long block", () => {
+  // The block's end is summarised once, so it carries the whole round rather
+  // than one chunk.  Applying the chunk ceiling here discarded every block
+  // longer than a sentence, which is why a replayed run showed so little of
+  // what the agent had written.
+  const mapper = new RuntimeSourceMapper();
+  const long = "y".repeat(8_000);
+  const ended = mapper.map(ompFrameToSourceRecord({
+    type: "message_end",
+    id: "omp-product-text-ended",
+    run_id: "run-product-text",
+    session_id: "session-product-text",
+    task_id: "task-product-text",
+    worker_id: "codeworker",
+    request_id: "request-product-text",
+    sequence: 3,
+    payload: { stream_id: "answer-1", message: long },
+  }));
+
+  assert.equal(ended.draft.eventType, "runtime.text.ended");
+  assert.equal(ended.draft.inline?.presentation_text, long);
+
+  // Still bounded: a block past the ceiling keeps a prefix, not the whole text.
+  const oversized = mapper.map(ompFrameToSourceRecord({
+    type: "message_end",
+    id: "omp-product-text-oversized",
+    run_id: "run-product-text",
+    session_id: "session-product-text",
+    task_id: "task-product-text",
+    worker_id: "codeworker",
+    request_id: "request-product-text",
+    sequence: 4,
+    payload: { stream_id: "answer-1", message: "z".repeat(40_000) },
+  }));
+  const kept = oversized.draft.inline?.presentation_text;
+  assert.equal(typeof kept, "string");
+  assert.equal((kept as string).length, 16 * 1_024);
 });
 
 test("stream fold binds assistant identity and bounded presentation text", () => {

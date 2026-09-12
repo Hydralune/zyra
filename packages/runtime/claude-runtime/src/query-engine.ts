@@ -806,6 +806,69 @@ export class ClaudeRuntimeCore {
       }
     };
 
+    /**
+     * Compact the session transcript when it has outgrown its budget.
+     *
+     * Called once per provider round.  `decideContext` owns the thresholds;
+     * this only turns its verdict into the actual compaction so the replayed
+     * transcript stops growing.  Failure is recorded and swallowed: a session
+     * that cannot compact must still finish its current round rather than
+     * abort the run.
+     */
+    const evaluateContextCompaction = async (): Promise<void> => {
+      try {
+        const configuredContextWindow = Math.max(
+          8_192,
+          Math.ceil(config.maxQueryContextChars / 4) + 5_000,
+        );
+        const providerInputTokens = Math.max(
+          0,
+          Math.floor(Number(modelMetadata.provider_input_tokens) || 0),
+        );
+        const measuredContextChars = Math.max(
+          session.contextChars(),
+          providerInputTokens * 4,
+        );
+        const budgetAdjustedThreshold = budgetAdjustedCompactionThreshold(
+          Math.min(
+            config.maxQueryContextChars,
+            e01.compact.getAutoCompactThreshold(configuredContextWindow, 8_192) * 4,
+          ),
+          Math.max(0, Math.floor(Number(modelMetadata.provider_consumed_total_tokens) || 0)),
+          Math.max(0, Math.floor(Number(modelMetadata.provider_maximum_total_tokens) || 0)),
+        );
+        const decision = e01.decideContext(
+          measuredContextChars,
+          budgetAdjustedThreshold,
+          asBoolean(config.runtimeConstraints.force_compact_restore),
+          session.compactionCount,
+          session.messages.length,
+        );
+        if (!decision.accepted) return;
+        const candidates = session.compactCandidates();
+        if (candidates.preserved.length === 0) return;
+        // `compact` replaces the transcript with a summary plus the preserved
+        // tail; the artifact id is a stable digest of what was removed so the
+        // compaction stays auditable after the fact.
+        session.compact(
+          candidates.summary,
+          `compact:${createHash("sha256").update(candidates.content).digest("hex").slice(0, 32)}`,
+          candidates.preserved,
+        );
+        await emit("context_compacted", {
+          reason: decision.reason,
+          removed_messages: candidates.removedCount,
+          preserved_messages: candidates.preserved.length,
+          round_index: providerRoundIndex,
+        });
+      } catch (error) {
+        await emit("compact_failed", {
+          error: error instanceof Error ? error.message : String(error),
+          turn_index: providerRoundIndex,
+        });
+      }
+    };
+
     const settleProviderResolution = async (
       initialModel: ModelStreamResolution,
       initialRound: ModelRoundRecord,
@@ -1203,6 +1266,13 @@ export class ClaudeRuntimeCore {
           model_provider_rounds: String(providerRoundIndex),
         };
       }
+      // Evaluate compaction here, at the one point every provider round
+      // reaches.  The equivalent check further down runs at the end of the
+      // planned-turn loop, whose bound is fixed before the loop starts -- so a
+      // session that keeps adding rounds there never reaches it, and its
+      // replayed transcript grows without bound (measured: 17,757 messages and
+      // a 203 MB checkpoint by round nine, with the whole run stalling).
+      await evaluateContextCompaction();
       return {
         model,
         round,

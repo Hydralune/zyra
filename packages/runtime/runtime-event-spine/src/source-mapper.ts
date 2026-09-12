@@ -152,18 +152,36 @@ const safeStatusInline = (record: SourceRecord): Readonly<Record<string, JsonVal
 
 const PRODUCT_TEXT_CHUNK_LIMIT_BYTES = 1_024;
 
+/**
+ * A stream-ending event carries the whole block, not one chunk, so it gets its
+ * own ceiling.
+ *
+ * The 1 KiB chunk limit is right for deltas, which arrive many times per block.
+ * Applied to `.ended` it discarded every block longer than a sentence, which is
+ * why a replayed run showed so few of the things the agent actually said: the
+ * per-round summary existed but its text had been dropped.  This ceiling is
+ * still bounded -- a block far beyond it is truncated rather than stored whole.
+ */
+const PRODUCT_TEXT_BLOCK_LIMIT_BYTES = 16 * 1_024;
+
 const productTextChunk = (record: SourceRecord): string | undefined => {
+  const endsBlock = record.kind === SourceRecordKind.TEXT_ENDED
+    || record.kind === SourceRecordKind.REASONING_ENDED;
   if (
-    record.kind !== SourceRecordKind.TEXT_DELTA
-    && record.kind !== SourceRecordKind.TEXT_ENDED
+    !endsBlock
+    && record.kind !== SourceRecordKind.TEXT_DELTA
     && record.kind !== SourceRecordKind.REASONING_DELTA
-    && record.kind !== SourceRecordKind.REASONING_ENDED
   ) return undefined;
+  const limit = endsBlock ? PRODUCT_TEXT_BLOCK_LIMIT_BYTES : PRODUCT_TEXT_CHUNK_LIMIT_BYTES;
   for (const key of ["presentation_text", "content", "delta", "text", "final_text", "message"] as const) {
     const value = record.payload[key];
-    if (typeof value === "string" && value.length > 0 && Buffer.byteLength(value, "utf8") <= PRODUCT_TEXT_CHUNK_LIMIT_BYTES) {
-      return value;
-    }
+    if (typeof value !== "string" || value.length === 0) continue;
+    if (Buffer.byteLength(value, "utf8") <= limit) return value;
+    // A block keeps a bounded prefix rather than vanishing; a chunk is refused
+    // outright, because the sibling chunks of the same block carry the rest of
+    // it and a truncated fragment would corrupt the assembled text.
+    if (endsBlock) return Buffer.from(value, "utf8").subarray(0, limit).toString("utf8");
+    return undefined;
   }
   return undefined;
 };

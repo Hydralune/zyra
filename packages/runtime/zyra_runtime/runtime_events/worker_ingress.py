@@ -26,6 +26,11 @@ PRODUCT_LIVE_RECIPIENT = {
     "id": PRODUCT_LIVE_SUBSCRIPTION_ID,
     "requiredCapabilities": [],
 }
+# How much of one presentation block (a round's narration or deliberation) is
+# retained for durable replay.  Bounded, but far above the 1 KiB per-chunk
+# ceiling: a block is summarised once at its end, while chunks arrive many times
+# per block.
+_RETAINED_BLOCK_TEXT_LIMIT = 16 * 1024
 
 
 def _utc_now() -> str:
@@ -511,7 +516,12 @@ class CodeWorkerRuntimeEventIngress:
                 total_bytes = max(0, int(state.get("total_bytes") or 0))
                 chunk_count = max(0, int(state.get("chunk_count") or 0))
                 retained = str(state.get("retained") or "")
-                final_text = retained if total_bytes <= 1_024 else ""
+                # The block's retained prefix is published as it stands.  The
+                # previous rule emitted it only when the whole block fit in
+                # 1 KiB, which silently dropped the text of every round that
+                # said anything substantive -- the reason a finished run showed
+                # so little of what the agent had written.
+                final_text = retained
                 base.update(
                     {
                         "delta_bytes": 0,
@@ -707,10 +717,12 @@ class CodeWorkerRuntimeEventIngress:
             if isinstance(hasher, type(hashlib.sha256())):
                 hasher.update(encoded)
                 state["final_digest"] = f"sha256:{hasher.hexdigest()}"
-            if int(state["total_bytes"]) <= 1_024:
-                state["retained"] = f"{state.get('retained') or ''}{content}"
-            else:
-                state["retained"] = ""
+            # Retain a bounded prefix of the whole block.  Clearing on overflow
+            # discarded every block longer than a sentence, so a replayed run
+            # could show that the agent had spoken but never what it said.
+            if len(state["retained"]) < _RETAINED_BLOCK_TEXT_LIMIT:
+                room = _RETAINED_BLOCK_TEXT_LIMIT - len(state["retained"])
+                state["retained"] = f"{state.get('retained') or ''}{content[:room]}"
         elif phase == "assistant_text_ended":
             self._assistant_streams.pop(stream_id, None)
         if not receipt.event_id:
