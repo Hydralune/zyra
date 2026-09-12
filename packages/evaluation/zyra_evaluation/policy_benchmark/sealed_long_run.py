@@ -1513,19 +1513,16 @@ class SealedLongRunRunner:
         )
         if (
             cloud_models
-            != (
-                ("deepseek", "deepseek-flash"),
-                ("deepseek", "deepseek-v4-pro"),
-            )
+            != (("deepseek", "deepseek-flash"),)
             or int(
                 provider_profile.get("multiple_model_capabilities_required")
                 or 0
             )
-            != 2
+            != 1
             or provider_profile.get("live_external_request_required") is not True
         ):
             raise SealedLongRunError(
-                "sealed provider profile must freeze two ordered DeepSeek live models"
+                "sealed provider profile must freeze one DeepSeek live model"
             )
         credential_files = tuple(
             str(item) for item in _sequence(value.get("credential_env_files"))

@@ -62,7 +62,6 @@ _BACKEND = {
 }
 _DEFAULT_CLOUD_MODELS = (
     ("deepseek", "deepseek-flash"),
-    ("deepseek", "deepseek-v4-pro"),
 )
 _PROVIDER_CREDENTIAL = {
     "zhipu": "ZAI_API_KEY",
@@ -212,7 +211,7 @@ class SealedPhysicalDispatchRuntime:
             for item in cloud_models
         ) or _DEFAULT_CLOUD_MODELS
         if (
-            len(self.cloud_models) < 2
+            len(self.cloud_models) < 1
             or len(self.cloud_models) != len(set(self.cloud_models))
             or self.cloud_models[:1] != _DEFAULT_CLOUD_MODELS[:1]
         ):
@@ -554,7 +553,7 @@ class SealedPhysicalDispatchRuntime:
                 for item in validations
             ):
                 raise SealedPhysicalDispatchError(
-                    "physical dispatch did not close all three real-execution gates"
+                    "physical dispatch did not close all real-execution gates"
                 )
             tier_pairs: dict[str, tuple[Mapping[str, Any], Mapping[str, Any]]] = {}
             for receipt, validation in zip(receipts, validations, strict=True):
