@@ -105,6 +105,17 @@ export interface CorrelationRuntimeOptions {
   ids?: IdFactory;
   maximumNodes?: number;
   maximumEdges?: number;
+  /**
+   * Closed nodes to keep available for a retroactive trace.
+   *
+   * Nodes accumulate one per runtime event and are serialised in full on every
+   * checkpoint, so an unbounded ledger dominates the checkpoint (measured:
+   * 11,151 nodes / 108 MB, which slowed every save until the run stalled).
+   * Open nodes and the edges between retained nodes are always kept, so a live
+   * trace and the integrity audit stay consistent; only the closed history
+   * beyond this window is dropped from the serialised form.
+   */
+  retainedClosedNodes?: number;
 }
 
 export class SessionCorrelationRuntime {
@@ -112,6 +123,7 @@ export class SessionCorrelationRuntime {
   private readonly ids: IdFactory;
   private readonly maximumNodes: number;
   private readonly maximumEdges: number;
+  private readonly retainedClosedNodes: number;
   private readonly nodes = new Map<string, CorrelationNode>();
   private readonly edges = new Map<string, CorrelationEdge>();
   private readonly externalIndex = new Map<string, string>();
@@ -126,8 +138,10 @@ export class SessionCorrelationRuntime {
     this.ids = options.ids ?? new RandomIdFactory();
     this.maximumNodes = options.maximumNodes ?? 100_000;
     this.maximumEdges = options.maximumEdges ?? 500_000;
+    this.retainedClosedNodes = options.retainedClosedNodes ?? 2_000;
     assertNonNegativeInteger(this.maximumNodes, "maximumNodes");
     assertNonNegativeInteger(this.maximumEdges, "maximumEdges");
+    assertNonNegativeInteger(this.retainedClosedNodes, "retainedClosedNodes");
   }
 
   open(input: {
@@ -501,14 +515,46 @@ export class SessionCorrelationRuntime {
       version: "zyra.session-correlation/v1" as const,
       restartEpoch: this.restartEpoch,
       sequence: this.sequence,
-      nodes: [...this.nodes.values()]
-        .sort(nodeComparator)
-        .map((node) => deepClone(node)),
-      edges: [...this.edges.values()]
-        .sort(edgeComparator)
-        .map((edge) => deepClone(edge)),
+      nodes: this.serialisedNodes(),
+      edges: this.serialisedEdges(),
     };
     return { ...body, checksum: digestJson(body) };
+  }
+
+  /**
+   * The node window written to a checkpoint.
+   *
+   * Every open node is kept -- those are the live correlations a trace still
+   * walks -- plus the most recently closed ones, which is what a retroactive
+   * trace realistically looks at.  Dropping older closed nodes is what stops
+   * the ledger from dominating the checkpoint.
+   */
+  private serialisedNodes(): CorrelationNode[] {
+    const open: CorrelationNode[] = [];
+    const closed: CorrelationNode[] = [];
+    for (const node of this.nodes.values()) {
+      (node.status === "open" ? open : closed).push(node);
+    }
+    closed.sort((left, right) => (right.closedAt ?? 0) - (left.closedAt ?? 0));
+    const retainedClosed = closed.slice(0, this.retainedClosedNodes);
+    return [...open, ...retainedClosed]
+      .sort(nodeComparator)
+      .map((node) => deepClone(node));
+  }
+
+  /**
+   * Edges whose endpoints both survive the node window.
+   *
+   * An edge to a dropped node would be reported as a missing endpoint by
+   * `audit()`, turning the bound itself into an integrity failure.  Trimming
+   * both together keeps the audit honest.
+   */
+  private serialisedEdges(): CorrelationEdge[] {
+    const kept = new Set(this.serialisedNodes().map((node) => node.nodeId));
+    return [...this.edges.values()]
+      .filter((edge) => kept.has(edge.sourceNodeId) && kept.has(edge.targetNodeId))
+      .sort(edgeComparator)
+      .map((edge) => deepClone(edge));
   }
 
   restore(snapshot: CorrelationRuntimeSnapshot): void {

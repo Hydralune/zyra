@@ -1541,4 +1541,42 @@ describe("E01 durable transition journal", () => {
     expect(after.restartEpoch).toBe(1);
     expect(after.committed()).toHaveLength(6);
   });
+
+  test("a long session serialises a bounded correlation window, not every node", () => {
+    // One node is opened per runtime event and the whole ledger is written into
+    // every checkpoint, so an unbounded ledger dominates the checkpoint and
+    // slows each save until the run stalls (measured: 11,151 nodes / 108 MB).
+    const { runtime, clock } = correlationRuntime("bounded");
+    for (let index = 0; index < 5_000; index += 1) {
+      const node = openCorrelation(runtime, `external-${index}`);
+      runtime.close({ nodeId: node.nodeId, status: "completed", sequenceEnd: index, result: { index } });
+      clock.advance(1_000);
+    }
+
+    const snapshot = runtime.snapshot();
+    expect(snapshot.nodes.length).toBeLessThan(5_000);
+    expect(runtime.audit().valid).toBe(true);
+
+    // A trimmed snapshot must still restore, and the restored ledger must stay
+    // internally consistent -- trimming nodes and edges together is what keeps
+    // the audit from reporting missing endpoints that were never really missing.
+    const restored = new SessionCorrelationRuntime({ clock, ids: new SequenceIds("restored") });
+    restored.restore(snapshot);
+    expect(restored.audit().valid).toBe(true);
+  });
+
+  test("a correlation window keeps every open node", () => {
+    // Open nodes anchor live correlations a trace still walks, so they are
+    // never trimmed regardless of how much closed history accumulates.
+    const { runtime, clock } = correlationRuntime("open-kept");
+    const open = openCorrelation(runtime, "still-running");
+    for (let index = 0; index < 3_000; index += 1) {
+      const node = openCorrelation(runtime, `done-${index}`);
+      runtime.close({ nodeId: node.nodeId, status: "completed", sequenceEnd: index, result: { index } });
+      clock.advance(1_000);
+    }
+
+    const ids = runtime.snapshot().nodes.map((node) => node.nodeId);
+    expect(ids).toContain(open.nodeId);
+  });
 });
