@@ -49,6 +49,7 @@ export class EventCursorLedger {
   #snapshot: CursorSnapshot
   #state: GenerationState
   #disabled = false
+  #discarded: { reason: string; generation: number; atMs: number } | undefined
 
   constructor(
     taskId: string,
@@ -569,6 +570,33 @@ export class EventCursorLedger {
     }
   }
 
+  /**
+   * Drops a cursor the canonical owner has rejected.
+   *
+   * A rejected cursor is never accepted again, so keeping it would replay the
+   * same doomed request on every reconnect.  The ledger forgets the opaque
+   * cursor together with the sequence state it carried; the next generation
+   * re-seeds from a fresh snapshot instead of resuming a dead cursor.  The
+   * generation counter itself stays monotonic so downstream owners can still
+   * order deliveries.
+   */
+  discardCursor(reason: string): CursorSnapshot {
+    this.#assertEnabled("discardCursor")
+    const now = this.#now()
+    const generation = this.#snapshot.generation
+    this.#state = this.#newGeneration(generation, now)
+    this.#snapshot = {
+      ...emptyCursorSnapshot(this.#taskId, now),
+      generation,
+    }
+    this.#discarded = Object.freeze({
+      reason: String(reason || "cursor_rejected"),
+      generation,
+      atMs: now,
+    })
+    return this.snapshot()
+  }
+
   observations(options: {
     source?: string
     committed?: boolean
@@ -655,6 +683,7 @@ export class EventCursorLedger {
       observations: this.observations({ limit: 1024 }) as unknown as JsonValue,
       sourceHighWatermarks: audit.sourceHighWatermarks as unknown as JsonValue,
       findings: [...audit.findings],
+      discarded: (this.#discarded ?? null) as unknown as JsonValue,
       disabled: this.#disabled,
     }
   }

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { errorFromResponse } from "../../../packages/core/typed-api-client/src/index.ts"
 import {
   BoundedEventIdentityWindow,
   DeliveryDisposition,
@@ -14,6 +15,8 @@ import {
   SseFrameDecoder,
   SubscribeBeforeSnapshotBarrier,
   TransportKind,
+  classifyIngressError,
+  isIngressCursorRejection,
   normalizeCapabilities,
   normalizeAnyFrame,
   normalizeEventFrame,
@@ -681,6 +684,248 @@ describe("subscribe-before-snapshot and gap recovery", () => {
       expect(coordinator.audit().ok).toBe(true)
     } finally {
       coordinator.close("multi-frame snapshot test complete")
+    }
+  })
+})
+
+describe("terminal cursor rejection", () => {
+  function capabilitiesRaw(generation: number) {
+    return {
+      schema: "zyra.event-ingress-capabilities/v1",
+      protocol: "zyra.event-ingress/v1",
+      taskId: TASK,
+      canonicalOwner: "typescript.RuntimeEventSpine",
+      ingressOwner: "browser.EventIngressCoordinator",
+      canonicalWriteAllowed: false,
+      snapshotRequired: true,
+      subscribeBeforeSnapshot: true,
+      subscriptionCursor: `cursor.subscribe.${generation}`,
+      subscriptionSequence: 0,
+      subscriptionBoundary: 2,
+      generation,
+      transports: [
+        {
+          kind: "long_poll",
+          available: true,
+          priority: 10,
+          path: `/tasks/${TASK}/event-ingress/delta`,
+          cursorMode: "query",
+          customHeaders: true,
+        },
+      ],
+      endpoints: {
+        capabilities: `/tasks/${TASK}/event-ingress/capabilities`,
+        snapshot: `/tasks/${TASK}/event-ingress/snapshot`,
+        delta: `/tasks/${TASK}/event-ingress/delta`,
+        sse: `/tasks/${TASK}/event-ingress/sse`,
+        websocket: `/tasks/${TASK}/event-ingress/websocket`,
+      },
+      limits: {
+        defaultPage: 100,
+        maxPage: 1000,
+        defaultWaitMs: 10,
+        maxWaitMs: 25_000,
+        defaultStreamMs: 15_000,
+        maxStreamMs: 60_000,
+        cursorTtlMs: 1_800_000,
+      },
+      schemas: {
+        cursor: "zyra.event-ingress-cursor/v1",
+        frame: "zyra.event-ingress-frame/v1",
+        snapshot: "zyra.event-ingress-snapshot/v1",
+        delta: "zyra.event-ingress-delta/v1",
+        event: "zyra.runtime-event/v1",
+      },
+      filter: { digest: "filter" },
+    }
+  }
+
+  // The browser sees the canonical owner's 410 as a typed HTTP error carrying
+  // the server's cursor code; it is not an EventIngressError.
+  function expiredCursorError() {
+    return {
+      name: "HttpResponseError",
+      code: "cursor_expired",
+      status: 410,
+      retryable: false,
+      resyncRequired: true,
+      message: "Event cursor has expired.",
+    }
+  }
+
+  test("classifies the canonical owner's 410 as a terminal cursor rejection", async () => {
+    // The exact envelope `apps/api/zyra_api/event_stream_ingress.py` returns for
+    // an expired cursor, mapped by the real typed API client.
+    const httpError = await errorFromResponse(
+      new Response(
+        JSON.stringify({
+          schema: "zyra.event-ingress/v1",
+          ok: false,
+          error: "cursor_expired",
+          message: "Event cursor has expired.",
+          retryable: false,
+          resyncRequired: true,
+          canonicalWriteAllowed: false,
+        }),
+        { status: 410, headers: { "content-type": "application/json" } },
+      ),
+      { operation: "task.event-ingress.capabilities" },
+    )
+    expect(httpError.code).toBe("cursor_expired")
+    const classified = classifyIngressError(httpError)
+    expect(classified.resyncRequired).toBe(true)
+    expect(classified.retryable).toBe(false)
+    expect(isIngressCursorRejection(httpError)).toBe(true)
+    // A gap/overflow resync must keep the cursor: only cursor rejections reset.
+    expect(
+      isIngressCursorRejection(
+        new EventIngressError(IngressErrorCode.BUFFER_OVERFLOW, "overflow", {
+          retryable: true,
+          resyncRequired: true,
+        }),
+      ),
+    ).toBe(false)
+  })
+
+  function snapshotOf(generation: number) {
+    return snapshotRaw([frameRaw(1, 0, { generation }), frameRaw(2, 1, { generation })], {
+      next: 2,
+      boundary: 2,
+      complete: true,
+      cursor: "cursor.2",
+      generation,
+    })
+  }
+
+  function emptyDelta(generation: number, cursor: string) {
+    return {
+      schema: "zyra.event-ingress-delta/v1",
+      protocol: "zyra.event-ingress/v1",
+      taskId: TASK,
+      generation,
+      fromSequence: 0,
+      nextSequence: 0,
+      highWatermark: 2,
+      cursor,
+      cursorKind: "delta",
+      caughtUp: true,
+      hasMore: false,
+      frames: [],
+      waitedMs: 0,
+      observedAtMs: 2_000,
+      canonicalOwner: "typescript.RuntimeEventSpine",
+      canonicalWriteAllowed: false,
+    }
+  }
+
+  test("discards an expired cursor and resyncs from a fresh snapshot once", async () => {
+    const offeredCursors: (string | undefined)[] = []
+    const source: EventIngressDataSource = {
+      async capabilities(_taskId, _filter, _signal, generation = 1, cursor) {
+        offeredCursors.push(cursor)
+        if (cursor) throw expiredCursorError()
+        return capabilitiesRaw(generation)
+      },
+      async snapshot(_taskId, options) {
+        return snapshotOf(options.generation)
+      },
+      async delta(_taskId, options) {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        return emptyDelta(options.generation, options.cursor)
+      },
+      async openSse() {
+        throw new Error("SSE is not selected by this test")
+      },
+      async openWebSocket() {
+        throw new Error("WebSocket is not selected by this test")
+      },
+    }
+    const coordinator = new EventIngressCoordinator(TASK, source, {
+      // The cursor the browser restored from its last session has expired.
+      cursor: "cursor.expired",
+      transportPreference: [TransportKind.LONG_POLL],
+      longPollMs: 5,
+      reconnect: { attempts: 0, resyncAttempts: 3 },
+    })
+    const delivered = new Promise<readonly number[]>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("cursor reset never delivered a snapshot")),
+        1_000,
+      )
+      coordinator.subscribe({
+        batch(batch) {
+          if (!batch.snapshot || !batch.events.length) return
+          clearTimeout(timeout)
+          resolve(batch.events.map((event) => event.globalSequence))
+        },
+      })
+    })
+    void coordinator.start()
+    try {
+      expect(await delivered).toEqual([1, 2])
+      // The dead cursor was offered exactly once and never replayed.
+      expect(offeredCursors).toEqual(["cursor.expired", undefined])
+      const snapshot = coordinator.snapshot()
+      expect(snapshot.resyncAttempt).toBe(1)
+      // The dead cursor was replaced by the fresh snapshot's promoted cursor.
+      expect(snapshot.cursor.cursor).toBe("cursor.2")
+      expect(snapshot.cursor.committedSequence).toBe(2)
+      expect(coordinator.audit().ok).toBe(true)
+    } finally {
+      coordinator.close("expired cursor test complete")
+    }
+  })
+
+  test("bounds resync when every cursor is rejected instead of retrying forever", async () => {
+    let attempts = 0
+    const source: EventIngressDataSource = {
+      async capabilities() {
+        attempts += 1
+        throw expiredCursorError()
+      },
+      async snapshot() {
+        throw new Error("a rejected cursor must never reach the snapshot")
+      },
+      async delta() {
+        throw new Error("a rejected cursor must never reach the delta page")
+      },
+      async openSse() {
+        throw new Error("SSE is not selected by this test")
+      },
+      async openWebSocket() {
+        throw new Error("WebSocket is not selected by this test")
+      },
+    }
+    const coordinator = new EventIngressCoordinator(TASK, source, {
+      cursor: "cursor.expired",
+      transportPreference: [TransportKind.LONG_POLL],
+      longPollMs: 5,
+      reconnect: { attempts: 0, resyncAttempts: 2 },
+    })
+    const failed = new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("cursor rejection never failed the connection")),
+        1_000,
+      )
+      coordinator.subscribe({
+        batch() {},
+        status(snapshot) {
+          if (snapshot.phase !== "failed") return
+          clearTimeout(timeout)
+          resolve()
+        },
+      })
+    })
+    void coordinator.start()
+    try {
+      await failed
+      // One initial generation plus the bounded resync budget, then a failure.
+      expect(attempts).toBe(3)
+      expect(coordinator.snapshot().error?.code).toBe(
+        IngressErrorCode.RESYNC_EXHAUSTED,
+      )
+    } finally {
+      coordinator.close("bounded cursor rejection test complete")
     }
   })
 })

@@ -336,6 +336,20 @@ export function isRetryableIngressError(value: unknown): boolean {
   return classifyIngressError(value).retryable
 }
 
+/**
+ * A cursor rejection is terminal for that cursor, not for the connection.
+ *
+ * Every `cursor_*` rejection means the canonical owner refuses to interpret the
+ * opaque cursor we sent ("cursor_expired", "cursor_scope_mismatch", ...).  The
+ * cursor carries a bounded TTL, so replaying it after the fact can never
+ * converge: the only recovery is to forget it and re-seed the generation from a
+ * fresh snapshot.
+ */
+export function isIngressCursorRejection(value: unknown): boolean {
+  const error = classifyIngressError(value)
+  return error.resyncRequired && error.code.toLowerCase().includes("cursor")
+}
+
 export function needsIngressResync(value: unknown): boolean {
   return classifyIngressError(value).resyncRequired
 }

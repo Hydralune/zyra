@@ -32,6 +32,7 @@ import {
   IngressErrorCode,
   classifyIngressError,
   isCancellation,
+  isIngressCursorRejection,
 } from "./errors.ts"
 import {
   normalizeAnyFrame,
@@ -504,7 +505,24 @@ export class EventIngressCoordinator {
             resyncAttempt: decision.attempt,
             message: classified.message,
           })
-          this.#prepareResync()
+          // A rejected cursor is dead: resuming it would repeat the same
+          // rejection forever.  Drop it so the next generation asks for a
+          // fresh snapshot instead.
+          const rejectedCursor = isIngressCursorRejection(classified)
+          if (rejectedCursor) {
+            const discarded = this.#cursor.cursor
+            this.#cursor.discardCursor(classified.code)
+            this.#diagnostics.record(
+              "cursor",
+              classified.code,
+              "Discarded a rejected event cursor; resuming from a fresh snapshot.",
+              {
+                discardedCursor: discarded ?? null,
+                resyncAttempt: decision.attempt,
+              },
+            )
+          }
+          this.#prepareResync({ discardCursor: rejectedCursor })
         } else {
           this.#diagnostics.attempt("reconnect", decision.attempt)
           this.#diagnostics.transition(ConnectionPhase.BACKING_OFF, {
@@ -1008,13 +1026,22 @@ export class EventIngressCoordinator {
     }
   }
 
-  #prepareResync(): void {
+  /**
+   * Rewinds derived delivery state so the next generation can rebuild it.
+   *
+   * An ordinary resync keeps the committed cursor and the identities that
+   * produced it: the reconnect resumes exactly where delivery stopped.  A
+   * cursor rejection is different — the cursor is already gone, so the ledger
+   * starts cold and no identity from the dead generation may outrank the
+   * rebuilt sequence.
+   */
+  #prepareResync(options: { discardCursor?: boolean } = {}): void {
     this.#buffer.reset("resync")
     this.#assembly.reset("resync")
     this.#barrier.reset("resync")
     this.#gaps.clear()
     this.#identities.reset({
-      preserveCommitted: true,
+      preserveCommitted: options.discardCursor !== true,
       committedSequence: this.#cursor.committedSequence,
     })
   }
