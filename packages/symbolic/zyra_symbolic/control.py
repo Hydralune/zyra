@@ -129,6 +129,22 @@ def apply_requirement_change(
             "created_at": event.created_at,
         }
     )
+    # The replan node's declared work is already done: it has affected_node_ids
+    # and a topology route decision, which is exactly what its
+    # completion_criteria require.  Leaving it pending made a terminal task
+    # carry perpetually-unfinished nodes, which the workbench reported as
+    # "0/N completed nodes".
+    replan_node.status = PlanNodeStatus.COMPLETED
+    replan_node.updated_at = now_iso()
+    replan_node.state_delta["status"] = str(replan_node.status)
+    events.append(
+        _node_update_event(
+            state,
+            replan_node,
+            "completed",
+            "Requirement change replanned and routed.",
+        )
+    )
     return events
 
 
@@ -268,6 +284,21 @@ def apply_failure_injection(
             "recovery_plan_id": recovery_plan_id,
             "created_at": event.created_at,
         }
+    )
+    # The recovery route decision, the constraint checks and the recovery plan
+    # were all produced above, which satisfies this node's completion_criteria.
+    # It previously stayed pending forever, so a terminal task carried nodes
+    # that never finished.
+    recovery_node.status = PlanNodeStatus.COMPLETED
+    recovery_node.updated_at = now_iso()
+    recovery_node.state_delta["status"] = str(recovery_node.status)
+    events.append(
+        _node_update_event(
+            state,
+            recovery_node,
+            "completed",
+            "Failure recovery routed and planned.",
+        )
     )
     return events
 

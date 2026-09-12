@@ -128,6 +128,19 @@ class WorkbenchHandler(SimpleHTTPRequestHandler):
             self._proxy()
             return
         request_path = self.path.split("?", 1)[0]
+        # A real file always wins over the single-page-app fallback.  The built
+        # index.html references its assets relatively ("./index-<hash>.js"), so
+        # on a deep route such as /tasks/<id> the browser requests
+        # /tasks/index-<hash>.js.  Serving the SPA shell for that (as the
+        # route-prefix check below used to) hands back HTML where a script is
+        # expected, and the page renders blank on every refresh or deep link.
+        candidate = (DIST_ROOT / request_path.lstrip("/")).resolve()
+        if (
+            request_path != "/"
+            and DIST_ROOT.resolve() in candidate.parents
+            and candidate.is_file()
+        ):
+            return super().do_GET()
         if getattr(self.server, "api_origin", None) and (
             request_path in {"/", "/index.html", "/settings"}
             or request_path.startswith("/tasks")
@@ -141,13 +154,6 @@ class WorkbenchHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
-        candidate = (DIST_ROOT / request_path.lstrip("/")).resolve()
-        if (
-            request_path != "/"
-            and DIST_ROOT.resolve() in candidate.parents
-            and candidate.is_file()
-        ):
-            return super().do_GET()
         if request_path.startswith("/tasks") or request_path == "/settings":
             self.path = "/index.html"
         return super().do_GET()

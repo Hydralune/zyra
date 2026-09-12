@@ -847,6 +847,29 @@ def _commit_canonical_task_outcome(
     return outcome
 
 
+def commit_canonical_task_outcome(
+    state: TaskState,
+    *,
+    verifier: Mapping[str, Any] | None = None,
+    gate: Mapping[str, Any] | None = None,
+    diagnostics: Sequence[Mapping[str, Any]] = (),
+) -> Mapping[str, Any]:
+    """Commit the immutable task outcome from outside the task-graph loop.
+
+    Execution paths that drive the graph themselves -- notably the sealed live
+    scenarios -- used to set ``state.status`` directly and never wrote the
+    outcome, so the workbench had no receipt to read and fell back to guessing
+    the finish time from the newest node timestamp.
+    """
+
+    return _commit_canonical_task_outcome(
+        state,
+        verifier=dict(verifier or {}),
+        gate=dict(gate or {}),
+        diagnostics=diagnostics,
+    )
+
+
 def _prepare_adaptive_depth_continuation(state: TaskState) -> None:
     count = int(state.metadata.get("phase2_adaptive_depth_pass") or 0) + 1
     if count > 64:

@@ -663,6 +663,42 @@ class CanonicalLiveScenarioOwners:
             "human_intervention_count": 0,
             "settled_at": now_iso(),
         }
+        # The task graph's own loop closes the root node, but the live path
+        # drives the graph directly and never calls run_task_graph, so the root
+        # stayed pending forever and a terminal task reported one unfinished
+        # node.  Its stated job is accepting the initial user goal, which has
+        # plainly happened by settlement.
+        root = state.plan_nodes.get(state.root_node_id)
+        if root is not None and root.status is PlanNodeStatus.PENDING:
+            root.status = PlanNodeStatus.COMPLETED
+            root.updated_at = now_iso()
+            root.metadata["result_summary"] = "Accepted the initial user goal."
+            root.state_delta["status"] = str(root.status)
+        # The live path drives the graph itself, so it must also commit the
+        # canonical outcome.  Without it the workbench has no receipt to read
+        # and falls back to the newest node timestamp, which is well before the
+        # task actually settles (a real run reported 23s for a 43s task).
+        from zyra_orchestration import commit_canonical_task_outcome
+
+        commit_canonical_task_outcome(
+            state,
+            verifier={},
+            gate={
+                "schema": "zyra.live-task-completion-gate/v1",
+                "decision": "accept" if success else "reject",
+                "hard_conditions_passed": bool(success),
+                "failed_conditions": [] if success else ["live_settlement_failed"],
+            },
+            diagnostics=(
+                {
+                    "schema": "zyra.task-outcome-diagnostic/v1",
+                    "stage": "live_settlement",
+                    "error_type": "" if success else "live_scenario_failed",
+                    "message": summary,
+                    "recoverable": False,
+                },
+            ),
+        )
         if self._route_history:
             api_main.get_worker_pool_api().finalize_task(
                 state,

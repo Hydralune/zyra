@@ -246,7 +246,7 @@ const DEFAULT_CAPABILITIES: ArtifactViewerCapabilities = Object.freeze({
 })
 
 const markdownMaximumBytes = 2 * 1024 * 1024
-const jsonStructuralMaximumBytes = 4 * 1024 * 1024
+export const jsonStructuralMaximumBytes = 4 * 1024 * 1024
 const maximumJsonDepth = 128
 const maximumJsonNodes = 100_000
 
@@ -731,7 +731,9 @@ export function buildJsonViewerModel(input: {
       value:
         bytes > jsonStructuralMaximumBytes
           ? "JSON exceeds the structural parse bound; use virtual raw text."
-          : "JSON range is incomplete; load remaining bytes before structural parsing.",
+          : `JSON is only partially loaded (${bytes.toLocaleString()} of `
+            + `${input.artifact.sizeBytes.toLocaleString()} bytes); load the `
+            + "remaining bytes before structural parsing.",
       childCount: 0,
       expandable: false,
       expanded: false,

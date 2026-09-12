@@ -44,6 +44,7 @@ import {
   buildMetadataViewerModel,
   buildTextViewerModel,
   chooseArtifactViewer,
+  jsonStructuralMaximumBytes,
   type ArtifactBinaryViewerModel,
   type ArtifactJsonViewerModel,
   type ArtifactMarkdownViewerModel,
@@ -485,6 +486,28 @@ export class ArtifactWorkbenchRuntime {
           },
         )
         for (const result of mediaResults) {
+          if (!result.fromCache) this.#audit.range(result.response)
+        }
+      }
+      // The structural JSON viewer cannot parse a partial buffer, and the
+      // first range is 256KB, so every JSON artifact larger than that landed
+      // on the "load the remaining bytes" placeholder and needed a manual
+      // click per chunk.  Read the rest up front while it is within the
+      // structural parse bound, which is what makes the tree view reachable.
+      if (
+        viewer.kind === "json"
+        && artifact.sizeBytes > requested
+        && artifact.sizeBytes <= jsonStructuralMaximumBytes
+      ) {
+        const jsonResults = await session.ensure(
+          { start: requested, end: artifact.sizeBytes },
+          {
+            purpose: "preview",
+            priority: 90,
+            signal: controller.signal,
+          },
+        )
+        for (const result of jsonResults) {
           if (!result.fromCache) this.#audit.range(result.response)
         }
       }
