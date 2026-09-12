@@ -51,6 +51,25 @@ export interface StreamEntry {
 }
 
 /**
+ * One narration block: what the model said in a single provider round, with the
+ * work that round then performed.
+ *
+ * A round is the natural unit of an agent transcript -- the model says what it
+ * is about to do, then does it -- so the stream is grouped this way rather than
+ * flattened into one list.  Narration text comes from the durable presentation
+ * frames that the round's own `assistant_message_id` identifies.
+ */
+export interface StreamRound {
+  key: string
+  /** Model narration for this round, when it said anything. */
+  text?: string
+  /** What the round did. */
+  entries: readonly StreamEntry[]
+  /** Position of the round's first event, for stable ordering. */
+  sequence: number
+}
+
+/**
  * The spine normalizes legacy events into itself and stamps a fixed sentence on
  * each one.  Rendering that sentence would fill the stream with rows that say
  * nothing, so bookkeeping rows are dropped rather than shown.
@@ -206,12 +225,38 @@ export function projectExecutionStream(
         eventCount: 1,
       })
     } else if (type === "text.ended") {
-      // The durable spine clears stream content, so a replay carries no text.
-      // Without live text this row is only "an answer was produced", which adds
-      // nothing to a stream already showing how it was produced -- the final
-      // answer is rendered from the task's own summary.  Emitted only when the
-      // caller has live text to attach, which the merge step decides.
-      continue
+      // The end of a narration block.  Its text arrives on the event's inline
+      // presentation payload; without it this row would say only "an answer was
+      // produced", which is why multi-round runs used to look empty.  Emitted
+      // once per round so the stream reads as think -> act -> think -> act.
+      const text = event.presentationText?.trim()
+      if (!text) continue
+      entries.push({
+        key: `narration:${event.eventId}`,
+        kind: "message",
+        status: "completed",
+        title: text,
+        at: event.createdAt,
+        sequence: event.sequence,
+        nodeId: event.nodeId,
+        artifactIds: event.artifactIds,
+        eventCount: 1,
+      })
+    } else if (type === "reasoning.ended") {
+      // Deliberation for the round, kept alongside the narration it produced.
+      const text = event.presentationText?.trim()
+      if (!text) continue
+      entries.push({
+        key: `thinking:${event.eventId}`,
+        kind: "thinking",
+        status: "completed",
+        title: text,
+        at: event.createdAt,
+        sequence: event.sequence,
+        nodeId: event.nodeId,
+        artifactIds: event.artifactIds,
+        eventCount: 1,
+      })
     } else if (type === "agent.message" && !isBookkeeping(event.summary)
       && !isNoiseNotice(event.summary)) {
       // A coordination note is narration, not a categorised object: showing it

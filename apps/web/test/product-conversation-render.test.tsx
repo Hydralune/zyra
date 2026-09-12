@@ -385,6 +385,48 @@ describe("product conversation rendering", () => {
       .toBeLessThan(markup.indexOf("正在检查注册路径"))
   })
 
+  test("renders each round's narration as a text row, not an empty step", () => {
+    // The durable spine stores a machine sentence as the summary
+    // ("assistant_text_ended for task_x"); the text the agent actually wrote
+    // rides the event's inline presentation payload.  Without consuming it the
+    // stream shows tool calls and an answer and nothing the agent said, which
+    // is exactly why multi-round runs looked empty.
+    const markup = renderToStaticMarkup(
+      <ProductTaskDetail
+        runtime={fakeRuntime({
+          events: [
+            {
+              eventId: "e1", eventType: "runtime.text.ended", taskId: "task_render_001",
+              runId: "run_render_001", artifactIds: [], correlationId: "c1",
+              mutationId: "m", sequence: 10, aggregateSequence: 1,
+              createdAt: "2026-08-04T00:05:00.000Z", committedAt: "2026-08-04T00:05:00.000Z",
+              summary: "assistant_text_ended for task_render_001",
+              presentationText: "I'll start by inspecting the repository.",
+              terminal: false, effective: true, entityRefs: [],
+            },
+            {
+              eventId: "e2", eventType: "runtime.reasoning.ended", taskId: "task_render_001",
+              runId: "run_render_001", artifactIds: [], correlationId: "c1",
+              mutationId: "m", sequence: 11, aggregateSequence: 2,
+              createdAt: "2026-08-04T00:05:01.000Z", committedAt: "2026-08-04T00:05:01.000Z",
+              summary: "reasoning_ended for task_render_001",
+              presentationText: "The empty name is never validated.",
+              terminal: false, effective: true, entityRefs: [],
+            },
+          ],
+        })}
+        state={detailState()}
+        tasks={[task()]}
+      />,
+    )
+    expect(markup).toContain("I&#x27;ll start by inspecting the repository.")
+    expect(markup).toContain('data-kind="message"')
+    expect(markup).toContain('data-kind="thinking"')
+    expect(markup).toContain("The empty name is never validated.")
+    // The machine summary must never be what a reader sees.
+    expect(markup).not.toContain("assistant_text_ended for")
+  })
+
   test("renders empty, missing, and failed states without a task projection", () => {
     expect(renderToStaticMarkup(
       <ProductTaskDetail runtime={fakeRuntime()} state={{ phase: "idle", generation: 0 }} />,

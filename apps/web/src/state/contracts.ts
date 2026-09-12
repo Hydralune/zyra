@@ -339,6 +339,15 @@ export interface CausalEventProjection {
   createdAt: string
   committedAt: string
   summary: string
+  /**
+   * The user-facing presentation text this event carries, when it has one.
+   *
+   * A stream event's durable `inline` holds the redacted, bounded narration or
+   * deliberation the agent produced; `summary` alone is a machine sentence
+   * ("assistant_text_ended for task_x") that tells a reader nothing.  This is
+   * the only path by which that text reaches the stream projection.
+   */
+  presentationText?: string
   terminal: boolean
   effective: boolean
   entityRefs: readonly string[]

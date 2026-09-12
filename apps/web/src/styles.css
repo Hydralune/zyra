@@ -7775,6 +7775,22 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
+/* A narration row is the agent speaking, not a labelled object: it reads as a
+   paragraph at body size so think -> act -> think -> act scans like a
+   transcript. */
+.stream-entry[data-kind="message"] .stream-entry-title,
+.stream-entry[data-kind="thinking"] .stream-entry-title {
+  display: block;
+  font-size: 13px;
+  line-height: 1.62;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.stream-entry[data-kind="thinking"] .stream-entry-title {
+  color: var(--muted, #5f5f5f);
+}
+
 /* Supporting detail is a quieter continuation of the row above, not a second
    block of content. */
 .stream-entry-detail {
