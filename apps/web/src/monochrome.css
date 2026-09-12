@@ -16,6 +16,11 @@
   --accent-strong: #1d4ed8;
   --accent-bg: #eff6ff;
   --accent-border: #bfdbfe;
+  /* Reasoning gets its own hue so a thinking row is distinguishable from both
+     an action (accent blue) and a produced artifact (success green). */
+  --thinking: #6d28d9;
+  --thinking-bg: #f5f3ff;
+  --thinking-border: #ddd6fe;
   --success: #15803d;
   --success-bg: #f0fdf4;
   --success-border: #bbdfc7;
@@ -299,8 +304,28 @@ body { background: #fafafa; color: #202020; }
 .product-shell :is([data-phase="idle"], [data-phase="cancelled"], [data-phase="archived"], [data-status="pending"], [data-status="cancelled"], [data-status="canceled"], [data-tone="neutral"], .tag-muted, .status-cancelled) {
   --state-ink: #666; --state-bg: #f5f5f5; --state-border: #ddd;
 }
+/* Execution-stream row kinds.  Each row consumes the same tri-state variables
+   as every other status affordance, so a new kind is one entry here rather than
+   a bespoke colour per element. */
+.product-shell .execution-stream :is([data-kind="thinking"], [data-kind="thinking"] *) {
+  --state-ink: var(--thinking); --state-bg: var(--thinking-bg); --state-border: var(--thinking-border);
+}
+.product-shell .execution-stream [data-kind="tool"] { --state-ink: var(--accent-strong); --state-bg: var(--accent-bg); --state-border: var(--accent-border); }
+/* A tool that failed must not keep the "in progress" blue; the row's whole
+   point is that this is the step that went wrong. */
+.product-shell .execution-stream [data-kind="tool"][data-status="failed"] { --state-ink: var(--danger); --state-bg: var(--danger-bg); --state-border: var(--danger-border); }
+.product-shell .execution-stream [data-kind="tool"][data-status="cancelled"] { --state-ink: #666; --state-bg: #f5f5f5; --state-border: #ddd; }
+.product-shell .execution-stream [data-kind="artifact"] { --state-ink: var(--success); --state-bg: var(--success-bg); --state-border: var(--success-border); }
+.product-shell .execution-stream [data-kind="recovery"] { --state-ink: var(--warning); --state-bg: var(--warning-bg); --state-border: var(--warning-border); }
+.product-shell .execution-stream [data-kind="recovery"][data-status="failed"] { --state-ink: var(--danger); --state-bg: var(--danger-bg); --state-border: var(--danger-border); }
+/* The goal is the request being worked on, not an action taken, so it must not
+   share the accent blue that marks "a tool is running". */
+.product-shell .execution-stream [data-kind="goal"] { --state-ink: #202020; --state-bg: #f1f1f1; --state-border: #d4d4d4; }
+.product-shell .execution-stream [data-kind="message"] { --state-ink: #444; --state-bg: #f7f7f7; --state-border: #e3e3e3; }
+.product-shell .execution-stream [data-kind="notice"] { --state-ink: #666; --state-bg: #f5f5f5; --state-border: #ddd; }
 .product-shell :is(.tag[data-phase], .tag-success, .tag-info, .tag-warning, .tag-danger, .runtime-pill, .runtime-summary, .product-step-state, .product-step-icon, .product-disclosure-icon, .notification),
 .product-shell .connection-banner[data-tone],
+.product-shell .execution-stream .stream-entry-glyph,
 .product-shell .product-plan-list li[data-status] :is(.product-step-state, .product-step-icon) {
   color: var(--state-ink, #555); background: var(--state-bg, #fff); border-color: var(--state-border, #ddd);
 }

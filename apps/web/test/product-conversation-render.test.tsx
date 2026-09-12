@@ -65,11 +65,23 @@ function fakeRuntime(options: {
   queued?: readonly Record<string, unknown>[]
   live?: boolean
   assistant?: Record<string, unknown>
+  /** Canonical spine events the execution stream projects over. */
+  events?: readonly Record<string, unknown>[]
 } = {}): WorkbenchRuntime {
+  const events = options.events ?? []
   return {
     api: {
       lifecycle: { inFlight: () => [] },
       tasks: { artifactContent: async () => ({}) },
+    },
+    // The execution stream reads the canonical event spine through a projection
+    // selector; the stub returns the supplied events for any selector, which is
+    // all a static render needs.
+    projections: {
+      externalSelector: () => ({
+        subscribe: () => () => {},
+        getSnapshot: () => events,
+      }),
     },
     workbench: store({ transportEnabled: true }),
     commands: store({
@@ -113,7 +125,18 @@ function detailState(overrides: Partial<TaskDetailState> = {}): TaskDetailState 
 }
 
 describe("product conversation rendering", () => {
-  test("opens a dedicated artifact view with previews and a way back to the conversation", () => {
+  test("renders the selected turn as an execution stream, not a chat bubble", () => {
+    const markup = renderToStaticMarkup(
+      <ProductTaskDetail runtime={fakeRuntime()} state={detailState()} tasks={[task()]} />,
+    )
+    expect(markup).toContain("执行流")
+    // The goal opens the stream.
+    expect(markup).toContain('class="stream-entry" data-kind="goal"')
+    expect(markup).toContain("审查当前前端交互")
+    expect(markup).toContain("实时更新中")
+  })
+
+  test("returns an artifact view to the execution stream, not to the conversation", () => {
     const current = task()
     const markup = renderToStaticMarkup(<ProductTaskDetail
       runtime={fakeRuntime()}
@@ -125,27 +148,76 @@ describe("product conversation rendering", () => {
     expect(markup).toContain("返回对话")
     expect(markup).toContain("out/artifact_one.ts")
     expect(markup).toContain('class="product-disclosure product-deliverables" open=""')
-    expect(markup).not.toContain('aria-label="会话消息"')
+    // The artifact view replaces the stream rather than rendering alongside it.
+    expect(markup).not.toContain('aria-label="执行流"')
   })
 
-  test("renders a live turn with collapsed steps and selectable deliverables", () => {
+  test("projects spine events into ordered, typed stream rows", () => {
     const markup = renderToStaticMarkup(
-      <ProductTaskDetail runtime={fakeRuntime()} state={detailState()} tasks={[task()]} />,
+      <ProductTaskDetail
+        runtime={fakeRuntime({
+          events: [
+            {
+              eventId: "e1", eventType: "runtime.tool.called", taskId: "task_render_001",
+              runId: "run_render_001", toolCallId: "call_1", nodeId: "node_x",
+              artifactIds: [], correlationId: "c1", mutationId: "m", sequence: 10,
+              aggregateSequence: 1, createdAt: "2026-08-04T00:05:00.000Z",
+              committedAt: "2026-08-04T00:05:00.000Z", summary: "file_edit: called",
+              terminal: false, effective: true, entityRefs: [],
+            },
+            {
+              eventId: "e2", eventType: "runtime.tool.succeeded", taskId: "task_render_001",
+              runId: "run_render_001", toolCallId: "call_1", nodeId: "node_x",
+              artifactIds: [], correlationId: "c1", mutationId: "m", sequence: 11,
+              aggregateSequence: 2, createdAt: "2026-08-04T00:05:12.000Z",
+              committedAt: "2026-08-04T00:05:12.000Z",
+              summary: "file_edit: Committed src/flask/blueprints.py through SandboxGateway",
+              terminal: false, effective: true, entityRefs: [],
+            },
+          ],
+        })}
+        state={detailState()}
+        tasks={[task()]}
+      />,
     )
-    expect(markup).toContain("审查当前前端交互")
-    expect(markup).toContain("实时更新中")
-    // Steps and deliverables are present but secondary.
-    expect(markup).toContain("执行过程")
-    expect(markup).toContain("交付物")
-    expect(markup).toContain('role="tablist"')
-    expect(markup).toContain('aria-selected="true"')
-    // Progress is exposed as a real progressbar, not a bare coloured div.
-    expect(markup).toContain('role="progressbar"')
-    expect(markup).toContain('aria-valuenow="33"')
-    // Step state has a text equivalent alongside the icon.
-    expect(markup).toContain("已完成")
-    expect(markup).toContain("进行中")
-    expect(markup).toContain("read_files")
+    // One row per thing that happened: the call and its result collapse.
+    expect(markup).toContain('data-kind="tool"')
+    expect(markup).toContain('data-status="completed"')
+    expect(markup).toContain("file_edit")
+    expect(markup).toContain("Committed src/flask/blueprints.py")
+    // The settling event's timestamp yields a real duration.
+    expect(markup).toContain("12s")
+    expect(markup).toContain("2 条记录")
+  })
+
+  test("drops bookkeeping rows that would only add noise", () => {
+    const markup = renderToStaticMarkup(
+      <ProductTaskDetail
+        runtime={fakeRuntime({
+          events: [
+            {
+              eventId: "e1", eventType: "runtime.node.created", taskId: "task_render_001",
+              runId: "run_render_001", nodeId: "node_x", artifactIds: [],
+              correlationId: "c1", mutationId: "m", sequence: 1, aggregateSequence: 1,
+              createdAt: "2026-08-04T00:00:00.000Z", committedAt: "2026-08-04T00:00:00.000Z",
+              summary: "Legacy node_created event normalized into the runtime event spine.",
+              terminal: false, effective: true, entityRefs: [],
+            },
+            {
+              eventId: "e2", eventType: "runtime.agent.message", taskId: "task_render_001",
+              runId: "run_render_001", artifactIds: [], correlationId: "c1",
+              mutationId: "m", sequence: 2, aggregateSequence: 2,
+              createdAt: "2026-08-04T00:00:01.000Z", committedAt: "2026-08-04T00:00:01.000Z",
+              summary: "running", terminal: false, effective: true, entityRefs: [],
+            },
+          ],
+        })}
+        state={detailState()}
+        tasks={[task()]}
+      />,
+    )
+    expect(markup).not.toContain("Legacy node_created")
+    expect(markup).toContain("等待执行输出")
   })
 
   test("keeps the transcript visible while a refresh is in flight or stale", () => {
@@ -198,11 +270,11 @@ describe("product conversation rendering", () => {
     expect(markup).toContain("product-turn-pending")
   })
 
-  test("renders live product presentation as safe Markdown without exposing raw HTML", () => {
+  test("renders live text in the stream while it is still arriving", () => {
     const assistant = {
       messageId: "answer_render_001",
       streamId: "stream_render_001",
-      text: "## 实时结果\n\n- **第一项**\n- [文档](https://example.com)\n\n<script>secret</script>",
+      text: "正在检查 blueprints.py 的注册路径",
       generation: 1,
       firstLiveSequence: 1,
       lastLiveSequence: 4,
@@ -219,12 +291,9 @@ describe("product conversation rendering", () => {
         tasks={[task()]}
       />,
     )
-    expect(markup).toContain("实时结果")
-    expect(markup).toContain("<strong>第一项</strong>")
-    expect(markup).toContain('href="https://example.com/"')
-    expect(markup).not.toContain("<script>")
-    expect(markup).toContain("Raw HTML was refused")
-    expect(markup).toContain("实时生成中")
+    expect(markup).toContain("正在检查 blueprints.py 的注册路径")
+    expect(markup).toContain("正在生成…")
+    expect(markup).toContain("stream-entry-live")
   })
 
   test("renders empty, missing, and failed states without a task projection", () => {
@@ -267,7 +336,7 @@ describe("product conversation rendering", () => {
     )).toContain("正在载入会话")
   })
 
-  test("only auto-expands the run detail of the newest turn", () => {
+  test("keeps earlier turns reachable below the live stream", () => {
     const first = task({
       taskId: "task_render_000",
       status: "completed",
@@ -284,9 +353,9 @@ describe("product conversation rendering", () => {
         tasks={[first, task()]}
       />,
     )
+    // The stream owns the selected turn; the earlier turn stays reachable so a
+    // follow-up task does not hide the work that produced its input.
+    expect(markup).toContain('class="execution-stream"')
     expect(markup).toContain("第一轮已经回答完毕。")
-    // The finished turn stays collapsed; only the running one opens itself.
-    expect([...markup.matchAll(/<details class="product-disclosure product-run-summary" open=""/g)])
-      .toHaveLength(1)
   })
 })

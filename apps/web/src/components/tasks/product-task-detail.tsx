@@ -15,12 +15,16 @@ import { FocusTrap } from "../../shell/focus-trap.ts"
 import {
   useCommandSnapshot,
   useLiveSyncSnapshot,
+  useProjectionSelector,
   useQueueSnapshot,
 } from "../../app/hooks.ts"
 import { EmptyState, ErrorState, LoadingState } from "../status/request-state.tsx"
 import { SafeMarkdown } from "../content/safe-markdown.tsx"
 import { CopyButton } from "../content/copy-button.tsx"
 import { productArtifacts } from "../../features/artifacts/product-artifacts.ts"
+import { selectEventsForTask } from "../../state/selectors.ts"
+import { projectExecutionStream } from "../../features/stream/projection.ts"
+import { ExecutionStream } from "../../features/stream/view/execution-stream.tsx"
 
 const COMPLETED_NODE_STATES = new Set(["completed", "succeeded", "verified"])
 const RUNNING_NODE_STATES = new Set(["running", "active", "dispatched"])
@@ -820,6 +824,18 @@ function ProductDetailContent({
     () => productConversationTasks(task, tasks),
     [task, tasks],
   )
+  // The execution stream reads the canonical event spine for whichever task is
+  // on screen.  It is a projection of durable facts, not a second source of
+  // truth: text that the spine only digests arrives separately as live text.
+  const eventSelector = useMemo(
+    () => selectEventsForTask(task.taskId, { limit: 2000 }),
+    [task.taskId],
+  )
+  const spineEvents = useProjectionSelector(runtime, eventSelector)
+  const streamEntries = useMemo(
+    () => projectExecutionStream(spineEvents),
+    [spineEvents],
+  )
   const pending = useMemo(
     () => pendingConversationTurns({
       taskId: task.taskId,
@@ -991,16 +1007,36 @@ function ProductDetailContent({
               ))}
               <button className="product-button" type="button" onClick={() => runtime.router.openEvidence(task.taskId)}>查看运行记录与完整证据</button>
             </section>
-          ) : timeline.map((turn, index) => (
-            <ConversationTurn
-              key={turn.taskId}
-              runtime={runtime}
-              task={turn}
-              latest={index === timeline.length - 1}
-              liveAssistant={turn.taskId === live.taskId ? live.assistant : undefined}
-              onInspect={inspectTurn}
-            />
-          ))}
+          ) : (
+            <>
+              <ExecutionStream
+                entries={streamEntries}
+                goal={task.userGoal}
+                status={task.status}
+                liveText={
+                  live.taskId === task.taskId && live.assistant && !live.assistant.settling
+                    ? live.assistant.text
+                    : undefined
+                }
+              />
+              {/*
+                Earlier turns in the same conversation stay reachable below the
+                live stream; without them a follow-up task would hide the work
+                that produced its input.
+              */}
+              {timeline.length > 1
+                ? timeline.slice(0, -1).map((turn) => (
+                    <ConversationTurn
+                      key={turn.taskId}
+                      runtime={runtime}
+                      task={turn}
+                      latest={false}
+                      onInspect={inspectTurn}
+                    />
+                  ))
+                : null}
+            </>
+          )}
           {!artifactView && pending.map((turn) => <PendingTurn key={turn.id} turn={turn} />)}
         </div>
       </div>

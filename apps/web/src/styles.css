@@ -7678,6 +7678,104 @@ kbd {
   cursor: not-allowed;
 }
 
+/* Execution stream: one row per thing that happened.  Rows are flat and dense,
+   like a terminal transcript, so a long run stays scannable.  Colour comes from
+   the shared --state-* variables (see monochrome.css), keyed by data-kind. */
+.execution-stream {
+  display: grid;
+  gap: 2px;
+  padding: 4px 0 12px;
+}
+
+.stream-entry {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  align-items: start;
+}
+
+.stream-entry:hover {
+  background: var(--panel-soft, #f8f8f8);
+}
+
+.stream-entry-glyph {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--state-border, #ddd);
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.stream-entry[data-status="running"] .stream-entry-glyph {
+  animation: stream-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes stream-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(37 99 235 / 0%); }
+  50% { box-shadow: 0 0 0 4px rgb(37 99 235 / 12%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-entry[data-status="running"] .stream-entry-glyph { animation: none; }
+}
+
+.stream-entry-body {
+  min-width: 0;
+}
+
+.stream-entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.stream-entry-kind {
+  color: var(--state-ink, #555);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.stream-entry-title {
+  color: var(--text, #202020);
+  font-size: 13px;
+  font-weight: 550;
+  word-break: break-word;
+}
+
+.stream-entry-duration,
+.stream-entry-count {
+  color: var(--subtle, #767676);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stream-entry-detail {
+  margin: 3px 0 0;
+  color: var(--muted, #606060);
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.stream-entry-live {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.stream-empty {
+  margin: 12px 0;
+  color: var(--subtle, #767676);
+  font-size: 12.5px;
+}
+
 .product-route-state {
   display: grid;
   height: 100%;
