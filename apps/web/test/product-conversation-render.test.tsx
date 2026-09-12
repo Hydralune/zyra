@@ -133,9 +133,61 @@ describe("product conversation rendering", () => {
     )
     expect(markup).toContain("执行流")
     // The goal opens the stream.
-    expect(markup).toContain('class="stream-entry" data-kind="goal"')
+    expect(markup).toContain('class="stream-entry stream-entry-goal" data-kind="goal"')
     expect(markup).toContain("审查当前前端交互")
     expect(markup).toContain("实时更新中")
+  })
+
+  test("shows the final answer as a result row, not only the work that produced it", () => {
+    // The durable spine keeps digests only, so the answer has to come from the
+    // task projection.  Without this row the stream shows how the work was done
+    // but never what it produced.
+    const answered = task({ metadata: { final_answer: "已完成审查，共发现 2 处问题。" } })
+    const markup = renderToStaticMarkup(
+      <ProductTaskDetail
+        runtime={fakeRuntime()}
+        state={{ taskId: answered.taskId, task: answered, phase: "ready", generation: 1 }}
+        tasks={[answered]}
+      />,
+    )
+    expect(markup).toContain('data-kind="result"')
+    expect(markup).toContain("已完成审查，共发现 2 处问题。")
+    // The result row is the payoff and renders at reading size.
+    expect(markup).toContain("stream-entry-result-text")
+  })
+
+  test("folds internal run evidence out of the stream instead of listing it as artifacts", () => {
+    // Every run commits an evidence bundle (manifest, snapshot, transcript,
+    // trace, memory continuity).  Those are audit material, not deliverables.
+    const evidenced = task({
+      artifacts: [
+        { ...artifact("artifact_manifest"), kind: "structured_data", path: "evidence/manifest.json" },
+        { ...artifact("artifact_trace"), kind: "trace", path: "evidence/trace.json" },
+      ],
+    })
+    const markup = renderToStaticMarkup(
+      <ProductTaskDetail
+        runtime={fakeRuntime({
+          events: [
+            {
+              eventId: "e1", eventType: "runtime.artifact.committed", taskId: "task_render_001",
+              runId: "run_render_001", artifactIds: ["artifact_manifest", "artifact_trace"],
+              correlationId: "c1", mutationId: "m", sequence: 10, aggregateSequence: 1,
+              createdAt: "2026-08-04T00:05:00.000Z", committedAt: "2026-08-04T00:05:00.000Z",
+              summary: "artifact committed", terminal: false, effective: true, entityRefs: [],
+            },
+          ],
+        })}
+        state={detailState()}
+        tasks={[evidenced]}
+      />,
+    )
+    // Folded into one summary row rather than rendered as stream artifacts.
+    // The two committed artifacts collapse into a single stream row first
+    // (same tool call), so the folded count is per row, not per artifact.
+    expect(markup).toContain("运行证据已归档")
+    expect(markup).toContain("1 项")
+    expect(markup).not.toContain('data-kind="artifact"')
   })
 
   test("returns an artifact view to the execution stream, not to the conversation", () => {

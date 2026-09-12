@@ -836,6 +836,19 @@ function ProductDetailContent({
     () => projectExecutionStream(spineEvents),
     [spineEvents],
   )
+  // Every run commits its own evidence bundle (delivery manifest, query
+  // session snapshot, runtime transcript, E01 trace, memory continuity).  Those
+  // are audit material, not deliverables, so they are folded into one summary
+  // row instead of filling the stream with rows a reader cannot act on.
+  const { visibleEntries, evidenceArtifactCount } = useMemo(() => {
+    const deliverableIds = new Set(
+      productArtifacts(task.artifacts).map((item) => item.artifactId),
+    )
+    const visible = streamEntries.filter((entry) =>
+      entry.kind !== "artifact"
+      || entry.artifactIds.some((id) => deliverableIds.has(id)))
+    return { visibleEntries: visible, evidenceArtifactCount: streamEntries.length - visible.length }
+  }, [streamEntries, task.artifacts])
   const pending = useMemo(
     () => pendingConversationTurns({
       taskId: task.taskId,
@@ -1010,9 +1023,11 @@ function ProductDetailContent({
           ) : (
             <>
               <ExecutionStream
-                entries={streamEntries}
+                entries={visibleEntries}
                 goal={task.userGoal}
                 status={task.status}
+                result={resultSummary(task)}
+                evidenceArtifactCount={evidenceArtifactCount}
                 liveThinking={
                   live.taskId === task.taskId && live.reasoning && !live.reasoning.settling
                     ? live.reasoning.text

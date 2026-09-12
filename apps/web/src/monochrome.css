@@ -323,6 +323,12 @@ body { background: #fafafa; color: #202020; }
 .product-shell .execution-stream [data-kind="goal"] { --state-ink: #202020; --state-bg: #f1f1f1; --state-border: #d4d4d4; }
 .product-shell .execution-stream [data-kind="message"] { --state-ink: #444; --state-bg: #f7f7f7; --state-border: #e3e3e3; }
 .product-shell .execution-stream [data-kind="notice"] { --state-ink: #666; --state-bg: #f5f5f5; --state-border: #ddd; }
+/* The answer is the payoff and shares the success tone with the artifacts that
+   carry it, so a finished run reads as one coherent "delivered" block. */
+.product-shell .execution-stream [data-kind="result"] { --state-ink: var(--success); --state-bg: var(--success-bg); --state-border: var(--success-border); }
+/* Reasoning is deliberation, not a delivered thing: it keeps its own violet so
+   it never reads as an action (blue) or an outcome (green). */
+.product-shell .execution-stream [data-kind="thinking"] { --state-ink: var(--thinking); --state-bg: var(--thinking-bg); --state-border: var(--thinking-border); }
 .product-shell :is(.tag[data-phase], .tag-success, .tag-info, .tag-warning, .tag-danger, .runtime-pill, .runtime-summary, .product-step-state, .product-step-icon, .product-disclosure-icon, .notification),
 .product-shell .connection-banner[data-tone],
 .product-shell .execution-stream .stream-entry-glyph,
