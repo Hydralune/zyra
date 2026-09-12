@@ -229,7 +229,11 @@ class ScenarioRunnerService:
     def status(self, scenario_run_id: str) -> dict[str, Any]:
         run = self.store.require(scenario_run_id)
         transitions = self.store.transitions(scenario_run_id)
-        receipts = self.store.receipts(scenario_run_id)
+        # Polling projection: receipt envelopes only.  Some receipt bodies
+        # (evidence manifest, effective steps, metrics) reach tens of megabytes
+        # and would push the status response past the client limit; the full
+        # bodies are served by the evidence endpoint.
+        receipts = self.store.receipts(scenario_run_id, include_body=False)
         with self._lock:
             future = self._futures.get(scenario_run_id)
             worker_active = bool(future and not future.done())
@@ -263,7 +267,7 @@ class ScenarioRunnerService:
         """
 
         run = self.store.require(scenario_run_id)
-        receipts = self.store.receipts(scenario_run_id)
+        receipts = self.store.receipts(scenario_run_id, include_body=True)
         return {
             "schema": "zyra.scenario-evidence-response/v1",
             "scenario_run_id": scenario_run_id,

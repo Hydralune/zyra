@@ -373,7 +373,13 @@ class ScenarioRunStore:
         scenario_run_id: str,
         *,
         kind: str = "",
+        include_body: bool = True,
     ) -> tuple[dict[str, Any], ...]:
+        # ``include_body`` False returns only the receipt envelope.  The
+        # polling status endpoint must use it: some receipts (evidence manifest,
+        # effective steps, metrics) reach tens of megabytes and would push the
+        # status response past the client limit.  Full bodies are read from the
+        # dedicated evidence endpoint.
         query = (
             "SELECT receipt_id, kind, receipt_json, receipt_digest, created_at "
             "FROM scenario_receipts WHERE scenario_run_id = ?"
@@ -389,7 +395,7 @@ class ScenarioRunStore:
             {
                 "receipt_id": row[0],
                 "kind": row[1],
-                "receipt": json.loads(row[2]),
+                "receipt": json.loads(row[2]) if include_body else None,
                 "receipt_digest": row[3],
                 "created_at": row[4],
             }
