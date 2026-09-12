@@ -1601,7 +1601,7 @@ class SealedLongRunRunner:
     def _configure_api_state(root: Path) -> None:
         bindings = {
             "ZYRA_STATE_ROOT": root,
-            "ZYRA_SQLITE_PATH": root / "api.sqlite3",
+            "ZYRA_SQLITE_PATH": root / "zyra.sqlite3",
             "ZYRA_EVENT_LOG": root / "events.jsonl",
             "ZYRA_WORKER_POOL_STORE": root / "worker-pool.sqlite3",
             "ZYRA_GRAPH_STATE_STORE": root / "graph.sqlite3",
