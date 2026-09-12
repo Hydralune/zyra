@@ -292,9 +292,16 @@ class ScenarioRunnerService:
             "schema": "zyra.scenario-run-page/v1",
             "offset": max(0, offset),
             "limit": max(1, min(10_000, limit)),
-            # List projections must stay small: the evidence manifest can exceed
-            # tens of megabytes and would overflow the client response limit.
-            "runs": [item.to_dict(include_evidence=False) for item in runs],
+            # List projections must stay small.  A page carried every run's
+            # evidence manifest (tens of megabytes), policy decisions, full
+            # configuration and preflight receipt; at 34 runs that was 860KB
+            # and ~14 seconds per poll, which left the console stuck showing a
+            # loading state.  The summary projection keeps what the list
+            # renders; the detail view reads a single run.
+            "runs": [
+                item.to_dict(include_evidence=False, projection="summary")
+                for item in runs
+            ],
             "store": self.store.summary(),
         }
 

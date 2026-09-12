@@ -5947,6 +5947,21 @@ _RUNTIME_OWNER_COMPOSITION_LOCK = threading.RLock()
 _RUNTIME_OWNER_COMPOSITION: RuntimeOwnerComposition | None = None
 _RUNTIME_OWNER_COMPOSITION_KEY: tuple[str, ...] | None = None
 
+# Runtime readiness fans out to eleven owner probes that touch SQLite, worker
+# subprocesses and the network.  Re-running them on every request made the
+# endpoint take tens of seconds, and because each handler thread competes for
+# the same registries the cost multiplied under concurrent polling instead of
+# sharing work -- the workbench polls it continuously, so it could starve and
+# report "runtime unavailable" while the runtime was in fact healthy.
+#
+# Readiness is a health summary, not a per-request fact: cache it briefly and
+# collapse concurrent callers onto a single in-flight probe run.
+_RUNTIME_READINESS_CACHE_TTL_SECONDS = 3.0
+_RUNTIME_READINESS_LOCK = threading.Lock()
+_RUNTIME_READINESS_CACHE: (
+    tuple[float, tuple[dict[str, bool], dict[str, Any]]] | None
+) = None
+
 
 def gateway_state_path() -> Path:
     return runtime_configuration().path("state.gateway")
@@ -6411,6 +6426,64 @@ def runtime_readiness_probes(
         },
     }
     return legacy, details
+
+
+def cached_runtime_readiness_probes(
+    *,
+    typed_receipts: TypedReceiptStore,
+    ttl_seconds: float = _RUNTIME_READINESS_CACHE_TTL_SECONDS,
+) -> tuple[dict[str, bool], dict[str, Any]]:
+    """Return readiness probes from a short-lived cache.
+
+    Two properties matter here and neither was true when the endpoint called
+    ``runtime_readiness_probes`` directly:
+
+    * **Bounded cost.**  Eleven owner probes reach into SQLite, worker
+      subprocesses and the network.  Polling clients (the workbench polls this
+      endpoint on a timer) paid that full cost on every request.
+    * **No concurrency pile-up.**  ``ThreadingHTTPServer`` runs each request in
+      its own thread, and the probes contend on shared registries.  Letting
+      every request probe independently made latency grow with concurrency --
+      measured at 44s for one request and 90s+ (timeout) for four in parallel,
+      which surfaced in the UI as "runtime unavailable" while the runtime was
+      actually healthy.
+
+    The lock is held across the probe run so concurrent callers collapse onto a
+    single execution (single-flight) rather than queueing up duplicate work.
+    Callers receive copies, so one caller cannot mutate the cached projection.
+    """
+
+    # ``_RUNTIME_READINESS_CACHE`` is rebound below, so it must be declared
+    # global here or Python treats every read of it as a local.
+    global _RUNTIME_READINESS_CACHE
+
+    now = time.monotonic()
+    cached = _RUNTIME_READINESS_CACHE
+    if cached is not None and (now - cached[0]) < ttl_seconds:
+        return copy.deepcopy(cached[1])
+
+    with _RUNTIME_READINESS_LOCK:
+        # Re-check inside the lock: a concurrent caller may have just refreshed.
+        now = time.monotonic()
+        cached = _RUNTIME_READINESS_CACHE
+        if cached is not None and (now - cached[0]) < ttl_seconds:
+            return copy.deepcopy(cached[1])
+        result = runtime_readiness_probes(typed_receipts=typed_receipts)
+        _RUNTIME_READINESS_CACHE = (time.monotonic(), result)
+        return copy.deepcopy(result)
+
+
+def invalidate_runtime_readiness_cache() -> None:
+    """Drop the cached readiness projection.
+
+    Readiness reflects long-lived owner bindings, so the TTL alone is usually
+    enough.  Tests and explicit recovery paths call this to avoid observing a
+    projection captured before they changed runtime state.
+    """
+
+    global _RUNTIME_READINESS_CACHE
+    with _RUNTIME_READINESS_LOCK:
+        _RUNTIME_READINESS_CACHE = None
 
 
 class _TypeScriptPermissionQueueProjection:
@@ -10866,7 +10939,7 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
             return
 
         if parts == ["runtime", "readiness"]:
-            owner_readiness, readiness_details = runtime_readiness_probes(
+            owner_readiness, readiness_details = cached_runtime_readiness_probes(
                 typed_receipts=self._typed_receipts(),
             )
             payload = runtime_readiness_payload(

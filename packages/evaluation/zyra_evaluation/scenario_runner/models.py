@@ -236,6 +236,31 @@ class ScenarioConfiguration:
     def configuration_digest(self) -> str:
         return digest(self.to_dict(include_digest=False, include_input=False))
 
+    def summary_dict(self) -> dict[str, Any]:
+        """The configuration subset a run list actually renders.
+
+        The workbench list shows the scenario id; mode and seed identify a run
+        at a glance, and the digests let a client detect a definition change.
+        The profile, fault schedule, preflight targets and policy block are
+        detail-view data -- carrying them on every row is what made a 34-run
+        page 860KB.
+
+        ``input_digest`` is kept because the client's configuration validator
+        requires it; dropping it made every list response fail validation and
+        the console fall back to a reconnecting state.
+        """
+
+        return {
+            "schema": "zyra.scenario-configuration/v1",
+            "scenario_id": self.scenario_id,
+            "definition_version": self.definition_version,
+            "definition_digest": self.definition_digest,
+            "mode": self.mode.value,
+            "input_digest": self.input_digest,
+            "seed": self.seed,
+            "labels": dict(self.labels),
+        }
+
     def to_dict(
         self,
         *,
@@ -463,8 +488,21 @@ class ScenarioRun:
         *,
         include_input: bool = False,
         include_evidence: bool = True,
+        projection: str = "detail",
     ) -> dict[str, Any]:
         """Project the run.
+
+        ``projection`` selects how much of the record to emit:
+
+        ``detail``
+            The whole record.  Used for a single run.
+
+        ``summary``
+            Only what a run list renders.  A page of 34 runs used to send every
+            run's ``policy_decisions`` (54% of the page), the full
+            ``configuration`` including the fault schedule and policy block
+            (28%), and the preflight receipt (13%) -- none of which the list
+            shows.  That was 860KB and ~14 seconds per poll.
 
         ``include_evidence`` must be False for list projections: the evidence
         manifest embeds every canonical event and artifact and can exceed tens
@@ -472,6 +510,11 @@ class ScenarioRun:
         response-size limit and no run ever becomes visible.  Callers that need
         the manifest read it from the per-run evidence endpoint.
         """
+
+        if projection == "summary":
+            return self._summary_dict()
+        if projection != "detail":
+            raise ValueError(f"unknown scenario run projection: {projection!r}")
 
         value = {
             "schema": "zyra.scenario-run/v1",
@@ -502,3 +545,37 @@ class ScenarioRun:
             "archive_reason": self.archive_reason,
         }
         return value
+
+    def _summary_dict(self) -> dict[str, Any]:
+        """The run fields a list view renders, plus what it needs to display.
+
+        Deliberately excludes ``policy_decisions``, the full ``configuration``
+        and ``preflight_receipt``: together those were 95% of a list page and
+        the list renders none of them.  ``configuration`` keeps only the parts
+        the list reads (scenario id, mode, seed) plus the digests a client uses
+        to detect that the underlying definition changed.
+        """
+
+        return {
+            "schema": "zyra.scenario-run/v1",
+            "scenario_run_id": self.scenario_run_id,
+            "configuration": self.configuration.summary_dict(),
+            "phase": self.phase.value,
+            "terminal": self.terminal,
+            "revision": self.revision,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "started_at": self.started_at,
+            "completed_at": self.completed_at,
+            "owner_run_id": self.owner_run_id,
+            "task_id": self.task_id,
+            "interventions": canonicalize(self.interventions),
+            "human_intervention_count": sum(
+                1 for item in self.interventions if item.get("counted_as_human") is True
+            ),
+            "operator_intervention_attempt_count": len(self.interventions),
+            "evidence_manifest": None,
+            "failure": canonicalize(self.failure),
+            "cancel_requested": self.cancel_requested,
+            "archive_reason": self.archive_reason,
+        }

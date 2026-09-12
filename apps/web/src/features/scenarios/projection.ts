@@ -279,14 +279,25 @@ export class ScenarioProjectionStore {
 
   #row(run: ScenarioRunProjection, now: number): ScenarioRunRow {
     const status = this.#statuses.get(run.scenario_run_id)
-    const sourceAuditRaw = run.evidence_manifest?.source_audit
+    // The list endpoint returns a trimmed summary, while the status endpoint
+    // for the selected run returns the full record.  Admission and evidence
+    // assessment read fields (policy, preflight receipt, evidence manifest)
+    // that the summary deliberately omits, so they are computed from the
+    // richest object available and left unevaluated until the detail record
+    // arrives -- assessing a summary would only produce false findings.
+    const detail = status?.run
+    const effective = detail && detail.revision >= run.revision ? detail : run
+    const enriched = isFullRecord(effective)
+    const sourceAuditRaw = effective.evidence_manifest?.source_audit
     return Object.freeze({
-      run,
-      admission: assessScenarioAdmission(run),
-      evidence: assessEvidence(run),
-      active: ACTIVE_PHASES.has(run.phase),
-      selected: run.scenario_run_id === this.#selectedRunId,
-      elapsedMs: elapsed(run, now),
+      run: effective,
+      admission: enriched
+        ? assessScenarioAdmission(effective)
+        : PENDING_ADMISSION,
+      evidence: enriched ? assessEvidence(effective) : PENDING_EVIDENCE,
+      active: ACTIVE_PHASES.has(effective.phase),
+      selected: effective.scenario_run_id === this.#selectedRunId,
+      elapsedMs: elapsed(effective, now),
       transitionCount: status?.transitions.length ?? 0,
       receiptCount: status?.receipts.length ?? 0,
       sourceAudit: sourceAuditRaw
@@ -300,3 +311,54 @@ export class ScenarioProjectionStore {
     this.#snapshot = undefined
   }
 }
+
+/**
+ * Whether a run carries the fields the admission and evidence assessments read.
+ *
+ * The list endpoint returns a summary projection that omits the policy block,
+ * the preflight receipt and the evidence manifest; only ``/scenarios/runs/{id}``
+ * returns the full record.  `to_dict(projection="summary")` always emits a null
+ * manifest and no policy, so their presence is a reliable marker.
+ */
+function isFullRecord(run: ScenarioRunProjection): boolean {
+  const configuration = run.configuration as Record<string, unknown>
+  if (configuration.policy === undefined && configuration.profile === undefined) {
+    return false
+  }
+  return run.preflight_receipt !== undefined
+    && run.evidence_manifest !== null
+    && run.evidence_manifest !== undefined
+}
+
+/**
+ * Placeholder verdicts for a list row whose detail record has not loaded.
+ *
+ * Reporting these as invalid would be wrong -- the list simply does not carry
+ * the inputs -- so they are marked pending and the views read them only for the
+ * selected run, which always has its detail record.
+ */
+const PENDING_ADMISSION: ScenarioAdmissionAssessment = Object.freeze({
+  valid: false,
+  formal: false,
+  clean: false,
+  newInput: false,
+  sealed: false,
+  policyDigestMatches: false,
+  humanInterventionCount: 0,
+  operatorAttemptCount: 0,
+  findings: Object.freeze([]),
+})
+
+const PENDING_EVIDENCE: EvidenceAssessment = Object.freeze({
+  valid: false,
+  effectiveStepCount: 0,
+  excludedStepCount: 0,
+  invalidStepCount: 0,
+  artifactCount: 0,
+  canonicalEventCount: 0,
+  rawSampleCount: 0,
+  effects: Object.freeze({}),
+  stages: Object.freeze({}),
+  providers: Object.freeze({}),
+  findings: Object.freeze([]),
+})

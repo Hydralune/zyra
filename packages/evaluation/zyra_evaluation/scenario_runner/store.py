@@ -24,6 +24,11 @@ from .models import (
 )
 
 
+# Bump whenever the fields held by the stored list projection change, so
+# existing rows are re-derived instead of served in the old shape.
+SUMMARY_VERSION = 2
+
+
 ALLOWED_TRANSITIONS: dict[ScenarioPhase, set[ScenarioPhase]] = {
     ScenarioPhase.CREATED: {
         ScenarioPhase.ADMITTED,
@@ -90,8 +95,8 @@ class ScenarioRunStore:
                         scenario_run_id, scenario_id, definition_version,
                         input_digest, phase, revision, created_at, updated_at,
                         owner_run_id, task_id, cancel_requested, archived,
-                        record_json, record_digest
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        record_json, record_digest, summary_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         run.scenario_run_id,
@@ -108,6 +113,7 @@ class ScenarioRunStore:
                         int(run.phase is ScenarioPhase.ARCHIVED),
                         payload,
                         digest(run.to_dict(include_input=True)),
+                        self._encode_summary(run),
                     ),
                 )
                 self._append_transition(
@@ -204,7 +210,7 @@ class ScenarioRunStore:
                 UPDATE scenario_runs
                 SET phase = ?, revision = ?, updated_at = ?, owner_run_id = ?,
                     task_id = ?, cancel_requested = ?, archived = ?,
-                    record_json = ?, record_digest = ?
+                    record_json = ?, record_digest = ?, summary_json = ?
                 WHERE scenario_run_id = ? AND revision = ?
                 """,
                 (
@@ -217,6 +223,7 @@ class ScenarioRunStore:
                     int(run.phase is ScenarioPhase.ARCHIVED),
                     payload,
                     digest(run.to_dict(include_input=True)),
+                    self._encode_summary(run),
                     run.scenario_run_id,
                     expected_revision,
                 ),
@@ -286,8 +293,12 @@ class ScenarioRunStore:
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         arguments.extend([max(1, min(10_000, limit)), max(0, offset)])
         with self._connection() as connection:
+            # Read summary_json only.  Selecting record_json as well made SQLite
+            # materialise every embedded evidence manifest even though the value
+            # went unused: 484MB across 34 runs, ~6s per list call.  COALESCE
+            # touches record_json only for a row whose summary is still NULL.
             rows = connection.execute(
-                "SELECT record_json FROM scenario_runs"
+                "SELECT COALESCE(summary_json, record_json) FROM scenario_runs"
                 + where
                 + " ORDER BY created_at DESC, scenario_run_id DESC LIMIT ? OFFSET ?",
                 arguments,
@@ -531,7 +542,8 @@ class ScenarioRunStore:
                     cancel_requested INTEGER NOT NULL,
                     archived INTEGER NOT NULL,
                     record_json TEXT NOT NULL,
-                    record_digest TEXT NOT NULL
+                    record_digest TEXT NOT NULL,
+                    summary_json TEXT
                 );
                 CREATE INDEX IF NOT EXISTS scenario_runs_created
                     ON scenario_runs(created_at DESC);
@@ -539,8 +551,7 @@ class ScenarioRunStore:
                     ON scenario_runs(input_digest, archived);
                 CREATE INDEX IF NOT EXISTS scenario_runs_phase
                     ON scenario_runs(phase, updated_at);
-                CREATE TABLE IF NOT EXISTS scenario_transitions (
-                    transition_id TEXT PRIMARY KEY,
+                CREATE TABLE IF NOT EXISTS scenario_transitions (                    transition_id TEXT PRIMARY KEY,
                     scenario_run_id TEXT NOT NULL,
                     sequence INTEGER NOT NULL,
                     from_phase TEXT NOT NULL,
@@ -570,6 +581,59 @@ class ScenarioRunStore:
                     ON scenario_receipts(scenario_run_id, kind, created_at);
                 """
             )
+            self._migrate_summary_column(connection)
+
+    def _migrate_summary_column(self, connection: sqlite3.Connection) -> None:
+        """Add ``summary_json`` to databases created before it existed.
+
+        Databases written by an earlier version have only ``record_json``,
+        which embeds the full evidence manifest (tens of megabytes per run).
+        Listing such a database previously meant decoding every blob; the
+        summary column lets a list read a few hundred bytes per run instead.
+        Existing rows keep ``summary_json`` NULL and are backfilled the first
+        time they are saved again.
+        """
+
+        columns = {
+            str(row[1])
+            for row in connection.execute("PRAGMA table_info(scenario_runs)")
+        }
+        if "summary_json" not in columns:
+            connection.execute(
+                "ALTER TABLE scenario_runs ADD COLUMN summary_json TEXT"
+            )
+        self._backfill_summaries(connection)
+
+    def _backfill_summaries(self, connection: sqlite3.Connection) -> None:
+        """Derive ``summary_json`` for rows missing it or holding an old shape.
+
+        Runs on open so a database written by an earlier build gets the fast
+        list path immediately, and so a change to SUMMARY_VERSION re-derives
+        rows instead of serving a stale projection.
+        """
+
+        rows = connection.execute(
+            "SELECT scenario_run_id, record_json, summary_json FROM scenario_runs"
+        ).fetchall()
+        for scenario_run_id, record_json, summary_json in rows:
+            if summary_json:
+                try:
+                    if (
+                        json.loads(summary_json).get("summary_version")
+                        == SUMMARY_VERSION
+                    ):
+                        continue
+                except (TypeError, ValueError):
+                    pass
+            try:
+                run = self._decode(record_json)
+            except Exception:  # noqa: BLE001 - never block startup on one row.
+                continue
+            connection.execute(
+                "UPDATE scenario_runs SET summary_json = ?"
+                " WHERE scenario_run_id = ?",
+                (self._encode_summary(run), str(scenario_run_id)),
+            )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30)
@@ -580,6 +644,27 @@ class ScenarioRunStore:
 
     def _encode(self, run: ScenarioRun) -> str:
         return canonical_json(run.to_dict(include_input=True))
+
+    def _encode_summary(self, run: ScenarioRun) -> str:
+        """Encode the list projection of a run.
+
+        A list page previously carried every run's full record -- dominated by
+        the evidence manifest (~99.9% of a stored run; one measured at 15.4MB)
+        plus the policy decisions and full configuration blocks the list never
+        renders.  Listing used to read and parse 484MB of JSON across 34 runs.
+        The summary keeps identity, phase and timing, and callers read the rest
+        from the per-run status and evidence endpoints.
+
+        The stored summary carries ``summary_version``: it is a derived
+        projection, so changing which fields it holds has to invalidate the
+        summaries already on disk.  Without that marker a shape change leaves
+        stale rows behind and the client sees a projection that no longer
+        matches what the current code expects.
+        """
+
+        payload = run.to_dict(include_evidence=False, projection="summary")
+        payload["summary_version"] = SUMMARY_VERSION
+        return canonical_json(payload)
 
     def _decode(self, payload: str) -> ScenarioRun:
         return run_from_dict(json.loads(payload))
@@ -610,8 +695,25 @@ def run_from_dict(raw: Mapping[str, Any]) -> ScenarioRun:
 
 
 def configuration_from_dict(raw: Mapping[str, Any]) -> ScenarioConfiguration:
-    profile_raw = raw.get("profile") or {}
-    policy_raw = raw.get("policy") or {}
+    # A summary projection omits the profile, fault schedule and policy block;
+    # it is only ever decoded to render a list, never to run or mutate.  Fill
+    # in inert placeholders so the dataclass still constructs.
+    profile_raw = raw.get("profile") or {
+        "profile_id": "",
+        "provider_id": "",
+        "model_id": "",
+        "backend_id": "",
+        "maximum_effective_steps": 0,
+        "maximum_wall_time_ms": 0,
+    }
+    policy_raw = raw.get("policy") or {
+        "policy_id": "",
+        "version": "",
+        "ask_disposition": "",
+        "unknown_disposition": "",
+        "maximum_denials": 0,
+        "manual_mutation_disposition": "",
+    }
     faults = tuple(
         FaultInjection(
             injection_id=str(item["injection_id"]),
@@ -667,8 +769,8 @@ def configuration_from_dict(raw: Mapping[str, Any]) -> ScenarioConfiguration:
         faults=faults,
         preflight_targets=preflight,
         policy=policy,
-        expected_policy_digest=str(raw["expected_policy_digest"]),
-        requested_by=str(raw["requested_by"]),
+        expected_policy_digest=str(raw.get("expected_policy_digest") or ""),
+        requested_by=str(raw.get("requested_by") or ""),
         labels=dict(raw.get("labels") or {}),
         metadata=dict(raw.get("metadata") or {}),
     )

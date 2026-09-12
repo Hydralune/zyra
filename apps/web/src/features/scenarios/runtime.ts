@@ -192,7 +192,11 @@ export class ScenarioWorkbenchRuntime {
     if (reason === "reconnect") {
       this.store.connection("reconnecting", "Refreshing durable scenario state.")
       this.#auditUpdate({ reconnects: this.#audit.reconnects + 1 })
-    } else {
+    } else if (reason === "open" || this.getSnapshot().connection !== "online") {
+      // Only announce a loading state when the console is not already live.
+      // A background poll used to re-enter "loading" for its whole duration,
+      // so a healthy console spent most of its time rendering 加载中 (measured
+      // 26s of 30s at the default interval) and read as permanently stuck.
       this.store.connection("loading")
     }
     const completion = this.#performRefresh(

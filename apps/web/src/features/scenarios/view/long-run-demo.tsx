@@ -83,6 +83,12 @@ function duration(value: number): string {
   return `${minutes}m ${Math.floor(seconds % 60)}s`
 }
 
+/** Launch progress, shown while the console is admitting and starting a run. */
+interface LaunchProgress {
+  key: string
+  stage: "connecting" | "submitting"
+}
+
 export function LongRunDemoPanel({
   runtime,
 }: {
@@ -93,7 +99,7 @@ export function LongRunDemoPanel({
     runtime.getSnapshot,
     runtime.getSnapshot,
   )
-  const [busy, setBusy] = useState("")
+  const [busy, setBusy] = useState<LaunchProgress>()
   const [error, setError] = useState("")
   const [launched, setLaunched] = useState<Record<string, string>>({})
 
@@ -107,15 +113,16 @@ export function LongRunDemoPanel({
 
   const launch = useCallback(
     async (task: DemoTask) => {
-      setBusy(task.key)
       setError("")
       try {
-        // The console may still be on its first load.  Establishing the
-        // connection here means the buttons stay usable even if the initial
-        // probe was slow, instead of being disabled by a transient state.
+        // Bringing the console up is the slow part of a cold launch, so name
+        // it in the UI: a button that merely greys out for several seconds
+        // reads as "the click did nothing".
         if (runtime.getSnapshot().connection !== "online") {
+          setBusy({ key: task.key, stage: "connecting" })
           await runtime.open()
         }
+        setBusy({ key: task.key, stage: "submitting" })
         const run = await runtime.create({
           scenarioId: task.scenarioId,
           mode: "sealed",
@@ -129,7 +136,7 @@ export function LongRunDemoPanel({
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : String(reason))
       } finally {
-        setBusy("")
+        setBusy(undefined)
       }
     },
     [runtime],
@@ -150,6 +157,9 @@ export function LongRunDemoPanel({
     [launched, snapshot.rows],
   )
 
+  const connecting = busy?.stage === "connecting"
+    || (Boolean(busy) && snapshot.connection !== "online")
+
   return (
     <section className="long-run-demo" aria-labelledby="long-run-demo-heading">
       <div className="long-run-demo-heading">
@@ -163,10 +173,23 @@ export function LongRunDemoPanel({
         点击按钮即可运行一个封存（sealed）长程任务：系统会在干净状态与冻结故障计划下自主执行，
         全程零人工干预，并留下可独立复核的证据。
       </p>
+      {busy ? (
+        <p className="long-run-demo-progress" data-stage={busy.stage} role="status">
+          {connecting
+            ? `正在连接场景服务（当前：${phaseLabel(snapshot.connection)}）…首次连接通常需要几秒，请不要重复点击。`
+            : "已连接，正在提交并启动运行…"}
+        </p>
+      ) : null}
       <div className="long-run-demo-grid">
         {DEMO_TASKS.map((task) => {
           const run = runFor(task)
           const phase = run?.phase ?? ""
+          const stalled = Boolean(
+            run
+            && run.phase === "running"
+            && !busy
+            && Date.now() - Date.parse(run.updated_at) > 30_000,
+          )
           return (
             <article key={task.key} className="long-run-demo-card" data-phase={phase || "idle"}>
               <strong>{task.title}</strong>
@@ -183,13 +206,25 @@ export function LongRunDemoPanel({
                   </div>
                 </dl>
               ) : null}
+              {run && run.phase === "running" ? (
+                <p className="long-run-demo-hint" role="status">
+                  {stalled
+                    ? "已在后台运行，状态暂时没有更新——可以点「刷新状态」查看最新进度。"
+                    : "正在后台执行，进度会自动刷新。"}
+                </p>
+              ) : null}
               <button
                 type="button"
                 className="button button-primary"
-                disabled={Boolean(busy)}
+                // Deliberately not `disabled` while busy.  The launch pauses on
+                // the connection handshake for several seconds; a greyed-out
+                // button during that window is what made the panel look broken.
+                // Re-clicks are harmless — `runtime.refresh`/`create` dedupe.
+                aria-busy={busy?.key === task.key}
+                data-launching={busy?.key === task.key ? busy?.stage : undefined}
                 onClick={() => void launch(task)}
               >
-                {busy === task.key ? "正在启动…" : run ? "重新运行" : "运行此任务"}
+                {busy?.key === task.key ? (connecting ? "正在连接…" : "正在启动…") : run ? "重新运行" : "运行此任务"}
               </button>
             </article>
           )

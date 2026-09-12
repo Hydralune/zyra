@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Mapping
 
-from .errors import WorkerPoolError, WorkerPoolErrorCode
+from .errors import StoreConflict, WorkerPoolError, WorkerPoolErrorCode
 from .leases import WorkerLeaseManager
 from .lifecycle import WorkerLifecycleRuntime
 from .models import (
@@ -73,6 +73,22 @@ class WorkerHeartbeatRuntime:
         self.recovery_sink = recovery_sink
 
     def observe(self, heartbeat: WorkerHeartbeat) -> WorkerHeartbeat:
+        # ``updated_worker`` is derived from a read that happens outside the
+        # store transaction, so a concurrent writer can bump the worker version
+        # between the read and the write-back.  StoreConflict is declared
+        # retryable, so re-read and re-derive rather than failing the whole run:
+        # two scenarios launched back to back heartbeat the same worker and used
+        # to fail one of them with "worker compare-and-swap failed".
+        last_conflict: StoreConflict | None = None
+        for _ in range(4):
+            try:
+                return self._observe_once(heartbeat)
+            except StoreConflict as conflict:
+                last_conflict = conflict
+        assert last_conflict is not None
+        raise last_conflict
+
+    def _observe_once(self, heartbeat: WorkerHeartbeat) -> WorkerHeartbeat:
         worker = self.store.require_worker(heartbeat.worker_id)
         if heartbeat.worker_generation != worker.generation:
             raise WorkerPoolError(
