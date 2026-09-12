@@ -60,17 +60,7 @@ class ScenarioRunnerApi:
                 and parts[:2] == ("scenarios", "runs")
                 and parts[3] == "evidence"
             ):
-                status = self.service.status(parts[2])
-                run = status["run"]
-                return self._ok(
-                    {
-                        "schema": "zyra.scenario-evidence-response/v1",
-                        "scenario_run_id": parts[2],
-                        "evidence_manifest": run.get("evidence_manifest"),
-                        "verification_receipt": run.get("verification_receipt"),
-                        "receipts": status["receipts"],
-                    }
-                )
+                return self._ok(self.service.evidence(parts[2]))
         except ScenarioRunnerError as error:
             return self._error(error)
         return None

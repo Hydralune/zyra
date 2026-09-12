@@ -254,6 +254,24 @@ class ScenarioRunnerService:
             ),
         }
 
+    def evidence(self, scenario_run_id: str) -> dict[str, Any]:
+        """Return the full evidence bundle for one run.
+
+        This is the only projection that carries the evidence manifest, which
+        can be tens of megabytes; the list and status projections deliberately
+        omit it so a page of runs stays within the client response limit.
+        """
+
+        run = self.store.require(scenario_run_id)
+        receipts = self.store.receipts(scenario_run_id)
+        return {
+            "schema": "zyra.scenario-evidence-response/v1",
+            "scenario_run_id": scenario_run_id,
+            "evidence_manifest": canonicalize(run.evidence_manifest),
+            "verification_receipt": canonicalize(run.verification_receipt),
+            "receipts": list(receipts),
+        }
+
     def list(
         self,
         *,
