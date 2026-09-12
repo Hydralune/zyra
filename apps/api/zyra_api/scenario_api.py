@@ -40,6 +40,14 @@ def get_scenario_runner_api() -> ScenarioRunnerApi:
     ).resolve()
     artifact_root = api_main.artifact_root_path().resolve()
     project_root = api_main.PROJECT_ROOT.resolve()
+    # Formal (sealed) scenarios require a clean starting state.  The live API
+    # database and artifact root always carry the running product's rows, so
+    # pointing preflight at them would reject every sealed run.  The sealed
+    # long-run runner instead verifies a dedicated scenario scratch area that
+    # starts absent; mirror that here so a sealed scenario launched from the
+    # workbench is admitted under the same contract.  The scratch paths are
+    # derived from the scenario store so they stay beside this instance's state.
+    scenario_scratch = state_path.parent / f"{state_path.stem}.clean"
     key = (str(state_path), str(artifact_root), str(project_root))
     with _LOCK:
         if _API is not None and _KEY == key:
@@ -53,11 +61,11 @@ def get_scenario_runner_api() -> ScenarioRunnerApi:
             execution=CallbackScenarioExecutionPort(_execute_owner_chain),
             artifact_root=artifact_root,
             default_preflight_paths={
-                "database": str(api_main.sqlite_path().resolve()),
-                "cache": str(state_path.parent / "scenario-clean-cache"),
-                "index": str(state_path.parent / "scenario-clean-index"),
-                "artifact": str(artifact_root),
-                "build": str(state_path.parent / "scenario-clean-build"),
+                "database": str(scenario_scratch / "scenario.sqlite3"),
+                "cache": str(scenario_scratch / "cache"),
+                "index": str(scenario_scratch / "index"),
+                "artifact": str(scenario_scratch / "artifacts"),
+                "build": str(scenario_scratch / "build"),
             },
             maximum_workers=2,
             auto_reconcile=True,
