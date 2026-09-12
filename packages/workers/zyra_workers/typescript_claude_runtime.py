@@ -60,6 +60,11 @@ from zyra_runtime.runtime_events.worker_ingress import (
 
 RUNTIME_PROTOCOL_VERSION = "zyra.claude-runtime.v1"
 TYPESCRIPT_RUNTIME_ID = "zyra-typescript-claude-runtime"
+
+# How many protocol frames the durable trace retains.  The trace exists to
+# diagnose the most recent exchange, and it is written out in full on every
+# checkpoint, so its size multiplies the cost of every save.
+_PROTOCOL_FRAME_TRACE_LIMIT = 2_000
 _CHECKPOINT_LOCKS: dict[str, threading.RLock] = {}
 _CHECKPOINT_LOCKS_GUARD = threading.RLock()
 _CHECKPOINT_REPLACE_RETRY_DELAYS_SECONDS = (0.05, 0.1, 0.2, 0.4, 0.8, 1.6)
@@ -1086,6 +1091,13 @@ class TypeScriptClaudeQueryEngine:
         ] = {}
         self._runtime_process_epoch = 0
         self._protocol_frame_trace: list[dict[str, Any]] = []
+        # The trace is a bounded tail, not a full ledger.  It is serialized in
+        # full into every durable checkpoint, so an unbounded list makes each
+        # save progressively slower until the loop stalls: one real run grew it
+        # to 137 MB before the agentic loop stopped advancing.  Only the most
+        # recent frames are diagnostically useful, and the first `trace_index`
+        # still records how many were seen.
+        self._protocol_frame_trace_base_index = 0
         self._checkpoint_writer_id = hashlib.sha256(
             f"{os.getpid()}:{id(self)}:{time.time_ns()}".encode("utf-8")
         ).hexdigest()
@@ -1368,11 +1380,24 @@ class TypeScriptClaudeQueryEngine:
         raw_protocol_trace = self._latest_runtime_checkpoint.get(
             "protocol_frame_trace"
         )
-        self._protocol_frame_trace = [
+        # A checkpoint written before the trace was bounded can carry a very
+        # large list; keep only the tail so restoring one cannot re-inflate the
+        # state it was meant to bound.
+        restored_trace = [
             dict(item)
             for item in list(raw_protocol_trace or [])
             if isinstance(item, Mapping)
         ]
+        self._protocol_frame_trace = restored_trace[-_PROTOCOL_FRAME_TRACE_LIMIT:]
+        last_index = 0
+        for item in self._protocol_frame_trace:
+            try:
+                last_index = max(last_index, int(item.get("trace_index") or 0))
+            except (TypeError, ValueError):
+                continue
+        self._protocol_frame_trace_base_index = max(
+            0, last_index - len(self._protocol_frame_trace)
+        )
         self._tool_effect_receipts = {
             str(key): dict(value)
             for key, value in dict(restored_runtime_state.get("tool_effect_receipts") or {}).items()
@@ -3842,9 +3867,8 @@ class TypeScriptClaudeQueryEngine:
                 "typescript_runtime_protocol_error",
                 "TypeScript runtime frame payload must be an object.",
             )
-        self._protocol_frame_trace.append(
+        self._append_protocol_frame_trace(
             {
-                "trace_index": len(self._protocol_frame_trace) + 1,
                 "direction": "typescript-to-python",
                 "runtime_process_epoch": self._runtime_process_epoch,
                 "process_pid": process.pid,
@@ -3864,6 +3888,24 @@ class TypeScriptClaudeQueryEngine:
             }
         )
         return frame
+
+    def _append_protocol_frame_trace(self, entry: Mapping[str, Any]) -> None:
+        """Append one frame to the bounded durable trace.
+
+        The trace is written out in full on every checkpoint, so letting it grow
+        without limit multiplies the cost of every save.  Beyond the cap the
+        oldest frames are dropped; `trace_index` keeps counting, so a reader can
+        still tell how many frames were seen before the retained window.
+        """
+
+        next_index = self._protocol_frame_trace_base_index + len(
+            self._protocol_frame_trace
+        ) + 1
+        self._protocol_frame_trace.append({"trace_index": next_index, **dict(entry)})
+        if len(self._protocol_frame_trace) > _PROTOCOL_FRAME_TRACE_LIMIT:
+            excess = len(self._protocol_frame_trace) - _PROTOCOL_FRAME_TRACE_LIMIT
+            del self._protocol_frame_trace[:excess]
+            self._protocol_frame_trace_base_index += excess
 
     def _write_frame(
         self,
@@ -3892,9 +3934,8 @@ class TypeScriptClaudeQueryEngine:
         try:
             process.stdin.write(json.dumps(frame, ensure_ascii=False) + "\n")
             process.stdin.flush()
-            self._protocol_frame_trace.append(
+            self._append_protocol_frame_trace(
                 {
-                    "trace_index": len(self._protocol_frame_trace) + 1,
                     "direction": "python-to-typescript",
                     "runtime_process_epoch": self._runtime_process_epoch,
                     "process_pid": process.pid,
