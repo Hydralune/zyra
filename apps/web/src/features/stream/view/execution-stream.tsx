@@ -1,6 +1,17 @@
 import { useMemo } from "react"
 import { formatDuration } from "../../../shell/task-metrics.ts"
+import { SafeMarkdown } from "../../../components/content/safe-markdown.tsx"
 import type { StreamEntry, StreamEntryKind } from "../projection.ts"
+
+/**
+ * Rows whose text is prose the model wrote, and so is Markdown.
+ *
+ * Narration and deliberation are written by the model; every other row is a
+ * machine sentence this app composed, which would be misread as Markdown.
+ */
+function isProse(kind: StreamEntryKind): boolean {
+  return kind === "message" || kind === "thinking"
+}
 
 /**
  * Renders an execution stream: one row per thing that happened.
@@ -121,19 +132,38 @@ export function ExecutionStream({
             <KindIcon kind={entry.kind} />
           </span>
           <div className="stream-entry-body">
-            <div className="stream-entry-head">
-              <span className="stream-entry-title">{entry.title}</span>
-              {entry.durationMs !== undefined ? (
-                <span className="stream-entry-duration">
-                  {entry.kind === "thinking"
-                    ? `思考了 ${formatDuration(entry.durationMs)}`
-                    : formatDuration(entry.durationMs)}
-                </span>
-              ) : null}
-            </div>
-            {entry.detail ? (
-              <p className="stream-entry-detail">{entry.detail}</p>
-            ) : null}
+            {isProse(entry.kind) ? (
+              // The model writes Markdown, so its narration and deliberation are
+              // rendered rather than shown as source.  `SafeMarkdown` is the
+              // shared inert renderer: it refuses raw HTML and unsafe links.
+              <>
+                <SafeMarkdown
+                  text={entry.title}
+                  className="stream-entry-prose product-answer-markdown"
+                />
+                {entry.durationMs !== undefined ? (
+                  <span className="stream-entry-duration">
+                    {entry.kind === "thinking"
+                      ? `思考了 ${formatDuration(entry.durationMs)}`
+                      : formatDuration(entry.durationMs)}
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <div className="stream-entry-head">
+                  <span className="stream-entry-title">{entry.title}</span>
+                  {entry.durationMs !== undefined ? (
+                    <span className="stream-entry-duration">
+                      {formatDuration(entry.durationMs)}
+                    </span>
+                  ) : null}
+                </div>
+                {entry.detail ? (
+                  <p className="stream-entry-detail">{entry.detail}</p>
+                ) : null}
+              </>
+            )}
           </div>
         </article>
       ))}
@@ -162,7 +192,7 @@ export function ExecutionStream({
                 {status === "running" ? "正在推理…" : "思考"}
               </span>
             </div>
-            <p className="stream-entry-detail stream-entry-live">{liveThinking}</p>
+            <SafeMarkdown text={liveThinking} className="stream-entry-detail stream-entry-live" />
           </div>
         </article>
       ) : null}
@@ -174,7 +204,7 @@ export function ExecutionStream({
             <div className="stream-entry-head">
               <span className="stream-entry-title">正在生成…</span>
             </div>
-            <p className="stream-entry-detail stream-entry-live">{liveText}</p>
+            <SafeMarkdown text={liveText} className="stream-entry-detail stream-entry-live" />
           </div>
         </article>
       ) : null}
@@ -183,7 +213,7 @@ export function ExecutionStream({
         <article className="stream-entry stream-entry-result" data-kind="result">
           <span className="stream-entry-glyph"><ResultIcon /></span>
           <div className="stream-entry-body">
-            <p className="stream-entry-result-text">{result}</p>
+            <SafeMarkdown text={result} className="stream-entry-result-text product-answer-markdown" />
           </div>
         </article>
       ) : null}

@@ -556,6 +556,48 @@ describe("product conversation rendering", () => {
     expect(markup).not.toContain("shell: called")
   })
 
+  test("renders the model's Markdown instead of showing it as source", () => {
+    // The model writes Markdown, so its narration and the final answer have to
+    // be rendered.  Showing the source put "## Root cause" and a row of
+    // backticks on the page, which is what a reader sees when the renderer is
+    // bypassed.
+    const answer = [
+      "## Root cause",
+      "",
+      "`Blueprint.__init__` accepted an empty name.",
+      "",
+      "```python",
+      "if not name:",
+      '    raise ValueError("empty")',
+      "```",
+    ].join("\n")
+    const markup = renderToStaticMarkup(
+      <ProductTaskDetail
+        runtime={fakeRuntime({
+          events: [
+            {
+              eventId: "e1", eventType: "runtime.text.ended", taskId: "task_render_001",
+              runId: "run_render_001", artifactIds: [], correlationId: "c1",
+              mutationId: "m", sequence: 10, aggregateSequence: 1,
+              createdAt: "2026-08-04T00:05:00.000Z", committedAt: "2026-08-04T00:05:00.000Z",
+              summary: "assistant_text_ended for task_render_001",
+              presentationText: answer,
+              terminal: false, effective: true, entityRefs: [],
+            },
+          ],
+        })}
+        state={detailState()}
+        tasks={[task({ metadata: { final_answer: answer } })]}
+      />,
+    )
+    // The heading and code block became elements...
+    expect(markup).toContain("<h2>Root cause</h2>")
+    expect(markup).toContain("<code>")
+    // ...and the source syntax is gone.
+    expect(markup).not.toContain("## Root cause")
+    expect(markup).not.toContain("```")
+  })
+
   test("renders empty, missing, and failed states without a task projection", () => {
     expect(renderToStaticMarkup(
       <ProductTaskDetail runtime={fakeRuntime()} state={{ phase: "idle", generation: 0 }} />,

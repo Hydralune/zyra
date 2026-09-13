@@ -7725,18 +7725,40 @@ kbd {
    row's accent turned a screen of prose green and made the one block a reader
    most wants to read the hardest to read; the accent stays on the glyph and
    border, where it marks the row without colouring its content. */
-.stream-entry-result .stream-entry-result-text {
-  margin: 4px 0 0;
-  color: var(--text, #202020);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.65;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 .stream-entry-goal .stream-entry-title {
   font-weight: 600;
+}
+
+/* Narration and deliberation are prose the model wrote, so they render at body
+   size in ordinary text colour; the row's accent stays on the glyph.  The
+   duration sits under the block, where it reads as "this took Ns" rather than
+   interrupting the first line of the thought. */
+.stream-entry-prose {
+  display: grid;
+  gap: 8px;
+  color: var(--text, #202020);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.stream-entry[data-kind="thinking"] .stream-entry-prose {
+  color: var(--muted, #4d4d4d);
+}
+
+.stream-entry[data-kind="message"] .stream-entry-duration,
+.stream-entry[data-kind="thinking"] .stream-entry-duration {
+  justify-self: end;
+  color: var(--subtle, #8a8a8a);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The result is the payload of the whole run: it renders as Markdown at reading
+   size, without the row-tinting that would colour a screen of prose. */
+.stream-entry-result-text {
+  color: var(--text, #202020);
+  font-size: 13.5px;
+  line-height: 1.7;
 }
 
 .stream-entry[data-status="running"] .stream-entry-glyph {
