@@ -591,6 +591,42 @@ def _evaluate_delivery_completion(
     }
 
 
+def _is_first_benchmark_dispatch(
+    payload: Mapping[str, Any],
+    layer_index: int,
+) -> bool:
+    """Whether this dispatch opens a task's work on the benchmark container.
+
+    A benchmark container is one long-lived resource shared by every task the
+    API runs, and the agent edits it in place.  Only the dispatch that *starts*
+    a task may reset it, because a later dispatch in the same task is a
+    continuation: its predecessor's container edits are the work being
+    continued, and discarding them would erase the run's own progress.
+
+    Two things disqualify a dispatch from being the first:
+
+    * It carries a recovery identity or a non-zero recovery pass -- the task is
+      resuming from a checkpoint.
+    * It is not the first layer.  One run fans out into several physical
+      dispatches, one per candidate layer, and carrying a **recovery identity**
+      is not how they are told apart: two different tasks can both dispatch
+      layer 1 while sharing a recovery identity, because that identity is
+      derived from the task and is not unique per run.  The layer index therefore
+      has to do the work here; getting this wrong would reset a container that
+      another concurrently running task is mid-way through.
+    """
+
+    if int(payload.get("physical_recovery_pass") or 0) > 0:
+        return False
+    if str(
+        payload.get("recovery_session_id")
+        or payload.get("recovery_plan_id")
+        or ""
+    ).strip():
+        return False
+    return int(layer_index) <= 1
+
+
 def _physical_permission_session_id(
     payload: Mapping[str, Any],
     task_id: str,
@@ -773,6 +809,13 @@ def execute_code_worker_operator(
             raise ValueError(
                 "benchmark container execution cannot bind a CLI local executor"
             )
+        if (
+            benchmark_binding.get("reset_on_first_dispatch") is True
+            and _is_first_benchmark_dispatch(payload, layer_index)
+        ):
+            # Before the pull, so the manifest taken below is the pristine
+            # baseline rather than the previous task's leftovers.
+            _reset_benchmark_workspace(benchmark_binding)
         _pull_benchmark_workspace(benchmark_binding, workspace_root)
     before = _workspace_manifest(
         workspace_root,
@@ -3446,6 +3489,19 @@ def _benchmark_docker_binding(
             raise ValueError(
                 "ZYRA_BENCHMARK_HOST_WORKSPACE must identify an existing directory"
             )
+    test_interpreter = str(
+        os.environ.get("ZYRA_BENCHMARK_TEST_INTERPRETER") or ""
+    ).strip()
+    # Opt-in: restore the container's tracked tree before a task's first
+    # dispatch.  The container is a long-lived shared resource and the agent
+    # edits it in place, so without this a second task starts from the first
+    # task's diff -- and that diff is then read as *this* run's workspace
+    # evidence.  Default off, because the connector contract is that Zyra never
+    # mutates the container lifecycle on its own and the formal Harbor harness
+    # owns its container's state.
+    reset_on_first_dispatch = str(
+        os.environ.get("ZYRA_BENCHMARK_RESET_ON_FIRST_DISPATCH") or ""
+    ).strip().casefold() in {"1", "true", "yes"}
     return {
         "container": container,
         "container_ref_digest": connector.container_ref_digest,
@@ -3456,9 +3512,8 @@ def _benchmark_docker_binding(
         "sync_root": sync_root,
         "mirror_excluded_prefixes": _BENCHMARK_MIRROR_EXCLUDED_PREFIXES,
         "canonical_host_workspace": canonical_host_workspace,
-        "test_interpreter": (
-            str(os.environ.get("ZYRA_BENCHMARK_TEST_INTERPRETER") or "").strip()
-        ),
+        "reset_on_first_dispatch": reset_on_first_dispatch,
+        "test_interpreter": test_interpreter,
     }
 
 
@@ -3540,6 +3595,39 @@ def _benchmark_permission_policy(
         ],
         "python_policy_fallback": False,
     }
+
+
+def _reset_benchmark_workspace(binding: Mapping[str, Any]) -> None:
+    """Restore the container's tracked tree to the benchmark baseline.
+
+    The same two commands the launcher runs at API start, applied here so a
+    task's first dispatch starts from the benchmark's checkout rather than from
+    whatever the previous task left behind.  ``clean -fd`` and not ``-fdx``:
+    ignore-listed files are the workspace's installed runtime dependencies, and
+    removing them would cost a reinstall on every run.
+    """
+
+    container = str(binding["container"])
+    workdir = str(binding["workdir"])
+    completed = _run_benchmark_docker(
+        binding,
+        (
+            "exec",
+            container,
+            "sh",
+            "-c",
+            "set -e; cd \"$1\"; git checkout -- .; git clean -fd",
+            "--",
+            workdir,
+        ),
+        operation="benchmark_workspace_reset",
+        timeout_seconds=300.0,
+    )
+    stderr = completed.stderr.decode("utf-8", errors="replace").strip()
+    if stderr:
+        # A reset that has something to say is worth recording, but it is not a
+        # failure: `git clean -fd` reports every path it removes on stderr.
+        print(f"[benchmark] workspace reset: {stderr[:1000]}")
 
 
 def _pull_benchmark_workspace(

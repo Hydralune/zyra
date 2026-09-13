@@ -163,6 +163,13 @@ def main() -> int:
     os.environ["ZYRA_BENCHMARK_DOCKER_WORKDIR"] = WORKDIR
     os.environ["ZYRA_BENCHMARK_DOCKER_BRIDGE_SCRIPT"] = str(BRIDGE)
     os.environ["ZYRA_BENCHMARK_LONG_HORIZON"] = "true"
+    # The container is one long-lived resource shared by every task this API
+    # runs, and the agent edits it in place.  Restoring it before a task's first
+    # dispatch is what keeps the second run from inheriting the first run's
+    # diff -- which would otherwise be recorded as the second run's own
+    # workspace evidence.  Opt-in, so the formal harness keeps owning its
+    # container's state.
+    os.environ["ZYRA_BENCHMARK_RESET_ON_FIRST_DISPATCH"] = "true"
     os.environ.setdefault("ZYRA_MODEL_PROVIDER", "deepseek")
     os.environ.setdefault("ZYRA_MODEL", "deepseek-flash")
     # One non-renewable deadline for the whole session, exactly as the formal
