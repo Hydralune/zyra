@@ -29,7 +29,50 @@ const DEMO_GOAL = [
 ].join(" ")
 
 /** Launch progress, named so a multi-second wait does not read as a dead click. */
-type LaunchStage = "creating" | "starting"
+export type LaunchStage = "creating" | "starting"
+
+/**
+ * Start one real long-horizon run against the bound benchmark container.
+ *
+ * Extracted so the home panel and the task page share one implementation: the
+ * ordering below is load-bearing (create, navigate, then run), and a second
+ * copy would drift from it.
+ */
+export async function launchLongHorizonRun(
+  runtime: WorkbenchRuntime,
+  onStage: (stage: LaunchStage | undefined) => void,
+): Promise<void> {
+  onStage("creating")
+  try {
+    // The idempotency keys are derived from the goal and a launch nonce, not
+    // from a shared record id, because the caller owns no submission record.
+    // A genuine retry after a failure is a new launch and must get fresh keys.
+    const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    const created = await runtime.api.lifecycle.create({
+      goal: `${DEMO_GOAL} Delivery run marker: ${nonce}.`,
+      autoRun: false,
+      // A demo is meant to be reviewed and replayed, so this task opts into
+      // retaining its bounded presentation text.  Every other task keeps the
+      // low-entropy default.
+      persistPresentationText: true,
+      idempotencyKey: `long-horizon:${nonce}:create`,
+    })
+    const task = created.mutation.task
+    runtime.workbench.applyMutation(task)
+    // Navigate before the blocking run request so the execution stream binds
+    // and the stop control is reachable while the task is still executing.
+    runtime.router.openTask(task.taskId, { focus: "task-detail" })
+    onStage("starting")
+    const settled = await runtime.api.lifecycle.resume({
+      taskId: task.taskId,
+      runId: task.runId,
+      idempotencyKey: `long-horizon:${nonce}:run`,
+    })
+    runtime.workbench.applyMutation(settled.mutation.task)
+  } finally {
+    onStage(undefined)
+  }
+}
 
 export function LongHorizonLaunchPanel({
   runtime,
@@ -55,38 +98,10 @@ export function LongHorizonLaunchPanel({
 
   const launch = useCallback(async () => {
     setError("")
-    setStage("creating")
     try {
-      // The idempotency keys are derived from the goal and a launch nonce, not
-      // from a shared record id, because this panel does not own a submission
-      // record.  Re-clicking while busy is prevented by `busy`; a genuine
-      // retry after a failure is a new launch and must get fresh keys.
-      const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-      const created = await runtime.api.lifecycle.create({
-        goal: `${DEMO_GOAL} Delivery run marker: ${nonce}.`,
-        autoRun: false,
-        // A demo is meant to be reviewed and replayed, so this task opts into
-        // retaining its bounded presentation text.  Every other task keeps the
-        // low-entropy default.
-        persistPresentationText: true,
-        idempotencyKey: `long-horizon:${nonce}:create`,
-      })
-      const task = created.mutation.task
-      runtime.workbench.applyMutation(task)
-      // Navigate before the blocking run request so the execution stream binds
-      // and the stop control is reachable while the task is still executing.
-      runtime.router.openTask(task.taskId, { focus: "task-detail" })
-      setStage("starting")
-      const settled = await runtime.api.lifecycle.resume({
-        taskId: task.taskId,
-        runId: task.runId,
-        idempotencyKey: `long-horizon:${nonce}:run`,
-      })
-      runtime.workbench.applyMutation(settled.mutation.task)
+      await launchLongHorizonRun(runtime, setStage)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))
-    } finally {
-      setStage(undefined)
     }
   }, [runtime])
 

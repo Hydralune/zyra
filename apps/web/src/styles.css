@@ -7720,12 +7720,17 @@ kbd {
 
 /* The result row is the payoff: it gets the answer at reading size rather than
    the muted detail size the other rows use. */
+/* The result row is the payoff, so it reads at body size rather than the muted
+   detail size -- but in ordinary text colour.  Tinting the whole answer with the
+   row's accent turned a screen of prose green and made the one block a reader
+   most wants to read the hardest to read; the accent stays on the glyph and
+   border, where it marks the row without colouring its content. */
 .stream-entry-result .stream-entry-result-text {
   margin: 4px 0 0;
-  color: var(--state-ink, #202020);
+  color: var(--text, #202020);
   font-size: 14px;
-  font-weight: 500;
-  line-height: 1.6;
+  font-weight: 400;
+  line-height: 1.65;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -7864,8 +7869,18 @@ kbd {
   display: flex;
   flex: 0 0 auto;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 7px;
+}
+
+/* A failed launch keeps its reason beside the control that produced it, rather
+   than replacing the page with an error state. */
+.product-task-control-error {
+  max-width: 320px;
+  color: var(--danger, #b91c1c);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .product-conversation {
@@ -8163,17 +8178,27 @@ kbd {
   font-size: 11px;
 }
 
-.product-session-toolbar .product-task-controls .product-button {
+/* Quiet buttons in the toolbar read as text until hovered.  Scoped to the quiet
+   variant: an unscoped rule also stripped the primary button's fill, leaving
+   its white label on a transparent background and effectively invisible. */
+.product-session-toolbar .product-task-controls .product-button-quiet {
   min-height: 30px;
   padding: 5px 10px;
   border-color: transparent;
   background: transparent;
 }
 
-.product-session-toolbar .product-task-controls .product-button:hover:not(:disabled) {
+.product-session-toolbar .product-task-controls .product-button-quiet:hover:not(:disabled) {
   border-color: #e5e5e5;
   background: #f4f4f4;
   transform: none;
+}
+
+/* The launcher is an action, not a navigation affordance, so it keeps its
+   filled treatment inside the toolbar. */
+.product-session-toolbar .product-task-controls .product-button-primary {
+  min-height: 30px;
+  padding: 5px 12px;
 }
 
 /*

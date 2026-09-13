@@ -25,6 +25,7 @@ import { productArtifacts } from "../../features/artifacts/product-artifacts.ts"
 import { selectEventsForTask } from "../../state/selectors.ts"
 import { projectExecutionStream } from "../../features/stream/projection.ts"
 import { ExecutionStream } from "../../features/stream/view/execution-stream.tsx"
+import { launchLongHorizonRun } from "../../features/long-horizon/launch/view.tsx"
 
 const COMPLETED_NODE_STATES = new Set(["completed", "succeeded", "verified"])
 const RUNNING_NODE_STATES = new Set(["running", "active", "dispatched"])
@@ -320,8 +321,34 @@ function TaskControls({
     transportEnabled: runtime.workbench.getSnapshot().transportEnabled,
   })
   const completed = ["completed", "succeeded", "verified"].includes(task.status.toLowerCase())
+  // The home panel is not the only place a reader wants to start a demo run;
+  // once inside a task it is the natural place to kick off the next one.
+  const [launching, setLaunching] = useState(false)
+  const [launchError, setLaunchError] = useState("")
+  const launchNext = useCallback(async () => {
+    setLaunchError("")
+    setLaunching(true)
+    try {
+      await launchLongHorizonRun(runtime, (stage) => setLaunching(stage !== undefined))
+    } catch (reason) {
+      setLaunchError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setLaunching(false)
+    }
+  }, [runtime])
   return (
     <div className="product-task-controls">
+      <button
+        className="product-button product-button-primary"
+        type="button"
+        aria-busy={launching}
+        onClick={() => void launchNext()}
+      >
+        {launching ? "正在启动…" : "运行演示任务"}
+      </button>
+      {launchError ? (
+        <span className="product-task-control-error" role="alert">{launchError}</span>
+      ) : null}
       <button
         className="product-button product-button-quiet"
         type="button"

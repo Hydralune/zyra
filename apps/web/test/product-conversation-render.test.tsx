@@ -241,7 +241,10 @@ describe("product conversation rendering", () => {
     expect(markup).toContain("Committed src/flask/blueprints.py")
     // The settling event's timestamp yields a real duration.
     expect(markup).toContain("12s")
-    expect(markup).toContain("2 条记录")
+    // How many spine events folded into the row is not something a reader acts
+    // on, so the row states what happened and how long it took, and nothing
+    // about the bookkeeping behind it.
+    expect(markup).not.toContain("条记录")
   })
 
   test("drops bookkeeping rows that would only add noise", () => {
@@ -486,6 +489,71 @@ describe("product conversation rendering", () => {
     )
     expect(markup).toContain("Only the ending survived.")
     expect(markup).not.toContain("思考了")
+  })
+
+  test("collapses one round's parallel tool calls into a single row", () => {
+    // A round issues its calls as a batch, so two commands run at once produced
+    // two rows reading "shell · 6s · 2 条记录" side by side -- identical to a
+    // reader, because per-call arguments are digested away.  The batch is shown
+    // once, with its count.
+    const toolCall = (id: string, sequence: number, type: string) => ({
+      eventId: `e${sequence}`, eventType: type, taskId: "task_render_001",
+      runId: "run_render_001", toolCallId: id, artifactIds: [], correlationId: "c1",
+      mutationId: "m", sequence, aggregateSequence: sequence,
+      createdAt: `2026-08-04T00:05:0${sequence}.000Z`,
+      committedAt: `2026-08-04T00:05:0${sequence}.000Z`,
+      summary: type.endsWith("called") ? "shell: called" : "shell: Sandbox command completed",
+      terminal: false, effective: true, entityRefs: [],
+    })
+    const markup = renderToStaticMarkup(
+      <ProductTaskDetail
+        runtime={fakeRuntime({
+          events: [
+            toolCall("call_00_a", 1, "runtime.tool.called"),
+            toolCall("call_01_b", 2, "runtime.tool.called"),
+            toolCall("call_00_a", 3, "runtime.tool.succeeded"),
+            toolCall("call_01_b", 4, "runtime.tool.succeeded"),
+          ],
+        })}
+        state={detailState()}
+        tasks={[task()]}
+      />,
+    )
+    // One row for the batch, not two identical ones.
+    expect(markup).toContain("shell ×2")
+    expect(markup.match(/data-kind="tool"/g)?.length).toBe(1)
+  })
+
+  test("keeps a tool row's detail to the outcome, not the call", () => {
+    // "shell: called" only echoes the title; the settled line carries the news.
+    const markup = renderToStaticMarkup(
+      <ProductTaskDetail
+        runtime={fakeRuntime({
+          events: [
+            {
+              eventId: "e1", eventType: "runtime.tool.called", taskId: "task_render_001",
+              runId: "run_render_001", toolCallId: "call_only", artifactIds: [],
+              correlationId: "c1", mutationId: "m", sequence: 1, aggregateSequence: 1,
+              createdAt: "2026-08-04T00:05:00.000Z", committedAt: "2026-08-04T00:05:00.000Z",
+              summary: "shell: called", terminal: false, effective: true, entityRefs: [],
+            },
+            {
+              eventId: "e2", eventType: "runtime.tool.succeeded", taskId: "task_render_001",
+              runId: "run_render_001", toolCallId: "call_only", artifactIds: [],
+              correlationId: "c1", mutationId: "m", sequence: 2, aggregateSequence: 2,
+              createdAt: "2026-08-04T00:05:06.000Z", committedAt: "2026-08-04T00:05:06.000Z",
+              summary: "shell: Sandbox command completed",
+              terminal: false, effective: true, entityRefs: [],
+            },
+          ],
+        })}
+        state={detailState()}
+        tasks={[task()]}
+      />,
+    )
+    expect(markup).toContain("Sandbox command completed")
+    // The phase word must not be shown as if it were the outcome.
+    expect(markup).not.toContain("shell: called")
   })
 
   test("renders empty, missing, and failed states without a task projection", () => {

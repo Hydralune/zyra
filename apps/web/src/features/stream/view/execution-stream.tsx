@@ -130,9 +130,6 @@ export function ExecutionStream({
                     : formatDuration(entry.durationMs)}
                 </span>
               ) : null}
-              {entry.eventCount > 1 ? (
-                <span className="stream-entry-count">{entry.eventCount} 条记录</span>
-              ) : null}
             </div>
             {entry.detail ? (
               <p className="stream-entry-detail">{entry.detail}</p>

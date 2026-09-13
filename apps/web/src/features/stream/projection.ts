@@ -108,6 +108,97 @@ function toolStatus(type: string, hadFailure: boolean): StreamEntryStatus {
   return "running"
 }
 
+/** The tool's own name, which the summary leads with ("shell: called"). */
+function toolName(summary: string): string {
+  return summary.split(":")[0]?.trim() || "工具"
+}
+
+/**
+ * The line worth showing beneath a tool row.
+ *
+ * A call's summary is `<tool>: <phase>`, so "shell: called" only repeats the
+ * title.  What a reader wants is the outcome, which arrives when the call
+ * settles -- "shell: Sandbox command completed" -> "Sandbox command completed".
+ */
+function settledToolDetail(type: string, summary: string): string | undefined {
+  if (type !== "tool.succeeded" && type !== "tool.failed" && type !== "tool.cancelled") {
+    return undefined
+  }
+  if (isBookkeeping(summary)) return undefined
+  const separator = summary.indexOf(":")
+  const detail = separator === -1 ? summary : summary.slice(separator + 1)
+  return detail.trim() || undefined
+}
+
+/**
+ * Collapse one round's parallel tool calls into a single row.
+ *
+ * A round issues its calls as a batch, so a task that runs two commands at once
+ * produced two rows reading "shell · 6s · 2 条记录" side by side -- identical to
+ * a reader, because the per-call arguments are digested away and both share the
+ * batch.  Showing the batch once, with the count, is what the round actually
+ * did; the individual rows stay available through the entry's `toolCallId` set.
+ */
+function collapseToolBatches(entries: readonly StreamEntry[]): StreamEntry[] {
+  const out: StreamEntry[] = []
+  const batch: StreamEntry[] = []
+
+  const flush = (): void => {
+    if (batch.length === 0) return
+    if (batch.length === 1) {
+      out.push(batch[0]!)
+    } else {
+      const first = batch[0]!
+      const last = batch[batch.length - 1]!
+      const failed = batch.filter((item) => item.status === "failed").length
+      const running = batch.some((item) => item.status === "running")
+      // The calls run concurrently, so the batch takes as long as its slowest
+      // member -- not the span from the first opening to the last settling,
+      // which collapses to near zero because they finish together.
+      const slowest = batch.reduce<number | undefined>(
+        (longest, item) =>
+          item.durationMs === undefined
+            ? longest
+            : longest === undefined
+              ? item.durationMs
+              : Math.max(longest, item.durationMs),
+        undefined,
+      )
+      out.push({
+        ...first,
+        key: `batch:${first.key}`,
+        title: `${toolName(first.title)} ×${batch.length}`,
+        detail: failed > 0
+          ? `${failed} 个失败`
+          : running
+            ? undefined
+            : last.detail,
+        status: failed > 0 ? "failed" : running ? "running" : "completed",
+        durationMs: slowest,
+        toolCallId: undefined,
+        // The count of spine events folded in is not something a reader acts
+        // on, and on a batch it reads as "4 条记录" for what is one row.
+        eventCount: 1,
+      })
+    }
+    batch.length = 0
+  }
+
+  for (const entry of entries) {
+    if (entry.kind !== "tool") {
+      flush()
+      out.push(entry)
+      continue
+    }
+    // Calls issued together arrive together; a break in the run means a new one.
+    const previous = batch[batch.length - 1]
+    if (previous && entry.sequence - previous.sequence > 1) flush()
+    batch.push(entry)
+  }
+  flush()
+  return out
+}
+
 function millisBetween(start: string, end: string): number | undefined {
   const from = Date.parse(start)
   const to = Date.parse(end)
@@ -169,8 +260,11 @@ export function projectExecutionStream(
           key: `tool:${toolCallId}`,
           kind: "tool",
           status: toolStatus(type, false),
-          title: event.summary.split(":")[0]?.trim() || "工具",
-          detail: isBookkeeping(event.summary) ? undefined : event.summary,
+          title: toolName(event.summary),
+          // The summary echoes the tool name ("shell: called"), which the title
+          // already carries; the settled summary is the only part worth a line,
+          // and it is attached when the call settles.
+          detail: settledToolDetail(type, event.summary),
           at: event.createdAt,
           sequence: event.sequence,
           toolCallId,
@@ -187,7 +281,8 @@ export function projectExecutionStream(
       if (type !== "tool.progress") {
         existing.entry.status = toolStatus(type, existing.failed)
       }
-      if (!isBookkeeping(event.summary)) existing.entry.detail = event.summary
+      const detail = settledToolDetail(type, event.summary)
+      if (detail) existing.entry.detail = detail
       existing.entry.eventCount += 1
       if (existing.entry.status !== "running") {
         existing.entry.durationMs = millisBetween(existing.openedAt, event.createdAt)
@@ -311,5 +406,7 @@ export function projectExecutionStream(
     }
   }
 
-  return entries.sort((left, right) => left.sequence - right.sequence)
+  return collapseToolBatches(
+    entries.sort((left, right) => left.sequence - right.sequence),
+  )
 }
