@@ -19,7 +19,6 @@ import { EmptyState, ReconnectingState } from "../components/status/request-stat
 import { NotificationTray } from "../components/status/notification-tray.tsx"
 import { ProductSettings } from "../components/settings/product-settings.tsx"
 import { EvidenceWorkbench } from "../features/evidence/index.ts"
-import { LongRunDemoPanel } from "../features/scenarios/index.ts"
 import { LongHorizonRunsPanel } from "../features/long-horizon/runs/view.tsx"
 import { LongHorizonLaunchPanel } from "../features/long-horizon/launch/view.tsx"
 
@@ -494,7 +493,6 @@ function ProductHome({
           <span>端边云调度</span>
           <span>可追溯交付</span>
         </div>
-        <LongRunDemoPanel runtime={runtime.scenarioConsole} />
         <LongHorizonLaunchPanel runtime={runtime} />
         <LongHorizonRunsPanel runtime={runtime} />
       </div>

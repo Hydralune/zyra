@@ -7390,148 +7390,6 @@ kbd {
 }
 
 /* Long-horizon demo launchers on the home screen */
-.long-run-demo {
-  margin-top: 34px;
-  padding-top: 26px;
-  border-top: 1px solid #ededed;
-  text-align: left;
-}
-
-.long-run-demo-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.long-run-demo-heading h2 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 650;
-  color: #3d3d3d;
-}
-
-.long-run-demo-copy {
-  margin: 10px 0 16px;
-  color: #8a8a8a;
-  font-size: 12.5px;
-  line-height: 1.65;
-}
-
-/* Launch progress.  The first launch pauses on the connection handshake, so
-   the panel names that wait explicitly instead of leaving a dead-looking
-   button on screen. */
-.long-run-demo-progress {
-  margin: 0 0 14px;
-  padding: 9px 12px;
-  border: 1px solid #d8e2ee;
-  border-radius: 8px;
-  background: #f4f8fd;
-  color: #41618a;
-  font-size: 12px;
-  line-height: 1.6;
-  animation: long-run-demo-pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes long-run-demo-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.62; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .long-run-demo-progress { animation: none; }
-}
-
-.long-run-demo-hint {
-  margin: 2px 0 0;
-  color: #8a8a8a;
-  font-size: 11.5px;
-  line-height: 1.55;
-}
-
-.long-run-demo-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 12px;
-}
-
-.long-run-demo-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px 18px;
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  background: #fbfbfb;
-}
-
-.long-run-demo-card[data-phase="succeeded"] {
-  border-color: #cfd8d0;
-}
-
-.long-run-demo-card[data-phase="failed"] {
-  border-color: #e0cfcf;
-}
-
-.long-run-demo-card strong {
-  font-size: 13.5px;
-  font-weight: 650;
-  color: #3d3d3d;
-}
-
-.long-run-demo-card > p {
-  margin: 0;
-  color: #8a8a8a;
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.long-run-demo-facts {
-  display: grid;
-  gap: 4px;
-  margin: 4px 0 0;
-  font-size: 11.5px;
-}
-
-.long-run-demo-facts > div {
-  display: flex;
-  gap: 8px;
-}
-
-.long-run-demo-facts dt {
-  color: #9a9a9a;
-  min-width: 52px;
-}
-
-.long-run-demo-facts dd {
-  margin: 0;
-  color: #5d5d5d;
-  word-break: break-all;
-}
-
-.long-run-demo-card .button {
-  margin-top: auto;
-  align-self: flex-start;
-}
-
-/* A launch in flight stays clickable, so mark it as busy instead of dimming it
-   to the point where it reads as broken.  The colour is set explicitly: the
-   primary button is blue-on-white, so overriding only the background would
-   leave white text on a near-white fill. */
-.long-run-demo-card .button[aria-busy="true"] {
-  cursor: progress;
-  opacity: 1;
-  border-color: #c8c8c8;
-  color: #5d5d5d;
-  background: #f0f0f0;
-}
-
-.long-run-demo-footnote {
-  margin: 14px 0 0;
-  color: #9a9a9a;
-  font-size: 11.5px;
-}
-
 /* Real long-horizon runs.  Visually separated from the sealed demo panel above
    because these are a different kind of run: real repository tasks rather than
    frozen scenario replays, and the distinction was previously invisible. */
@@ -7672,9 +7530,50 @@ kbd {
 }
 
 .long-horizon-launch-progress {
-  margin: 12px 0 0;
+  margin: 10px 0 0;
   color: #767676;
   font-size: 12px;
+}
+
+/* One card per task profile.  They sit side by side when there is room and
+   stack on a narrow viewport; `auto-fit` with a minimum keeps a two-card row
+   from squeezing either card below a readable width. */
+.long-horizon-launch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.long-horizon-launch-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 15px 17px;
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  background: #fbfbfb;
+}
+
+.long-horizon-launch-card[data-launching] {
+  border-color: #d8e2ee;
+}
+
+.long-horizon-launch-card strong {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: #3d3d3d;
+}
+
+.long-horizon-launch-card > p {
+  margin: 0;
+  color: #8a8a8a;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.long-horizon-launch-card .button {
+  margin-top: auto;
+  align-self: flex-start;
 }
 
 .long-horizon-launch .button[disabled] {

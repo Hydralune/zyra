@@ -90,10 +90,15 @@ body { background: #fafafa; color: #202020; }
 .product-recent-row .product-recent-task { min-width: 0; width: 100%; background: transparent; }
 .product-recent-row .product-recent-task[aria-current="page"] { color: #171717; }
 .product-conversation-more { background: transparent; border: 0; color: #656565; cursor: pointer; font-size: 13px; }
-.product-conversation-more { height: 34px; font-size: 21px; border-radius: 6px; opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
+/* Always present, never hidden.  A control that is `opacity: 0` and
+   `pointer-events: none` until its row is hovered is invisible to anyone who
+   has not already guessed it is there -- and unclickable even when found.  The
+   row's own overflow was the thing to avoid, so the button is dimmed rather
+   than removed, and the row's grid column reserves its space either way. */
+.product-conversation-more { height: 34px; font-size: 21px; border-radius: 6px; opacity: .5; transition: opacity 140ms ease; }
 .product-recent-row:hover .product-conversation-more,
 .product-recent-row:has(:focus-visible) .product-conversation-more,
-.product-conversation-more[aria-expanded="true"] { opacity: 1; pointer-events: auto; }
+.product-conversation-more[aria-expanded="true"] { opacity: 1; }
 .product-conversation-more:hover { background: #e5e5e5; }
 .product-conversation-popover { position: fixed; z-index: 300; width: min(256px, calc(100vw - 16px)); box-sizing: border-box; padding: 8px; border: 1px solid #e0e0e0; border-radius: 14px; background: #fff; color: #202020; box-shadow: 0 8px 28px rgb(0 0 0 / 12%); font: 15px/1.5 "Segoe UI", "Microsoft YaHei UI", sans-serif; }
 .product-conversation-popover > button { width: 100%; text-align: left; }
@@ -114,14 +119,14 @@ body { background: #fafafa; color: #202020; }
 .product-conversation-popover .conversation-menu-error { color: var(--danger); }
 .product-conversation-popover :is(button, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .conversation-pin { display: inline-flex; vertical-align: -3px; margin-right: 5px; color: #555; }
-.conversation-pin svg { width: 14px; height: 14px; }
+.conversation-pin svg { width: 14px; height: 14px; flex: none; }
 .product-sidebar-feedback { width: 100%; margin: 0; font-size: 12px; color: #555; line-height: 1.6; }
 .product-sidebar-feedback { padding: 10px; }
 .product-starter-grid strong { font-size: 15px; line-height: 1.5; }
 .product-starter-grid small { font-size: 11px; opacity: 0; transform: translateY(4px); transition: opacity 160ms ease, transform 160ms ease; }
 .product-starter-grid button:is(:hover, :focus-visible) small { opacity: 1; transform: translateY(0); }
 @media (hover: none) {
-  .product-conversation-more { opacity: 1; pointer-events: auto; }
+  .product-conversation-more { opacity: 1; }
   .product-starter-grid small { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {

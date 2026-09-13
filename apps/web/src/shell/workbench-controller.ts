@@ -51,6 +51,13 @@ export interface RuntimeState {
   readiness?: RuntimeReadiness
   generation: number
   checkedAt?: number
+  /**
+   * A readiness probe is still in flight behind a health response that already
+   * settled.  Readiness walks every runtime owner and routinely takes ~20s; the
+   * surface must be able to render the facts health carries (the benchmark
+   * binding, above all) while the verdict it does not carry is still pending.
+   */
+  readinessPending?: boolean
   failure?: RequestFailure
   reconnectAttempt: number
   reconnectAt?: number
@@ -284,6 +291,7 @@ export class WorkbenchController {
         ...this.#snapshot.runtime,
         phase: options.reconnect ? "reconnecting" : "loading",
         generation,
+        readinessPending: undefined,
         failure: undefined,
         reconnectAt: undefined,
       },
@@ -291,33 +299,56 @@ export class WorkbenchController {
     try {
       // Health and readiness answer different questions and must not share a
       // failure.  Health is a cheap liveness plus configuration report; a
-      // readiness probe walks every runtime owner and takes ~24s cold.  Awaiting
+      // readiness probe walks every runtime owner and takes ~20s cold.  Awaiting
       // them together meant a slow readiness probe discarded a health response
       // that had already succeeded, so the client could not tell "the runtime is
       // unhealthy" from "the readiness probe was slow" -- and every fact carried
       // only by health (such as the benchmark binding) read as unknown.
-      const [healthResult, readinessResult] = await Promise.allSettled([
+      //
+      // Health is therefore also *published* on its own.  The launch panel gates
+      // on the benchmark binding, and holding that fact behind a 20-second
+      // readiness walk left the panel asserting "未绑定基准容器" for the whole
+      // wait -- a wrong statement, not a missing one.  Readiness still decides
+      // the phase when it lands.
+      const readinessProbe = this.#tasks
+        .readiness({ signal: controller.signal, timeoutMs: 30_000 })
+        .then((value) => ({ ok: true as const, value }))
+        .catch((reason: unknown) => ({ ok: false as const, reason }))
+      const healthResult = await Promise.allSettled([
         this.#tasks.health({ signal: controller.signal, timeoutMs: 10_000 }),
-        // Readiness probes all runtime owners and can take longer than a
-        // simple health request after restart. Wait for its actual verdict.
-        this.#tasks.readiness({ signal: controller.signal, timeoutMs: 30_000 }),
-      ])
+      ]).then(([result]) => result!)
       if (!this.#isCurrent("runtime", controller, generation)) return this.#snapshot.runtime
       // Only a failed health request leaves the runtime's identity unknown; a
       // failed readiness probe still yields a usable runtime with a stated
       // blocker, which is what the reconnect banner is for.
       if (healthResult.status === "rejected") throw healthResult.reason
       const health = healthResult.value
-      const readiness =
-        readinessResult.status === "fulfilled" ? readinessResult.value : undefined
-      const readinessFailure =
-        readinessResult.status === "rejected" ? readinessResult.reason : undefined
+      this.#replace({
+        runtime: {
+          ...this.#snapshot.runtime,
+          // Not "ready": readiness has not reported yet.  "loading" is what the
+          // status pill already renders as "正在检查", so the identity is
+          // published without claiming a verdict that has not arrived.
+          phase: "loading",
+          health,
+          readiness: undefined,
+          readinessPending: true,
+          generation,
+          checkedAt: this.#clock.now(),
+          failure: undefined,
+        },
+      })
+      const readinessResult = await readinessProbe
+      if (!this.#isCurrent("runtime", controller, generation)) return this.#snapshot.runtime
+      const readiness = readinessResult.ok ? readinessResult.value : undefined
+      const readinessFailure = readinessResult.ok ? undefined : readinessResult.reason
       const ready = readiness ? readiness.ready : false
       this.#replace({
         runtime: {
           phase: ready ? "ready" : "error",
           health,
           readiness,
+          readinessPending: false,
           generation,
           checkedAt: this.#clock.now(),
           failure: ready
