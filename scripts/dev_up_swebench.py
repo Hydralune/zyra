@@ -139,6 +139,12 @@ def _restore_clean_container() -> None:
         f"({len(dirty.splitlines())} paths from a previous run)"
     )
     _probe("git", "-C", WORKDIR, "checkout", "--", ".")
+    # `checkout -- .` restores tracked files only.  A run killed mid-execution
+    # also leaves untracked ones behind -- a regression test it had just
+    # written, for instance -- and those would otherwise be inherited, or, as
+    # happened repeatedly, block every later start because the tree never
+    # reported clean again.
+    _probe("git", "-C", WORKDIR, "clean", "-fd")
     remaining = _probe("git", "-C", WORKDIR, "status", "--porcelain")
     if remaining:
         raise SystemExit(
