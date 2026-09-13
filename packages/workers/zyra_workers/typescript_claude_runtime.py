@@ -2183,11 +2183,13 @@ class TypeScriptClaudeQueryEngine:
         raw_terminal_receipts = self._latest_runtime_checkpoint.get(
             "terminal_result_receipts"
         )
-        session_snapshot["terminal_result_receipts"] = to_jsonable(
-            dict(raw_terminal_receipts)
-            if isinstance(raw_terminal_receipts, Mapping)
-            else {}
-        )
+        # Store the receipt index, not the receipts themselves.  Each receipt's
+        # `result` carries a full session snapshot, so writing them here embeds a
+        # second copy of the very state this checkpoint already holds: a real
+        # run reached 29.6 MB in this one field, half of its checkpoint.  Exact
+        # recovery is owned by the atomically committed E01 checkpoint; this
+        # field carries each receipt's identity, its terminal state and a digest
+        # of the result, which is what a resume actually consults.
         terminal_receipt_index: dict[str, dict[str, Any]] = {}
         for receipt_key, raw_receipt in dict(
             raw_terminal_receipts
