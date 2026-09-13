@@ -124,7 +124,11 @@ export function ExecutionStream({
             <div className="stream-entry-head">
               <span className="stream-entry-title">{entry.title}</span>
               {entry.durationMs !== undefined ? (
-                <span className="stream-entry-duration">{formatDuration(entry.durationMs)}</span>
+                <span className="stream-entry-duration">
+                  {entry.kind === "thinking"
+                    ? `思考了 ${formatDuration(entry.durationMs)}`
+                    : formatDuration(entry.durationMs)}
+                </span>
               ) : null}
               {entry.eventCount > 1 ? (
                 <span className="stream-entry-count">{entry.eventCount} 条记录</span>

@@ -427,6 +427,67 @@ describe("product conversation rendering", () => {
     expect(markup).not.toContain("assistant_text_ended for")
   })
 
+  test("reports how long each round thought, from the block's own start and end", () => {
+    // Reasoning emits started then ended around one block.  The ending event
+    // carries the text but not the duration, so the gap has to be computed
+    // from the pair -- without it a reader sees what was thought but not the
+    // 7s it took, which is the figure a transcript leads with.
+    const markup = renderToStaticMarkup(
+      <ProductTaskDetail
+        runtime={fakeRuntime({
+          events: [
+            {
+              eventId: "e1", eventType: "runtime.reasoning.started", taskId: "task_render_001",
+              runId: "run_render_001", artifactIds: [], correlationId: "c1",
+              mutationId: "m", sequence: 10, aggregateSequence: 1,
+              createdAt: "2026-08-04T00:05:00.000Z", committedAt: "2026-08-04T00:05:00.000Z",
+              summary: "reasoning_started for task_render_001",
+              terminal: false, effective: true, entityRefs: [],
+            },
+            {
+              eventId: "e2", eventType: "runtime.reasoning.ended", taskId: "task_render_001",
+              runId: "run_render_001", artifactIds: [], correlationId: "c1",
+              mutationId: "m", sequence: 11, aggregateSequence: 2,
+              createdAt: "2026-08-04T00:05:07.000Z", committedAt: "2026-08-04T00:05:07.000Z",
+              summary: "reasoning_ended for task_render_001",
+              presentationText: "The empty name is never validated.",
+              terminal: false, effective: true, entityRefs: [],
+            },
+          ],
+        })}
+        state={detailState()}
+        tasks={[task()]}
+      />,
+    )
+    expect(markup).toContain("思考了 7s")
+  })
+
+  test("omits the duration when a block has no matching start", () => {
+    // A replay may carry only the ending event.  Reporting a duration then
+    // would invent one; the row is still shown, just without a figure.
+    const markup = renderToStaticMarkup(
+      <ProductTaskDetail
+        runtime={fakeRuntime({
+          events: [
+            {
+              eventId: "e1", eventType: "runtime.reasoning.ended", taskId: "task_render_001",
+              runId: "run_render_001", artifactIds: [], correlationId: "c1",
+              mutationId: "m", sequence: 11, aggregateSequence: 1,
+              createdAt: "2026-08-04T00:05:07.000Z", committedAt: "2026-08-04T00:05:07.000Z",
+              summary: "reasoning_ended for task_render_001",
+              presentationText: "Only the ending survived.",
+              terminal: false, effective: true, entityRefs: [],
+            },
+          ],
+        })}
+        state={detailState()}
+        tasks={[task()]}
+      />,
+    )
+    expect(markup).toContain("Only the ending survived.")
+    expect(markup).not.toContain("思考了")
+  })
+
   test("renders empty, missing, and failed states without a task projection", () => {
     expect(renderToStaticMarkup(
       <ProductTaskDetail runtime={fakeRuntime()} state={{ phase: "idle", generation: 0 }} />,

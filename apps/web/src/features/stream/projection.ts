@@ -121,15 +121,44 @@ interface ToolAccumulator {
   failed: boolean
 }
 
+/**
+ * A block's opening event, held until its ending event arrives.
+ *
+ * Reasoning and narration each emit `started` then `ended` around one block of
+ * text, adjacent in the spine.  The gap between them is how long the model
+ * spent on that block -- the figure a reader wants ("thought for 7s"), and the
+ * only source for it, since the ending event carries the text but not the
+ * duration.
+ */
+interface BlockOpen {
+  at: string
+}
+
+/** Opening event type -> the kind its ending event should produce. */
+const BLOCK_STARTS: Readonly<Record<string, "thinking" | "message">> = {
+  "reasoning.started": "thinking",
+  "text.started": "message",
+}
+
 export function projectExecutionStream(
   events: readonly CausalEventProjection[],
 ): StreamEntry[] {
   const ordered = [...events].sort((left, right) => left.sequence - right.sequence)
   const entries: StreamEntry[] = []
   const tools = new Map<string, ToolAccumulator>()
+  // The last opening event per block kind.  A block's start and end are
+  // adjacent in the spine, so keeping only the most recent open is enough and
+  // avoids depending on a stream identity the projection does not carry.
+  const blocks = new Map<"thinking" | "message", BlockOpen>()
 
   for (const event of ordered) {
     const type = event.eventType.replace(/^runtime\./, "")
+
+    const blockKind = BLOCK_STARTS[type]
+    if (blockKind) {
+      blocks.set(blockKind, { at: event.createdAt })
+      continue
+    }
 
     if (TOOL_EVENT_TYPES.has(type)) {
       const toolCallId = event.toolCallId
@@ -231,11 +260,14 @@ export function projectExecutionStream(
       // once per round so the stream reads as think -> act -> think -> act.
       const text = event.presentationText?.trim()
       if (!text) continue
+      const opened = blocks.get("message")
+      blocks.delete("message")
       entries.push({
         key: `narration:${event.eventId}`,
         kind: "message",
         status: "completed",
         title: text,
+        durationMs: opened ? millisBetween(opened.at, event.createdAt) : undefined,
         at: event.createdAt,
         sequence: event.sequence,
         nodeId: event.nodeId,
@@ -246,11 +278,14 @@ export function projectExecutionStream(
       // Deliberation for the round, kept alongside the narration it produced.
       const text = event.presentationText?.trim()
       if (!text) continue
+      const opened = blocks.get("thinking")
+      blocks.delete("thinking")
       entries.push({
         key: `thinking:${event.eventId}`,
         kind: "thinking",
         status: "completed",
         title: text,
+        durationMs: opened ? millisBetween(opened.at, event.createdAt) : undefined,
         at: event.createdAt,
         sequence: event.sequence,
         nodeId: event.nodeId,
