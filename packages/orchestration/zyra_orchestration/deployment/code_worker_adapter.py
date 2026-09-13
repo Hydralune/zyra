@@ -285,6 +285,29 @@ def _workspace_execution_outcome(
     return "failed", False
 
 
+def _is_cancellation_stop(worker_result: Any) -> bool:
+    """Whether a failed worker attempt stopped because it was cancelled.
+
+    The worker reports the stop reason as a taxonomy (`user_cancelled`), which
+    the rest of the system already reads as "cancelled" rather than "failed".
+    This path looked only at `ok`, which is why a cancellation reached the
+    delivery closeout dressed as a budget exhaustion.
+    """
+
+    values = (
+        getattr(worker_result, "error", None),
+        getattr(worker_result, "stop_reason", None),
+        (getattr(worker_result, "metadata", None) or {}).get("typescript_runtime_error"),
+        (getattr(worker_result, "metadata", None) or {}).get("stop_reason"),
+        (getattr(worker_result, "metadata", None) or {}).get("reason"),
+    )
+    return any(
+        str(value or "").strip().casefold()
+        in {"user_cancelled", "cancelled", "canceled"}
+        for value in values
+    )
+
+
 def _benchmark_delivery_evidence_satisfied(
     evidence: Mapping[str, Any],
     workspace_delta: Mapping[str, Any],
@@ -1332,8 +1355,18 @@ def execute_code_worker_operator(
         worker_ok=run.worker_result.ok,
         workspace_delta=workspace_delta,
     )
+    # A stop the operator asked for is not a delivery.  The closeout below
+    # exists for one situation only -- a run that ran out of budget *after* it
+    # had already delivered and verified -- and it reports success from the
+    # delivery evidence alone.  That test cannot tell a budget stop from a
+    # cancellation, so without this guard a cancelled benchmark run whose edits
+    # happened to look complete would be reported as a verified delivery, with
+    # a synthesized final answer the model never wrote.  Cancellation always
+    # wins: the operator's stop is the authoritative outcome.
+    cancelled = _is_cancellation_stop(run.worker_result)
     deterministic_benchmark_closeout = (
         not run.worker_result.ok
+        and not cancelled
         and benchmark_binding is not None
         and _benchmark_delivery_evidence_satisfied(evidence, workspace_delta)
     )
@@ -1344,6 +1377,11 @@ def execute_code_worker_operator(
             "test passed before the provider total-token budget was exhausted."
         )
         evidence["deterministic_benchmark_closeout"] = True
+    if cancelled:
+        # Also stop the outcome from reading as "needs_verification", which
+        # downstream treats as a recoverable node fault and replans.  A
+        # cancelled run must not manufacture recovery work for itself.
+        execution_outcome = "cancelled"
     runtime_terminal_error: dict[str, Any] = {}
     if not run.worker_result.ok:
         provider_failure = _provider_failure_summary(

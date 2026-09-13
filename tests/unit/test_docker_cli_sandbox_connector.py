@@ -310,6 +310,50 @@ class DockerCliSandboxConnectorTests(unittest.TestCase):
             ("failed", False),
         )
 
+    def test_a_cancelled_stop_is_never_read_as_a_budget_closeout(self) -> None:
+        """Cancellation is not a delivery, however complete the edits look.
+
+        The closeout reports success from the delivery evidence alone, so it
+        cannot tell a budget stop from an operator stop.  A cancelled run whose
+        edits happened to look finished was therefore reported as a verified
+        delivery with a synthetic final answer the model never wrote.
+        """
+
+        class _Result:
+            def __init__(self, **fields: object) -> None:
+                self.error = None
+                self.stop_reason = None
+                self.metadata: dict[str, object] = {}
+                self.__dict__.update(fields)
+
+        self.assertTrue(
+            code_worker_adapter._is_cancellation_stop(
+                _Result(error="user_cancelled")
+            )
+        )
+        self.assertTrue(
+            code_worker_adapter._is_cancellation_stop(
+                _Result(metadata={"stop_reason": "user_cancelled"})
+            )
+        )
+        self.assertTrue(
+            code_worker_adapter._is_cancellation_stop(
+                _Result(metadata={"typescript_runtime_error": "user_cancelled"})
+            )
+        )
+        # A budget stop is exactly what the closeout is for: it must survive.
+        self.assertFalse(
+            code_worker_adapter._is_cancellation_stop(
+                _Result(error="max_turns_exceeded")
+            )
+        )
+        self.assertFalse(
+            code_worker_adapter._is_cancellation_stop(
+                _Result(metadata={"stop_reason": "stream_error"})
+            )
+        )
+        self.assertFalse(code_worker_adapter._is_cancellation_stop(_Result()))
+
     def test_benchmark_closeout_requires_source_test_and_pytest_receipt(self) -> None:
         evidence = {
             "obligation_evidence": {
