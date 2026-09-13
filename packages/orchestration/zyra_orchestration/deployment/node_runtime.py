@@ -874,7 +874,16 @@ class DeploymentNodeRuntime:
             completed_at = now_iso()
             semantic_result = {
                 "operation": workload.operation,
-                "output": result,
+                # The full output is on disk as this attempt's artifact, and the
+                # runtime events inside it were already streamed to the host
+                # through the runtime-event channel as they happened.  Sending
+                # them again in the receipt made it grow past the host's 8 MiB
+                # response ceiling, which the host reports as
+                # `deployment_node_response_too_large` and then reconciles as an
+                # unknown physical outcome -- failing a run whose side effects
+                # had already landed.  Measured: two runs at 11k and 10k events
+                # produced 12 MB and 11 MB receipts, and both failed this way.
+                "output": self._receipt_safe_output(result),
                 "artifact": artifact,
                 "checkpoint": checkpoint,
                 "node_profile": self.policy.profile.value,
@@ -1802,6 +1811,28 @@ class DeploymentNodeRuntime:
         ):
             return "provider-dispatch" in self.policy.capabilities
         return "deterministic-transform" in self.policy.capabilities
+
+    @staticmethod
+    def _receipt_safe_output(result: Mapping[str, Any]) -> dict[str, Any]:
+        """The execution output as it may appear inside a node receipt.
+
+        The full output is already on disk as this attempt's artifact, and the
+        runtime events it carries were streamed to the host as they happened.
+        Echoing them here made large runs exceed the host's response ceiling,
+        which the host reconciles as an unknown physical outcome and then
+        refuses to retry -- failing work whose side effects had already landed.
+
+        The key is replaced with an empty list rather than a count so the host's
+        `for item in output.get("runtime_events") or ()` keeps iterating nothing;
+        `runtime_event_count` records how many were withheld.
+        """
+
+        safe = dict(result)
+        events = safe.pop("runtime_events", None)
+        if isinstance(events, (list, tuple)):
+            safe["runtime_event_count"] = len(events)
+        safe["runtime_events"] = []
+        return safe
 
     def _write_artifact(
         self,
