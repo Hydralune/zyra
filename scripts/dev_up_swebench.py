@@ -177,6 +177,14 @@ def main() -> int:
     # workbench cannot show a bounded run.
     deadline_ms = int(time.time() * 1000) + DEADLINE_MINUTES * 60_000
     os.environ.setdefault("ZYRA_EXTERNAL_DEADLINE_EPOCH_MS", str(deadline_ms))
+    # ...but this workbench is meant to host several runs in a row, and the
+    # session deadline above is spent by the first one: every task created
+    # after it is refused with "the external execution deadline has already
+    # elapsed", recoverable only by restarting the API.  Give each task its own
+    # window instead, so runs can be started back to back unattended.
+    os.environ.setdefault(
+        "ZYRA_BENCHMARK_RUN_BUDGET_MINUTES", str(DEADLINE_MINUTES)
+    )
     os.environ.setdefault("ZYRA_REASONING_MAX_TURNS", str(MAX_TURNS))
     os.environ.setdefault("ZYRA_MAX_TOTAL_TOKENS", str(MAX_TOTAL_TOKENS))
     os.environ.setdefault("ZYRA_MAX_OUTPUT_TOKENS", str(MAX_OUTPUT_TOKENS))

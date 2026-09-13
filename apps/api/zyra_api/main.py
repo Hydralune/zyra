@@ -7658,7 +7658,7 @@ def _production_physical_dispatch_port(
             reasoning_runtime_timeout_seconds,
             reasoning_transport_budget_ms,
             benchmark_long_horizon,
-        ) = _reasoning_budget_from_environment()
+        ) = _reasoning_budget_from_environment(state)
         output_token_budget = _configured_model_output_tokens(
             payload,
             live_model_bound=True,
@@ -7703,7 +7703,10 @@ def _production_physical_dispatch_port(
             # its absolute deadline, every execution/recovery attempt receives
             # only the same deadline's remaining time.
             "reasoning_timeout_seconds": reasoning_runtime_timeout_seconds,
-            "external_deadline_epoch_ms": _external_deadline_epoch_ms(),
+            # The task's own deadline when it minted one, otherwise the
+            # process-wide value.  Reading the environment here would hand a
+            # task a deadline that belongs to some other task's window.
+            "external_deadline_epoch_ms": _external_deadline_epoch_ms(state),
             "benchmark_closeout_reserve_seconds": (
                 _benchmark_deadline_closeout_reserve_seconds(
                     reasoning_runtime_timeout_seconds
@@ -7852,7 +7855,68 @@ def _benchmark_deadline_closeout_active(state: Any) -> bool:
     return int(time.time() * 1000) >= deadline - int(reserve_seconds * 1000)
 
 
-def _external_deadline_epoch_ms() -> int | None:
+def _configured_run_budget_minutes() -> int | None:
+    """An opt-in per-task run window, for a workbench that hosts several runs.
+
+    ``ZYRA_EXTERNAL_DEADLINE_EPOCH_MS`` is one non-renewable deadline for a
+    whole process, which is what the formal harness supplies: it runs a single
+    sample and exits.  A workbench that stays up to run tasks back to back
+    cannot use it, because the deadline is spent by the first run and every
+    later task is then refused at creation -- with no way to recover short of
+    restarting the API.
+
+    When this is configured, each task mints its own window at creation
+    instead, and the absolute deadline is not consulted.  The formal harness
+    leaves it unset, so its semantics are unchanged.
+    """
+
+    raw = str(
+        os.environ.get("ZYRA_BENCHMARK_RUN_BUDGET_MINUTES") or ""
+    ).strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise RuntimeError(
+            "ZYRA_BENCHMARK_RUN_BUDGET_MINUTES must be an integer"
+        ) from error
+    if not 1 <= value <= 24 * 60:
+        raise RuntimeError(
+            "ZYRA_BENCHMARK_RUN_BUDGET_MINUTES must be between 1 and 1440"
+        )
+    return value
+
+
+def _external_deadline_epoch_ms(state: Any = None) -> int | None:
+    """The absolute deadline governing this attempt, if any.
+
+    A task that minted its own window carries it in its runtime hints, and that
+    per-task value wins over the process-wide environment one: the hint is what
+    this task was actually admitted under.  Without the hint, the environment
+    value applies exactly as before.
+    """
+
+    if state is not None:
+        metadata = getattr(state, "metadata", None)
+        hints = (
+            dict(metadata.get("runtime_hints") or {})
+            if isinstance(metadata, Mapping)
+            else {}
+        )
+        stored = hints.get("external_deadline_epoch_ms")
+        if stored is not None:
+            try:
+                value = int(stored)
+            except (TypeError, ValueError) as error:
+                raise RuntimeError(
+                    "task runtime hints carry an invalid external deadline"
+                ) from error
+            if value <= int(time.time() * 1000):
+                raise RuntimeError(
+                    "the external execution deadline has already elapsed"
+                )
+            return value
     raw = str(os.environ.get("ZYRA_EXTERNAL_DEADLINE_EPOCH_MS") or "").strip()
     if not raw:
         return None
@@ -7904,7 +7968,9 @@ def _configured_model_output_tokens(
     }
 
 
-def _reasoning_budget_from_environment() -> tuple[int | None, float | None, int, bool]:
+def _reasoning_budget_from_environment(
+    state: Any = None,
+) -> tuple[int | None, float | None, int, bool]:
     """Read only explicitly configured reasoning limits from the environment."""
 
     raw_max_turns = str(os.environ.get("ZYRA_REASONING_MAX_TURNS") or "").strip()
@@ -7925,7 +7991,7 @@ def _reasoning_budget_from_environment() -> tuple[int | None, float | None, int,
     long_horizon = benchmark_bound and str(
         os.environ.get("ZYRA_BENCHMARK_LONG_HORIZON") or ""
     ).strip().casefold() in {"1", "true", "yes"}
-    deadline = _external_deadline_epoch_ms()
+    deadline = _external_deadline_epoch_ms(state)
     if deadline is None:
         return (max_turns, None, 0, long_horizon)
     transport_remaining_ms = (
@@ -13379,7 +13445,15 @@ class ZyraRequestHandler(BaseHTTPRequestHandler):
                 # text in durable storage so a refresh can replay the run.
                 # Absent or non-True leaves the low-entropy default untouched.
                 state.metadata["persist_presentation_text"] = True
-            external_deadline = _external_deadline_epoch_ms()
+            run_budget_minutes = _configured_run_budget_minutes()
+            external_deadline = (
+                # A workbench hosting several runs gives each task its own
+                # window; the process-wide absolute deadline is spent by the
+                # first one and would refuse every task after it.
+                int(time.time() * 1000) + run_budget_minutes * 60_000
+                if run_budget_minutes is not None
+                else _external_deadline_epoch_ms()
+            )
             if external_deadline is not None:
                 runtime_remaining_seconds = max(
                     1.0,

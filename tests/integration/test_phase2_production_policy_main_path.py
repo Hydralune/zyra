@@ -2616,6 +2616,70 @@ def test_benchmark_agent_closeout_reserve_scales_without_a_turn_cap() -> None:
     assert api._benchmark_deadline_closeout_active(active) is False
 
 
+def test_a_task_minted_run_window_wins_over_the_process_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A workbench hosts several runs; the process deadline belongs to one.
+
+    ``ZYRA_EXTERNAL_DEADLINE_EPOCH_MS`` is one non-renewable deadline for the
+    whole process, which is what the formal harness supplies because it runs a
+    single sample and exits.  A workbench that stays up cannot use it: the
+    first run spends it, and every task created afterwards is refused with
+    "the external execution deadline has already elapsed" -- recoverable only
+    by restarting the API.  A task that minted its own window carries it in
+    its runtime hints, and that value has to win.
+    """
+
+    process_deadline = int(time.time() * 1000) + 120_000
+    monkeypatch.setenv("ZYRA_EXTERNAL_DEADLINE_EPOCH_MS", str(process_deadline))
+    task_deadline = int(time.time() * 1000) + 2_700_000
+    state = SimpleNamespace(
+        metadata={"runtime_hints": {"external_deadline_epoch_ms": task_deadline}}
+    )
+
+    assert api._external_deadline_epoch_ms() == process_deadline
+    assert api._external_deadline_epoch_ms(state) == task_deadline
+
+    # The task's own window is what sizes its runtime budget, not the
+    # process's -- otherwise a task admitted for 45 minutes would be given
+    # whatever the first task's window had left.
+    monkeypatch.setenv("ZYRA_BENCHMARK_LONG_HORIZON", "true")
+    monkeypatch.setenv("ZYRA_BENCHMARK_DOCKER_CONTAINER", "task-main-1")
+    monkeypatch.setenv("ZYRA_BENCHMARK_DOCKER_WORKDIR", "/app/task")
+    _turns, runtime_seconds, _transport_ms, enabled = (
+        api._reasoning_budget_from_environment(state)
+    )
+    assert enabled is True
+    assert runtime_seconds is not None and runtime_seconds > 2_000
+
+
+def test_an_elapsed_task_window_still_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ZYRA_EXTERNAL_DEADLINE_EPOCH_MS", raising=False)
+    state = SimpleNamespace(
+        metadata={
+            "runtime_hints": {
+                "external_deadline_epoch_ms": int(time.time() * 1000) - 1_000
+            }
+        }
+    )
+    with pytest.raises(RuntimeError, match="already elapsed"):
+        api._external_deadline_epoch_ms(state)
+
+
+def test_an_opt_in_run_budget_is_validated(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ZYRA_BENCHMARK_RUN_BUDGET_MINUTES", raising=False)
+    assert api._configured_run_budget_minutes() is None
+
+    monkeypatch.setenv("ZYRA_BENCHMARK_RUN_BUDGET_MINUTES", "45")
+    assert api._configured_run_budget_minutes() == 45
+
+    monkeypatch.setenv("ZYRA_BENCHMARK_RUN_BUDGET_MINUTES", "0")
+    with pytest.raises(RuntimeError, match="between 1 and 1440"):
+        api._configured_run_budget_minutes()
+
+
 def test_long_horizon_reasoning_budget_requires_an_external_docker_binding(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
