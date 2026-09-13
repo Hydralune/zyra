@@ -976,6 +976,42 @@ def load_task_handoff_projection(
     return None
 
 
+def _without_e01_runtime(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Return a session snapshot without its embedded E01 runtime state.
+
+    The E01 runtime section is the bulk of a session snapshot and is stored at
+    the checkpoint's top level already.  Embedding it here -- and again inside
+    each terminal receipt -- stored the same tens of megabytes three times, so a
+    checkpoint reached 65 MB for roughly 9 MB of distinct state, and rewriting
+    that on every round is what stalled the loop.
+
+    Only small keys are read from these embedded copies (`modelIteration`,
+    `obligationEvidence`, `revision`), so the removal does not change what a
+    resume can observe.
+    """
+
+    if "e01Runtime" not in snapshot:
+        return snapshot
+    trimmed = dict(snapshot)
+    trimmed.pop("e01Runtime", None)
+    return trimmed
+
+
+def _comparable_result(value: Any) -> dict[str, Any]:
+    """A terminal result in the form stored in a receipt.
+
+    Receipts are written with their embedded E01 runtime section removed, so an
+    incoming result has to be trimmed the same way before the two can be
+    compared for conflict detection.
+    """
+
+    result = dict(value) if isinstance(value, Mapping) else {}
+    embedded = result.get("sessionSnapshot")
+    if isinstance(embedded, Mapping):
+        result["sessionSnapshot"] = _without_e01_runtime(dict(embedded))
+    return result
+
+
 class TypeScriptRuntimeError(RuntimeError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -2167,8 +2203,15 @@ class TypeScriptClaudeQueryEngine:
             },
         )
         session_snapshot = to_jsonable(projection.snapshot())
+        # The embedded runtime snapshot must not carry `e01Runtime`: this
+        # checkpoint already holds that section at its top level, and the
+        # readers of this field consult only a few small keys (`modelIteration`,
+        # `obligationEvidence`, `revision`).  Keeping it embedded stored the same
+        # 28.8 MB twice -- once here, once under `terminal_result_receipts`, and
+        # once more at the top level -- which is what made a 65 MB checkpoint out
+        # of ~9 MB of distinct state.
         session_snapshot["typescript_runtime_snapshot"] = to_jsonable(
-            dict(result_payload.get("sessionSnapshot") or {})
+            _without_e01_runtime(dict(result_payload.get("sessionSnapshot") or {}))
         )
         session_snapshot["tool_effect_receipts"] = to_jsonable(self._tool_effect_receipts)
         session_snapshot["tool_batch_evidence"] = to_jsonable(self._last_tool_batch_evidence)
@@ -2670,13 +2713,20 @@ class TypeScriptClaudeQueryEngine:
         existing = receipts.get(worker_request_id)
         if existing and (
             str(existing.get("terminal_id") or "") != terminal_id
-            or dict(existing.get("result") or {}) != dict(result)
+            # Compare like with like: the stored result has its embedded E01
+            # runtime section removed, so the incoming one is trimmed the same
+            # way before the equality test.  Without this the stored receipt can
+            # never equal a fresh result and every replay would be a conflict.
+            or _comparable_result(existing.get("result")) != _comparable_result(result)
         ):
             raise TypeScriptRuntimeError(
                 "typescript_runtime_terminal_conflict",
                 "A different terminal result is already committed for this worker request.",
             )
         if not existing:
+            # Stored without its embedded E01 runtime section; the checkpoint
+            # already holds that at its top level, and the recovery path reads
+            # only identity and small keys back out of this receipt.
             receipts[worker_request_id] = {
                 "schema_version": 1,
                 "run_id": run_id,
@@ -2685,7 +2735,7 @@ class TypeScriptClaudeQueryEngine:
                 "terminal_id": terminal_id,
                 "terminal_revision": 1,
                 "state": "committed_before_ack",
-                "result": to_jsonable(dict(result)),
+                "result": to_jsonable(_comparable_result(result)),
             }
         checkpoint["terminal_result_receipts"] = receipts
         self._latest_runtime_checkpoint = self._persist_incremental_checkpoint(
