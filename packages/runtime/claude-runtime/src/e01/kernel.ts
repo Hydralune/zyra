@@ -1,5 +1,16 @@
 import { createHash, randomUUID } from "node:crypto";
 
+/**
+ * Terminal records kept in a snapshot beyond the ones that still have work.
+ *
+ * An acked receipt and a delivered outbox record are both finished: nothing
+ * will acknowledge or project them again.  They are retained only so a recent
+ * retroactive read still finds them; older ones are what made the snapshot grow
+ * without bound.
+ */
+const MAX_PERSISTED_ACKED_RECEIPTS = 2_000;
+const MAX_PERSISTED_DELIVERED_OUTBOX = 2_000;
+
 export type V = null | boolean | number | string | V[] | { [key: string]: V };
 export type O = { [key: string]: V };
 export type Phase = "prepare" | "effect" | "commit" | "ack" | "quarantine";
@@ -403,12 +414,49 @@ export class Journal {
       transitionSequence: this.transitionSequenceValue,
       state: clone(this.stateValue),
       pending: this.pending(),
-      committed: this.committed(),
+      committed: this.persistedCommitted(),
       effects: [...this.effectsByKey.values()].map(clone),
-      outbox: [...this.outboxById.values()].map(clone),
+      outbox: this.persistedOutbox(),
       stateDigest: digest(this.stateValue),
     };
     return { ...unsigned, checksum: digest(unsigned) };
+  }
+
+  /**
+   * Committed receipts the snapshot carries.
+   *
+   * A receipt exists so a replayed command is recognised as a duplicate, and so
+   * an unacknowledged commit can still be acknowledged.  Once a receipt is
+   * acked, neither use remains: the command cannot be replayed from before its
+   * own ack, and there is nothing left to acknowledge.  Keeping every receipt
+   * made the snapshot grow with the event count -- a real run reached 7,277
+   * receipts, re-serialised on every save, until the loop stalled.  Acks are
+   * therefore dropped, with a bounded tail kept for a retroactive read.
+   */
+  private persistedCommitted(): TransitionReceipt[] {
+    const live: TransitionReceipt[] = [];
+    const acked: TransitionReceipt[] = [];
+    for (const receipt of this.committedById.values()) {
+      (receipt.phase === "ack" ? acked : live).push(receipt);
+    }
+    // `committedById` is insertion-ordered, so the tail is the most recent.
+    return [...live, ...acked.slice(-MAX_PERSISTED_ACKED_RECEIPTS)].map(clone);
+  }
+
+  /**
+   * Outbox records the snapshot carries.
+   *
+   * A delivered record has been projected and can never be re-projected; only
+   * an undelivered one still has work to do on restore.  Delivered records are
+   * kept for a bounded tail so a retroactive read still finds recent history.
+   */
+  private persistedOutbox(): OutboxRecord[] {
+    const live: OutboxRecord[] = [];
+    const delivered: OutboxRecord[] = [];
+    for (const record of this.outboxById.values()) {
+      (record.delivered ? delivered : live).push(record);
+    }
+    return [...live, ...delivered.slice(-MAX_PERSISTED_DELIVERED_OUTBOX)].map(clone);
   }
 
   restore(snapshot: JournalSnapshot, nextRunId: string): void {

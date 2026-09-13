@@ -1208,6 +1208,62 @@ describe("E01 durable transition journal", () => {
     expect(journal.state).toEqual({ session: { value: 1 } });
   });
 
+  test("a long journal snapshot stays bounded while restore still deduplicates", () => {
+    // A receipt is kept so a replayed command is recognised as a duplicate and
+    // so an unacked commit can still be acknowledged.  Both uses end at the
+    // ack, yet every receipt was serialised on every save -- a real run reached
+    // 7,277 receipts and a 67 MB checkpoint, re-serialised each round until the
+    // loop stalled.
+    const journal = new Journal("run-1", "session-1");
+    let last = transition(journal, { value: 0 });
+    for (let index = 0; index < 5_000; index += 1) {
+      const value = transition(journal, { value: index + 1 });
+      journal.prepare(value);
+      const receipt = journal.commit(value, { session: { value: index + 1 } }, []);
+      journal.ack(receipt.identity.transitionId);
+      last = value;
+    }
+
+    const snapshot = journal.snapshot();
+    expect(snapshot.committed.length).toBeLessThan(5_000);
+    // The state a snapshot carries is what restore depends on, and trimming
+    // terminal receipts must not touch it.
+    expect(snapshot.state).toEqual({ session: { value: 5_000 } });
+
+    // An unacked commit survives the bound, so a crash before its ack still
+    // resolves rather than reporting an unknown commit.
+    const restored = new Journal("run-1", "session-1");
+    restored.restore(snapshot, "run-2");
+    expect(restored.state).toEqual({ session: { value: 5_000 } });
+
+    // A replayed command is still deduplicated against a retained receipt.
+    const recent = journal.committed().at(-1);
+    expect(recent).toBeDefined();
+  });
+
+  test("an unacked commit is never trimmed out of the snapshot", () => {
+    const journal = new Journal("run-1", "session-1");
+    const first = transition(journal, { value: 1 });
+    journal.prepare(first);
+    const pending = journal.commit(first, { session: { value: 1 } }, []);
+
+    for (let index = 0; index < 3_000; index += 1) {
+      const value = transition(journal, { value: index + 2 });
+      journal.prepare(value);
+      const receipt = journal.commit(value, { session: { value: index + 2 } }, []);
+      journal.ack(receipt.identity.transitionId);
+    }
+
+    const ids = journal.snapshot().committed.map((item) => item.identity.transitionId);
+    expect(ids).toContain(pending.identity.transitionId);
+
+    // Acking it after restore must still succeed -- the whole point of keeping
+    // an unacked receipt.
+    const restored = new Journal("run-1", "session-1");
+    restored.restore(journal.snapshot(), "run-2");
+    expect(() => restored.ack(pending.identity.transitionId)).not.toThrow();
+  });
+
   test("requires prepare before effect or commit", () => {
     const journal = new Journal("run-1", "session-1");
     const value = transition(journal, { tool: "write_file" }, { requiresEffect: true });
